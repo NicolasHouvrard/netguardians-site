@@ -1,0 +1,146 @@
+@if (loading()) {
+  <div class="ca-loading"><mat-spinner diameter="24" /></div>
+}
+
+@if (!loading()) {
+
+  @if (error())   { <p class="ca-msg ca-error"><mat-icon>error</mat-icon> {{ error() }}</p> }
+  @if (success()) { <p class="ca-msg ca-ok"><mat-icon>check_circle</mat-icon> {{ success() }}</p> }
+
+  <!-- Pas de compte ────────────────────────────────────────────────────── -->
+  @if (!hasAccount()) {
+    <div class="ca-empty">
+      <mat-icon class="ca-icon-off">account_circle</mat-icon>
+      <span>Aucun compte portail</span>
+      <button mat-icon-button color="primary" [disabled]="busy() || !contactEmail()"
+              (click)="createAccount()" matTooltip="Créer un compte portail">
+        <mat-icon>person_add</mat-icon>
+      </button>
+    </div>
+  }
+
+  <!-- Compte existant ──────────────────────────────────────────────────── -->
+  @if (hasAccount()) {
+    <div class="ca-card">
+
+      <!-- En-tête : statut + rôles + badges ────────────────────────────── -->
+      <div class="ca-header">
+        <div class="ca-status-row">
+          <mat-icon [class]="isActive() ? 'ca-icon-ok' : 'ca-icon-off'">
+            {{ isActive() ? 'verified_user' : 'block' }}
+          </mat-icon>
+          <strong>{{ isActive() ? 'Compte actif' : 'Compte désactivé' }}</strong>
+          <mat-chip-set>
+            @for (r of account()!.roles; track r) {
+              <mat-chip class="ca-chip">{{ r }}</mat-chip>
+            }
+          </mat-chip-set>
+        </div>
+        <div class="ca-flags">
+          @if (!emailVerified()) {
+            <span class="ca-badge ca-badge-warn">
+              <mat-icon>mark_email_unread</mat-icon> Email non vérifié
+            </span>
+          }
+          @if (account()!.mustChangePassword) {
+            <span class="ca-badge ca-badge-info">
+              <mat-icon>password</mat-icon> Doit changer mot de passe
+            </span>
+          }
+        </div>
+      </div>
+
+      <mat-divider />
+
+      <!-- Actions : icon-only ─────────────────────────────────────────── -->
+      <div class="ca-actions">
+
+        @if (isActive()) {
+          <button mat-icon-button color="warn" [disabled]="busy()" (click)="revoke()"
+                  matTooltip="Révoquer (désactiver l'accès)">
+            <mat-icon>block</mat-icon>
+          </button>
+        } @else {
+          <button mat-icon-button color="primary" [disabled]="busy()" (click)="activate()"
+                  matTooltip="Réactiver le compte">
+            <mat-icon>check_circle</mat-icon>
+          </button>
+        }
+
+        @if (!isGestionnaire()) {
+          <button mat-icon-button [disabled]="busy()" (click)="promote()"
+                  matTooltip="Promouvoir en Gestionnaire">
+            <mat-icon>arrow_upward</mat-icon>
+          </button>
+        } @else {
+          <button mat-icon-button [disabled]="busy()" (click)="demote()"
+                  matTooltip="Rétrograder en Client">
+            <mat-icon>arrow_downward</mat-icon>
+          </button>
+        }
+
+        <button mat-icon-button [disabled]="busy()" (click)="sendVerification()"
+                matTooltip="Renvoyer l'email de vérification">
+          <mat-icon>mark_email_read</mat-icon>
+        </button>
+
+        <button mat-icon-button [disabled]="busy()" (click)="sendReset()"
+                matTooltip="Envoyer un lien de réinitialisation de mot de passe">
+          <mat-icon>lock_reset</mat-icon>
+        </button>
+
+        <!-- Bouton admin : modifier les rôles ────────────────────────── -->
+        @if (isAdmin()) {
+          <button mat-icon-button [color]="showRolesPanel() ? 'primary' : ''"
+                  (click)="toggleRolesPanel()"
+                  matTooltip="Modifier les rôles (admin)">
+            <mat-icon>admin_panel_settings</mat-icon>
+          </button>
+        }
+
+      </div>
+
+      <!-- Panneau rôles admin ──────────────────────────────────────────── -->
+      @if (isAdmin() && showRolesPanel()) {
+        <mat-divider />
+        <div class="ca-roles-panel" [formGroup]="adminRolesForm">
+          <div class="ca-section-title">Modifier les rôles</div>
+          @for (group of rolesGroups(); track group.type) {
+            <div class="ca-role-group">
+              <span class="ca-group-label">{{ group.type }}</span>
+              <div class="ca-roles-grid">
+                @for (r of group.roles; track r.name) {
+                  <mat-checkbox [formControlName]="r.name">{{ r.label }}</mat-checkbox>
+                }
+              </div>
+            </div>
+          }
+          <div class="ca-roles-actions">
+            <button mat-flat-button color="primary" [disabled]="busy()" (click)="saveAdminRoles()">
+              <mat-icon>save</mat-icon> Enregistrer
+            </button>
+            <button mat-button (click)="showRolesPanel.set(false)">Annuler</button>
+          </div>
+        </div>
+      }
+
+      <!-- Rôles ESN ───────────────────────────────────────────────────── -->
+      @if (isEsn()) {
+        <mat-divider />
+        <div class="ca-esn-roles" [formGroup]="rolesForm">
+          <div class="ca-section-title">Rôles internes ESN</div>
+          <div class="ca-roles-grid">
+            @for (r of esnRoles; track r.name) {
+              <mat-checkbox [formControlName]="r.name">{{ r.label }}</mat-checkbox>
+            }
+          </div>
+          <button mat-icon-button color="accent" [disabled]="busy()" (click)="saveEsnRoles()"
+                  matTooltip="Enregistrer les rôles ESN">
+            <mat-icon>save</mat-icon>
+          </button>
+        </div>
+      }
+
+    </div>
+  }
+}

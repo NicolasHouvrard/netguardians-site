@@ -1,0 +1,25 @@
+.tab-icon  { font-size: 18px; margin-right: 6px; vertical-align: middle; }
+.tab-count { margin-left: 6px; font-size: 11px; background: #e2e8f0; border-radius: 10px; padding: 1px 6px; }
+
+.logs-table { width: 100%; margin-top: 8px; }
+
+.date-cell  { display: flex; flex-direction: column; line-height: 1.3; }
+.date-day   { font-weight: 500; font-size: 13px; }
+.date-time  { font-size: 11px; color: #64748b; }
+
+.location-cell { display: flex; align-items: center; gap: 6px; }
+.flag          { font-size: 20px; }
+
+.ip-code  { font-family: monospace; font-size: 12px; background: #f1f5f9; padding: 2px 5px; border-radius: 4px; }
+.url-code { font-family: monospace; font-size: 12px; color: #0369a1; }
+
+.row-failure { background: #fff5f5; }
+
+.toolbar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+.search-field { flex: 1; min-width: 180px; }
+
+.empty { color: #94a3b8; text-align: center; padding: 32px; }
+.text-muted { color: #94a3b8; }
+
+.col-xs  { max-width: 48px;  }
+.col-sm  { max-width: 130px; }

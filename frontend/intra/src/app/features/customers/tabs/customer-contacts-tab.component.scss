@@ -1,0 +1,18 @@
+.tab-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 4px;
+  flex-wrap: wrap;
+}
+.search-field { flex: 1 1 200px; }
+.filter-field { flex: 0 0 200px; }
+.tab-loader  { margin-top: 8px; }
+.tab-empty  { margin: 32px 16px; color: #888; text-align: center; }
+.tab-table  { width: 100%; margin-top: 4px; }
+
+.col-xs { flex: 0 0 64px; }
+.col-sm { flex: 0 0 160px; }
+
+.cell-link  { color: inherit; text-decoration: none; &:hover { text-decoration: underline; } }
+.col-actions { flex: 0 0 96px; justify-content: flex-end; }

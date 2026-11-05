@@ -1,0 +1,156 @@
+<div class="form-page">
+  <div class="form-header">
+    <button mat-icon-button routerLink="/customers" matTooltip="Retour">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <h1>{{ title() }}</h1>
+  </div>
+
+  @if (loading()) {
+    <div class="loading-wrap">
+      <mat-spinner diameter="40" />
+    </div>
+  }
+
+  @if (!loading()) {
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="form-grid">
+
+        <!-- Identification -->
+        <mat-card class="section-card">
+          <mat-card-header>
+            <mat-card-title>
+              <mat-icon>domain</mat-icon> Identification
+            </mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Raison sociale <span class="req">*</span></mat-label>
+              <input matInput formControlName="companyName" autocomplete="organization">
+              @if (form.controls.companyName.invalid && form.controls.companyName.touched) {
+                <mat-error>La raison sociale est obligatoire</mat-error>
+              }
+            </mat-form-field>
+
+            <div class="row-2">
+              <mat-form-field appearance="outline">
+                <mat-label>SIREN</mat-label>
+                <input matInput formControlName="siren" maxlength="9" placeholder="9 chiffres">
+                @if (form.controls.siren.invalid && form.controls.siren.touched) {
+                  <mat-error>Le SIREN doit contenir 9 chiffres</mat-error>
+                }
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>N° TVA intracommunautaire</mat-label>
+                <input matInput formControlName="vatNumber" placeholder="FR12345678901">
+              </mat-form-field>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Contact -->
+        <mat-card class="section-card">
+          <mat-card-header>
+            <mat-card-title>
+              <mat-icon>person</mat-icon> Contact
+            </mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Nom du contact</mat-label>
+              <input matInput formControlName="contactName" autocomplete="name">
+            </mat-form-field>
+
+            <div class="row-2">
+              <mat-form-field appearance="outline">
+                <mat-label>Email</mat-label>
+                <mat-icon matPrefix>email</mat-icon>
+                <input matInput type="email" formControlName="email" autocomplete="email">
+                @if (form.controls.email.invalid && form.controls.email.touched) {
+                  <mat-error>Email invalide</mat-error>
+                }
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Téléphone</mat-label>
+                <mat-icon matPrefix>phone</mat-icon>
+                <input matInput type="tel" formControlName="phone" autocomplete="tel">
+              </mat-form-field>
+            </div>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Site web</mat-label>
+              <mat-icon matPrefix>language</mat-icon>
+              <input matInput formControlName="website" placeholder="https://...">
+            </mat-form-field>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Adresse -->
+        <mat-card class="section-card">
+          <mat-card-header>
+            <mat-card-title>
+              <mat-icon>location_on</mat-icon> Adresse
+            </mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Adresse postale</mat-label>
+              <textarea matInput formControlName="address" rows="4"
+                        placeholder="Numéro, rue&#10;Code postal, Ville&#10;Pays"></textarea>
+            </mat-form-field>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Qualification -->
+        <mat-card class="section-card">
+          <mat-card-header>
+            <mat-card-title>
+              <mat-icon>label</mat-icon> Qualification
+            </mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="checkboxes">
+              <mat-checkbox formControlName="isCustomer" color="primary">
+                Client
+              </mat-checkbox>
+              <mat-checkbox formControlName="isProspect" color="accent">
+                Prospect
+              </mat-checkbox>
+              <mat-checkbox formControlName="isSupplier">
+                Fournisseur
+              </mat-checkbox>
+            </div>
+
+            @if (editId()) {
+              <mat-divider class="my-divider" />
+              <mat-checkbox formControlName="active" color="primary">
+                Compte actif
+              </mat-checkbox>
+            }
+          </mat-card-content>
+        </mat-card>
+
+      </div><!-- /form-grid -->
+
+      @if (error()) {
+        <p class="form-error">{{ error() }}</p>
+      }
+
+      <div class="form-actions">
+        <button type="button" mat-stroked-button routerLink="/customers">
+          Annuler
+        </button>
+        <button type="submit" mat-flat-button color="primary" [disabled]="saving()">
+          @if (saving()) {
+            <mat-spinner diameter="18" />
+          } @else {
+            <mat-icon>save</mat-icon>
+          }
+          {{ editId() ? 'Enregistrer' : 'Créer le client' }}
+        </button>
+      </div>
+    </form>
+  }
+</div>

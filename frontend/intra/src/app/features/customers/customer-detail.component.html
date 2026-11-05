@@ -1,0 +1,69 @@
+@if (loading()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+
+@if (!loading() && customer()) {
+  @let c = customer()!;
+
+  <div class="detail-header">
+    <div class="header-left">
+      <button mat-icon-button routerLink="/customers" matTooltip="Retour à la liste">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      <div>
+        <h1>{{ c.companyName }}</h1>
+        <div class="header-chips">
+          @if (c.isCustomer) { <mat-chip highlighted color="primary">Client</mat-chip> }
+          @if (c.isProspect) { <mat-chip highlighted color="accent">Prospect</mat-chip> }
+          @if (c.isSupplier) { <mat-chip>Fournisseur</mat-chip> }
+          @if (c.isEsn)      { <mat-chip>ESN</mat-chip> }
+          @if (!c.active)    { <mat-chip>Inactif</mat-chip> }
+        </div>
+      </div>
+    </div>
+    <button mat-flat-button color="primary" [routerLink]="['/customers', c.id, 'edit']">
+      <mat-icon>edit</mat-icon> Modifier
+    </button>
+  </div>
+
+  <!-- Bande info rapide -->
+  <div class="info-strip">
+    @if (c.email)   { <a [href]="'mailto:' + c.email"   class="info-item"><mat-icon>email</mat-icon>{{ c.email }}</a> }
+    @if (c.phone)   { <a [href]="'tel:' + c.phone"      class="info-item"><mat-icon>phone</mat-icon>{{ c.phone }}</a> }
+    @if (c.website) { <a [href]="c.website" target="_blank" class="info-item"><mat-icon>language</mat-icon>{{ c.website }}</a> }
+    @if (c.siren)   { <span class="info-item"><mat-icon>tag</mat-icon>SIREN {{ c.siren }}</span> }
+  </div>
+
+  <!-- Onglets composants réutilisables -->
+  <mat-tab-group animationDuration="150ms">
+
+    <mat-tab label="Sites">
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">location_on</mat-icon> Sites
+      </ng-template>
+      <app-customer-sites-tab [customerId]="customerId()" />
+    </mat-tab>
+
+    <mat-tab label="Contacts">
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">people</mat-icon> Contacts
+      </ng-template>
+      <app-customer-contacts-tab [customerId]="customerId()" />
+    </mat-tab>
+
+    <mat-tab label="Tickets">
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">confirmation_number</mat-icon> Tickets
+      </ng-template>
+      <app-customer-tickets-tab [customerId]="customerId()" />
+    </mat-tab>
+
+    <mat-tab label="Abonnements">
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">subscriptions</mat-icon> Abonnements
+      </ng-template>
+      <app-customer-subscriptions-tab [customerId]="customerId()" />
+    </mat-tab>
+
+  </mat-tab-group>
+}

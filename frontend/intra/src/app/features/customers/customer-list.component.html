@@ -1,0 +1,117 @@
+<div class="page-header">
+  <h1>Clients</h1>
+  <button mat-flat-button color="primary" routerLink="/customers/new">
+    <mat-icon>add</mat-icon> Nouveau client
+  </button>
+</div>
+
+<!-- Filters -->
+<div class="filters">
+  <mat-form-field appearance="outline" class="filter-search">
+    <mat-label>Rechercher…</mat-label>
+    <mat-icon matPrefix>search</mat-icon>
+    <input matInput [formControl]="searchCtrl" placeholder="Raison sociale, contact, email">
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="filter-select">
+    <mat-label>Type</mat-label>
+    <mat-select [formControl]="typeCtrl">
+      @for (opt of typeOptions; track opt.value) {
+        <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+</div>
+
+@if (svc.customers.isLoading()) {
+  <mat-progress-bar mode="indeterminate" class="loading-bar" />
+}
+
+@if (svc.customers.error()) {
+  <p class="msg error">Erreur lors du chargement.</p>
+}
+
+@let page = svc.customers.value();
+
+@if (!svc.customers.isLoading() && page && page.totalElements === 0) {
+  <p class="msg empty">Aucun client trouvé.</p>
+  
+}
+
+@if (page && page.totalElements > 0) {
+  <mat-table [dataSource]="page.content" class="customers-table">
+
+    <ng-container matColumnDef="companyName">
+      <mat-header-cell *matHeaderCellDef>Raison sociale</mat-header-cell>
+      <mat-cell *matCellDef="let c">
+        <a [routerLink]="['/customers', c.id]" class="customer-link">{{ c.companyName }}</a>
+      </mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="contactName">
+      <mat-header-cell *matHeaderCellDef>Contact</mat-header-cell>
+      <mat-cell *matCellDef="let c">{{ c.contactName ?? '—' }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="email">
+      <mat-header-cell *matHeaderCellDef>Email</mat-header-cell>
+      <mat-cell *matCellDef="let c">
+        @if (c.email) {
+          <a [href]="'mailto:' + c.email" class="email-link">{{ c.email }}</a>
+        } @else {
+          —
+        }
+      </mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="phone">
+      <mat-header-cell *matHeaderCellDef class="col-phone">Téléphone</mat-header-cell>
+      <mat-cell *matCellDef="let c" class="col-phone">{{ c.phone ?? '—' }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="types">
+      <mat-header-cell *matHeaderCellDef class="col-types">Type</mat-header-cell>
+      <mat-cell *matCellDef="let c" class="col-types">
+        <div class="chip-row">
+          @if (c.isCustomer)  { <mat-chip highlighted color="primary">Client</mat-chip> }
+          @if (c.isProspect)  { <mat-chip highlighted color="accent">Prospect</mat-chip> }
+          @if (c.isSupplier)  { <mat-chip>Fournisseur</mat-chip> }
+          @if (c.isEsn)       { <mat-chip>ESN</mat-chip> }
+        </div>
+      </mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="active">
+      <mat-header-cell *matHeaderCellDef class="col-status">Statut</mat-header-cell>
+      <mat-cell *matCellDef="let c" class="col-status">
+        @if (c.active) {
+          <mat-icon class="icon-active" matTooltip="Actif">check_circle</mat-icon>
+        } @else {
+          <mat-icon class="icon-inactive" matTooltip="Inactif">cancel</mat-icon>
+        }
+      </mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="actions">
+      <mat-header-cell *matHeaderCellDef class="col-actions"></mat-header-cell>
+      <mat-cell *matCellDef="let c" class="col-actions">
+        <button mat-icon-button [routerLink]="['/customers', c.id, 'edit']" matTooltip="Modifier">
+          <mat-icon>edit</mat-icon>
+        </button>
+      </mat-cell>
+    </ng-container>
+
+    <mat-header-row *matHeaderRowDef="columns" />
+    <mat-row *matRowDef="let row; columns: columns;" />
+  </mat-table>
+
+  <mat-paginator
+    [length]="page.totalElements"
+    [pageSize]="svc.filter().size"
+    [pageIndex]="svc.filter().page"
+    [pageSizeOptions]="[10, 20, 50, 100]"
+    showFirstLastButtons
+    (page)="onPage($event)"
+    aria-label="Sélectionner la page">
+  </mat-paginator>
+}

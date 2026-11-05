@@ -1,0 +1,89 @@
+@if (data.isLoading()) {
+  <mat-progress-bar mode="indeterminate" class="tab-loader" />
+}
+
+<div class="tab-toolbar">
+  <mat-form-field appearance="outline" class="search-field">
+    <mat-label>Rechercher</mat-label>
+    <mat-icon matPrefix>search</mat-icon>
+    <input matInput [formControl]="searchCtrl" placeholder="Nom, adresse, ville…">
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="filter-field">
+    <mat-label>Statut</mat-label>
+    <mat-select [value]="activeFilter()" (valueChange)="activeFilter.set($event)">
+      <mat-option value="all">Tous</mat-option>
+      <mat-option value="active">Actifs</mat-option>
+      <mat-option value="inactive">Inactifs</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <button mat-flat-button color="primary" (click)="openDialog(null)">
+    <mat-icon>add</mat-icon> Nouveau site
+  </button>
+</div>
+
+@if (!data.isLoading() && filtered().length === 0) {
+  <p class="tab-empty">Aucun site trouvé.</p>
+}
+
+@if (paged().length > 0) {
+  <mat-table [dataSource]="paged()" matSort
+             [matSortActive]="sortState().active"
+             [matSortDirection]="sortState().direction"
+             (matSortChange)="onSort($event)"
+             class="tab-table">
+
+    <ng-container matColumnDef="name">
+      <mat-header-cell *matHeaderCellDef mat-sort-header>Nom du site</mat-header-cell>
+      <mat-cell *matCellDef="let s"><strong>{{ s.name }}</strong></mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="address">
+      <mat-header-cell *matHeaderCellDef mat-sort-header>Adresse</mat-header-cell>
+      <mat-cell *matCellDef="let s">{{ s.address ?? '—' }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="city">
+      <mat-header-cell *matHeaderCellDef mat-sort-header class="col-sm">Ville</mat-header-cell>
+      <mat-cell *matCellDef="let s" class="col-sm">{{ s.zipCode }} {{ s.city }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="contacts">
+      <mat-header-cell *matHeaderCellDef mat-sort-header="contactCount" class="col-xs">Contacts</mat-header-cell>
+      <mat-cell *matCellDef="let s" class="col-xs">{{ s.contactCount }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="active">
+      <mat-header-cell *matHeaderCellDef mat-sort-header class="col-xs">Actif</mat-header-cell>
+      <mat-cell *matCellDef="let s" class="col-xs">
+        <mat-icon [class]="s.active ? 'icon-ok' : 'icon-off'">
+          {{ s.active ? 'check_circle' : 'cancel' }}
+        </mat-icon>
+      </mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="actions">
+      <mat-header-cell *matHeaderCellDef class="col-actions"></mat-header-cell>
+      <mat-cell *matCellDef="let s" class="col-actions">
+        <button mat-icon-button (click)="openDialog(s)" title="Modifier">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button mat-icon-button color="warn" (click)="deleteSite(s)" title="Supprimer">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </mat-cell>
+    </ng-container>
+
+    <mat-header-row *matHeaderRowDef="columns" />
+    <mat-row *matRowDef="let row; columns: columns;" />
+  </mat-table>
+
+  <mat-paginator
+    [length]="filtered().length"
+    [pageSize]="pageSize()"
+    [pageIndex]="pageIndex()"
+    [pageSizeOptions]="[5, 10, 25]"
+    (page)="onPage($event)"
+    showFirstLastButtons />
+}

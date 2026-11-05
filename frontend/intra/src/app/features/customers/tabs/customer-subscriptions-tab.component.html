@@ -1,0 +1,68 @@
+@if (data.isLoading()) {
+  <mat-progress-bar mode="indeterminate" class="tab-loader" />
+}
+
+@if (!data.isLoading() && (data.value()?.length ?? 0) === 0) {
+  <p class="tab-empty">Aucun abonnement enregistré.</p>
+}
+
+@if ((data.value()?.length ?? 0) > 0) {
+  <mat-table [dataSource]="data.value()!" class="tab-table">
+
+    <ng-container matColumnDef="name">
+      <mat-header-cell *matHeaderCellDef>Abonnement</mat-header-cell>
+      <mat-cell *matCellDef="let s"><strong>{{ s.name }}</strong></mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="billing">
+      <mat-header-cell *matHeaderCellDef class="col-sm">Modèle</mat-header-cell>
+      <mat-cell *matCellDef="let s" class="col-sm">
+        {{ s.billingModelLabel ?? '—' }}
+        @if (s.period) { <span class="period-badge">{{ s.period }}</span> }
+      </mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="price">
+      <mat-header-cell *matHeaderCellDef class="col-sm">Prix</mat-header-cell>
+      <mat-cell *matCellDef="let s" class="col-sm">
+        @if (s.pricePerPeriod != null) {
+          {{ s.pricePerPeriod | currency:'EUR' }}
+        } @else if (s.unitPrice != null) {
+          {{ s.unitPrice | currency:'EUR' }}
+          @if (s.unitCount) { <span class="muted">× {{ s.unitCount }} {{ s.unitLabel }}</span> }
+        } @else { — }
+      </mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="progress">
+      <mat-header-cell *matHeaderCellDef class="col-md">Consommation</mat-header-cell>
+      <mat-cell *matCellDef="let s" class="col-md">
+        @if (s.includedMinutes) {
+          <div class="progress-wrap" [matTooltip]="s.formattedSpent + ' / ' + s.formattedIncluded">
+            <mat-progress-bar [mode]="'determinate'"
+                              [value]="s.progressPercent"
+                              [color]="progressColor(s.progressPercent)" />
+            <small>{{ s.formattedSpent }} / {{ s.formattedIncluded }}</small>
+          </div>
+        } @else { — }
+      </mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="dates">
+      <mat-header-cell *matHeaderCellDef class="col-sm">Début</mat-header-cell>
+      <mat-cell *matCellDef="let s" class="col-sm">{{ s.startDate | date:'dd/MM/yyyy' }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="active">
+      <mat-header-cell *matHeaderCellDef class="col-xs">Actif</mat-header-cell>
+      <mat-cell *matCellDef="let s" class="col-xs">
+        <mat-icon [class]="s.active ? 'icon-ok' : 'icon-off'">
+          {{ s.active ? 'check_circle' : 'cancel' }}
+        </mat-icon>
+      </mat-cell>
+    </ng-container>
+
+    <mat-header-row *matHeaderRowDef="columns" />
+    <mat-row *matRowDef="let row; columns: columns;" />
+  </mat-table>
+}

@@ -1,0 +1,55 @@
+.ca-loading  { display: flex; justify-content: center; padding: 16px; }
+
+.ca-msg {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; padding: 6px 10px; border-radius: 4px; margin: 4px 0;
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+}
+.ca-error { background: #fdecea; color: #c62828; }
+.ca-ok    { background: #e8f5e9; color: #2e7d32; }
+
+.ca-empty {
+  display: flex; align-items: center; gap: 12px;
+  color: #888; font-size: 14px; padding: 8px 0;
+}
+
+.ca-card { display: flex; flex-direction: column; gap: 12px; padding: 4px 0; }
+
+.ca-header { display: flex; flex-direction: column; gap: 6px; }
+
+.ca-status-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  mat-chip-set { margin-left: 4px; }
+}
+
+.ca-flags  { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.ca-badge  {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; padding: 2px 8px; border-radius: 12px;
+  mat-icon { font-size: 14px; width: 14px; height: 14px; }
+}
+.ca-badge-warn { background: #fff3e0; color: #e65100; }
+.ca-badge-info { background: #e3f2fd; color: #1565c0; }
+
+.ca-actions {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+}
+
+.ca-esn-roles, .ca-roles-panel {
+  display: flex; flex-direction: column; gap: 10px; padding-top: 8px;
+}
+.ca-section-title {
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .4px; color: #888; margin-bottom: 2px;
+}
+.ca-role-group  { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+.ca-group-label { font-size: 11px; color: #aaa; }
+.ca-roles-grid  {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 2px;
+}
+.ca-roles-actions { display: flex; align-items: center; gap: 8px; }
+
+.ca-icon-ok  { color: #4caf50; }
+.ca-icon-off { color: #bdbdbd; }
+.ca-chip     { font-size: 11px; height: 22px; }

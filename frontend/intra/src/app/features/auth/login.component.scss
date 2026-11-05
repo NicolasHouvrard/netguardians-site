@@ -1,0 +1,64 @@
+.login-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: #f5f5f5;
+}
+
+.login-card {
+  width: 400px;
+  padding: 16px;
+}
+
+.oauth-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 0;
+  color: #888;
+}
+
+.oauth-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.oauth-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  height: 44px;
+  font-size: 14px;
+}
+
+.provider-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.divider {
+  margin: 20px 0;
+  position: relative;
+
+  .divider-label {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    padding: 0 8px;
+    color: #aaa;
+    font-size: 12px;
+  }
+}
+
+.full-width { display: block; width: 100%; margin-bottom: 8px; }
+
+.login-error { color: #f44336; font-size: 14px; margin-bottom: 8px; }

@@ -1,0 +1,22 @@
+@use '@angular/material' as mat;
+
+@include mat.theme((
+  color: (
+    theme-type: light,
+    primary: mat.$azure-palette,
+    tertiary: mat.$blue-palette,
+  ),
+  typography: Roboto,
+  density: 0,
+));
+
+html, body, app-root, app-shell {
+  display: block;
+  height: 100%;
+  margin: 0;
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+}
+
+/* Utility */
+.spacer { flex: 1 1 auto; }
+.full-width { width: 100%; }

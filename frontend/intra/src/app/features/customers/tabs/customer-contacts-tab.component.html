@@ -1,0 +1,100 @@
+@if (data.isLoading()) {
+  <mat-progress-bar mode="indeterminate" class="tab-loader" />
+}
+
+<div class="tab-toolbar">
+  <mat-form-field appearance="outline" class="search-field">
+    <mat-label>Rechercher</mat-label>
+    <mat-icon matPrefix>search</mat-icon>
+    <input matInput [formControl]="searchCtrl" placeholder="Nom, email, téléphone…">
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="filter-field">
+    <mat-label>Site</mat-label>
+    <mat-select [value]="siteFilter()" (valueChange)="siteFilter.set($event)">
+      <mat-option value="all">Tous les sites</mat-option>
+      <mat-option [value]="null">— Sans site —</mat-option>
+      @for (s of sites.value() ?? []; track s.id) {
+        <mat-option [value]="s.id">{{ s.name }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <button mat-flat-button color="primary" (click)="openDialog(null)">
+    <mat-icon>add</mat-icon> Nouveau contact
+  </button>
+</div>
+
+@if (!data.isLoading() && filtered().length === 0) {
+  <p class="tab-empty">Aucun contact trouvé.</p>
+}
+
+@if (paged().length > 0) {
+  <mat-table [dataSource]="paged()" matSort
+             [matSortActive]="sortState().active"
+             [matSortDirection]="sortState().direction"
+             (matSortChange)="onSort($event)"
+             class="tab-table">
+
+    <ng-container matColumnDef="fullName">
+      <mat-header-cell *matHeaderCellDef mat-sort-header>Nom</mat-header-cell>
+      <mat-cell *matCellDef="let c"><strong>{{ c.fullName }}</strong></mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="position">
+      <mat-header-cell *matHeaderCellDef mat-sort-header class="col-sm">Fonction</mat-header-cell>
+      <mat-cell *matCellDef="let c" class="col-sm">{{ c.position ?? '—' }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="email">
+      <mat-header-cell *matHeaderCellDef mat-sort-header>Email</mat-header-cell>
+      <mat-cell *matCellDef="let c">
+        @if (c.email) { <a [href]="'mailto:' + c.email" class="cell-link">{{ c.email }}</a> }
+        @else { — }
+      </mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="phone">
+      <mat-header-cell *matHeaderCellDef mat-sort-header class="col-sm">Téléphone</mat-header-cell>
+      <mat-cell *matCellDef="let c" class="col-sm">{{ c.phone ?? '—' }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="site">
+      <mat-header-cell *matHeaderCellDef mat-sort-header="siteName" class="col-sm">Site</mat-header-cell>
+      <mat-cell *matCellDef="let c" class="col-sm">{{ c.siteName ?? '—' }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="account">
+      <mat-header-cell *matHeaderCellDef class="col-xs">Compte</mat-header-cell>
+      <mat-cell *matCellDef="let c" class="col-xs">
+        <button mat-icon-button (click)="openAccountDialog(c)" title="Gérer le compte"
+                [color]="c.userId ? 'primary' : ''">
+          <mat-icon>{{ c.userId ? 'manage_accounts' : 'person_off' }}</mat-icon>
+        </button>
+      </mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="actions">
+      <mat-header-cell *matHeaderCellDef class="col-actions"></mat-header-cell>
+      <mat-cell *matCellDef="let c" class="col-actions">
+        <button mat-icon-button (click)="openDialog(c)" title="Modifier">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button mat-icon-button color="warn" (click)="deleteContact(c)" title="Supprimer">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </mat-cell>
+    </ng-container>
+
+    <mat-header-row *matHeaderRowDef="columns" />
+    <mat-row *matRowDef="let row; columns: columns;" />
+  </mat-table>
+
+  <mat-paginator
+    [length]="filtered().length"
+    [pageSize]="pageSize()"
+    [pageIndex]="pageIndex()"
+    [pageSizeOptions]="[5, 10, 25]"
+    (page)="onPage($event)"
+    showFirstLastButtons />
+}

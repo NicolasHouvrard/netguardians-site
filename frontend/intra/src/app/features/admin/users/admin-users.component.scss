@@ -1,0 +1,31 @@
+.page-header  { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.page-title   { margin: 0; font-size: 20px; font-weight: 500; }
+.page-count   { font-size: 13px; color: #888; }
+
+.toolbar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px;
+}
+.search-field { flex: 1 1 220px; }
+.filter-sm    { flex: 0 0 140px; }
+
+.users-table { width: 100%; }
+.empty       { text-align: center; color: #888; margin: 32px 0; }
+
+.col-xs      { flex: 0 0 48px; }
+.col-sm      { flex: 0 0 120px; }
+.col-actions { flex: 0 0 100px; justify-content: flex-end; }
+
+.name-cell   { display: flex; align-items: center; gap: 4px; }
+.warn-icon   { font-size: 16px; width: 16px; height: 16px; color: #f57c00; }
+.email-link  { color: inherit; text-decoration: none; font-size: 13px;
+               &:hover { text-decoration: underline; } }
+
+.type-badge {
+  font-size: 11px; padding: 2px 10px; border-radius: 10px; font-weight: 500;
+}
+.type-interne { background: #e8eaf6; color: #3f51b5; }
+.type-portail { background: #e0f2f1; color: #00796b; }
+
+.role-chip   { font-size: 10px; height: 20px; }
+.icon-ok     { color: #4caf50; font-size: 18px; width: 18px; height: 18px; }
+.icon-off    { color: #bdbdbd; font-size: 18px; width: 18px; height: 18px; }

@@ -1,0 +1,12 @@
+<h2 class="page-title">Tableau de bord</h2>
+
+@if (loading()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+
+@if (!loading()) {
+  <div class="widgets-grid">
+    <app-user-stats-widget [stats]="stats()" />
+    <app-role-stats-widget [stats]="stats()" />
+  </div>
+}

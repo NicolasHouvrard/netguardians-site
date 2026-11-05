@@ -1,0 +1,8 @@
+.tab-loader { margin-top: 8px; }
+.tab-empty  { margin: 32px 16px; color: #888; text-align: center; }
+.tab-table  { width: 100%; margin-top: 4px; }
+
+.col-xs { flex: 0 0 56px;  }
+.col-sm { flex: 0 0 140px; }
+
+.cell-link { color: inherit; font-weight: 500; text-decoration: none; &:hover { text-decoration: underline; } }

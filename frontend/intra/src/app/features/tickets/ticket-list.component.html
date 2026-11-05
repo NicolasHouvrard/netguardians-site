@@ -1,0 +1,110 @@
+<div class="page-header">
+  <h1>Tickets</h1>
+  <button mat-flat-button color="primary" routerLink="new">
+    <mat-icon>add</mat-icon> Nouveau ticket
+  </button>
+</div>
+
+<!-- Filters -->
+<div class="filters">
+  <mat-form-field appearance="outline" class="filter-search">
+    <mat-label>Rechercher…</mat-label>
+    <mat-icon matPrefix>search</mat-icon>
+    <input matInput [formControl]="searchCtrl" placeholder="Titre, description">
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="filter-select">
+    <mat-label>Statut</mat-label>
+    <mat-select [formControl]="statusCtrl">
+      <mat-option value="">Tous</mat-option>
+      @for (s of svc.meta.value()?.statuses ?? []; track s.value) {
+        <mat-option [value]="s.value">{{ s.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="filter-select">
+    <mat-label>Priorité</mat-label>
+    <mat-select [formControl]="priorityCtrl">
+      <mat-option value="">Toutes</mat-option>
+      @for (p of svc.meta.value()?.priorities ?? []; track p.value) {
+        <mat-option [value]="p.value">{{ p.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+</div>
+
+@if (svc.tickets.isLoading()) {
+  <mat-progress-bar mode="indeterminate" class="loading-bar" />
+}
+
+@if (svc.tickets.error()) {
+  <p class="msg error">Erreur lors du chargement des tickets.</p>
+}
+
+@let page = svc.tickets.value();
+
+@if (!svc.tickets.isLoading() && page && page.totalElements === 0) {
+  <p class="msg empty">Aucun ticket trouvé.</p>
+}
+
+@if (page && page.totalElements > 0) {
+  <mat-table [dataSource]="page.content" class="tickets-table">
+
+    <ng-container matColumnDef="id">
+      <mat-header-cell *matHeaderCellDef class="col-id">#</mat-header-cell>
+      <mat-cell *matCellDef="let t" class="col-id">{{ t.id }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="title">
+      <mat-header-cell *matHeaderCellDef>Titre</mat-header-cell>
+      <mat-cell *matCellDef="let t">
+        <a [routerLink]="[t.id]" class="ticket-link">{{ t.title }}</a>
+      </mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="status">
+      <mat-header-cell *matHeaderCellDef class="col-badge">Statut</mat-header-cell>
+      <mat-cell *matCellDef="let t" class="col-badge">
+        <mat-chip [highlighted]="true" [color]="statusColor(t.status)">
+          {{ t.statusLabel }}
+        </mat-chip>
+      </mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="priority">
+      <mat-header-cell *matHeaderCellDef class="col-badge">Priorité</mat-header-cell>
+      <mat-cell *matCellDef="let t" class="col-badge">{{ t.priorityLabel }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="customer">
+      <mat-header-cell *matHeaderCellDef>Client</mat-header-cell>
+      <mat-cell *matCellDef="let t">{{ t.customerName ?? '—' }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="assignedTo">
+      <mat-header-cell *matHeaderCellDef>Assigné à</mat-header-cell>
+      <mat-cell *matCellDef="let t">{{ t.assignedToName ?? '—' }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="createdAt">
+      <mat-header-cell *matHeaderCellDef class="col-date">Créé le</mat-header-cell>
+      <mat-cell *matCellDef="let t" class="col-date">
+        {{ t.createdAt | date:'dd/MM/yyyy' }}
+      </mat-cell>
+    </ng-container>
+
+    <mat-header-row *matHeaderRowDef="columns" />
+    <mat-row *matRowDef="let row; columns: columns;" />
+  </mat-table>
+
+  <mat-paginator
+    [length]="page.totalElements"
+    [pageSize]="svc.filter().size"
+    [pageIndex]="svc.filter().page"
+    [pageSizeOptions]="[10, 20, 50, 100]"
+    showFirstLastButtons
+    (page)="onPage($event)"
+    aria-label="Sélectionner la page">
+  </mat-paginator>
+}

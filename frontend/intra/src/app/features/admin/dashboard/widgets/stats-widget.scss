@@ -1,0 +1,30 @@
+:host { display: block; }
+
+.widget-card {
+  border-radius: 12px;
+  mat-card-content { display: flex; align-items: center; gap: 16px; padding: 20px; }
+  mat-card-actions { padding: 0 16px 16px; }
+}
+
+.widget-icon-wrap {
+  width: 56px; height: 56px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(63,81,181,.12);
+  flex-shrink: 0;
+}
+.widget-icon          { font-size: 28px; width: 28px; height: 28px; color: #3f51b5; }
+.widget-icon-roles    { background: rgba(156,39,176,.12); }
+.widget-icon-roles-color { color: #9c27b0; }
+
+.widget-body   { display: flex; flex-direction: column; gap: 4px; }
+.widget-value  { font-size: 36px; font-weight: 700; line-height: 1; color: #212121; }
+.widget-label  { font-size: 13px; color: #666; }
+.widget-sub    { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+
+.badge-interne, .badge-portail, .badge-active, .badge-info {
+  font-size: 11px; padding: 2px 8px; border-radius: 10px;
+}
+.badge-interne { background: #e8eaf6; color: #3f51b5; }
+.badge-portail { background: #e0f2f1; color: #00796b; }
+.badge-active  { background: #e8f5e9; color: #388e3c; }
+.badge-info    { background: #f3e5f5; color: #7b1fa2; }

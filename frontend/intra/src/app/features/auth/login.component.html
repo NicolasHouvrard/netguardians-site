@@ -1,0 +1,66 @@
+<div class="login-wrap">
+  <mat-card class="login-card">
+    <mat-card-header>
+      <mat-card-title>Intranet</mat-card-title>
+      <mat-card-subtitle>Connectez-vous à votre espace</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+
+      <!-- Chargement OAuth2 retour -->
+      @if (oauthLoading()) {
+        <div class="oauth-loading">
+          <mat-spinner diameter="32" />
+          <span>Connexion en cours…</span>
+        </div>
+      }
+
+      @if (!oauthLoading()) {
+
+        <!-- Boutons OAuth2 (affichés uniquement si providers actifs) -->
+        @if ((providers.value()?.length ?? 0) > 0) {
+          <div class="oauth-buttons">
+            @for (p of providers.value()!; track p.id) {
+              <button mat-stroked-button class="oauth-btn" (click)="loginWith(p.id)">
+                @if (providerIcon(p.id)) {
+                  <img [src]="providerIcon(p.id)" [alt]="p.name" class="provider-icon">
+                } @else {
+                  <mat-icon>login</mat-icon>
+                }
+                Continuer avec {{ p.name }}
+              </button>
+            }
+          </div>
+
+          <mat-divider class="divider">
+            <span class="divider-label">ou</span>
+          </mat-divider>
+        }
+
+        <!-- Formulaire email/password -->
+        <form [formGroup]="form" (ngSubmit)="submit()">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Email</mat-label>
+            <input matInput type="email" formControlName="email" autocomplete="email">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Mot de passe</mat-label>
+            <input matInput type="password" formControlName="password" autocomplete="current-password">
+          </mat-form-field>
+
+          @if (error()) {
+            <p class="login-error">{{ error() }}</p>
+          }
+
+          <button mat-flat-button color="primary" class="full-width" type="submit"
+                  [disabled]="form.invalid || loading()">
+            @if (loading()) { <mat-spinner diameter="18" /> }
+            @else { Se connecter }
+          </button>
+        </form>
+
+      }
+    </mat-card-content>
+  </mat-card>
+</div>

@@ -1,0 +1,63 @@
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+
+  h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 400;
+  }
+}
+
+.filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+
+  .filter-search { flex: 1; min-width: 240px; }
+  .filter-select { width: 180px; }
+}
+
+.loading-bar { margin-bottom: 4px; }
+
+.customers-table { width: 100%; }
+
+.col-phone   { flex: 0 0 140px; }
+.col-types   { flex: 0 0 200px; }
+.col-status  { flex: 0 0 80px;  justify-content: center; }
+.col-actions { flex: 0 0 56px;  justify-content: center; }
+
+.customer-link {
+  color: inherit;
+  font-weight: 500;
+  text-decoration: none;
+  &:hover { text-decoration: underline; }
+}
+
+.email-link {
+  color: inherit;
+  text-decoration: none;
+  &:hover { text-decoration: underline; }
+}
+
+.chip-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.icon-active   { color: #4caf50; font-size: 20px; }
+.icon-inactive { color: #bdbdbd; font-size: 20px; }
+
+.msg {
+  margin-top: 32px;
+  text-align: center;
+  color: #888;
+  &.error { color: #f44336; }
+}
+
+mat-paginator { border-top: 1px solid rgba(0, 0, 0, 0.12); }

@@ -1,0 +1,29 @@
+.tab-loader { margin-top: 8px; }
+.tab-empty  { margin: 32px 16px; color: #888; text-align: center; }
+.tab-table  { width: 100%; margin-top: 4px; }
+
+.col-xs { flex: 0 0 72px;  }
+.col-sm { flex: 0 0 160px; }
+.col-md { flex: 0 0 210px; }
+
+.period-badge {
+  margin-left: 6px;
+  font-size: 11px;
+  color: #888;
+  background: #f0f0f0;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.muted { color: #888; font-size: 12px; margin-left: 4px; }
+
+.progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  small { font-size: 11px; color: #888; }
+}
+
+.icon-ok  { color: #4caf50; font-size: 20px; }
+.icon-off { color: #bdbdbd; font-size: 20px; }

@@ -1,0 +1,190 @@
+<div class="page-header">
+  <h2 class="page-title">Logs d'activité</h2>
+  <span class="page-count">{{ filtered().length }} entrée(s)</span>
+</div>
+
+@if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+
+<!-- Filtres ─────────────────────────────────────────────────────────────── -->
+<div class="toolbar">
+  <mat-form-field appearance="outline" class="search-field">
+    <mat-label>Email</mat-label>
+    <mat-icon matPrefix>person_search</mat-icon>
+    <input matInput [formControl]="emailCtrl" placeholder="Filtrer par email…">
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="search-field">
+    <mat-label>Adresse IP</mat-label>
+    <mat-icon matPrefix>dns</mat-icon>
+    <input matInput [formControl]="ipCtrl" placeholder="Filtrer par IP…">
+  </mat-form-field>
+
+  <button mat-stroked-button (click)="load()" [disabled]="loading()">
+    <mat-icon>refresh</mat-icon> Actualiser
+  </button>
+</div>
+
+<!-- Onglets ─────────────────────────────────────────────────────────────── -->
+<mat-tab-group animationDuration="150ms" (selectedTabChange)="pageIndex.set(0)">
+
+  <!-- ── Onglet Connexions ──────────────────────────────────────────────── -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon class="tab-icon">login</mat-icon>
+      Connexions <span class="tab-count">{{ loginLogs().length }}</span>
+    </ng-template>
+
+    @if (!loading() && loginPaged().length === 0) {
+      <p class="empty">Aucune entrée trouvée.</p>
+    }
+
+    @if (loginPaged().length > 0) {
+      <mat-table [dataSource]="loginPaged()" matSort
+                 [matSortActive]="sortState().active"
+                 [matSortDirection]="sortState().direction"
+                 (matSortChange)="onSort($event)"
+                 class="logs-table">
+
+        <!-- Statut ──────────────────────────────────────────────────────── -->
+        <ng-container matColumnDef="type">
+          <mat-header-cell *matHeaderCellDef class="col-xs"></mat-header-cell>
+          <mat-cell *matCellDef="let l" class="col-xs">
+            @if (l.type === 'LOGIN_SUCCESS') {
+              <mat-icon class="icon-ok" matTooltip="Connexion réussie">check_circle</mat-icon>
+            } @else {
+              <mat-icon class="icon-off" matTooltip="Échec de connexion">cancel</mat-icon>
+            }
+          </mat-cell>
+        </ng-container>
+
+        <!-- Date/Heure ───────────────────────────────────────────────────── -->
+        <ng-container matColumnDef="timestamp">
+          <mat-header-cell *matHeaderCellDef mat-sort-header>Date / Heure</mat-header-cell>
+          <mat-cell *matCellDef="let l">
+            <div class="date-cell">
+              <span class="date-day">{{ l.timestamp | date:'dd/MM/yyyy' }}</span>
+              <span class="date-time text-muted">{{ l.timestamp | date:'HH:mm:ss' }}</span>
+            </div>
+          </mat-cell>
+        </ng-container>
+
+        <!-- Email ───────────────────────────────────────────────────────── -->
+        <ng-container matColumnDef="email">
+          <mat-header-cell *matHeaderCellDef mat-sort-header>Utilisateur</mat-header-cell>
+          <mat-cell *matCellDef="let l">{{ l.email ?? '—' }}</mat-cell>
+        </ng-container>
+
+        <!-- IP ──────────────────────────────────────────────────────────── -->
+        <ng-container matColumnDef="ip">
+          <mat-header-cell *matHeaderCellDef class="col-sm">Adresse IP</mat-header-cell>
+          <mat-cell *matCellDef="let l" class="col-sm">
+            <code class="ip-code">{{ l.ip ?? '—' }}</code>
+          </mat-cell>
+        </ng-container>
+
+        <!-- Localisation ────────────────────────────────────────────────── -->
+        <ng-container matColumnDef="location">
+          <mat-header-cell *matHeaderCellDef>Localisation</mat-header-cell>
+          <mat-cell *matCellDef="let l">
+            @if (l.country) {
+              <span class="location-cell">
+                <span class="flag" [matTooltip]="l.countryCode ?? ''">{{ flag(l.countryCode) }}</span>
+                <span>{{ l.city ? l.city + ', ' : '' }}{{ l.country }}</span>
+              </span>
+            } @else {
+              <span class="text-muted">—</span>
+            }
+          </mat-cell>
+        </ng-container>
+
+        <!-- Navigateur ──────────────────────────────────────────────────── -->
+        <ng-container matColumnDef="userAgent">
+          <mat-header-cell *matHeaderCellDef class="col-sm">Navigateur</mat-header-cell>
+          <mat-cell *matCellDef="let l" class="col-sm">
+            <span [matTooltip]="l.userAgent ?? ''">{{ shortAgent(l.userAgent) }}</span>
+          </mat-cell>
+        </ng-container>
+
+        <mat-header-row *matHeaderRowDef="loginColumns" />
+        <mat-row *matRowDef="let row; columns: loginColumns;"
+                 [ngClass]="{ 'row-failure': row.type === 'LOGIN_FAILURE' }" />
+      </mat-table>
+
+      <mat-paginator [length]="loginLogs().length"
+                     [pageSize]="pageSize()"
+                     [pageIndex]="pageIndex()"
+                     [pageSizeOptions]="[10, 25, 50, 100]"
+                     (page)="onPage($event)"
+                     showFirstLastButtons />
+    }
+  </mat-tab>
+
+  <!-- ── Onglet Pages visitées ──────────────────────────────────────────── -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon class="tab-icon">pageview</mat-icon>
+      Pages visitées <span class="tab-count">{{ pageLogs().length }}</span>
+    </ng-template>
+
+    @if (!loading() && pagePaged().length === 0) {
+      <p class="empty">Aucune entrée trouvée.</p>
+    }
+
+    @if (pagePaged().length > 0) {
+      <mat-table [dataSource]="pagePaged()" class="logs-table">
+
+        <!-- Date/Heure ──────────────────────────────────────────────────── -->
+        <ng-container matColumnDef="timestamp">
+          <mat-header-cell *matHeaderCellDef>Date / Heure</mat-header-cell>
+          <mat-cell *matCellDef="let l">
+            <div class="date-cell">
+              <span class="date-day">{{ l.timestamp | date:'dd/MM/yyyy' }}</span>
+              <span class="date-time text-muted">{{ l.timestamp | date:'HH:mm:ss' }}</span>
+            </div>
+          </mat-cell>
+        </ng-container>
+
+        <!-- Email ───────────────────────────────────────────────────────── -->
+        <ng-container matColumnDef="email">
+          <mat-header-cell *matHeaderCellDef>Utilisateur</mat-header-cell>
+          <mat-cell *matCellDef="let l">{{ l.email ?? '—' }}</mat-cell>
+        </ng-container>
+
+        <!-- IP ──────────────────────────────────────────────────────────── -->
+        <ng-container matColumnDef="ip">
+          <mat-header-cell *matHeaderCellDef class="col-sm">IP</mat-header-cell>
+          <mat-cell *matCellDef="let l" class="col-sm">
+            <code class="ip-code">{{ l.ip ?? '—' }}</code>
+          </mat-cell>
+        </ng-container>
+
+        <!-- URL ─────────────────────────────────────────────────────────── -->
+        <ng-container matColumnDef="url">
+          <mat-header-cell *matHeaderCellDef>Page visitée</mat-header-cell>
+          <mat-cell *matCellDef="let l">
+            <code class="url-code">{{ l.url ?? '—' }}</code>
+          </mat-cell>
+        </ng-container>
+
+        <!-- Navigateur ──────────────────────────────────────────────────── -->
+        <ng-container matColumnDef="userAgent">
+          <mat-header-cell *matHeaderCellDef class="col-sm">Navigateur</mat-header-cell>
+          <mat-cell *matCellDef="let l" class="col-sm">
+            <span [matTooltip]="l.userAgent ?? ''">{{ shortAgent(l.userAgent) }}</span>
+          </mat-cell>
+        </ng-container>
+
+        <mat-header-row *matHeaderRowDef="pageColumns" />
+        <mat-row *matRowDef="let row; columns: pageColumns;" />
+      </mat-table>
+
+      <mat-paginator [length]="pageLogs().length"
+                     [pageSize]="pageSize()"
+                     [pageIndex]="pageIndex()"
+                     [pageSizeOptions]="[10, 25, 50, 100]"
+                     (page)="onPage($event)"
+                     showFirstLastButtons />
+    }
+  </mat-tab>
+
+</mat-tab-group>

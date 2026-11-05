@@ -1,0 +1,46 @@
+@if (svc.tickets.isLoading()) {
+  <mat-progress-bar mode="indeterminate" class="tab-loader" />
+}
+
+@let page = svc.tickets.value();
+
+@if (!svc.tickets.isLoading() && (page?.totalElements ?? 0) === 0) {
+  <p class="tab-empty">Aucun ticket pour ce client.</p>
+}
+
+@if ((page?.totalElements ?? 0) > 0) {
+  <mat-table [dataSource]="page!.content" class="tab-table">
+
+    <ng-container matColumnDef="id">
+      <mat-header-cell *matHeaderCellDef class="col-xs">#</mat-header-cell>
+      <mat-cell *matCellDef="let t" class="col-xs">{{ t.id }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="title">
+      <mat-header-cell *matHeaderCellDef>Titre</mat-header-cell>
+      <mat-cell *matCellDef="let t">
+        <a [routerLink]="['/tickets', t.id]" class="cell-link">{{ t.title }}</a>
+      </mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="status">
+      <mat-header-cell *matHeaderCellDef class="col-sm">Statut</mat-header-cell>
+      <mat-cell *matCellDef="let t" class="col-sm">
+        <mat-chip [highlighted]="true">{{ t.statusLabel }}</mat-chip>
+      </mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="priority">
+      <mat-header-cell *matHeaderCellDef class="col-sm">Priorité</mat-header-cell>
+      <mat-cell *matCellDef="let t" class="col-sm">{{ t.priorityLabel }}</mat-cell>
+    </ng-container>
+
+    <ng-container matColumnDef="createdAt">
+      <mat-header-cell *matHeaderCellDef class="col-sm">Date</mat-header-cell>
+      <mat-cell *matCellDef="let t" class="col-sm">{{ t.createdAt | date:'dd/MM/yyyy' }}</mat-cell>
+    </ng-container>
+
+    <mat-header-row *matHeaderRowDef="columns" />
+    <mat-row *matRowDef="let row; columns: columns;" />
+  </mat-table>
+}

@@ -1,0 +1,157 @@
+<div class="page-header">
+  <h2 class="page-title">Utilisateurs</h2>
+  <span class="page-count">{{ filtered().length }} résultat(s)</span>
+</div>
+
+@if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+
+<!-- Filtres ─────────────────────────────────────────────────────────────── -->
+<div class="toolbar">
+  <mat-form-field appearance="outline" class="search-field">
+    <mat-label>Rechercher</mat-label>
+    <mat-icon matPrefix>search</mat-icon>
+    <input matInput [formControl]="searchCtrl" placeholder="Nom ou email…">
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="filter-sm">
+    <mat-label>Type</mat-label>
+    <mat-select [value]="typeFilter()" (valueChange)="typeFilter.set($event)">
+      <mat-option value="">Tous</mat-option>
+      <mat-option value="INTERNE">Interne</mat-option>
+      <mat-option value="PORTAIL">Portail</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="filter-sm">
+    <mat-label>Statut</mat-label>
+    <mat-select [value]="activeFilter()" (valueChange)="activeFilter.set($event)">
+      <mat-option value="">Tous</mat-option>
+      <mat-option value="true">Actifs</mat-option>
+      <mat-option value="false">Inactifs</mat-option>
+    </mat-select>
+  </mat-form-field>
+</div>
+
+<!-- Table ───────────────────────────────────────────────────────────────── -->
+@if (!loading() && paged().length === 0) {
+  <p class="empty">Aucun utilisateur trouvé.</p>
+}
+
+@if (paged().length > 0) {
+  <mat-table [dataSource]="paged()" matSort
+             [matSortActive]="sortState().active"
+             [matSortDirection]="sortState().direction"
+             (matSortChange)="onSort($event)"
+             class="users-table">
+
+    <!-- Statut ──────────────────────────────────────────────────────────── -->
+    <ng-container matColumnDef="status">
+      <mat-header-cell *matHeaderCellDef mat-sort-header="active" class="col-xs"></mat-header-cell>
+      <mat-cell *matCellDef="let u" class="col-xs">
+        <mat-icon [class]="u.active ? 'icon-ok' : 'icon-off'"
+                  [matTooltip]="u.active ? 'Actif' : 'Inactif'">
+          {{ u.active ? 'check_circle' : 'cancel' }}
+        </mat-icon>
+      </mat-cell>
+    </ng-container>
+
+    <!-- Nom ─────────────────────────────────────────────────────────────── -->
+    <ng-container matColumnDef="fullName">
+      <mat-header-cell *matHeaderCellDef mat-sort-header>Nom</mat-header-cell>
+      <mat-cell *matCellDef="let u">
+        <div class="name-cell">
+          <strong>{{ u.fullName }}</strong>
+          @if (u.mustChangePassword) {
+            <mat-icon class="warn-icon" matTooltip="Doit changer son mot de passe">key</mat-icon>
+          }
+        </div>
+      </mat-cell>
+    </ng-container>
+
+    <!-- Email ───────────────────────────────────────────────────────────── -->
+    <ng-container matColumnDef="email">
+      <mat-header-cell *matHeaderCellDef mat-sort-header>Email</mat-header-cell>
+      <mat-cell *matCellDef="let u">
+        <a [href]="'mailto:' + u.email" class="email-link">{{ u.email }}</a>
+      </mat-cell>
+    </ng-container>
+
+    <!-- Type ────────────────────────────────────────────────────────────── -->
+    <ng-container matColumnDef="type">
+      <mat-header-cell *matHeaderCellDef mat-sort-header class="col-sm">Type</mat-header-cell>
+      <mat-cell *matCellDef="let u" class="col-sm">
+        <span [class]="'type-badge type-' + u.type.toLowerCase()">{{ u.type }}</span>
+      </mat-cell>
+    </ng-container>
+
+    <!-- Tenant ──────────────────────────────────────────────────────────── -->
+    <ng-container matColumnDef="tenant">
+      <mat-header-cell *matHeaderCellDef mat-sort-header="tenantName" class="col-sm">Tenant</mat-header-cell>
+      <mat-cell *matCellDef="let u" class="col-sm">{{ u.tenantName ?? '—' }}</mat-cell>
+    </ng-container>
+
+    <!-- Client ──────────────────────────────────────────────────────────── -->
+    <ng-container matColumnDef="client">
+      <mat-header-cell *matHeaderCellDef mat-sort-header="clientName">Client</mat-header-cell>
+      <mat-cell *matCellDef="let u">{{ u.clientName ?? '—' }}</mat-cell>
+    </ng-container>
+
+    <!-- Rôles ───────────────────────────────────────────────────────────── -->
+    <ng-container matColumnDef="roles">
+      <mat-header-cell *matHeaderCellDef>Rôles</mat-header-cell>
+      <mat-cell *matCellDef="let u">
+        <mat-chip-set>
+          @for (r of u.roles; track r) {
+            <mat-chip class="role-chip">{{ r }}</mat-chip>
+          }
+        </mat-chip-set>
+      </mat-cell>
+    </ng-container>
+
+    <!-- Création ───────────────────────────────────────────────────────── -->
+    <ng-container matColumnDef="createdAt">
+      <mat-header-cell *matHeaderCellDef mat-sort-header="createdAt" class="col-sm">Créé le</mat-header-cell>
+      <mat-cell *matCellDef="let u" class="col-sm">
+        {{ u.createdAt ? (u.createdAt | date:'dd/MM/yyyy') : '—' }}
+      </mat-cell>
+    </ng-container>
+
+    <!-- IP connexion ────────────────────────────────────────────────────── -->
+    <ng-container matColumnDef="lastLoginIp">
+      <mat-header-cell *matHeaderCellDef class="col-sm">Dernière IP</mat-header-cell>
+      <mat-cell *matCellDef="let u" class="col-sm">
+        <span [matTooltip]="u.lastLoginIp ?? ''" class="ip-text">
+          {{ u.lastLoginIp ?? '—' }}
+        </span>
+      </mat-cell>
+    </ng-container>
+
+    <!-- Actions ─────────────────────────────────────────────────────────── -->
+    <ng-container matColumnDef="actions">
+      <mat-header-cell *matHeaderCellDef class="col-actions"></mat-header-cell>
+      <mat-cell *matCellDef="let u" class="col-actions">
+        <button mat-icon-button matTooltip="Modifier les rôles"
+                (click)="openRolesDialog(u)">
+          <mat-icon>manage_accounts</mat-icon>
+        </button>
+        <button mat-icon-button
+                [color]="u.active ? 'warn' : 'primary'"
+                [matTooltip]="u.active ? 'Désactiver' : 'Activer'"
+                (click)="toggleActive(u)">
+          <mat-icon>{{ u.active ? 'person_off' : 'person' }}</mat-icon>
+        </button>
+      </mat-cell>
+    </ng-container>
+
+    <mat-header-row *matHeaderRowDef="columns" />
+    <mat-row *matRowDef="let row; columns: columns;" />
+  </mat-table>
+
+  <mat-paginator
+    [length]="filtered().length"
+    [pageSize]="pageSize()"
+    [pageIndex]="pageIndex()"
+    [pageSizeOptions]="[10, 15, 25, 50]"
+    (page)="onPage($event)"
+    showFirstLastButtons />
+}

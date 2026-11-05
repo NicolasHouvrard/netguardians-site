@@ -1,0 +1,131 @@
+<div class="page-header">
+  <h2 class="page-title">Rôles</h2>
+  <button mat-flat-button color="primary" (click)="showCreateForm.set(!showCreateForm())">
+    <mat-icon>{{ showCreateForm() ? 'close' : 'add' }}</mat-icon>
+    {{ showCreateForm() ? 'Annuler' : 'Nouveau rôle' }}
+  </button>
+</div>
+
+@if (error()) {
+  <p class="msg-error"><mat-icon>error</mat-icon> {{ error() }}</p>
+}
+
+@if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+
+<!-- Formulaire de création ──────────────────────────────────────────────── -->
+@if (showCreateForm()) {
+  <div class="create-form" [formGroup]="createForm">
+    <h3 class="form-title">Nouveau rôle</h3>
+
+    @if (createError()) {
+      <p class="msg-error"><mat-icon>error</mat-icon> {{ createError() }}</p>
+    }
+
+    <div class="form-row">
+      <mat-form-field appearance="outline">
+        <mat-label>Nom technique *</mat-label>
+        <input matInput formControlName="name" placeholder="EX: MON_ROLE"
+               style="text-transform:uppercase">
+        <mat-hint>Majuscules et underscores uniquement</mat-hint>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Libellé *</mat-label>
+        <input matInput formControlName="label" placeholder="Ex: Mon Rôle">
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="type-field">
+        <mat-label>Type</mat-label>
+        <mat-select formControlName="type">
+          <mat-option value="ESN">ESN (interne)</mat-option>
+          <mat-option value="CLIENT">Client (portail)</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <button mat-flat-button color="primary" [disabled]="creating()" (click)="submitCreate()">
+        <mat-icon>save</mat-icon> Créer
+      </button>
+    </div>
+  </div>
+  <mat-divider />
+}
+
+<!-- Table ───────────────────────────────────────────────────────────────── -->
+@if (sorted().length > 0) {
+  <mat-table [dataSource]="sorted()" matSort
+             [matSortActive]="sortState().active"
+             [matSortDirection]="sortState().direction"
+             (matSortChange)="onSort($event)"
+             class="roles-table">
+
+    <!-- Nom technique ───────────────────────────────────────────────────── -->
+    <ng-container matColumnDef="name">
+      <mat-header-cell *matHeaderCellDef mat-sort-header class="col-name">Nom technique</mat-header-cell>
+      <mat-cell *matCellDef="let r" class="col-name">
+        <code class="role-code">{{ r.name }}</code>
+      </mat-cell>
+    </ng-container>
+
+    <!-- Libellé ─────────────────────────────────────────────────────────── -->
+    <ng-container matColumnDef="label">
+      <mat-header-cell *matHeaderCellDef mat-sort-header>Libellé</mat-header-cell>
+      <mat-cell *matCellDef="let r">
+        @if (editingId() === r.id) {
+          <mat-form-field appearance="outline" class="inline-field" [formGroup]="editForm">
+            <input matInput formControlName="label">
+          </mat-form-field>
+        } @else {
+          {{ r.label }}
+        }
+      </mat-cell>
+    </ng-container>
+
+    <!-- Type ────────────────────────────────────────────────────────────── -->
+    <ng-container matColumnDef="type">
+      <mat-header-cell *matHeaderCellDef mat-sort-header class="col-sm">Type</mat-header-cell>
+      <mat-cell *matCellDef="let r" class="col-sm">
+        @if (editingId() === r.id) {
+          <mat-form-field appearance="outline" class="inline-field" [formGroup]="editForm">
+            <mat-select formControlName="type">
+              <mat-option value="ESN">ESN</mat-option>
+              <mat-option value="CLIENT">CLIENT</mat-option>
+            </mat-select>
+          </mat-form-field>
+        } @else {
+          <span [class]="'type-badge type-' + (r.type ?? 'other').toLowerCase()">
+            {{ r.type ?? '—' }}
+          </span>
+        }
+      </mat-cell>
+    </ng-container>
+
+    <!-- Actions ─────────────────────────────────────────────────────────── -->
+    <ng-container matColumnDef="actions">
+      <mat-header-cell *matHeaderCellDef class="col-actions"></mat-header-cell>
+      <mat-cell *matCellDef="let r" class="col-actions">
+        @if (editingId() === r.id) {
+          <button mat-icon-button color="primary" (click)="submitEdit(r)" matTooltip="Enregistrer">
+            <mat-icon>check</mat-icon>
+          </button>
+          <button mat-icon-button (click)="cancelEdit()" matTooltip="Annuler">
+            <mat-icon>close</mat-icon>
+          </button>
+        } @else {
+          <button mat-icon-button (click)="startEdit(r)" matTooltip="Modifier">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button color="warn" (click)="deleteRole(r)" matTooltip="Supprimer">
+            <mat-icon>delete</mat-icon>
+          </button>
+        }
+      </mat-cell>
+    </ng-container>
+
+    <mat-header-row *matHeaderRowDef="columns" />
+    <mat-row *matRowDef="let row; columns: columns;" />
+  </mat-table>
+}
+
+@if (!loading() && sorted().length === 0) {
+  <p class="empty">Aucun rôle défini.</p>
+}
