@@ -47,8 +47,17 @@ jobs:
           bash nas-package/spk/build-spk.sh
           ls -la nas-package/spk/dist
 
+      # Livrable : le .spk et les scripts d'installation par SSH (DSM 7 refuse d'installer ce
+      # .spk par le Centre de paquets : il demande les droits root).
+      - name: Assembler le livrable
+        run: |
+          mkdir -p livrable
+          cp nas-package/spk/dist/*.spk livrable/
+          cp nas-package/installer/installer-nas.sh nas-package/installer/desinstaller-nas.sh livrable/
+          ls -la livrable
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: site-nas-armv8
-          path: nas-package/spk/dist/*.spk
+          path: livrable/*
           if-no-files-found: error
