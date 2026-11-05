@@ -43,7 +43,10 @@ jobs:
         env:
           INGRAM_PACKAGES_USER: ${{ github.repository_owner }}
           INGRAM_PACKAGES_TOKEN: ${{ secrets.INGRAM_PACKAGES_TOKEN }}
-        run: mvn -B -DskipTests package
+        # Le projet Angular (frontend/intra) est HORS de ce depot : son resultat compile est deja
+        # commite dans src/main/resources/static/app. On saute donc node/npm ; consequence : avant
+        # de poser un tag, reconstruire l'interface en local (npm run build) et commiter static/app.
+        run: mvn -B -DskipTests -Dskip.installnodenpm=true -Dskip.npm=true package
 
       - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
