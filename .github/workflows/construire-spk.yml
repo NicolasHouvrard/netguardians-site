@@ -55,6 +55,19 @@ jobs:
           cp nas-package/spk/dist/*.spk livrable/
           cp nas-package/installer/installer-nas.sh nas-package/installer/desinstaller-nas.sh livrable/
           ls -la livrable
+          # Somme SHA-256 a fournir a l'installateur : elle est affichee ICI (journal et resume de
+          # l'execution GitHub), un canal different du fichier telecharge, qui ne permet pas a
+          # celui qui alterer le .spk de modifier aussi la somme attendue.
+          {
+            echo "### Sommes SHA-256 du livrable"
+            echo
+            echo "Commande d'installation (sur le NAS, en SSH) :"
+            echo '```'
+            echo "sudo bash installer-nas.sh $(basename livrable/*.spk) $(sha256sum livrable/*.spk | cut -d' ' -f1)"
+            echo '```'
+            echo
+            echo "Somme de installer-nas.sh : $(sha256sum livrable/installer-nas.sh | cut -d' ' -f1)"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

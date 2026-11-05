@@ -3,6 +3,8 @@ RACINE_TEST_INSTALLATEUR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Fabrique un faux .spk avec les VRAIS scripts et bibliotheques, des commandes systeme simulees
 # (tailscale, docker, nginx, systemctl...) qui journalisent leurs appels dans $STUB_LOG, et des
 # dossiers de donnees/Nginx/systemd rediriges vers un dossier temporaire.
+_hash() { sha256sum "$1" | cut -d" " -f1; }
+
 _preparer_installation() {
   local src="$RACINE_TEST_INSTALLATEUR"
   T="$(mktemp -d)"
@@ -41,7 +43,7 @@ _preparer_installation() {
 
 test_installer_nas_installe_de_bout_en_bout_avec_les_vrais_scripts() {
   _preparer_installation
-  sortie="$(bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" 2>&1 < /dev/null)"; code=$?
+  sortie="$(bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" 2>&1 < /dev/null)"; code=$?
   [ "$code" -eq 0 ] || { echo "$sortie" | tail -8; return 1; }
   [[ "$sortie" == *"Installation terminee"* ]] \
     && grep -q "^docker run -d --name site-postgres" "$STUB_LOG" \
@@ -53,20 +55,45 @@ test_installer_nas_installe_de_bout_en_bout_avec_les_vrais_scripts() {
     && grep -q "prestart.sh" "$SITE_NAS_PREFIXE/demarrage-nas.sh"
 }
 
-test_installer_nas_refuse_un_paquet_dont_la_somme_de_controle_ne_correspond_pas() {
+test_installer_nas_refuse_un_paquet_dont_le_package_tgz_a_ete_altere_apres_la_somme_fournie() {
   _preparer_installation
-  # remplace package.tgz apres coup : INFO annonce une somme qui n'est plus la bonne
+  somme_officielle="$(_hash "$SPK")"
   echo "alteration" >> "$SPKDIR/package.tgz"
   tar -cf "$SPK" -C "$SPKDIR" INFO package.tgz scripts
-  sortie="$(bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" 2>&1 < /dev/null)"; code=$?
-  [ "$code" -eq 1 ] && [[ "$sortie" == *"corrompu"* ]] && [ ! -e "$SITE_NAS_PREFIXE/lib" ] && ! grep -q "^docker" "$STUB_LOG"
+  sortie="$(bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$somme_officielle" 2>&1 < /dev/null)"; code=$?
+  [ "$code" -eq 1 ] && [[ "$sortie" == *"ne correspond pas"* ]] && [ ! -e "$SITE_NAS_PREFIXE/lib" ] && ! grep -q "^docker" "$STUB_LOG"
+}
+
+test_installer_nas_refuse_un_paquet_dont_un_script_execute_en_root_a_ete_altere() {
+  # le cas que l'ancienne somme MD5 de INFO ne couvrait pas : scripts/ modifie, package.tgz et INFO intacts
+  _preparer_installation
+  somme_officielle="$(_hash "$SPK")"
+  echo 'touch "$HOME/pwned-par-un-script-altere"' >> "$SPKDIR/scripts/postinst"
+  tar -cf "$SPK" -C "$SPKDIR" INFO package.tgz scripts
+  HOME="$T/home" ; mkdir -p "$HOME"
+  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$somme_officielle" >/dev/null 2>&1 < /dev/null; code=$?
+  [ "$code" -eq 1 ] && [ ! -e "$HOME/pwned-par-un-script-altere" ] && [ ! -e "$SITE_NAS_PREFIXE/scripts" ]
+}
+
+test_installer_nas_refuse_sans_somme_sha256_ou_avec_une_somme_mal_formee() {
+  _preparer_installation
+  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" >/dev/null 2>&1 < /dev/null; a=$?
+  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "abc123" >/dev/null 2>&1 < /dev/null; b=$?
+  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(printf 'z%.0s' $(seq 64))" >/dev/null 2>&1 < /dev/null; c=$?
+  [ "$a" -eq 1 ] && [ "$b" -eq 1 ] && [ "$c" -eq 1 ] && [ ! -e "$SITE_NAS_PREFIXE" ] && ! grep -q "^docker" "$STUB_LOG"
+}
+
+test_installer_nas_accepte_la_somme_en_majuscules() {
+  _preparer_installation
+  maj="$(_hash "$SPK" | tr 'a-f' 'A-F')"
+  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$maj" >/dev/null 2>&1 < /dev/null
 }
 
 test_installer_nas_refuse_sans_les_droits_root() {
   _preparer_installation
   unset SITE_NAS_SANS_ROOT
   [ "$(id -u)" -ne 0 ] || return 0   # lance en root : sans objet
-  sortie="$(bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" 2>&1 < /dev/null)"; code=$?
+  sortie="$(bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" 2>&1 < /dev/null)"; code=$?
   [ "$code" -eq 1 ] && [[ "$sortie" == *"root"* ]] && [ ! -e "$SITE_NAS_PREFIXE" ]
 }
 
@@ -78,7 +105,7 @@ test_installer_nas_refuse_un_chemin_de_paquet_absent() {
 
 test_installer_nas_refuse_un_dossier_d_installation_sous_l_arborescence_dsm_des_paquets() {
   _preparer_installation
-  SITE_NAS_PREFIXE="/var/packages/site-nas/target" bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" >/dev/null 2>&1 < /dev/null; code=$?
+  SITE_NAS_PREFIXE="/var/packages/site-nas/target" bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" >/dev/null 2>&1 < /dev/null; code=$?
   [ "$code" -eq 1 ]
 }
 
@@ -87,13 +114,13 @@ test_installer_nas_ne_met_jamais_la_cle_headscale_dans_les_arguments_des_command
   # ce NAS n'est pas connecte : tailscale status echoue, la cle est donc utilisee
   printf '#!/bin/bash\ncase "$1" in\n  version) echo 1.104.5 ;;\n  ip) echo 100.64.0.2 ;;\n  status) [ -f "%s/connecte" ] && exit 0 || exit 1 ;;\n  up) touch "%s/connecte" ;;\nesac\necho "tailscale $*" >> "%s"\nexit 0\n' "$T" "$T" "$STUB_LOG" > "$STUBS/tailscale"
   # lecture de $2 (preinst/postinst) ne doit pas faire echouer : on fournit la cle par l'environnement
-  CLE_HEADSCALE="secret-de-test-0123456789" bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" >/dev/null 2>&1 < /dev/null
+  CLE_HEADSCALE="secret-de-test-0123456789" bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" >/dev/null 2>&1 < /dev/null
   ! grep -q "secret-de-test-0123456789" "$STUB_LOG"
 }
 
 test_desinstaller_nas_retire_le_service_et_le_programme_mais_garde_les_donnees() {
   _preparer_installation
-  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" >/dev/null 2>&1 < /dev/null || return 1
+  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" >/dev/null 2>&1 < /dev/null || return 1
   [ -f "$T/data/.postgres-password" ] || return 1
   : > "$STUB_LOG"
   sortie="$(bash "$RACINE_TEST_INSTALLATEUR/installer/desinstaller-nas.sh" 2>&1)"; code=$?

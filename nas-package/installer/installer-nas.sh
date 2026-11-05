@@ -5,7 +5,12 @@
 # a la main, en root (sudo), par SSH : il verifie et extrait le .spk dans un dossier a part
 # puis execute les memes scripts preinst/postinst que ceux que DSM aurait lances.
 #
-# Usage :  sudo bash installer-nas.sh /chemin/vers/site-nas-armv8-1.0.0-1.spk
+# Usage :  sudo bash installer-nas.sh /chemin/vers/site-nas-armv8-1.0.0-1.spk <sha256-du-fichier-spk>
+#
+# La somme SHA-256 du .spk ENTIER est OBLIGATOIRE et doit venir d'un autre canal que le fichier
+# lui-meme : celle affichee dans le journal (et le resume) de l'execution GitHub qui l'a construit.
+# Elle couvre tout ce qui sera execute en root (scripts/ compris). Une somme placee DANS l'archive
+# ne prouverait rien : qui modifie l'archive modifie aussi la somme.
 #
 # Cle Headscale : inutile si ce NAS est deja connecte (tailscale status). Sinon, fournie par la
 # variable d'environnement CLE_HEADSCALE ou saisie au clavier (jamais en argument, pour ne pas
@@ -16,10 +21,12 @@ set -u
 
 PREFIXE="${SITE_NAS_PREFIXE:-/usr/local/site-nas}"
 SPK="${1:-}"
+SHA256_ATTENDU="$(printf '%s' "${2:-${SITE_NAS_SHA256:-}}" | tr 'A-F' 'a-f')"
 
 echec() { printf 'installer-nas : %s\n' "$1" >&2; exit 1; }
 
-[ -n "$SPK" ] && [ -f "$SPK" ] || echec "usage : sudo bash installer-nas.sh /chemin/vers/site-nas-<arch>-<version>.spk"
+[ -n "$SPK" ] && [ -f "$SPK" ] || echec "usage : sudo bash installer-nas.sh /chemin/vers/site-nas-<arch>-<version>.spk <sha256-du-fichier-spk>"
+[[ "$SHA256_ATTENDU" =~ ^[0-9a-f]{64}$ ]] || echec "somme SHA-256 du .spk manquante ou mal formee (64 caracteres hexadecimaux, a copier depuis le journal de l'execution GitHub qui a construit le paquet)"
 
 if [ "${SITE_NAS_SANS_ROOT:-}" != "1" ] && [ "$(id -u)" -ne 0 ]; then
   echec "ce script doit etre lance en root : sudo bash installer-nas.sh $SPK"
@@ -37,17 +44,15 @@ TMP="$(mktemp -d)" || echec "impossible de creer un dossier temporaire"
 JOURNAL="$(mktemp)" || echec "impossible de creer le journal"
 trap 'rm -rf "$TMP" "$JOURNAL"' EXIT
 
-# --- 1. Extraction du .spk dans un dossier temporaire -------------------------------------
+# --- 1. Authenticite : SHA-256 du .spk ENTIER, AVANT toute extraction ou execution ---------------
+reelle="$(sha256sum "$SPK" | cut -d' ' -f1)"
+[ "$reelle" = "$SHA256_ATTENDU" ] || echec "le .spk ne correspond pas a la somme SHA-256 fournie (attendue $SHA256_ATTENDU, obtenue $reelle) : fichier altere ou mauvaise version, rien n'a ete extrait ni execute"
+
+# --- 2. Extraction du .spk dans un dossier temporaire ---------------------------------------
 tar -xf "$SPK" -C "$TMP" || echec "archive .spk illisible : $SPK"
 for f in INFO package.tgz scripts/postinst scripts/preinst scripts/commun.sh scripts/constantes.sh; do
   [ -e "$TMP/$f" ] || echec "archive incomplete, il manque : $f"
 done
-
-# --- 2. Integrite : somme MD5 declaree dans INFO == somme reelle de package.tgz ---------------
-attendue="$(sed -n 's/^checksum="\([0-9a-f]\{32\}\)"$/\1/p' "$TMP/INFO" | head -n 1)"
-reelle="$(md5sum "$TMP/package.tgz" | cut -d' ' -f1)"
-[ -n "$attendue" ] || echec "somme de controle absente de INFO"
-[ "$attendue" = "$reelle" ] || echec "package.tgz corrompu ou modifie (somme attendue $attendue, obtenue $reelle)"
 
 # --- 3. Mise en place dans le dossier d'installation ----------------------------------------
 mkdir -p "$PREFIXE/scripts" || echec "impossible de creer $PREFIXE"
