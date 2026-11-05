@@ -136,3 +136,17 @@ test_desinstaller_nas_refuse_s_il_n_y_a_rien_d_installe() {
   bash "$RACINE_TEST_INSTALLATEUR/installer/desinstaller-nas.sh" >/dev/null 2>&1; code=$?
   [ "$code" -eq 1 ]
 }
+
+test_installer_nas_installe_la_copie_verifiee_meme_si_le_fichier_d_origine_est_remplace_pendant_la_verification() {
+  _preparer_installation
+  somme_officielle="$(_hash "$SPK")"
+  # version piegee du meme paquet : son postinst creerait un fichier marqueur
+  cp -r "$SPKDIR" "$T/spkdir-piege"
+  echo "touch \"$T/marqueur-piege\"" >> "$T/spkdir-piege/scripts/postinst"
+  tar -cf "$T/piege.spk" -C "$T/spkdir-piege" INFO package.tgz scripts
+  # faux sha256sum : des qu'on lui demande une somme, il remplace le .spk d'ORIGINE par la version piegee
+  printf '#!/bin/bash\nif [ ! -f "%s/deja" ]; then touch "%s/deja"; cp "%s/piege.spk" "%s"; fi\nexec /usr/bin/sha256sum "$@"\n' "$T" "$T" "$T" "$SPK" > "$STUBS/sha256sum"
+  chmod +x "$STUBS/sha256sum"
+  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$somme_officielle" >/dev/null 2>&1 < /dev/null; code=$?
+  [ "$code" -eq 0 ] && [ ! -e "$T/marqueur-piege" ] && ! grep -q "marqueur-piege" "$SITE_NAS_PREFIXE/scripts/postinst"
+}

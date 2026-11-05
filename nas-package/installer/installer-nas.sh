@@ -45,11 +45,16 @@ JOURNAL="$(mktemp)" || echec "impossible de creer le journal"
 trap 'rm -rf "$TMP" "$JOURNAL"' EXIT
 
 # --- 1. Authenticite : SHA-256 du .spk ENTIER, AVANT toute extraction ou execution ---------------
-reelle="$(sha256sum "$SPK" | cut -d' ' -f1)"
+# On travaille sur UNE COPIE PRIVEE (le dossier temporaire est reserve a root, mode 0700) :
+# verifier le fichier d'origine puis le relire pour l'extraire laisserait une fenetre pendant
+# laquelle quelqu'un pouvant ecrire dans son dossier le remplacerait apres la verification.
+mkdir -p "$TMP/copie" || echec "impossible de creer le dossier de travail"
+cp -- "$SPK" "$TMP/copie/paquet.spk" || echec "impossible de copier le .spk"
+reelle="$(sha256sum "$TMP/copie/paquet.spk" | cut -d' ' -f1)"
 [ "$reelle" = "$SHA256_ATTENDU" ] || echec "le .spk ne correspond pas a la somme SHA-256 fournie (attendue $SHA256_ATTENDU, obtenue $reelle) : fichier altere ou mauvaise version, rien n'a ete extrait ni execute"
 
-# --- 2. Extraction du .spk dans un dossier temporaire ---------------------------------------
-tar -xf "$SPK" -C "$TMP" || echec "archive .spk illisible : $SPK"
+# --- 2. Extraction de la copie verifiee dans un dossier temporaire ----------------------------
+tar -xf "$TMP/copie/paquet.spk" -C "$TMP" || echec "archive .spk illisible : $SPK"
 for f in INFO package.tgz scripts/postinst scripts/preinst scripts/commun.sh scripts/constantes.sh; do
   [ -e "$TMP/$f" ] || echec "archive incomplete, il manque : $f"
 done
