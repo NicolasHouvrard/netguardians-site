@@ -33,7 +33,7 @@ jobs:
         run: mvn -B -f agent/pom.xml -DskipTests package
 
       - name: JRE ARM epingle (SHA-256 verifiee)
-        run: nas-package/spk/fetch-jre.sh armv8 "$RUNNER_TEMP/jre-armv8"
+        run: bash nas-package/spk/fetch-jre.sh armv8 "$RUNNER_TEMP/jre-armv8"
 
       - name: Paquet .spk (armv8)
         env:
