@@ -22,6 +22,12 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+          # Le SDK Ingram Micro est heberge sur GitHub Packages (organisation ingrammicro-xvantage),
+          # pas lisible avec le GITHUB_TOKEN automatique : setup-java ecrit settings.xml avec
+          # le depot "github-ingram" (meme id que dans pom.xml), identifiants lus dans l'environnement.
+          server-id: github-ingram
+          server-username: INGRAM_PACKAGES_USER
+          server-password: INGRAM_PACKAGES_TOKEN
 
       # Les vrais fichiers de config sont ignores par git (secrets) : on part des
       # exemples, qui ne contiennent que des placeholders surchargeables par l'environnement.
@@ -34,6 +40,9 @@ jobs:
       # ne sont pas encore connus pour l'integration continue. A ajouter dans un workflow
       # dedie des qu'ils sont fiabilises (voir README du paquet NAS).
       - name: Compilation
+        env:
+          INGRAM_PACKAGES_USER: ${{ github.repository_owner }}
+          INGRAM_PACKAGES_TOKEN: ${{ secrets.INGRAM_PACKAGES_TOKEN }}
         run: mvn -B -DskipTests package
 
       - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
