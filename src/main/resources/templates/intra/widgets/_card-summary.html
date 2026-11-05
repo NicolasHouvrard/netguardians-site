@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="widget" class="d-flex flex-column h-100">
+
+    <!-- En-tête -->
+    <div class="d-flex align-items-center justify-content-between px-3 pt-3 pb-2 border-bottom">
+        <h6 class="fw-bold mb-0">
+            <span class="rounded-circle d-inline-flex align-items-center justify-content-center me-2 flex-shrink-0"
+                  th:style="'background:' + ${widget.color} + '22;width:26px;height:26px'">
+                <i th:class="${widget.icon}" th:style="'color:' + ${widget.color} + ';font-size:.75rem'"></i>
+            </span>
+            <span th:text="${widget.label}"></span>
+        </h6>
+        <div class="d-flex align-items-center gap-1 flex-shrink-0">
+            <a th:href="${widget.link}" class="btn btn-sm btn-outline-secondary">Gérer →</a>
+            <form th:if="${dashboard != null}"
+                  th:action="@{/intra/dashboard/{s}/widget/remove(s=${dashboard})}" method="post">
+                <input type="hidden" name="widgetType" th:value="${widgetKey}">
+                <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1 btn-widget-remove" title="Retirer"
+                        onclick="return confirm('Retirer ce widget ?')">
+                    <i class="fas fa-times" style="font-size:.65rem"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Corps -->
+    <div class="px-3 py-3 flex-grow-1">
+
+        <!-- Cases montants -->
+        <div class="row g-2 mb-3">
+            <div th:each="box : ${amountBoxes}"
+                 th:classappend="${#lists.size(amountBoxes) == 1} ? 'col-12' : 'col-6'">
+                <div class="rounded-3 p-3 text-center"
+                     th:classappend="'bg-' + ${box.color} + ' bg-opacity-10'">
+                    <div class="text-muted small mb-1" th:text="${box.label}"></div>
+                    <div class="fs-5 fw-bold"
+                         th:classappend="'text-' + ${box.color}"
+                         th:text="${box.value}"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Badges statut -->
+        <div class="d-flex gap-2 flex-wrap">
+            <span th:each="badge : ${statusBadges}"
+                  class="badge fs-6 px-3 py-2"
+                  th:classappend="${badge.badgeClass}">
+                <span th:text="${badge.value}">0</span>
+                <span th:text="${' ' + badge.label}"></span>
+            </span>
+        </div>
+
+    </div>
+</div>
+</body>
+</html>

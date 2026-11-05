@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Réseaux sociaux — Configuration</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-share-nodes me-2 text-primary"></i>Réseaux sociaux — Configuration</h4>
+        <div class="d-flex gap-2">
+            <a href="/intra/social/posts" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-list me-1"></i>Publications
+            </a>
+            <a href="/intra/social/config/new" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus me-1"></i>Ajouter un réseau
+            </a>
+        </div>
+    </div>
+
+    <!-- Flash messages -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Grille des réseaux configurés -->
+    <div th:if="${configs == null or configs.isEmpty()}" class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-share-nodes fa-3x text-muted mb-3"></i>
+            <p class="text-muted mb-3">Aucun réseau configuré. Ajoutez vos comptes LinkedIn, Facebook, Instagram ou X.</p>
+            <a href="/intra/social/config/new" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>Ajouter un réseau
+            </a>
+        </div>
+    </div>
+
+    <div th:if="${configs != null and !configs.isEmpty()}" class="row g-3">
+        <div th:each="cfg : ${configs}" class="col-md-6 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <span class="fs-2" th:class="${cfg.networkType.icon}"></span>
+                        <div class="flex-grow-1 min-w-0">
+                            <div class="fw-semibold text-truncate" th:text="${cfg.name}"></div>
+                            <small class="text-muted" th:text="${cfg.networkType.label}"></small>
+                        </div>
+                        <!-- Badge connexion -->
+                        <span th:if="${cfg.connected}" class="badge text-bg-success">
+                            <i class="fas fa-check me-1"></i>Connecté
+                        </span>
+                        <span th:unless="${cfg.connected}" class="badge text-bg-secondary">
+                            Non connecté
+                        </span>
+                    </div>
+
+                    <!-- Infos -->
+                    <ul class="list-unstyled small text-muted mb-3">
+                        <li th:if="${cfg.pageId != null and !cfg.pageId.isBlank()}">
+                            <i class="fas fa-hashtag me-1"></i>Page ID : <code th:text="${cfg.pageId}"></code>
+                        </li>
+                        <li th:if="${cfg.accountHandle != null and !cfg.accountHandle.isBlank()}">
+                            <i class="fas fa-at me-1"></i><span th:text="${cfg.accountHandle}"></span>
+                        </li>
+                        <li th:if="${cfg.tokenExpired}" class="text-danger">
+                            <i class="fas fa-triangle-exclamation me-1"></i>Token expiré
+                        </li>
+                        <li th:if="${!cfg.active}" class="text-warning">
+                            <i class="fas fa-pause me-1"></i>Désactivé
+                        </li>
+                    </ul>
+
+                    <!-- Actions -->
+                    <div class="d-flex gap-2 flex-wrap">
+                        <a th:href="@{/intra/social/config/{id}/edit(id=${cfg.id})}"
+                           class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-pen me-1"></i>Modifier
+                        </a>
+                        <a th:href="@{/intra/social/config/{id}/auth(id=${cfg.id})}"
+                           class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-key me-1"></i>Connecter via OAuth
+                        </a>
+                        <form th:action="@{/intra/social/config/{id}/delete(id=${cfg.id})}"
+                              method="post"
+                              onsubmit="return confirm('Supprimer cette configuration ?')">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

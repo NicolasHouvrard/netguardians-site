@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{espace-layout}">
+<head><title>Mon équipe</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-users me-2 text-primary"></i>Mon équipe &amp; Contacts</h4>
+        <button sec:authorize="hasAnyRole('GESTIONNAIRE','ADMIN')"
+                class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAddContact">
+            <i class="fas fa-user-plus me-1"></i>Ajouter un contact
+        </button>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${warningMessage}" class="alert alert-warning alert-dismissible fade show">
+        <span th:text="${warningMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div th:if="${contacts == null or #lists.isEmpty(contacts)}"
+                 class="text-center py-5 text-muted">
+                <i class="fas fa-user-slash fa-2x mb-3 d-block"></i>
+                Aucun contact enregistré.
+            </div>
+
+            <div th:each="c : ${contacts}"
+                 class="d-flex align-items-center px-4 py-3 border-bottom gap-3">
+
+                <!-- Avatar -->
+                <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
+                     style="width:40px;height:40px;flex-shrink:0">
+                    <i class="fas fa-user text-primary"></i>
+                </div>
+
+                <!-- Infos contact -->
+                <div class="flex-grow-1">
+                    <div class="fw-semibold" th:text="${c.firstName + ' ' + c.lastName}"></div>
+                    <div class="small text-muted d-flex flex-wrap gap-3">
+                        <span th:if="${c.position}" th:text="${c.position}"></span>
+                        <span th:if="${c.email}"><i class="fas fa-envelope me-1"></i><span th:text="${c.email}"></span></span>
+                        <span th:if="${c.phone}"><i class="fas fa-phone me-1"></i><span th:text="${c.phone}"></span></span>
+                    </div>
+                </div>
+
+                <!-- Accès portail badge -->
+                <div>
+                    <th:block th:if="${c.userId != null}">
+                        <span th:if="${gestionnaireUserIds.contains(c.userId)}" class="badge text-bg-warning">Gestionnaire</span>
+                        <span th:if="${not gestionnaireUserIds.contains(c.userId)}" class="badge text-bg-secondary">Utilisateur</span>
+                    </th:block>
+                    <span th:if="${c.userId == null}" class="badge text-bg-light border text-muted">Pas d'accès</span>
+                </div>
+
+                <!-- Actions (gestionnaire uniquement) -->
+                <div class="d-flex gap-2" sec:authorize="hasAnyRole('GESTIONNAIRE','ADMIN')">
+
+                    <!-- Éditer -->
+                    <button class="btn btn-outline-secondary btn-sm" title="Modifier"
+                            data-bs-toggle="modal" data-bs-target="#modalEditContact"
+                            th:attr="data-cid=${c.id},
+                                     data-first-name=${c.firstName},
+                                     data-last-name=${c.lastName},
+                                     data-email=${c.email != null ? c.email : ''},
+                                     data-phone=${c.phone != null ? c.phone : ''},
+                                     data-position=${c.position != null ? c.position : ''}">
+                        <i class="fas fa-pencil-alt"></i>
+                    </button>
+
+                    <!-- Créer accès portail (si pas de compte et email présent) -->
+                    <form th:if="${c.userId == null and not #strings.isEmpty(c.email)}"
+                          th:action="@{/espace/team/contacts/{cid}/create-access(cid=${c.id})}" method="post">
+                        <button type="submit" class="btn btn-outline-success btn-sm" title="Créer accès portail"
+                                onclick="return confirm('Créer un accès portail pour ce contact ?')">
+                            <i class="fas fa-key"></i>
+                        </button>
+                    </form>
+
+                    <!-- Promouvoir / Rétrograder (si compte existant) -->
+                    <th:block th:if="${c.userId != null}">
+                        <form th:if="${not gestionnaireUserIds.contains(c.userId)}"
+                              th:action="@{/espace/team/contacts/{cid}/promote(cid=${c.id})}" method="post">
+                            <button type="submit" class="btn btn-outline-warning btn-sm" title="Promouvoir Gestionnaire"
+                                    onclick="return confirm('Promouvoir en Gestionnaire ?')">
+                                <i class="fas fa-arrow-up"></i>
+                            </button>
+                        </form>
+                        <form th:if="${gestionnaireUserIds.contains(c.userId)}"
+                              th:action="@{/espace/team/contacts/{cid}/demote(cid=${c.id})}" method="post">
+                            <button type="submit" class="btn btn-outline-secondary btn-sm" title="Rétrograder Utilisateur"
+                                    onclick="return confirm('Rétrograder en Utilisateur ?')">
+                                <i class="fas fa-arrow-down"></i>
+                            </button>
+                        </form>
+                        <!-- Révoquer accès (pas soi-même) -->
+                        <form th:if="${userMap[c.userId] != null and userMap[c.userId].email != currentUserEmail}"
+                              th:action="@{/espace/team/contacts/{cid}/revoke-access(cid=${c.id})}" method="post">
+                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Révoquer l'accès portail"
+                                    onclick="return confirm('Révoquer l\'accès portail de ce contact ?')">
+                                <i class="fas fa-user-slash"></i>
+                            </button>
+                        </form>
+                    </th:block>
+
+                    <!-- Supprimer contact (pas soi-même) -->
+                    <form th:if="${c.userId == null or (userMap[c.userId] != null and userMap[c.userId].email != currentUserEmail)}"
+                          th:action="@{/espace/team/contacts/{cid}/delete(cid=${c.id})}" method="post">
+                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Supprimer le contact"
+                                onclick="return confirm('Supprimer ce contact et son accès portail ?')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal : Ajouter un contact -->
+    <div class="modal fade" id="modalAddContact" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form th:action="@{/espace/team/add}" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Ajouter un contact</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3 mb-3">
+                            <div class="col-6">
+                                <label class="form-label fw-semibold small">Prénom <span class="text-danger">*</span></label>
+                                <input type="text" name="firstName" class="form-control" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-semibold small">Nom <span class="text-danger">*</span></label>
+                                <input type="text" name="lastName" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Poste</label>
+                            <input type="text" name="position" class="form-control" placeholder="Ex: Directeur, Comptable...">
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Email</label>
+                                <input type="email" name="email" class="form-control"
+                                       placeholder="Requis pour accès portail">
+                                <div class="form-text">Un accès portail sera créé automatiquement si renseigné.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Téléphone</label>
+                                <input type="text" name="phone" class="form-control">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Mot de passe portail</label>
+                            <input type="text" name="password" class="form-control"
+                                   placeholder="Laissez vide pour générer automatiquement">
+                            <div class="form-text">Si vide, un mot de passe temporaire sera affiché après la création.</div>
+                        </div>
+                        <div class="mb-1">
+                            <label class="form-label fw-semibold small">Rôle portail</label>
+                            <select name="role" class="form-select form-select-sm">
+                                <option value="CLIENT" selected>Utilisateur</option>
+                                <option value="GESTIONNAIRE">Gestionnaire</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Ajouter</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal : Modifier un contact -->
+    <div class="modal fade" id="modalEditContact" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="formEditContact" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-pencil-alt me-2"></i>Modifier le contact</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3 mb-3">
+                            <div class="col-6">
+                                <label class="form-label fw-semibold small">Prénom <span class="text-danger">*</span></label>
+                                <input type="text" name="firstName" id="editContactFirstName" class="form-control" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-semibold small">Nom <span class="text-danger">*</span></label>
+                                <input type="text" name="lastName" id="editContactLastName" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Poste</label>
+                            <input type="text" name="position" id="editContactPosition" class="form-control">
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Email</label>
+                                <input type="email" name="email" id="editContactEmail" class="form-control">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Téléphone</label>
+                                <input type="text" name="phone" id="editContactPhone" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.getElementById('modalEditContact').addEventListener('show.bs.modal', function(e) {
+        var btn = e.relatedTarget;
+        document.getElementById('editContactFirstName').value = btn.dataset.firstName || '';
+        document.getElementById('editContactLastName').value  = btn.dataset.lastName  || '';
+        document.getElementById('editContactPosition').value  = btn.dataset.position  || '';
+        document.getElementById('editContactEmail').value     = btn.dataset.email     || '';
+        document.getElementById('editContactPhone').value     = btn.dataset.phone     || '';
+        document.getElementById('formEditContact').action =
+            '/espace/team/contacts/' + btn.dataset.cid + '/update';
+    });
+    </script>
+
+</div>
+</body>
+</html>

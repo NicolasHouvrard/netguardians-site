@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Dashboard Technicien</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div th:replace="~{intra/nav :: dashboard-subnav(categoryName='Support')}"></div>
+
+    <div class="pt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-0 fw-bold">
+                    <i class="fas fa-hard-hat me-2" style="color:#f97316"></i>Mes interventions
+                </h1>
+                <small class="text-muted"
+                       th:text="${#temporals.format(#temporals.createNow(), 'EEEE d MMMM yyyy', new java.util.Locale('fr'))}"></small>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="/intra/interventions/new" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus me-1"></i>Nouvelle intervention
+                </a>
+                <a href="/intra/interventions" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-list me-1"></i>Toutes
+                </a>
+            </div>
+        </div>
+
+        <!-- KPIs ──────────────────────────────────────────────────────────── -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <a href="/intra/interventions" class="card border-0 shadow-sm h-100 text-decoration-none"
+                   style="border-left:4px solid #f97316 !important">
+                    <div class="card-body d-flex align-items-center gap-3 py-3">
+                        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                              style="background:#f9731620;width:42px;height:42px">
+                            <i class="fas fa-wrench" style="color:#f97316"></i>
+                        </span>
+                        <div>
+                            <div class="fw-bold lh-1 mb-1" style="font-size:1.5rem" th:text="${nbEnCours}">—</div>
+                            <div class="text-muted" style="font-size:.72rem">En cours</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-md-3">
+                <a href="/intra/interventions" class="card border-0 shadow-sm h-100 text-decoration-none"
+                   style="border-left:4px solid #3b82f6 !important">
+                    <div class="card-body d-flex align-items-center gap-3 py-3">
+                        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                              style="background:#3b82f620;width:42px;height:42px">
+                            <i class="fas fa-calendar-check" style="color:#3b82f6"></i>
+                        </span>
+                        <div>
+                            <div class="fw-bold lh-1 mb-1" style="font-size:1.5rem" th:text="${nbPlanifiees}">—</div>
+                            <div class="text-muted" style="font-size:.72rem">Planifiées</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-md-3">
+                <a href="/intra/tickets" class="card border-0 shadow-sm h-100 text-decoration-none"
+                   style="border-left:4px solid #ef4444 !important">
+                    <div class="card-body d-flex align-items-center gap-3 py-3">
+                        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                              style="background:#ef444420;width:42px;height:42px">
+                            <i class="fas fa-ticket" style="color:#ef4444"></i>
+                        </span>
+                        <div>
+                            <div class="fw-bold lh-1 mb-1" style="font-size:1.5rem" th:text="${nbTicketsOuverts}">—</div>
+                            <div class="text-muted" style="font-size:.72rem">Tickets ouverts</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-md-3">
+                <a href="/intra/marketplace" class="card border-0 shadow-sm h-100 text-decoration-none"
+                   style="border-left:4px solid #10b981 !important">
+                    <div class="card-body d-flex align-items-center gap-3 py-3">
+                        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                              style="background:#10b98120;width:42px;height:42px">
+                            <i class="fas fa-store" style="color:#10b981"></i>
+                        </span>
+                        <div>
+                            <div class="fw-bold lh-1 mb-1" style="font-size:.9rem">Missions</div>
+                            <div class="text-muted" style="font-size:.72rem">Marketplace →</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Liste de mes interventions actives ─────────────────────────────── -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">
+                    <i class="fas fa-wrench me-2 text-warning"></i>Mes interventions actives
+                </span>
+                <a href="/intra/interventions" class="btn btn-sm btn-outline-secondary">Voir tout</a>
+            </div>
+
+            <div th:if="${#lists.isEmpty(mesInterventions)}" class="card-body text-center text-muted py-5">
+                <i class="fas fa-check-circle fa-2x text-success mb-3 d-block"></i>
+                Aucune intervention active assignée.
+                <div class="mt-2">
+                    <a href="/intra/marketplace" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-store me-1"></i>Voir la marketplace
+                    </a>
+                </div>
+            </div>
+
+            <div th:unless="${#lists.isEmpty(mesInterventions)}" class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:90px">Statut</th>
+                            <th>Titre</th>
+                            <th>Client</th>
+                            <th style="width:110px">Date</th>
+                            <th style="width:100px">Durée</th>
+                            <th style="width:60px"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="i : ${mesInterventions}">
+                            <td>
+                                <span class="badge"
+                                      th:classappend="${i.status.badgeCss}"
+                                      th:text="${i.status.label}"></span>
+                            </td>
+                            <td>
+                                <div class="fw-semibold small" th:text="${i.title}">Titre</div>
+                                <div th:if="${i.address != null}" class="text-muted" style="font-size:.72rem">
+                                    <i class="fas fa-map-marker-alt me-1"></i>
+                                    <span th:text="${i.city ?: i.address}"></span>
+                                </div>
+                            </td>
+                            <td class="small" th:text="${i.customer != null ? i.customer.companyName : '—'}"></td>
+                            <td class="small text-muted"
+                                th:text="${i.date != null ? #temporals.format(i.date, 'dd/MM/yyyy') : '—'}"></td>
+                            <td class="small text-muted" th:text="${i.formattedDuration}">—</td>
+                            <td>
+                                <a th:href="@{/intra/interventions/{id}(id=${i.id})}"
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Configuration client</title></head>
+<body>
+<div layout:fragment="content">
+
+    <!-- En-tête + sélecteur de client -->
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-plug me-2 text-primary"></i>Configuration client</h4>
+            <p class="text-muted small mb-0" th:if="${customer != null}" th:text="${customer.companyName}"></p>
+        </div>
+        <form method="get" action="/intra/customers/config" class="d-flex align-items-center gap-2">
+            <label class="form-label mb-0 small fw-semibold text-nowrap">Client :</label>
+            <select name="customerId" class="form-select form-select-sm" style="min-width:200px"
+                    onchange="this.form.submit()">
+                <option th:each="c : ${customers != null ? customers : T(java.util.Collections).emptyList()}"
+                        th:value="${c.id}"
+                        th:text="${c.companyName}"
+                        th:selected="${selectedCustomerId != null and selectedCustomerId == c.id}">
+                </option>
+            </select>
+        </form>
+    </div>
+
+    <!-- Alertes flash -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${warnMessage}" class="alert alert-warning alert-dismissible fade show">
+        <i class="fas fa-exclamation-triangle me-2"></i><span th:text="${warnMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-circle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div th:if="${customer == null}" class="text-center py-5 text-muted">
+        <i class="fas fa-building fa-2x mb-3 opacity-25"></i>
+        <p>Sélectionnez un client pour afficher sa configuration.</p>
+    </div>
+
+    <div th:if="${customer != null}">
+
+        <div class="row g-4">
+
+            <!-- ── NinjaOne RMM ─────────────────────────────────────────── -->
+            <div class="col-lg-5">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-3">
+                        <i class="fas fa-shield-alt text-warning"></i>
+                        <span class="fw-semibold flex-grow-1">NinjaOne RMM</span>
+                        <span th:if="${customer.ninjaOrganizationId != null}"
+                              class="badge text-bg-success small">Lié</span>
+                        <span th:if="${customer.ninjaOrganizationId == null}"
+                              class="badge text-bg-secondary small">Non lié</span>
+                    </div>
+                    <div class="card-body">
+
+                        <div th:if="${ninjaOrgs == null or ninjaOrgs.isEmpty()}" class="text-muted small">
+                            <i class="fas fa-plug me-1"></i>NinjaOne non configuré ou indisponible.
+                        </div>
+
+                        <div th:if="${ninjaOrgs != null and !ninjaOrgs.isEmpty()}">
+
+                            <!-- Org actuellement liée -->
+                            <div th:if="${customer.ninjaOrganizationId != null}" class="mb-3">
+                                <p class="small fw-semibold mb-1">Organisation liée :</p>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge text-bg-warning">
+                                        <i class="fas fa-shield-alt me-1"></i>
+                                        <span th:each="org : ${ninjaOrgs != null ? ninjaOrgs : T(java.util.Collections).emptyList()}"
+                                              th:if="${org.id == customer.ninjaOrganizationId}"
+                                              th:text="${org.name}">—</span>
+                                        <span th:if="${customer.ninjaOrganizationId != null}"
+                                              th:unless="${#lists.size(ninjaOrgs) > 0}"
+                                              th:text="'#' + ${customer.ninjaOrganizationId}"></span>
+                                    </span>
+                                    <a th:href="@{/intra/devices(customerId=${customer.id})}"
+                                       class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-desktop me-1"></i>Appareils
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- Attribuer une org existante -->
+                            <form th:action="@{/intra/customers/config/ninja-org/link}" method="post" class="mb-3">
+                                <input type="hidden" name="customerId" th:value="${customer.id}">
+                                <label class="form-label small fw-semibold">Attribuer une organisation existante</label>
+                                <div class="d-flex gap-2">
+                                    <select name="ninjaOrganizationId" class="form-select form-select-sm">
+                                        <option value="">— Non lié —</option>
+                                        <option th:each="org : ${ninjaOrgs != null ? ninjaOrgs : T(java.util.Collections).emptyList()}"
+                                                th:value="${org.id}"
+                                                th:text="${org.name}"
+                                                th:selected="${customer.ninjaOrganizationId != null and customer.ninjaOrganizationId == org.id}">
+                                        </option>
+                                    </select>
+                                    <button type="submit" class="btn btn-outline-warning btn-sm text-nowrap">
+                                        <i class="fas fa-link me-1"></i>Enregistrer
+                                    </button>
+                                </div>
+                            </form>
+
+                            <!-- Créer une nouvelle organisation -->
+                            <hr class="my-2">
+                            <p class="small text-muted mb-2">Créer une nouvelle organisation NinjaOne :</p>
+                            <form th:action="@{/intra/customers/config/ninja-org/create}" method="post"
+                                  th:onsubmit="${customer.ninjaOrganizationId != null}
+                                      ? 'return confirm(\'Ce client est déjà lié. Créer une nouvelle organisation « ' + [[${customer.companyName}]] + ' » et remplacer le lien ?\')'
+                                      : 'return confirm(\'Créer une organisation NinjaOne « ' + [[${customer.companyName}]] + ' » ?\')'">
+                                <input type="hidden" name="customerId" th:value="${customer.id}">
+                                <button type="submit" class="btn btn-warning btn-sm">
+                                    <i class="fas fa-plus me-1"></i>Créer l'organisation NinjaOne
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Intégrations ────────────────────────────────────────── -->
+            <div class="col-lg-7">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-3">
+                        <i class="fas fa-plug text-primary"></i>
+                        <span class="fw-semibold flex-grow-1">Intégrations</span>
+                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAddInteg">
+                            <i class="fas fa-plus me-1"></i>Ajouter
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+
+                        <div th:if="${integrations == null or integrations.isEmpty()}"
+                             class="text-center py-4 text-muted small">
+                            <i class="fas fa-plug opacity-25 me-1"></i>Aucune intégration configurée.
+                        </div>
+
+                        <table th:if="${integrations != null and !integrations.isEmpty()}"
+                               class="table table-hover align-middle mb-0 small">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Service</th>
+                                    <th>Label</th>
+                                    <th>Statut</th>
+                                    <th>Màj</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="integ : ${integrations != null ? integrations : T(java.util.Collections).emptyList()}">
+                                    <td>
+                                        <span class="badge" th:style="'background-color:' + ${integ.serviceType.color}">
+                                            <i th:class="${integ.serviceType.icon} + ' me-1'"></i>
+                                            <span th:text="${integ.serviceType.label}"></span>
+                                        </span>
+                                    </td>
+                                    <td th:text="${integ.label}"></td>
+                                    <td>
+                                        <span th:if="${integ.enabled}"  class="badge text-bg-success">Actif</span>
+                                        <span th:if="${!integ.enabled}" class="badge text-bg-secondary">Inactif</span>
+                                    </td>
+                                    <td class="text-muted"
+                                        th:text="${integ.updatedAt != null ? #temporals.format(integ.updatedAt,'dd/MM/yy') : '—'}"></td>
+                                    <td class="text-end">
+                                        <div class="d-flex gap-1 justify-content-end">
+                                            <a th:href="@{/intra/integrations/{id}/edit(id=${integ.id})}"
+                                               class="btn btn-sm btn-outline-primary" title="Modifier les identifiants">
+                                                <i class="fas fa-key"></i>
+                                            </a>
+                                            <form th:action="@{/intra/customers/config/integrations/{id}/toggle(id=${integ.id})}"
+                                                  method="post" class="d-inline">
+                                                <input type="hidden" name="customerId" th:value="${customer.id}">
+                                                <button type="submit" class="btn btn-sm"
+                                                        th:classappend="${integ.enabled} ? 'btn-outline-warning' : 'btn-outline-success'"
+                                                        th:title="${integ.enabled} ? 'Désactiver' : 'Activer'">
+                                                    <i class="fas" th:classappend="${integ.enabled} ? 'fa-ban' : 'fa-check'"></i>
+                                                </button>
+                                            </form>
+                                            <form th:action="@{/intra/customers/config/integrations/{id}/delete(id=${integ.id})}"
+                                                  method="post" class="d-inline"
+                                                  onsubmit="return confirm('Supprimer cette intégration ?')">
+                                                <input type="hidden" name="customerId" th:value="${customer.id}">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal ajout intégration -->
+    <div class="modal fade" id="modalAddInteg" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form action="/intra/customers/config/integrations" method="post">
+                    <input type="hidden" name="customerId" th:value="${customer != null ? customer.id : ''}">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-plug me-2"></i>Nouvelle intégration</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3 mb-2">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Service <span class="text-danger">*</span></label>
+                                <select name="serviceType" class="form-select" required id="cfgServiceType"
+                                        onchange="showCfgFields(this.value)">
+                                    <option value="">— Sélectionner —</option>
+                                    <option th:each="st : ${serviceTypes != null ? serviceTypes : T(java.util.Collections).emptyList()}"
+                                            th:value="${st.name()}" th:text="${st.label}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Label</label>
+                                <input type="text" name="label" class="form-control" placeholder="Nom personnalisé (optionnel)">
+                            </div>
+                        </div>
+
+                        <!-- NinjaOne -->
+                        <div id="cfg-NINJA_ONE" class="cfg-svc-fields d-none mt-2">
+                            <hr class="my-2"><p class="fw-semibold small text-warning mb-2"><i class="fas fa-shield-alt me-1"></i>NinjaOne RMM</p>
+                            <div class="mb-2"><label class="form-label small">Clé API</label>
+                                <input type="password" name="apiKey" class="form-control form-control-sm" autocomplete="new-password"></div>
+                        </div>
+                        <!-- Microsoft 365 -->
+                        <div id="cfg-MICROSOFT_365" class="cfg-svc-fields d-none mt-2">
+                            <hr class="my-2"><p class="fw-semibold small mb-2" style="color:#0078d4"><i class="fab fa-microsoft me-1"></i>Microsoft 365</p>
+                            <div class="row g-2">
+                                <div class="col-12"><label class="form-label small">Tenant ID</label>
+                                    <input type="text" name="tenantId" class="form-control form-control-sm font-monospace" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+                                <div class="col-md-6"><label class="form-label small">Client ID</label>
+                                    <input type="text" name="clientId" class="form-control form-control-sm font-monospace"></div>
+                                <div class="col-md-6"><label class="form-label small">Client Secret</label>
+                                    <input type="password" name="clientSecret" class="form-control form-control-sm" autocomplete="new-password"></div>
+                            </div>
+                        </div>
+                        <!-- Google Workspace -->
+                        <div id="cfg-GOOGLE_WORKSPACE" class="cfg-svc-fields d-none mt-2">
+                            <hr class="my-2"><p class="fw-semibold small mb-2" style="color:#4285f4"><i class="fab fa-google me-1"></i>Google Workspace</p>
+                            <div class="row g-2">
+                                <div class="col-12"><label class="form-label small">Domaine</label>
+                                    <input type="text" name="tenantId" class="form-control form-control-sm" placeholder="monentreprise.com"></div>
+                                <div class="col-md-6"><label class="form-label small">Client ID</label>
+                                    <input type="text" name="clientId" class="form-control form-control-sm"></div>
+                                <div class="col-md-6"><label class="form-label small">Client Secret</label>
+                                    <input type="password" name="clientSecret" class="form-control form-control-sm" autocomplete="new-password"></div>
+                            </div>
+                        </div>
+                        <!-- Slack -->
+                        <div id="cfg-SLACK" class="cfg-svc-fields d-none mt-2">
+                            <hr class="my-2"><p class="fw-semibold small mb-2" style="color:#4a154b"><i class="fab fa-slack me-1"></i>Slack</p>
+                            <div class="mb-2"><label class="form-label small">Webhook URL</label>
+                                <input type="url" name="webhookUrl" class="form-control form-control-sm" placeholder="https://hooks.slack.com/services/..."></div>
+                            <div class="mb-2"><label class="form-label small">Bot Token</label>
+                                <input type="password" name="apiKey" class="form-control form-control-sm" placeholder="xoxb-..." autocomplete="new-password"></div>
+                        </div>
+                        <!-- Custom -->
+                        <div id="cfg-CUSTOM" class="cfg-svc-fields d-none mt-2">
+                            <hr class="my-2"><p class="fw-semibold small mb-2 text-secondary"><i class="fas fa-cog me-1"></i>Personnalisé</p>
+                            <div class="row g-2">
+                                <div class="col-md-6"><label class="form-label small">Clé</label>
+                                    <input type="text" name="clientId" class="form-control form-control-sm"></div>
+                                <div class="col-md-6"><label class="form-label small">Secret</label>
+                                    <input type="password" name="apiKey" class="form-control form-control-sm" autocomplete="new-password"></div>
+                                <div class="col-12"><label class="form-label small">URL</label>
+                                    <input type="url" name="webhookUrl" class="form-control form-control-sm"></div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <label class="form-label small fw-semibold">Notes</label>
+                            <textarea name="notes" class="form-control form-control-sm" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Ajouter</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<th:block layout:fragment="script">
+<script>
+function showCfgFields(value) {
+    document.querySelectorAll('.cfg-svc-fields').forEach(el => el.classList.add('d-none'));
+    if (value) {
+        const t = document.getElementById('cfg-' + value);
+        if (t) t.classList.remove('d-none');
+    }
+}
+</script>
+</th:block>
+</body>
+</html>

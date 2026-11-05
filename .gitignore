@@ -1,0 +1,49 @@
+# Build
+target/
+*.class
+
+# Credentials / secrets -- jamais commités
+secrets/
+*.pem
+*.p12
+*.jks
+application-local.properties
+application.properties
+application-prod.properties
+
+# Données utilisateurs réelles -- jamais commitées
+uploads/
+
+# Defense en profondeur : ancien chemin par defaut (supprime, fix round 2 de Task 3) de
+# AgentCleApiFileWriter -- app.agent.cle-api-file-path n'a plus AUCUNE valeur par defaut, mais au
+# cas ou un futur chemin relatif reintroduirait ce defaut, ou si la propriete reste non configuree
+# dans un contexte ou un fichier finirait quand meme ici, ce chemin ne doit jamais etre commite.
+agent/cle-api-licence
+
+# Logs / crash dumps
+*.log
+hs_err_pid*.log
+replay_pid*.log
+
+# Outils tiers ponctuels, pas liés au projet
+bfg-*.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Synology NAS
+.SynologyWorkingDirectory/
+
+# Superpowers scratch (worktrees, SDD workspaces)
+.worktrees/
+.superpowers/

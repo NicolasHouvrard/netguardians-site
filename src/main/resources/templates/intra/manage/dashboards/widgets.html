@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Widgets du dashboard</title>
+<style>
+.sortable-ghost { opacity:.4; background:#e0e7ff !important; }
+.drag-handle { cursor:grab; color:#94a3b8; }
+.drag-handle:active { cursor:grabbing; }
+</style>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 fw-bold">
+            <i class="fas fa-gauge-high me-2" style="color:#6366f1"></i>
+            Widgets — <span th:text="${dashboard.name}"></span>
+        </h1>
+        <div class="d-flex gap-2">
+            <a th:href="@{/intra/dashboards/{id}/modules(id=${dashboard.id})}"
+               class="btn btn-sm btn-outline-info">
+                <i class="fas fa-puzzle-piece me-1"></i>Modules
+            </a>
+            <a href="/intra/dashboards" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- ── Widgets assignés (drag-drop) ──────────────────────────────────── -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold">
+                        <i class="fas fa-list me-2 text-primary"></i>Widgets actifs
+                        <span class="badge bg-primary ms-1" th:text="${#lists.size(layouts)}"></span>
+                    </span>
+                    <button class="btn btn-sm btn-success" onclick="saveOrder()">
+                        <i class="fas fa-save me-1"></i>Sauvegarder l'ordre
+                    </button>
+                </div>
+
+                <div th:if="${#lists.isEmpty(layouts)}" class="card-body text-center text-muted py-4">
+                    <i class="fas fa-gauge-high fa-2x mb-2 d-block opacity-25"></i>
+                    Aucun widget configuré. Ajoutez-en depuis le panneau de droite.
+                </div>
+
+                <div th:unless="${#lists.isEmpty(layouts)}" class="card-body p-0">
+                    <div id="sortableLayouts">
+                        <div th:each="lay : ${layouts}"
+                             th:with="wt=${widgetMap[lay.widgetType]}"
+                             class="layout-row d-flex align-items-center px-3 py-2 border-bottom"
+                             th:data-layout-id="${lay.id}">
+
+                            <span class="drag-handle me-3"><i class="fas fa-grip-vertical"></i></span>
+
+                            <!-- Icône -->
+                            <div th:if="${wt != null}"
+                                 class="rounded me-3 d-flex align-items-center justify-content-center flex-shrink-0"
+                                 th:style="'background:' + ${wt.color} + '22;width:36px;height:36px'">
+                                <i th:class="${wt.icon}" th:style="'color:' + ${wt.color}"></i>
+                            </div>
+                            <div th:unless="${wt != null}"
+                                 class="rounded me-3 d-flex align-items-center justify-content-center flex-shrink-0"
+                                 style="background:#f1f5f9;width:36px;height:36px">
+                                <i class="fas fa-question text-muted"></i>
+                            </div>
+
+                            <!-- Libellé -->
+                            <div class="flex-grow-1 min-width-0 me-2">
+                                <div class="fw-semibold small"
+                                     th:text="${wt != null ? wt.label : lay.widgetType}"></div>
+                                <div class="text-muted" style="font-size:.72rem">
+                                    col-md-<span th:text="${lay.colSize}"></span>
+                                    &nbsp;·&nbsp;
+                                    <span th:text="${wt != null ? wt.widgetKey : '?'}"></span>
+                                </div>
+                            </div>
+
+                            <!-- Inline update colSize -->
+                            <form th:action="@{/intra/dashboards/widgets/{lid}/update(lid=${lay.id})}"
+                                  method="post" class="d-flex align-items-center gap-1 me-2">
+                                <select name="colSize" class="form-select form-select-sm" style="width:110px">
+                                    <option th:each="n : ${colSizes}"
+                                            th:value="${n}"
+                                            th:text="${n == 2 ? '2 – 6/ligne' : n == 3 ? '3 – 4/ligne' : n == 4 ? '4 – 3/ligne' : n == 6 ? '6 – 2/ligne' : '12 – full'}"
+                                            th:selected="${n == lay.colSize}"></option>
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Appliquer">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                            </form>
+
+                            <!-- Supprimer -->
+                            <form th:action="@{/intra/dashboards/widgets/{lid}/delete(lid=${lay.id})}"
+                                  method="post" onsubmit="return confirm('Retirer ce widget ?')">
+                                <button class="btn btn-sm btn-outline-danger py-0 px-2">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Formulaire caché pour l'ordre -->
+                    <form id="orderForm" method="post"
+                          th:action="@{/intra/dashboards/{id}/widgets/reorder(id=${dashboard.id})}">
+                    </form>
+                </div>
+            </div>
+
+            <!-- Aperçu grille -->
+            <div th:unless="${#lists.isEmpty(layouts)}" class="card border-0 shadow-sm mt-3">
+                <div class="card-header bg-white fw-semibold" style="font-size:.85rem">
+                    <i class="fas fa-eye me-2 text-muted"></i>Aperçu de la grille
+                </div>
+                <div class="card-body py-2">
+                    <div class="d-flex flex-wrap gap-1">
+                        <div th:each="lay : ${layouts}"
+                             th:with="wt=${widgetMap[lay.widgetType]}"
+                             class="rounded border d-flex align-items-center gap-2 px-2 py-1"
+                             th:classappend="'col-' + ${lay.colSize}"
+                             style="min-width:80px">
+                            <i th:if="${wt != null}"
+                               th:class="${wt.icon}"
+                               th:style="'color:' + ${wt.color} + ';font-size:.75rem'"></i>
+                            <span style="font-size:.7rem" class="text-truncate"
+                                  th:text="${wt != null ? wt.label : lay.widgetType}"></span>
+                        </div>
+                    </div>
+                    <p class="text-muted mb-0 mt-2" style="font-size:.72rem">
+                        <i class="fas fa-info-circle me-1"></i>
+                        col-3 = 4 par ligne, col-4 = 3 par ligne, col-6 = 2 par ligne.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Ajouter un widget ───────────────────────────────────────────────── -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="fas fa-plus me-2 text-success"></i>Ajouter un widget
+                </div>
+                <div class="card-body">
+                    <div th:if="${#lists.isEmpty(available)}" class="text-center text-muted py-3">
+                        <i class="fas fa-check-circle text-success fa-2x mb-2 d-block"></i>
+                        Tous les widgets disponibles sont déjà activés.
+                    </div>
+                    <form th:unless="${#lists.isEmpty(available)}"
+                          th:action="@{/intra/dashboards/{id}/widgets/add(id=${dashboard.id})}" method="post">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Widget</label>
+                            <select name="widgetType" class="form-select" required id="widgetSelect">
+                                <option value="">-- Choisir un widget --</option>
+                                <option th:each="w : ${available}"
+                                        th:value="${w.widgetKey}"
+                                        th:text="${w.label}"
+                                        th:data-icon="${w.icon}"
+                                        th:data-color="${w.color}"></option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Taille (colonnes Bootstrap)</label>
+                            <select name="colSize" class="form-select">
+                                <option value="2">2 — 6 par ligne</option>
+                                <option value="3" selected>3 — 4 par ligne (recommandé)</option>
+                                <option value="4">4 — 3 par ligne</option>
+                                <option value="6">6 — 2 par ligne</option>
+                                <option value="12">12 — pleine largeur</option>
+                            </select>
+                        </div>
+                        <!-- Aperçu -->
+                        <div id="widgetPreview" class="d-none mb-3">
+                            <div class="card border-0 bg-light">
+                                <div class="card-body py-2 d-flex align-items-center gap-3">
+                                    <span id="previewIconWrap"
+                                          class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                                          style="width:36px;height:36px">
+                                        <i id="previewIcon"></i>
+                                    </span>
+                                    <span id="previewLabel" class="fw-semibold small"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-success btn-sm w-100">
+                            <i class="fas fa-plus me-1"></i>Ajouter
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Catalogue widgets -->
+            <div class="card border-0 shadow-sm mt-3">
+                <div class="card-header bg-white fw-semibold" style="font-size:.85rem">
+                    <i class="fas fa-shield-halved me-2 text-warning"></i>Catalogue des widgets
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0" style="font-size:.78rem">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="px-3">Widget</th>
+                                <th>Rôles</th>
+                                <th class="pe-3">Module</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="entry : ${widgetMap}">
+                                <td class="px-3 py-1">
+                                    <i th:class="${entry.value.icon}"
+                                       th:style="'color:' + ${entry.value.color}"></i>
+                                    <span th:text="${entry.value.label}" class="ms-1"></span>
+                                </td>
+                                <td class="py-1">
+                                    <span th:each="r : ${entry.value.allowedRolesList}"
+                                          class="badge bg-light text-dark border me-1"
+                                          style="font-size:.65rem"
+                                          th:text="${#strings.replace(r, 'ROLE_', '')}"></span>
+                                </td>
+                                <td class="py-1 pe-3 text-muted small"
+                                    th:text="${entry.value.module != null ? entry.value.module.title : '—'}"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+const sortableEl = document.getElementById('sortableLayouts');
+if (sortableEl) {
+    Sortable.create(sortableEl, { handle: '.drag-handle', animation: 150, ghostClass: 'sortable-ghost' });
+}
+function saveOrder() {
+    const rows = sortableEl.querySelectorAll('.layout-row');
+    const ids  = Array.from(rows).map(r => r.dataset.layoutId);
+    const form = document.getElementById('orderForm');
+    form.querySelectorAll('input[name="layoutIds"]').forEach(i => i.remove());
+    ids.forEach(id => {
+        const inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = 'layoutIds'; inp.value = id;
+        form.appendChild(inp);
+    });
+    form.submit();
+}
+const sel = document.getElementById('widgetSelect');
+if (sel) {
+    sel.addEventListener('change', function() {
+        const opt = this.options[this.selectedIndex];
+        const preview = document.getElementById('widgetPreview');
+        if (!opt.value) { preview.classList.add('d-none'); return; }
+        const color = opt.dataset.color || '#6366f1';
+        document.getElementById('previewIcon').className = opt.dataset.icon || '';
+        document.getElementById('previewIcon').style.color = color;
+        document.getElementById('previewIconWrap').style.background = color + '22';
+        document.getElementById('previewLabel').textContent = opt.text;
+        preview.classList.remove('d-none');
+    });
+}
+</script>
+</th:block>
+</body>
+</html>

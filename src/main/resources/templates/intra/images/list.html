@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head>
+    <title>Gestionnaire d'images</title>
+    <style>
+        .img-card { position:relative; border-radius:.5rem; overflow:hidden; border:2px solid #e2e8f0; aspect-ratio:16/9; background:#f8fafc; cursor:pointer; }
+        .img-card img { width:100%; height:100%; object-fit:cover; transition:.15s; }
+        .img-card:hover img { opacity:.85; }
+        .img-card .img-actions { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:.5rem; opacity:0; background:rgba(0,0,0,.45); transition:.15s; }
+        .img-card:hover .img-actions { opacity:1; }
+        .img-card .img-name { position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,.6); color:#fff; font-size:.65rem; padding:.2rem .4rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
+        .upload-zone { border:2px dashed #cbd5e1; border-radius:.75rem; background:#f8fafc; padding:2.5rem; text-align:center; cursor:pointer; transition:.15s; }
+        .upload-zone:hover, .upload-zone.dragover { border-color:#6366f1; background:#eff6ff; }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-images me-2 text-primary"></i>Gestionnaire d'images</h4>
+        <span class="badge bg-secondary" th:text="${#lists.size(images)} + ' image(s)'">0</span>
+    </div>
+
+    <!-- Upload zone -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="post" action="/intra/images/upload" enctype="multipart/form-data" id="uploadForm">
+                <input type="hidden" name="returnTo" value="">
+                <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+                    <i class="fas fa-cloud-upload-alt fa-2x text-primary mb-2 d-block"></i>
+                    <div class="fw-semibold mb-1">Cliquez ou déposez vos images ici</div>
+                    <div class="small text-muted">JPG, PNG, WebP, GIF, SVG, AVIF — plusieurs fichiers acceptés</div>
+                </div>
+                <input type="file" id="fileInput" name="files" multiple accept="image/*" class="d-none"
+                       onchange="document.getElementById('uploadForm').submit()">
+            </form>
+        </div>
+    </div>
+
+    <!-- Image grid -->
+    <div class="row g-3">
+        <div th:if="${images.isEmpty()}" class="col-12 text-center text-muted py-5">
+            <i class="fas fa-images fa-3x mb-3 d-block opacity-25"></i>
+            Aucune image. Uploadez votre première image.
+        </div>
+        <div class="col-6 col-md-4 col-lg-3 col-xl-2" th:each="img : ${images}">
+            <div class="img-card">
+                <img th:src="${img}" th:alt="${img}" loading="lazy">
+                <div class="img-name" th:text="${#strings.substringAfter(img, '/uploads/images/')}">nom.jpg</div>
+                <div class="img-actions">
+                    <button type="button" class="btn btn-sm btn-light"
+                            th:data-url="${img}"
+                            onclick="copyUrl(this.dataset.url)" title="Copier l'URL">
+                        <i class="fas fa-link"></i>
+                    </button>
+                    <a th:href="${img}" target="_blank" class="btn btn-sm btn-light" title="Ouvrir">
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>
+                    <form method="post" action="/intra/images/delete" class="d-inline"
+                          onsubmit="return confirm('Supprimer cette image ?')">
+                        <input type="hidden" name="name" th:value="${#strings.substringAfter(img, '/uploads/images/')}">
+                        <button type="submit" class="btn btn-sm btn-danger" title="Supprimer">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script th:inline="none">
+// Drag & drop
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    const dt = new DataTransfer();
+    for (const f of e.dataTransfer.files) dt.items.add(f);
+    document.getElementById('fileInput').files = dt.files;
+    document.getElementById('uploadForm').submit();
+});
+
+function copyUrl(url) {
+    navigator.clipboard.writeText(url).then(() => {
+        const btn = event.target.closest('button');
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check"></i>';
+        setTimeout(() => btn.innerHTML = orig, 1500);
+    });
+}
+</script>
+</th:block>
+</body>
+</html>

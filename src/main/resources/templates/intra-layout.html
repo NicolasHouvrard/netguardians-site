@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title layout:title-pattern="$CONTENT_TITLE - ESN">ESN</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <style>
+        .intra-topnav {
+            background: #0f172a;
+            border-bottom: 1px solid rgba(255,255,255,.07);
+        }
+        .intra-topnav .navbar-brand {
+            color: #fff;
+            font-weight: 700;
+            font-size: .95rem;
+            letter-spacing: .01em;
+        }
+        .intra-topnav .navbar-brand .brand-badge {
+            background: #6366f1;
+            color: #fff;
+            font-size: .6rem;
+            padding: .1rem .35rem;
+            border-radius: .25rem;
+            vertical-align: middle;
+            font-weight: 600;
+            letter-spacing: .05em;
+        }
+        .intra-topnav .nav-link {
+            color: rgba(255,255,255,.7);
+            font-size: .85rem;
+            padding: .5rem .9rem;
+            border-radius: .375rem;
+        }
+        .intra-topnav .nav-link:hover,
+        .intra-topnav .nav-link.show {
+            color: #fff;
+            background: rgba(255,255,255,.08);
+        }
+        .intra-topnav .dropdown-menu {
+            background: #0f172a;
+            border: 1px solid rgba(255,255,255,.1);
+            min-width: 210px;
+        }
+        .intra-topnav .dropdown-item {
+            color: rgba(255,255,255,.75);
+            font-size: .85rem;
+            padding: .45rem 1rem;
+        }
+        .intra-topnav .dropdown-item:hover,
+        .intra-topnav .dropdown-item.active {
+            background: #6366f1;
+            color: #fff;
+        }
+        .intra-topnav .dropdown-item i { width: 18px; }
+        .intra-topnav .dropdown-divider { border-color: rgba(255,255,255,.1); }
+        .intra-topnav .nav-link.active {
+            color: #fbbf24 !important;
+            background: rgba(251,191,36,.12);
+        }
+        /* ── Bande 2 : méga-menu modules ── */
+        .intra-module-nav {
+            background: #1e293b;
+            border-bottom: 1px solid rgba(255,255,255,.06);
+        }
+        .intra-module-nav .btn-group-label {
+            color: rgba(255,255,255,.5);
+            font-size: .72rem;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            padding: .35rem .75rem;
+            white-space: nowrap;
+        }
+        .intra-module-nav .nav-link {
+            color: rgba(255,255,255,.65);
+            font-size: .82rem;
+            padding: .35rem .75rem;
+            border-radius: .3rem;
+            white-space: nowrap;
+        }
+        .intra-module-nav .nav-link:hover,
+        .intra-module-nav .dropdown-toggle.show {
+            color: #fff;
+            background: rgba(255,255,255,.1);
+        }
+        .intra-module-nav .dropdown-menu {
+            background: #0f172a;
+            border: 1px solid rgba(255,255,255,.1);
+            min-width: 200px;
+        }
+        .intra-module-nav .dropdown-item {
+            color: rgba(255,255,255,.75);
+            font-size: .84rem;
+            padding: .45rem 1rem;
+        }
+        .intra-module-nav .dropdown-item:hover {
+            background: #6366f1;
+            color: #fff;
+        }
+        .intra-module-nav .dropdown-item i { width: 18px; }
+        .intra-module-nav .group-sep {
+            width: 1px;
+            background: rgba(255,255,255,.1);
+            align-self: stretch;
+            margin: .2rem .25rem;
+        }
+        .intra-main {
+            background: #f1f5f9;
+            min-height: calc(100vh - 98px);
+        }
+    </style>
+</head>
+<body>
+
+<div th:replace="~{header/all :: navbar}"></div>
+
+<nav class="intra-topnav navbar navbar-expand py-1">
+    <div class="container-fluid px-3">
+
+        <a href="/intra" class="navbar-brand me-3">
+            <i class="fas fa-network-wired me-2" style="color:#6366f1"></i>
+            Portail ESN
+            <span class="brand-badge ms-1">PRO</span>
+        </a>
+
+        <!-- Tenant courant -->
+        <div th:if="${currentTenant != null}" class="d-flex align-items-center gap-1 me-3"
+             style="border-left:1px solid rgba(255,255,255,.12); padding-left:.9rem">
+            <i class="fas fa-building text-muted" style="font-size:.75rem; color:rgba(255,255,255,.4)!important"></i>
+            <span style="font-size:.78rem; color:rgba(255,255,255,.55); white-space:nowrap">
+                <span th:text="${currentTenant.name}" class="fw-semibold" style="color:rgba(255,255,255,.85)"></span>
+                <span th:if="${tenantCustomer != null}"
+                      class="ms-1" style="color:rgba(255,255,255,.4)">·</span>
+                <a th:if="${tenantCustomer != null}"
+                   th:href="@{/intra/customers/{id}(id=${tenantCustomer.id})}"
+                   th:text="${tenantCustomer.companyName}"
+                   class="ms-1 text-decoration-none"
+                   style="color:rgba(255,255,255,.55)"></a>
+            </span>
+        </div>
+
+        <!-- Onglets dashboard : Accueil fixe + onglets dynamiques depuis DB -->
+        <ul class="navbar-nav flex-row gap-1 me-auto">
+            <li class="nav-item">
+                <a class="nav-link rounded" href="/intra"
+                   th:classappend="${currentUri != null and (currentUri == '/intra' or currentUri == '/intra/')} ? ' active fw-semibold' : ''">
+                    <i class="fas fa-gauge-high me-1"></i>Accueil
+                </a>
+            </li>
+            <th:block th:if="${intraDashboards != null}" th:each="tab : ${intraDashboards}">
+                <li class="nav-item">
+                    <a class="nav-link rounded"
+                       th:href="@{/intra/dashboard/{slug}(slug=${tab.slug})}"
+                       th:classappend="${(currentDashboardObj != null and currentDashboardObj.id == tab.id) or (currentUri != null and currentUri.startsWith('/intra/dashboard/' + tab.slug))} ? ' active fw-semibold' : ''">
+                        <i th:class="${tab.icon} + ' me-1'"></i>
+                        <span th:text="${tab.name}"></span>
+                    </a>
+                </li>
+            </th:block>
+        </ul>
+
+        <!-- Paramètres -->
+        <ul class="navbar-nav">
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                    <i class="fas fa-gear"></i>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><h6 class="dropdown-header" style="font-size:.7rem">Paramètres</h6></li>
+                    <li><a class="dropdown-item" href="/intra/settings/company"><i class="fas fa-building me-2"></i>Mon entreprise</a></li>
+                    <li><a class="dropdown-item" href="/intra/settings/site"><i class="fas fa-globe me-2"></i>Paramètres du site</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="/intra/accounting/setup"><i class="fas fa-calculator me-2"></i>Plan comptable</a></li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+</nav>
+
+<!-- ── Bande 2 : méga-menu modules par sous-catégorie ──────────────────────── -->
+<nav th:if="${currentDashboardModuleGroups != null and !currentDashboardModuleGroups.isEmpty()}"
+     class="intra-module-nav py-1 px-3 d-flex align-items-center gap-1 flex-wrap">
+
+    <th:block th:each="entry, iter : ${currentDashboardModuleGroups}">
+        <!-- Séparateur entre groupes -->
+        <div th:if="${!iter.first}" class="group-sep d-none d-md-block"></div>
+
+        <!-- Groupe avec sous-catégorie : dropdown -->
+        <div th:if="${#lists.size(entry.value) > 1}" class="dropdown">
+            <a href="#" class="nav-link dropdown-toggle d-flex align-items-center gap-1"
+               data-bs-toggle="dropdown" role="button">
+                <span th:text="${entry.key}"></span>
+            </a>
+            <ul class="dropdown-menu shadow">
+                <li th:each="m : ${entry.value}">
+                    <a class="dropdown-item d-flex align-items-center gap-2"
+                       th:href="${m.url}"
+                       th:classappend="${currentUri != null and currentUri.startsWith(m.url)} ? ' active' : ''">
+                        <i th:class="${m.icon}" th:style="'color:' + ${m.color}"></i>
+                        <span th:text="${m.title}"></span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Groupe avec 1 seul module : lien direct -->
+        <th:block th:if="${#lists.size(entry.value) == 1}">
+            <a class="nav-link d-flex align-items-center gap-1"
+               th:href="${entry.value[0].url}"
+               th:classappend="${currentUri != null and currentUri.startsWith(entry.value[0].url)} ? ' active fw-semibold' : ''">
+                <i th:class="${entry.value[0].icon}" th:style="'color:' + ${entry.value[0].color}"></i>
+                <span th:text="${entry.value[0].title}"></span>
+            </a>
+        </th:block>
+    </th:block>
+</nav>
+
+<main class="intra-main p-4">
+    <div layout:fragment="content"></div>
+</main>
+
+<!-- Toast succès -->
+<div th:if="${successMessage}" class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+    <div class="alert alert-success alert-dismissible fade show shadow-sm mb-0">
+        <i class="fas fa-check-circle me-2"></i>
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+</div>
+<!-- Toast erreur -->
+<div th:if="${errorMessage}" class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+    <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-0">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+</div>
+
+<!-- ── Pastille chat agents ──────────────────────────────────────────────── -->
+<style>
+#intra-chat-tray-toggle {
+    width:48px;height:48px;font-size:1.05rem;
+    box-shadow:0 4px 16px rgba(99,102,241,.45)!important;
+    transition:transform .15s;
+}
+#intra-chat-tray-toggle:hover { transform:scale(1.08); }
+#intra-chat-tray-panel {
+    width:300px;max-height:440px;border-radius:14px;overflow:hidden;
+    box-shadow:0 8px 32px rgba(0,0,0,.18);margin-bottom:10px;
+    background:#fff;display:flex;flex-direction:column;
+}
+</style>
+
+<div id="intra-chat-tray-container"
+     style="position:fixed;bottom:20px;right:20px;z-index:1400;display:flex;flex-direction:column;align-items:flex-end">
+    <div id="intra-chat-tray-panel" style="display:none"></div>
+    <button id="intra-chat-tray-toggle" class="btn btn-primary rounded-circle position-relative"
+            onclick="toggleIntraChatTray()" title="Messagerie">
+        <i class="fas fa-comments" id="intra-tray-icon"></i>
+        <span id="intra-tray-badge"
+              th:if="${chatActiveCount != null and chatActiveCount > 0}"
+              class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+              style="font-size:.55rem;padding:3px 5px"
+              th:text="${chatActiveCount}"></span>
+    </button>
+</div>
+
+<script>
+(function() {
+    let trayOpen = false;
+    let trayLoaded = false;
+
+    window.toggleIntraChatTray = function() {
+        const panel = document.getElementById('intra-chat-tray-panel');
+        const icon  = document.getElementById('intra-tray-icon');
+        trayOpen = !trayOpen;
+        if (trayOpen) {
+            panel.style.display = 'flex';
+            panel.style.flexDirection = 'column';
+            icon.className = 'fas fa-times';
+            if (!trayLoaded) {
+                trayLoaded = true;
+                panel.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+                fetch('/intra/chat/tray')
+                    .then(r => r.text())
+                    .then(html => { panel.innerHTML = html; });
+            }
+        } else {
+            panel.style.display = 'none';
+            icon.className = 'fas fa-comments';
+        }
+    };
+
+    window.openConvTab = function(id) {
+        window.open('/intra/chat/' + id, '_blank');
+    };
+})();
+</script>
+
+<script>
+function cleanupBootstrapArtifacts() {
+    document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+}
+function hideAllModals() {
+    document.querySelectorAll('.modal.show').forEach(el => {
+        const m = bootstrap.Modal.getInstance(el);
+        if (m) m.hide();
+    });
+}
+window.addEventListener('load', cleanupBootstrapArtifacts);
+document.body.addEventListener('htmx:afterOnLoad', cleanupBootstrapArtifacts);
+document.body.addEventListener('htmx:afterSwap',   cleanupBootstrapArtifacts);
+document.body.addEventListener('htmx:beforeRequest', hideAllModals);
+</script>
+<th:block layout:fragment="script"></th:block>
+</body>
+</html>

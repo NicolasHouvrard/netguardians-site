@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="widget" style="height:100%">
+    <a th:href="${widget.link}" class="widget-kpi-body text-decoration-none">
+        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+              th:style="'background:' + ${widget.color} + '22;width:48px;height:48px'">
+            <i th:class="${widget.icon}"
+               th:style="'color:' + ${widget.color} + ';font-size:1.25rem'"></i>
+        </span>
+        <div class="overflow-hidden flex-grow-1">
+            <div class="widget-kpi-value" th:text="${value ?: '—'}">—</div>
+            <div class="text-muted text-truncate" style="font-size:.75rem" th:text="${widget.label}"></div>
+        </div>
+        <form th:if="${dashboard != null}"
+              th:action="@{/intra/dashboard/{s}/widget/remove(s=${dashboard})}" method="post"
+              class="flex-shrink-0 align-self-start" onclick="event.stopPropagation()">
+            <input type="hidden" name="widgetType" th:value="${widgetKey}">
+            <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1 btn-widget-remove" title="Retirer"
+                    onclick="return confirm('Retirer ce widget ?')">
+                <i class="fas fa-times" style="font-size:.65rem"></i>
+            </button>
+        </form>
+    </a>
+</div>
+</body>
+</html>

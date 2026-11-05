@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{boutique-layout}">
+<body>
+<div layout:fragment="content">
+
+    <div class="row justify-content-center">
+        <div class="col-md-7">
+
+            <div class="text-center mb-4">
+                <i class="fas fa-university fa-3x text-success mb-2 d-block"></i>
+                <h1 class="h2 fw-bold">Instructions de virement</h1>
+                <p class="text-muted">Commande <strong th:text="${order.reference}"></strong></p>
+            </div>
+
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-success text-white fw-semibold">
+                    <i class="fas fa-info-circle me-2"></i>Coordonnées bancaires
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4 text-muted">Bénéficiaire</dt>
+                        <dd class="col-sm-8 fw-semibold" th:text="${bankBenef}"></dd>
+
+                        <dt class="col-sm-4 text-muted">IBAN</dt>
+                        <dd class="col-sm-8">
+                            <code class="fs-6" th:text="${bankIban}"></code>
+                        </dd>
+
+                        <dt class="col-sm-4 text-muted">BIC / SWIFT</dt>
+                        <dd class="col-sm-8">
+                            <code th:text="${bankBic}"></code>
+                        </dd>
+
+                        <dt class="col-sm-4 text-muted">Référence</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge bg-warning text-dark fs-6 px-3 py-2"
+                                  th:text="${order.bankRef}"></span>
+                            <div class="small text-muted mt-1">Mentionnez obligatoirement cette référence dans votre virement.</div>
+                        </dd>
+
+                        <dt class="col-sm-4 text-muted">Montant</dt>
+                        <dd class="col-sm-8 fw-bold text-primary fs-5"
+                            th:text="${#numbers.formatDecimal(order.totalTTC,1,'COMMA',2,'POINT')} + ' €'"></dd>
+                    </dl>
+                </div>
+            </div>
+
+            <div class="alert alert-info">
+                <i class="fas fa-clock me-2"></i>
+                Votre commande sera traitée dès réception du virement (1-3 jours ouvrés).
+            </div>
+
+            <div class="text-center">
+                <a th:href="@{/boutique/confirmation/{ref}(ref=${order.reference})}"
+                   class="btn btn-outline-secondary me-2">
+                    Voir ma commande
+                </a>
+                <a th:href="@{/boutique}" class="btn btn-primary">
+                    <i class="fas fa-arrow-left me-2"></i>Retour à la boutique
+                </a>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Historique des syncs</title></head>
+<body>
+<div layout:fragment="content">
+
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-history me-2 text-secondary"></i>Historique des synchronisations</h4>
+        </div>
+        <a href="/intra/sync" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+    </div>
+
+    <!-- Filtre par connecteur -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <form method="get" action="/intra/sync/history" class="d-flex gap-2 align-items-center flex-wrap">
+                <select name="connectorId" class="form-select form-select-sm" style="width:250px">
+                    <option value="">Tous les connecteurs</option>
+                    <option th:each="c : ${connectors}"
+                            th:value="${c.id}"
+                            th:text="${c.name}"
+                            th:selected="${connectorId != null and connectorId == c.id}"></option>
+                </select>
+                <button type="submit" class="btn btn-sm btn-primary">
+                    <i class="fas fa-filter me-1"></i>Filtrer
+                </button>
+                <a href="/intra/sync/history" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-times"></i>
+                </a>
+            </form>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div th:if="${logs.empty}" class="text-center py-5 text-muted">
+                <i class="fas fa-history fa-2x mb-3 d-block opacity-25"></i>
+                Aucun historique disponible.
+            </div>
+            <div class="table-responsive" th:unless="${logs.empty}">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">Connecteur</th>
+                        <th>Démarré</th>
+                        <th>Durée</th>
+                        <th class="text-end">Créés</th>
+                        <th class="text-end">Màj</th>
+                        <th class="text-end">Erreurs</th>
+                        <th>Déclencheur</th>
+                        <th>Statut</th>
+                        <th class="pe-3">Message</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="l : ${logs.content}">
+                        <td class="ps-3 fw-semibold small" th:text="${l.connector.name}"></td>
+                        <td class="small text-muted"
+                            th:text="${#temporals.format(l.startedAt, 'dd/MM/yyyy HH:mm:ss')}"></td>
+                        <td class="small text-muted">
+                            <span th:if="${l.finishedAt != null}"
+                                  th:text="${l.durationSeconds()} + 's'"></span>
+                            <span th:unless="${l.finishedAt != null}" class="text-warning">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </span>
+                        </td>
+                        <td class="text-end fw-semibold text-success"
+                            th:text="${l.created}"></td>
+                        <td class="text-end text-primary"
+                            th:text="${l.updated}"></td>
+                        <td class="text-end"
+                            th:classappend="${l.errors > 0 ? 'text-danger fw-semibold' : 'text-muted'}"
+                            th:text="${l.errors}"></td>
+                        <td>
+                            <span th:if="${l.trigger.name() == 'SCHEDULED'}"
+                                  class="badge text-bg-secondary">
+                                <i class="fas fa-clock me-1"></i>Planifié
+                            </span>
+                            <span th:unless="${l.trigger.name() == 'SCHEDULED'}"
+                                  class="badge text-bg-primary">
+                                <i class="fas fa-hand-pointer me-1"></i>Manuel
+                            </span>
+                        </td>
+                        <td>
+                            <span th:if="${l.status.name() == 'SUCCESS'}"
+                                  class="badge text-bg-success">OK</span>
+                            <span th:if="${l.status.name() == 'ERROR'}"
+                                  class="badge text-bg-danger">Erreur</span>
+                            <span th:if="${l.status.name() == 'RUNNING'}"
+                                  class="badge text-bg-warning">En cours</span>
+                        </td>
+                        <td class="pe-3 small text-muted text-truncate" style="max-width:250px"
+                            th:text="${l.message}" th:title="${l.message}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div th:if="${logs.totalPages > 1}"
+             class="card-footer bg-white d-flex align-items-center justify-content-between py-2">
+            <small class="text-muted">
+                Page <strong th:text="${logs.number + 1}"></strong>
+                sur <strong th:text="${logs.totalPages}"></strong>
+            </small>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item" th:classappend="${!logs.hasPrevious()} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/intra/sync/history(page=${logs.number - 1},connectorId=${connectorId})}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    <li class="page-item" th:classappend="${!logs.hasNext()} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/intra/sync/history(page=${logs.number + 1},connectorId=${connectorId})}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

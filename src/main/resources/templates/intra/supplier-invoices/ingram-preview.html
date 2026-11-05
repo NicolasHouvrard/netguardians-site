@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Prévisualisation factures Ingram</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a th:href="@{/intra/orders/{id}(id=${orderId})}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour commande
+        </a>
+        <div>
+            <h4 class="mb-0"><i class="fas fa-file-invoice me-2 text-success"></i>Factures Ingram — prévisualisation</h4>
+            <div class="text-muted small">Résultats bruts retournés par l'API Ingram (aucun enregistrement)</div>
+        </div>
+    </div>
+
+    <!-- Déjà importées -->
+    <div th:if="${!existing.empty}" class="alert alert-info py-2 mb-4">
+        <i class="fas fa-info-circle me-2"></i>
+        <span th:text="${existing.size()}"></span> facture(s) déjà importée(s) pour cette commande :
+        <span th:each="si, iter : ${existing}">
+            <a th:href="@{/intra/supplier-invoices/{id}(id=${si.id})}"
+               class="fw-semibold" th:text="${si.invoiceNumber}"></a><span th:unless="${iter.last}">, </span>
+        </span>
+    </div>
+
+    <!-- Aucun résultat -->
+    <div th:if="${invoices.empty}" class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5 text-muted">
+            <i class="fas fa-search fa-3x mb-3 d-block opacity-25"></i>
+            <p class="mb-1">Aucune facture trouvée chez Ingram pour cette commande.</p>
+            <p class="small">En sandbox, les factures ne sont pas générées. Relancez en production.</p>
+            <p class="small text-muted">Recherche effectuée par <code>customerOrderNumber</code> puis <code>ingramOrderNumber</code>.</p>
+        </div>
+    </div>
+
+    <!-- Résultats -->
+    <div th:unless="${invoices.empty}">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
+                <h6 class="fw-bold mb-0">
+                    <i class="fas fa-list me-2 text-secondary"></i>
+                    <span th:text="${invoices.size()}"></span> facture(s) trouvée(s) chez Ingram
+                </h6>
+                <form th:action="@{/intra/supplier-invoices/import-ingram/{id}(id=${orderId})}" method="post">
+                    <button type="submit" class="btn btn-success btn-sm">
+                        <i class="fas fa-download me-2"></i>Importer toutes
+                    </button>
+                </form>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>N° facture Ingram</th>
+                        <th>N° commande client</th>
+                        <th>Date facture</th>
+                        <th>Échéance</th>
+                        <th class="text-end">Montant dû</th>
+                        <th class="text-end">Montant TTC</th>
+                        <th>Statut</th>
+                        <th>Déjà importée</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="inv : ${invoices}">
+                        <td class="font-monospace fw-semibold small" th:text="${inv.invoiceNumber}"></td>
+                        <td class="small text-muted" th:text="${inv.customerOrderNumber}"></td>
+                        <td class="small" th:text="${inv.invoiceDate}"></td>
+                        <td class="small" th:text="${inv.invoiceDueDate}"></td>
+                        <td class="text-end small fw-semibold"
+                            th:text="${inv.invoicedAmountDue != null ? #numbers.formatDecimal(inv.invoicedAmountDue, 1, 2) + ' €' : '—'}"></td>
+                        <td class="text-end small"
+                            th:text="${inv.invoiceAmountInclTax != null ? #numbers.formatDecimal(inv.invoiceAmountInclTax, 1, 2) + ' €' : '—'}"></td>
+                        <td>
+                            <span class="badge small"
+                                  th:classappend="${inv.invoiceStatus == 'Open' ? 'text-bg-warning' :
+                                                   inv.invoiceStatus == 'Paid' ? 'text-bg-success' :
+                                                   inv.invoiceStatus == 'Cancelled' or inv.invoiceStatus == 'Canceled' ? 'text-bg-danger' : 'text-bg-secondary'}"
+                                  th:text="${inv.invoiceStatus == 'Open' ? 'À payer' :
+                                             inv.invoiceStatus == 'Paid' ? 'Payée' :
+                                             inv.invoiceStatus == 'Cancelled' or inv.invoiceStatus == 'Canceled' ? 'Annulée' :
+                                             (inv.invoiceStatus != null ? inv.invoiceStatus : '—')}"></span>
+                        </td>
+                        <td class="text-center">
+                            <th:block th:each="si : ${existing}">
+                                <a th:if="${si.ingramInvoiceNumber != null and si.ingramInvoiceNumber == inv.invoiceNumber}"
+                                   th:href="@{/intra/supplier-invoices/{id}(id=${si.id})}"
+                                   class="badge text-bg-success text-decoration-none">
+                                    <i class="fas fa-check me-1"></i>Oui
+                                </a>
+                            </th:block>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

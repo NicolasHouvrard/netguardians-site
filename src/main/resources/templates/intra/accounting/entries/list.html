@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Écritures comptables</title></head>
+<body>
+<div layout:fragment="content">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-file-invoice me-2 text-primary"></i>Écritures comptables</h4>
+        <a href="/intra/accounting/entries/new" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus me-1"></i>Nouvelle écriture
+        </a>
+    </div>
+
+    <!-- Flash messages -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Filters -->
+    <form method="get" action="/intra/accounting/entries" class="card border-0 shadow-sm mb-4" id="filterForm">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-sm-4">
+                    <label class="form-label small fw-semibold mb-1">Exercice fiscal</label>
+                    <select name="yearId" class="form-select form-select-sm" onchange="document.getElementById('filterForm').submit()">
+                        <option value="">— Tous les exercices —</option>
+                        <option th:each="y : ${fiscalYears}"
+                                th:value="${y.id}"
+                                th:text="${y.label} + (${y.current} ? ' (courant)' : '') + (${y.closed} ? ' [clôturé]' : '')"
+                                th:selected="${currentYear != null and currentYear.id == y.id}">
+                        </option>
+                    </select>
+                </div>
+                <div class="col-sm-4">
+                    <label class="form-label small fw-semibold mb-1">Journal</label>
+                    <select name="journalId" class="form-select form-select-sm" onchange="document.getElementById('filterForm').submit()">
+                        <option value="">— Tous les journaux —</option>
+                        <option th:each="j : ${journals}"
+                                th:value="${j.id}"
+                                th:text="${j.code} + ' — ' + ${j.label}"
+                                th:selected="${selectedJournal != null and selectedJournal.id == j.id}">
+                        </option>
+                    </select>
+                </div>
+                <div class="col-sm-auto">
+                    <button type="submit" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-filter me-1"></i>Filtrer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Current year info -->
+    <div th:if="${currentYear != null}" class="mb-3">
+        <span class="text-muted small">
+            <i class="fas fa-calendar me-1"></i>
+            Exercice : <strong th:text="${currentYear.label}"></strong>
+            (<span th:text="${#temporals.format(currentYear.startDate, 'dd/MM/yyyy')}"></span>
+            – <span th:text="${#temporals.format(currentYear.endDate, 'dd/MM/yyyy')}"></span>)
+            <span th:if="${currentYear.closed}" class="badge bg-danger-subtle text-danger ms-2"><i class="fas fa-lock me-1"></i>Clôturé</span>
+        </span>
+    </div>
+
+    <!-- Entries table -->
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:100px">Date</th>
+                        <th style="width:160px">Référence</th>
+                        <th style="width:70px">Journal</th>
+                        <th>Partenaire / Description</th>
+                        <th class="text-end" style="width:120px">Débit</th>
+                        <th class="text-end" style="width:120px">Crédit</th>
+                        <th class="text-center" style="width:80px">Verrouillé</th>
+                        <th class="text-center" style="width:90px">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="e : ${entries}">
+                        <td th:text="${#temporals.format(e.entryDate, 'dd/MM/yyyy')}"></td>
+                        <td>
+                            <a th:href="'/intra/accounting/entries/' + ${e.id}"
+                               class="text-decoration-none fw-semibold"
+                               th:text="${e.reference}">
+                            </a>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary-subtle text-secondary" th:text="${e.journal.code}"></span>
+                        </td>
+                        <td>
+                            <div class="fw-semibold small" th:text="${e.partner != null and !e.partner.isBlank() ? e.partner : (e.description != null ? e.description : '—')}"></div>
+                            <div th:if="${e.partner != null and !e.partner.isBlank() and e.description != null and !e.description.isBlank()}"
+                                 class="text-muted" style="font-size:.78rem;" th:text="${e.description}"></div>
+                        </td>
+                        <td class="text-end text-nowrap fw-semibold">
+                            <span th:with="total=${#aggregates.sum(e.lines.![debit])}"
+                                  th:text="${total != null and total > 0 ? #numbers.formatDecimal(total, 1, 'COMMA', 2, 'POINT') : '—'}"></span>
+                        </td>
+                        <td class="text-end text-nowrap fw-semibold">
+                            <span th:with="total=${#aggregates.sum(e.lines.![credit])}"
+                                  th:text="${total != null and total > 0 ? #numbers.formatDecimal(total, 1, 'COMMA', 2, 'POINT') : '—'}"></span>
+                        </td>
+                        <td class="text-center">
+                            <span th:if="${e.locked}" class="badge bg-warning-subtle text-warning">
+                                <i class="fas fa-lock me-1"></i>Oui
+                            </span>
+                            <span th:unless="${e.locked}" class="text-muted small">—</span>
+                        </td>
+                        <td class="text-center">
+                            <div class="btn-group btn-group-sm">
+                                <a th:href="'/intra/accounting/entries/' + ${e.id}"
+                                   class="btn btn-outline-secondary btn-sm" title="Voir le détail">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <form th:unless="${e.locked}"
+                                      th:action="'/intra/accounting/entries/' + ${e.id} + '/delete'"
+                                      method="post" class="d-inline"
+                                      onsubmit="return confirm('Supprimer cette écriture ?')">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Supprimer">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr th:if="${entries == null or entries.isEmpty()}">
+                        <td colspan="8" class="text-center text-muted py-4">
+                            <i class="fas fa-inbox me-2"></i>Aucune écriture pour cet exercice.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

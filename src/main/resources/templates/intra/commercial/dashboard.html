@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Dashboard Commercial</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h5 class="fw-bold mb-0"><i class="fas fa-chart-line me-2 text-primary"></i>Dashboard Commercial</h5>
+            <div class="text-muted small mt-1" th:text="|Aujourd'hui — ${#temporals.format(today, 'EEEE d MMMM yyyy', #locale)}|"></div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/intra/invoices/new"    class="btn btn-sm btn-success"><i class="fas fa-plus me-1"></i>Facture</a>
+            <a href="/intra/tickets/create"   class="btn btn-sm btn-outline-primary"><i class="fas fa-ticket me-1"></i>Ticket</a>
+            <a href="/intra/appointments"    class="btn btn-sm btn-outline-secondary"><i class="fas fa-calendar me-1"></i>RDV</a>
+        </div>
+    </div>
+
+    <!-- ── Ligne 1 : KPIs principaux ──────────────────────────────────────── -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-3">
+            <a href="/intra/customers" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3 flex-shrink-0">
+                        <i class="fas fa-building text-primary fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-2 fw-bold" th:text="${customerCount}">0</div>
+                        <div class="text-muted small">Clients actifs</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <a href="/intra/subscriptions" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-info bg-opacity-10 p-3 flex-shrink-0">
+                        <i class="fas fa-rotate text-info fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-2 fw-bold" th:text="${activeSubscriptions}">0</div>
+                        <div class="text-muted small">Abonnements actifs</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <a href="/intra/invoices" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3 flex-shrink-0">
+                        <i class="fas fa-euro-sign text-success fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-4 fw-bold text-success"
+                             th:text="${cliRevenue != null ? #numbers.formatDecimal(cliRevenue, 1, 'COMMA', 2, 'POINT') + ' €' : '0,00 €'}">0 €</div>
+                        <div class="text-muted small">CA encaissé</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <a href="/intra/invoices" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle p-3 flex-shrink-0"
+                         th:classappend="${cliUnpaid != null and cliUnpaid > 0} ? 'bg-danger bg-opacity-10' : 'bg-secondary bg-opacity-10'">
+                        <i class="fas fa-hourglass-half fa-lg"
+                           th:classappend="${cliUnpaid != null and cliUnpaid > 0} ? 'text-danger' : 'text-secondary'"></i>
+                    </div>
+                    <div>
+                        <div class="fs-4 fw-bold"
+                             th:classappend="${cliUnpaid != null and cliUnpaid > 0} ? 'text-danger' : ''"
+                             th:text="${cliUnpaid != null ? #numbers.formatDecimal(cliUnpaid, 1, 'COMMA', 2, 'POINT') + ' €' : '0,00 €'}">0 €</div>
+                        <div class="text-muted small">Impayés en retard</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- ── Ligne 2 : Activité ─────────────────────────────────────────────── -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-3">
+            <a href="/intra/tickets" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle p-3 flex-shrink-0"
+                         th:classappend="${ticketsOpen > 0} ? 'bg-warning bg-opacity-15' : 'bg-secondary bg-opacity-10'">
+                        <i class="fas fa-ticket fa-lg"
+                           th:classappend="${ticketsOpen > 0} ? 'text-warning' : 'text-secondary'"></i>
+                    </div>
+                    <div>
+                        <div class="fs-2 fw-bold" th:text="${ticketsOpen}">0</div>
+                        <div class="text-muted small">Tickets ouverts</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <a href="/intra/tickets" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle p-3 flex-shrink-0"
+                         th:classappend="${ticketsUrgent > 0} ? 'bg-danger bg-opacity-10' : 'bg-secondary bg-opacity-10'">
+                        <i class="fas fa-fire fa-lg"
+                           th:classappend="${ticketsUrgent > 0} ? 'text-danger' : 'text-secondary'"></i>
+                    </div>
+                    <div>
+                        <div class="fs-2 fw-bold"
+                             th:classappend="${ticketsUrgent > 0} ? 'text-danger' : ''"
+                             th:text="${ticketsUrgent}">0</div>
+                        <div class="text-muted small">Urgents / Prioritaires</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <a href="/intra/interventions" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-purple bg-opacity-10 p-3 flex-shrink-0" style="background:rgba(139,92,246,.1)">
+                        <i class="fas fa-wrench fa-lg" style="color:#8b5cf6"></i>
+                    </div>
+                    <div>
+                        <div class="fs-2 fw-bold" th:text="${interventionsInProgress}">0</div>
+                        <div class="text-muted small">Interventions en cours</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <a href="/intra/interventions/billing" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle p-3 flex-shrink-0"
+                         th:classappend="${interventionsToBill > 0} ? 'bg-warning bg-opacity-15' : 'bg-secondary bg-opacity-10'">
+                        <i class="fas fa-file-invoice fa-lg"
+                           th:classappend="${interventionsToBill > 0} ? 'text-warning' : 'text-secondary'"></i>
+                    </div>
+                    <div>
+                        <div class="fs-2 fw-bold"
+                             th:classappend="${interventionsToBill > 0} ? 'text-warning' : ''"
+                             th:text="${interventionsToBill}">0</div>
+                        <div class="text-muted small">Interventions à facturer</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- ── Ligne 3 : Tickets + RDV ───────────────────────────────────────── -->
+    <div class="row g-4 mb-4">
+
+        <!-- Tickets récents -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-ticket me-2 text-warning"></i>Tickets ouverts récents</h6>
+                    <a href="/intra/tickets" class="btn btn-sm btn-outline-secondary">Tout voir →</a>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(recentTickets)}" class="text-center py-4 text-muted small">
+                        <i class="fas fa-check-circle text-success fa-2x mb-2 d-block"></i>Aucun ticket ouvert
+                    </div>
+                    <div th:each="t : ${recentTickets}"
+                         class="d-flex align-items-center gap-3 px-3 py-2 border-bottom">
+                        <!-- Priorité -->
+                        <span class="badge flex-shrink-0"
+                              th:classappend="${t.priority != null and t.priority.name() == 'URGENT'} ? 'text-bg-danger' :
+                                             (${t.priority != null and t.priority.name() == 'HIGH'} ? 'text-bg-warning text-dark' : 'text-bg-secondary')"
+                              th:text="${t.priority != null ? t.priority.name() : 'NORMAL'}"></span>
+                        <!-- Infos -->
+                        <div class="flex-grow-1 min-w-0">
+                            <a th:href="@{/intra/tickets/{id}(id=${t.id})}"
+                               class="fw-semibold text-decoration-none text-dark d-block text-truncate"
+                               th:text="${t.title}"></a>
+                            <div class="text-muted small d-flex gap-2">
+                                <span th:if="${t.customer != null}" th:text="${t.customer.companyName}"></span>
+                                <span class="text-muted">·</span>
+                                <span th:text="${#temporals.format(t.createdAt, 'dd/MM HH:mm')}"></span>
+                            </div>
+                        </div>
+                        <!-- Statut -->
+                        <span class="badge flex-shrink-0"
+                              th:classappend="${t.status.name() == 'NEW'} ? 'text-bg-primary' : 'text-bg-info'"
+                              th:text="${t.status.name() == 'NEW'} ? 'Nouveau' : 'En cours'"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rendez-vous -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-calendar-check me-2 text-info"></i>Rendez-vous</h6>
+                    <a href="/intra/appointments" class="btn btn-sm btn-outline-secondary">Planning →</a>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Aujourd'hui -->
+                    <div class="px-3 py-2 bg-info bg-opacity-10 border-bottom">
+                        <span class="small fw-semibold text-info">
+                            <i class="fas fa-sun me-1"></i>Aujourd'hui
+                            <span class="badge text-bg-info ms-1" th:text="${#lists.size(todayAppointments)}">0</span>
+                        </span>
+                    </div>
+                    <div th:if="${#lists.isEmpty(todayAppointments)}"
+                         class="text-center py-2 text-muted small border-bottom">Aucun RDV aujourd'hui</div>
+                    <div th:each="a : ${todayAppointments}"
+                         class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+                        <i class="fas fa-circle-dot text-info fa-xs flex-shrink-0"></i>
+                        <div class="flex-grow-1 min-w-0">
+                            <div class="small fw-semibold text-truncate" th:text="${a.title}"></div>
+                            <div class="text-muted" style="font-size:.75rem;">
+                                <span th:text="${#temporals.format(a.startAt, 'HH:mm')}"></span>
+                                <span th:if="${a.customer != null}"> · <span th:text="${a.customer.companyName}"></span></span>
+                            </div>
+                        </div>
+                        <span class="badge text-bg-secondary flex-shrink-0 small"
+                              th:text="${a.type != null ? a.type.name() : ''}"></span>
+                    </div>
+
+                    <!-- 7 prochains jours -->
+                    <div class="px-3 py-2 bg-light border-bottom">
+                        <span class="small fw-semibold text-muted">
+                            <i class="fas fa-calendar me-1"></i>7 prochains jours
+                            <span class="badge text-bg-secondary ms-1" th:text="${#lists.size(weekAppointments)}">0</span>
+                        </span>
+                    </div>
+                    <div th:if="${#lists.isEmpty(weekAppointments)}"
+                         class="text-center py-2 text-muted small">Aucun RDV cette semaine</div>
+                    <div th:each="a : ${weekAppointments}"
+                         class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+                        <i class="fas fa-circle-dot text-muted fa-xs flex-shrink-0"></i>
+                        <div class="flex-grow-1 min-w-0">
+                            <div class="small fw-semibold text-truncate" th:text="${a.title}"></div>
+                            <div class="text-muted" style="font-size:.75rem;">
+                                <span th:text="${#temporals.format(a.startAt, 'EEE dd/MM HH:mm', #locale)}"></span>
+                                <span th:if="${a.customer != null}"> · <span th:text="${a.customer.companyName}"></span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Ligne 4 : Factures + Actions rapides ──────────────────────────── -->
+    <div class="row g-4">
+
+        <!-- État factures -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-file-invoice-dollar me-2 text-success"></i>État des factures</h6>
+                    <a href="/intra/invoices" class="btn btn-sm btn-outline-secondary">Gérer →</a>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
+                        <span class="small"><i class="fas fa-pen text-secondary me-2"></i>Brouillons</span>
+                        <span class="badge text-bg-secondary fs-6 px-3" th:text="${invoiceDraft}">0</span>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
+                        <span class="small"><i class="fas fa-paper-plane text-info me-2"></i>Envoyées</span>
+                        <span class="badge text-bg-info fs-6 px-3" th:text="${invoiceSent}">0</span>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between py-2">
+                        <span class="small"><i class="fas fa-exclamation-circle text-danger me-2"></i>En retard</span>
+                        <span class="badge fs-6 px-3"
+                              th:classappend="${invoiceOverdue > 0} ? 'text-bg-danger' : 'text-bg-secondary'"
+                              th:text="${invoiceOverdue}">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions rapides -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-bolt me-2 text-warning"></i>Actions rapides</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <a href="/intra/customers" class="btn btn-outline-primary w-100 text-start">
+                                <i class="fas fa-building me-2"></i>Fiches clients
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="/intra/customers/add" class="btn btn-outline-primary w-100 text-start">
+                                <i class="fas fa-plus me-2"></i>Nouveau client
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="/intra/tickets" class="btn btn-outline-warning w-100 text-start">
+                                <i class="fas fa-ticket me-2"></i>Tous les tickets
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="/intra/tickets/create" class="btn btn-outline-warning w-100 text-start">
+                                <i class="fas fa-plus me-2"></i>Nouveau ticket
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="/intra/invoices" class="btn btn-outline-success w-100 text-start">
+                                <i class="fas fa-file-invoice-dollar me-2"></i>Toutes les factures
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="/intra/invoices/new" class="btn btn-outline-success w-100 text-start">
+                                <i class="fas fa-plus me-2"></i>Nouvelle facture
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="/intra/interventions" class="btn btn-outline-secondary w-100 text-start">
+                                <i class="fas fa-wrench me-2"></i>Interventions
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="/intra/subscriptions" class="btn btn-outline-info w-100 text-start">
+                                <i class="fas fa-rotate me-2"></i>Abonnements
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

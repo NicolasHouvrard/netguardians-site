@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Dashboard</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 fw-bold">
+            <i class="fas fa-table-columns me-2" style="color:#6366f1"></i>
+            <span th:text="${dashboard.id != null ? 'Modifier le dashboard' : 'Nouveau dashboard'}"></span>
+        </h1>
+        <a href="/intra/dashboards" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <form th:action="@{/intra/dashboards/save}" th:object="${dashboard}" method="post">
+                <input type="hidden" th:field="*{id}">
+                <input type="hidden" th:field="*{active}" value="true">
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Nom <span class="text-danger">*</span></label>
+                        <input type="text" th:field="*{name}" class="form-control"
+                               placeholder="ex: Commercial" required id="nameInput">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Slug (URL)</label>
+                        <div class="input-group">
+                            <span class="input-group-text text-muted">/intra/dashboard/</span>
+                            <input type="text" th:field="*{slug}" class="form-control"
+                                   placeholder="commercial" id="slugInput"
+                                   pattern="[a-z0-9\-]+" title="Minuscules, chiffres et tirets uniquement">
+                        </div>
+                        <small class="text-muted">Laissez vide pour auto-générer depuis le nom</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Icône FontAwesome</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i id="iconPreview" class="fas fa-gauge-high"></i></span>
+                            <input type="text" th:field="*{icon}" class="form-control"
+                                   placeholder="fas fa-gauge-high" id="iconInput">
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Couleur</label>
+                        <input type="color" th:field="*{color}" class="form-control form-control-color w-100">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Ordre d'affichage</label>
+                        <input type="number" th:field="*{displayOrder}" class="form-control"
+                               min="1" step="1" placeholder="10">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Rôle requis</label>
+                        <select th:field="*{roleRequired}" class="form-select">
+                            <option value="">-- Tous les rôles ESN --</option>
+                            <option value="ROLE_ADMIN">ROLE_ADMIN</option>
+                            <option value="ROLE_USER">ROLE_USER</option>
+                            <option value="ROLE_TECHNICIEN">ROLE_TECHNICIEN</option>
+                            <option value="ROLE_COMMERCIAL">ROLE_COMMERCIAL</option>
+                            <option value="ROLE_MARKETING">ROLE_MARKETING</option>
+                            <option value="ROLE_COMPTABLE">ROLE_COMPTABLE</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>Enregistrer
+                    </button>
+                    <a href="/intra/dashboards" class="btn btn-outline-secondary">Annuler</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script>
+document.getElementById('iconInput').addEventListener('input', function() {
+    document.getElementById('iconPreview').className = this.value || 'fas fa-gauge-high';
+});
+// Auto-générer le slug depuis le nom
+document.getElementById('nameInput').addEventListener('input', function() {
+    const slug = document.getElementById('slugInput');
+    if (!slug.value) {
+        slug.value = this.value.toLowerCase()
+            .replace(/[éèêë]/g,'e').replace(/[àâä]/g,'a').replace(/[ùûü]/g,'u')
+            .replace(/[ôö]/g,'o').replace(/[îï]/g,'i')
+            .replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    }
+});
+</script>
+</th:block>
+</body>
+</html>

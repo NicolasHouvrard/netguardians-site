@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="banner">
+
+    <div th:if="${dashboardWidgets != null}" class="dashboard-banner border-bottom"
+         th:classappend="${dashboardVisible} ? '' : 'dashboard-banner--collapsed'">
+
+        <!-- Bandeau visible -->
+        <div th:if="${dashboardVisible}" class="container-fluid px-3 py-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+
+                <!-- Widgets -->
+                <a th:each="w : ${dashboardWidgets != null ? dashboardWidgets : T(java.util.Collections).emptyList()}"
+                   th:href="${w.link}"
+                   class="dashboard-widget text-decoration-none d-flex align-items-center gap-2 px-3 py-1 rounded"
+                   th:style="'border-left: 3px solid ' + ${w.color}">
+                    <span class="dashboard-widget__icon" th:style="'color:' + ${w.color}">
+                        <i th:class="${w.icon}"></i>
+                    </span>
+                    <div>
+                        <div class="dashboard-widget__value fw-bold lh-1" th:text="${w.value}">—</div>
+                        <div class="dashboard-widget__label text-muted" th:text="${w.label}">—</div>
+                    </div>
+                </a>
+
+                <div class="ms-auto d-flex gap-1">
+                    <!-- Bouton config -->
+                    <button class="btn btn-sm btn-outline-secondary"
+                            data-bs-toggle="modal" data-bs-target="#dashboardConfigModal"
+                            title="Configurer le tableau de bord">
+                        <i class="fas fa-sliders-h"></i>
+                    </button>
+                    <!-- Réduire -->
+                    <form th:action="@{/espace/dashboard/toggle}" method="post"
+                          th:attr="'data-return'=${currentUri}">
+                        <input type="hidden" name="returnTo" th:value="${currentUri}">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Réduire">
+                            <i class="fas fa-chevron-up"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bandeau réduit -->
+        <div th:if="${!dashboardVisible}" class="container-fluid px-3 py-1 d-flex justify-content-end">
+            <form th:action="@{/espace/dashboard/toggle}" method="post">
+                <input type="hidden" name="returnTo" th:value="${currentUri}">
+                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Afficher le tableau de bord">
+                    <i class="fas fa-chart-bar me-1"></i>
+                    <span class="small">Tableau de bord</span>
+                    <i class="fas fa-chevron-down ms-1"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal configuration widgets -->
+    <div class="modal fade" id="dashboardConfigModal" tabindex="-1"
+         th:if="${dashboardAvailable != null}">
+        <div class="modal-dialog modal-md">
+            <div class="modal-content">
+                <form th:action="@{/espace/dashboard/config}" method="post">
+                    <input type="hidden" name="returnTo" th:value="${currentUri}">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-sliders-h me-2"></i>Mon tableau de bord
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted small mb-3">
+                            Sélectionnez les indicateurs à afficher dans le bandeau. Cochez dans l'ordre d'affichage souhaité.
+                        </p>
+                        <div class="list-group list-group-flush">
+                            <label th:each="wt : ${dashboardAvailable != null ? dashboardAvailable : T(java.util.Collections).emptyList()}"
+                                   class="list-group-item list-group-item-action d-flex align-items-center gap-3 px-2 py-2">
+                                <input type="checkbox" name="widgets" th:value="${wt.name()}"
+                                       class="form-check-input mt-0"
+                                       th:checked="${dashboardConfig != null and dashboardConfig.widgetCodes != null and #strings.contains(dashboardConfig.widgetCodes, wt.name())}">
+                                <span class="rounded-circle d-inline-flex align-items-center justify-content-center"
+                                      th:style="'background:' + ${wt.color} + '20; width:30px; height:30px; flex-shrink:0'">
+                                    <i th:class="${wt.icon}" th:style="'color:' + ${wt.color} + '; font-size:.8rem'"></i>
+                                </span>
+                                <span class="small" th:text="${wt.label}"></span>
+                            </label>
+                        </div>
+                        <div class="form-check form-switch mt-3">
+                            <input class="form-check-input" type="checkbox" name="bannerVisible"
+                                   value="true" id="bannerVisibleSwitch"
+                                   th:checked="${dashboardVisible}">
+                            <label class="form-check-label small" for="bannerVisibleSwitch">
+                                Afficher le bandeau
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-save me-1"></i>Enregistrer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

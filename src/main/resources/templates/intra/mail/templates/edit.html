@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head>
+    <title>Modifier le template</title>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-0 fw-bold">
+                <i class="fas fa-edit me-2 text-primary"></i>
+                Modifier le template : <span th:text="${tpl.type.label}" class="text-primary"></span>
+            </h4>
+        </div>
+        <a href="/intra/mail/templates" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+    </div>
+
+    <form th:action="'/intra/mail/templates/' + ${tpl.id} + '/update'" method="post">
+
+        <!-- Variables disponibles -->
+        <div class="alert alert-info d-flex gap-2 align-items-start mb-3">
+            <i class="fas fa-info-circle mt-1"></i>
+            <div>
+                <strong>Variables disponibles :</strong>
+                <code th:text="${tpl.type.variables}" class="ms-2"></code>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Sujet de l'email</label>
+                    <input type="text" name="subject" class="form-control"
+                           th:value="${tpl.subject}" required>
+                </div>
+
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label fw-semibold mb-0">Corps de l'email (HTML)</label>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary" onclick="togglePreview()">
+                                <i class="fas fa-eye me-1"></i>Prévisualiser
+                            </button>
+                        </div>
+                    </div>
+                    <textarea name="htmlBody" id="htmlBodyEditor" class="form-control font-monospace"
+                              rows="20" style="font-size:.82rem" th:text="${tpl.htmlBody}" required></textarea>
+                </div>
+
+                <!-- Prévisualisation -->
+                <div id="previewPanel" class="mb-3" style="display:none">
+                    <label class="form-label fw-semibold">Prévisualisation</label>
+                    <div class="border rounded" style="background:#f8fafc;overflow:hidden">
+                        <iframe id="previewFrame" style="width:100%;height:500px;border:none"></iframe>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>Enregistrer
+                    </button>
+                    <a href="/intra/mail/templates" class="btn btn-outline-secondary">Annuler</a>
+                </div>
+
+            </div>
+        </div>
+    </form>
+
+</div>
+
+<th:block layout:fragment="script">
+<script>
+function togglePreview() {
+    var panel = document.getElementById('previewPanel');
+    var frame = document.getElementById('previewFrame');
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        var html = document.getElementById('htmlBodyEditor').value;
+        frame.srcdoc = html;
+    } else {
+        panel.style.display = 'none';
+    }
+}
+</script>
+</th:block>
+</body>
+</html>

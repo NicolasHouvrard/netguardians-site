@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{boutique-layout}">
+<body>
+<div layout:fragment="content">
+
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a th:href="@{/boutique}" th:text="${shopName}">Boutique</a></li>
+            <li class="breadcrumb-item active" th:text="${product.displayTitle}">Produit</li>
+        </ol>
+    </nav>
+
+    <div class="row g-4">
+
+        <!-- Image -->
+        <div class="col-md-5">
+            <div th:if="${product.featuredImagePath}"
+                 class="rounded-3 overflow-hidden shadow-sm" style="max-height:420px">
+                <img th:src="@{/uploads/{p}(p=${product.featuredImagePath})}"
+                     class="w-100" style="object-fit:cover;max-height:420px" alt="">
+            </div>
+            <div th:unless="${product.featuredImagePath}"
+                 class="rounded-3 bg-light d-flex align-items-center justify-content-center text-muted shadow-sm"
+                 style="height:300px">
+                <i class="fas fa-image fa-5x opacity-20"></i>
+            </div>
+        </div>
+
+        <!-- Détail -->
+        <div class="col-md-7">
+            <h1 class="h2 fw-bold mb-2" th:text="${product.displayTitle}">Titre</h1>
+
+            <!-- Prix -->
+            <div class="mb-3">
+                <span class="display-6 fw-bold text-primary"
+                      th:text="${#numbers.formatDecimal(product.priceTTC, 1, 'COMMA', 2, 'POINT')} + ' €'">0,00 €</span>
+                <span class="text-muted ms-2">TTC</span>
+                <br>
+                <small class="text-muted"
+                       th:text="'(HT : ' + ${#numbers.formatDecimal(product.effectivePriceHT, 1, 'COMMA', 2, 'POINT')} + ' € – TVA ' + ${product.effectiveTaxRate} + '%)'"></small>
+            </div>
+
+            <!-- Disponibilité -->
+            <div class="mb-3">
+                <span th:if="${product.available}" class="badge bg-success"><i class="fas fa-check me-1"></i>En stock</span>
+                <span th:if="${product.stockEnabled and product.stock > 0 and product.stock <= 5}"
+                      class="badge bg-warning text-dark ms-1">Plus que <span th:text="${product.stock}"></span> disponible(s)</span>
+                <span th:unless="${product.available}" class="badge bg-secondary">Indisponible</span>
+            </div>
+
+            <!-- Ajouter au panier -->
+            <form th:if="${product.available}" th:action="@{/boutique/cart/add}" method="post" class="mb-4">
+                <input type="hidden" name="shopProductId" th:value="${product.id}">
+                <div class="d-flex gap-2 align-items-center">
+                    <div style="width:90px">
+                        <input type="number" name="quantity" value="1" min="1"
+                               th:max="${product.stockEnabled ? product.stock : 99}"
+                               class="form-control text-center">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
+                        <i class="fas fa-cart-plus me-2"></i>Ajouter au panier
+                    </button>
+                </div>
+            </form>
+
+            <!-- Description courte -->
+            <div th:if="${product.effectiveDescription != null}"
+                 th:utext="${product.effectiveDescription}"
+                 class="product-description text-muted mb-3"></div>
+
+            <!-- Références -->
+            <div th:if="${ean != null or (product.product != null and product.product.sku != null and !#strings.isEmpty(product.product.sku))}"
+                 class="border-top pt-3 mt-2">
+                <table class="table table-sm table-borderless mb-0 small text-muted" style="width:auto">
+                    <tr th:if="${ean != null and !#strings.isEmpty(ean)}">
+                        <td class="ps-0 pe-3 fw-semibold text-dark">EAN / Réf. fabricant</td>
+                        <td th:text="${ean}"></td>
+                    </tr>
+                    <tr th:if="${product.product != null and product.product.sku != null and !#strings.isEmpty(product.product.sku)}">
+                        <td class="ps-0 pe-3 fw-semibold text-dark">Référence</td>
+                        <td th:text="${product.product.sku}"></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

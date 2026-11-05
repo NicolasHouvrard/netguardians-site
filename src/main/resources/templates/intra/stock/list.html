@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Gestion de stock</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-boxes me-2 text-primary"></i>Gestion de stock</h4>
+            <div class="text-muted small mt-1">Vue globale du stock par site</div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/intra/stock/movements" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-history me-1"></i>Historique global
+            </a>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- ── Alertes stock bas ─────────────────────────────────────────────── -->
+    <div th:if="${!#lists.isEmpty(lowStockItems)}"
+         class="alert alert-warning d-flex gap-3 align-items-start mb-4">
+        <i class="fas fa-exclamation-triangle fa-lg mt-1 flex-shrink-0"></i>
+        <div>
+            <strong>Stock bas détecté sur <span th:text="${#lists.size(lowStockItems)}"></span> référence(s)</strong>
+            <ul class="mb-0 mt-1 small">
+                <li th:each="item : ${lowStockItems}">
+                    <a th:href="@{/intra/stock/site/{id}(id=${item.site.id})}" class="text-warning fw-semibold"
+                       th:text="${item.site.name}"></a>
+                    —
+                    <span th:text="${item.product.name}"></span>
+                    : <strong th:text="${item.quantity}"></strong> restant(s)
+                    <span class="text-muted">(seuil : <span th:text="${item.minQuantity}"></span>)</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- ── Grille des sites ──────────────────────────────────────────────── -->
+    <div th:if="${#lists.isEmpty(siteStats)}" class="card border-0 shadow-sm text-center py-5 text-muted">
+        <i class="fas fa-map-marker-alt fa-2x mb-3 d-block"></i>
+        Aucun site trouvé. Créez des sites depuis la fiche client.
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-6 col-lg-4" th:each="stat : ${siteStats}">
+            <div class="card border-0 shadow-sm h-100"
+                 th:classappend="${stat.lowStockCount > 0 ? 'border-warning border' : ''}">
+                <div class="card-body">
+                    <div class="d-flex align-items-start justify-content-between mb-3">
+                        <div>
+                            <div class="fw-bold" th:text="${stat.site.name}"></div>
+                            <div class="text-muted small"
+                                 th:text="${stat.site.customer.companyName}"></div>
+                            <div class="text-muted small" th:if="${stat.site.city != null}"
+                                 th:text="${stat.site.city}"></div>
+                        </div>
+                        <span th:if="${stat.lowStockCount > 0}"
+                              class="badge text-bg-warning">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            <span th:text="${stat.lowStockCount}"></span> alerte(s)
+                        </span>
+                        <span th:if="${stat.lowStockCount == 0 && stat.references > 0}"
+                              class="badge text-bg-success">
+                            <i class="fas fa-check me-1"></i>OK
+                        </span>
+                    </div>
+                    <div class="row text-center g-2 mb-3">
+                        <div class="col-6">
+                            <div class="fs-4 fw-bold text-primary" th:text="${stat.references}"></div>
+                            <div class="text-muted small">Référence(s)</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="fs-4 fw-bold text-dark" th:text="${stat.totalQty}"></div>
+                            <div class="text-muted small">Unité(s) totale(s)</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-0">
+                    <a th:href="@{/intra/stock/site/{id}(id=${stat.site.id})}"
+                       class="btn btn-sm btn-primary w-100">
+                        <i class="fas fa-eye me-1"></i>Gérer le stock
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Mouvement rapide ──────────────────────────────────────────────── -->
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white border-0 fw-semibold">
+            <i class="fas fa-bolt me-2 text-warning"></i>Mouvement rapide
+        </div>
+        <div class="card-body">
+            <form method="post" action="/intra/stock/entry" class="row g-2 align-items-end">
+                <div class="col-sm-3">
+                    <label class="form-label small fw-semibold">Site</label>
+                    <select name="siteId" class="form-select form-select-sm" required>
+                        <option value="">— Sélectionner —</option>
+                        <option th:each="s : ${sites}" th:value="${s.id}"
+                                th:text="${s.name + ' (' + s.customer.companyName + ')'}"></option>
+                    </select>
+                </div>
+                <div class="col-sm-3">
+                    <label class="form-label small fw-semibold">Produit</label>
+                    <select name="productId" class="form-select form-select-sm" required>
+                        <option value="">— Sélectionner —</option>
+                        <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name}"></option>
+                    </select>
+                </div>
+                <div class="col-sm-2">
+                    <label class="form-label small fw-semibold">Quantité</label>
+                    <input type="number" name="quantity" class="form-control form-control-sm" min="1" value="1" required>
+                </div>
+                <div class="col-sm-2">
+                    <label class="form-label small fw-semibold">Raison</label>
+                    <input type="text" name="reason" class="form-control form-control-sm" placeholder="Optionnel">
+                </div>
+                <div class="col-sm-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-sm btn-success flex-fill">
+                        <i class="fas fa-plus me-1"></i>Entrée
+                    </button>
+                    <button type="submit" formaction="/intra/stock/exit" class="btn btn-sm btn-danger flex-fill">
+                        <i class="fas fa-minus me-1"></i>Sortie
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

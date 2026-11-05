@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 fw-bold"><i class="fas fa-store me-2 text-primary"></i>Paramètres boutique</h1>
+            <small class="text-muted">Configuration générale de la boutique en ligne</small>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- Paramètres généraux -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header fw-semibold">
+                    <i class="fas fa-cog me-2"></i>Général
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/intra/shop/settings}" method="post">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Nom de la boutique</label>
+                            <input type="text" name="shopName" class="form-control"
+                                   th:value="${shopConfig.shopName}" placeholder="Notre Boutique">
+                            <div class="form-text">Affiché dans les titres de page et les emails.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">URL de base</label>
+                            <input type="url" name="baseUrl" class="form-control"
+                                   th:value="${shopConfig.baseUrl}" placeholder="https://votredomaine.com">
+                            <div class="form-text">Utilisée pour les liens absolus (Stripe, emails, balises SEO).</div>
+                        </div>
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>Enregistrer
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Raccourcis paiement -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header fw-semibold">
+                    <i class="fas fa-credit-card me-2"></i>Moyens de paiement
+                </div>
+                <div class="list-group list-group-flush">
+                    <a th:href="@{/intra/payment/bank-transfer}"
+                       class="list-group-item list-group-item-action d-flex align-items-center gap-3">
+                        <span class="rounded-circle d-inline-flex align-items-center justify-content-center"
+                              style="background:#17a2b820;width:36px;height:36px;flex-shrink:0">
+                            <i class="fas fa-university text-info"></i>
+                        </span>
+                        <div>
+                            <div class="fw-semibold small">Virement bancaire</div>
+                            <div class="text-muted" style="font-size:.8rem">IBAN / BIC chiffré</div>
+                        </div>
+                        <i class="fas fa-chevron-right ms-auto text-muted small"></i>
+                    </a>
+                    <a th:href="@{/intra/payment/stripe}"
+                       class="list-group-item list-group-item-action d-flex align-items-center gap-3">
+                        <span class="rounded-circle d-inline-flex align-items-center justify-content-center"
+                              style="background:#635bff20;width:36px;height:36px;flex-shrink:0">
+                            <i class="fab fa-stripe text-primary"></i>
+                        </span>
+                        <div>
+                            <div class="fw-semibold small">Stripe</div>
+                            <div class="text-muted" style="font-size:.8rem">Clés API chiffrées</div>
+                        </div>
+                        <i class="fas fa-chevron-right ms-auto text-muted small"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+</body>
+</html>

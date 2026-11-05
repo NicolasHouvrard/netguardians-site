@@ -1,0 +1,30 @@
+# Profil de licence cote SECONDAIRE (serveur PARTNER ou CLIENT) : auto-enrolement au demarrage
+# auprès d'un serveur MASTER, via LicenceBootstrap. Copier en application-licence.properties
+# (fichier non suivi par git, a l'image d'application-local.properties) et completer les CHANGEME.
+#
+# ABSENT de app.licence.master-url = rien ne se passe (LicenceBootstrap n'est meme pas cree) :
+# un serveur MASTER n'a besoin d'AUCUNE de ces proprietes.
+
+# URL du serveur MASTER auprès duquel s'enroler (obligatoire pour activer l'auto-enrolement).
+app.licence.master-url=CHANGEME-https://maitre.exemple.fr
+
+# --- Authentification : configurer EXACTEMENT une des deux methodes ci-dessous (jamais les deux,
+# jamais aucune des deux) ---
+
+# Methode 1 (serveur PARTNER) : identifiants d'un CompteLicence cree sur le MASTER
+# (/intra/licence/comptes).
+app.licence.login=CHANGEME-login-compte-licence
+app.licence.mot-de-passe=CHANGEME-mot-de-passe-compte-licence
+
+# Methode 2 (serveur CLIENT) : jeton fourni par un PARTNER deja enrole (mecanisme pas encore
+# disponible cote MASTER — tache ulterieure du plan). Laisser les 2 proprietes ci-dessus VIDES
+# si cette methode est utilisee.
+#app.licence.jeton=CHANGEME-jeton-remis-par-le-partenaire
+
+# Adresse PUBLIQUE de ce serveur, telle que ses futurs clients doivent l'utiliser pour le joindre
+# (relayee par le MASTER comme adressePartenaireResolue, puis utilisee TELLE QUELLE comme URL de base
+# pour POST /api/sync/enroll). Doit etre une URL COMPLETE : schema + hote + port
+# (ex. https://partenaire.exemple.fr:8443), PAS une IP nue. Prioritaire sur l'auto-detection
+# (InetAddress.getLocalHost(), qui ne donne qu'une IP sans schema ni port, souvent la mauvaise
+# interface reseau ou le loopback). Vide par defaut = auto-detection.
+#app.licence.adresse-publique=CHANGEME-https://partenaire.exemple.fr:8443

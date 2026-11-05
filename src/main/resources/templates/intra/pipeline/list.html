@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Pipeline commercial</title></head>
+<body>
+<div layout:fragment="content">
+
+<style>
+.pipeline-col { min-width: 260px; max-width: 260px; }
+.opp-card { font-size:.85rem; cursor:pointer; transition:.15s; border-left:3px solid transparent; }
+.opp-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.12); transform:translateY(-1px); }
+.opp-card.status-NOUVEAU       { border-left-color:#64748b; }
+.opp-card.status-CONTACTE      { border-left-color:#0ea5e9; }
+.opp-card.status-QUALIFICATION { border-left-color:#6366f1; }
+.opp-card.status-PROPOSITION   { border-left-color:#f59e0b; }
+.opp-card.status-NEGOCIATION   { border-left-color:#f97316; }
+.opp-card.status-GAGNE         { border-left-color:#10b981; }
+.opp-card.status-PERDU         { border-left-color:#ef4444; opacity:.6; }
+</style>
+
+    <!-- Barre d'actions -->
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <h4 class="mb-0 me-2"><i class="fas fa-chart-line me-2 text-primary"></i>Pipeline commercial</h4>
+        <span class="badge text-bg-secondary" th:text="${totalCount + ' affaire(s)'}"></span>
+        <div class="flex-grow-1"></div>
+
+        <form method="get" action="/intra/pipeline" class="d-flex gap-1">
+            <input type="text" name="q" th:value="${q}"
+                   class="form-control form-control-sm" style="width:220px"
+                   placeholder="Rechercher affaire ou client…" autocomplete="off">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-search"></i>
+            </button>
+            <a th:if="${q != null and !#strings.isEmpty(q)}" href="/intra/pipeline"
+               class="btn btn-sm btn-outline-danger"><i class="fas fa-times"></i></a>
+        </form>
+
+        <button id="toggleBtn" onclick="toggleView()" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-list me-1"></i>Vue Table
+        </button>
+
+        <a href="/intra/pipeline/new" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus me-1"></i>Nouvelle affaire
+        </a>
+    </div>
+
+    <!-- ── Vue Kanban ─────────────────────────────────────────────────────────── -->
+    <div id="kanbanView">
+        <div class="d-flex gap-3 overflow-auto pb-3" style="min-height:65vh">
+            <div th:each="s : ${statuses}" class="pipeline-col flex-shrink-0">
+                <div class="rounded-3 p-2 h-100"
+                     th:style="${'background:' + s.color + '18'}">
+
+                    <!-- Header colonne -->
+                    <div class="d-flex align-items-center gap-2 mb-1 px-1">
+                        <span th:class="${'badge ' + s.badgeCss}" style="font-size:.72rem"
+                              th:text="${s.label}"></span>
+                        <span class="text-muted small ms-auto"
+                              th:text="${(byStatus[s.name()] != null ? byStatus[s.name()].size() : 0)}"></span>
+                    </div>
+
+                    <!-- Montant devis pour colonnes clés -->
+                    <div th:if="${s.name() == 'PROPOSITION' or s.name() == 'NEGOCIATION' or s.name() == 'GAGNE'}"
+                         class="text-muted px-1 mb-2" style="font-size:.75rem">
+                        <i class="fas fa-file-invoice-dollar me-1"></i>
+                        <span th:text="${#numbers.formatDecimal(columnTotals[s.name()], 1, 'COMMA', 0, 'POINT') + ' €'}"></span>
+                    </div>
+
+                    <!-- Cards -->
+                    <div class="d-flex flex-column gap-2">
+                        <div th:if="${byStatus[s.name()] == null or byStatus[s.name()].isEmpty()}"
+                             class="text-center py-4 text-muted" style="font-size:.78rem">
+                            Aucune affaire
+                        </div>
+                        <a th:each="opp : ${byStatus[s.name()]}"
+                           th:href="@{/intra/pipeline/{id}(id=${opp.id})}"
+                           th:class="${'card opp-card border-0 shadow-sm text-decoration-none text-dark status-' + opp.status.name()}">
+                            <div class="card-body py-2 px-3">
+                                <div class="fw-semibold text-truncate" th:text="${opp.name}"></div>
+                                <div class="text-muted small text-truncate mt-1">
+                                    <i class="fas fa-building me-1" style="font-size:.7rem"></i>
+                                    <span th:text="${opp.customer?.companyName}"></span>
+                                </div>
+                                <div th:if="${opp.estimatedValue != null}"
+                                     class="mt-1 d-flex align-items-center gap-2 flex-wrap">
+                                    <span class="text-muted" style="font-size:.72rem">
+                                        <i class="fas fa-tag me-1"></i>
+                                        <span th:text="${#numbers.formatDecimal(opp.estimatedValue, 1, 'COMMA', 0, 'POINT') + ' €'}"></span>
+                                    </span>
+                                    <span th:if="${quoteTotals.containsKey(opp.id) and quoteTotals[opp.id].signum() > 0}"
+                                          class="text-success" style="font-size:.72rem">
+                                        <i class="fas fa-file-signature me-1"></i>
+                                        <span th:text="${#numbers.formatDecimal(quoteTotals[opp.id], 1, 'COMMA', 0, 'POINT') + ' €'}"></span>
+                                    </span>
+                                </div>
+                                <div th:if="${opp.expectedCloseDate != null}" class="mt-1">
+                                    <span th:class="${opp.expectedCloseDate.isBefore(today) and opp.status.name() != 'GAGNE' and opp.status.name() != 'PERDU' ? 'text-danger' : 'text-muted'}"
+                                          style="font-size:.72rem">
+                                        <i class="fas fa-calendar me-1"></i>
+                                        <span th:text="${#temporals.format(opp.expectedCloseDate, 'dd/MM/yyyy')}"></span>
+                                    </span>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Vue Table ─────────────────────────────────────────────────────────── -->
+    <div id="tableView" class="d-none">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+                <div th:if="${all.isEmpty()}" class="text-center py-5 text-muted">
+                    <i class="fas fa-chart-line fa-2x mb-2 d-block opacity-25"></i>
+                    Aucune affaire dans le pipeline.
+                </div>
+                <div class="table-responsive" th:if="${!all.isEmpty()}">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Affaire</th>
+                                <th>Client</th>
+                                <th>Statut</th>
+                                <th>Valeur estimée</th>
+                                <th>Devis actifs</th>
+                                <th>Clôture prévue</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="opp : ${all}">
+                                <td class="ps-3 fw-semibold" th:text="${opp.name}"></td>
+                                <td class="text-muted small">
+                                    <a th:if="${opp.customer != null}"
+                                       th:href="@{/intra/customers/{id}(id=${opp.customer.id})}"
+                                       class="text-decoration-none"
+                                       th:text="${opp.customer.companyName}"></a>
+                                </td>
+                                <td>
+                                    <span th:class="${'badge ' + opp.status.badgeCss}"
+                                          th:text="${opp.status.label}"></span>
+                                </td>
+                                <td class="text-muted small">
+                                    <span th:if="${opp.estimatedValue != null}"
+                                          th:text="${#numbers.formatDecimal(opp.estimatedValue, 1, 'COMMA', 0, 'POINT') + ' €'}"></span>
+                                    <span th:unless="${opp.estimatedValue != null}">—</span>
+                                </td>
+                                <td class="small">
+                                    <span th:if="${quoteTotals.containsKey(opp.id) and quoteTotals[opp.id].signum() > 0}"
+                                          class="text-success fw-semibold"
+                                          th:text="${#numbers.formatDecimal(quoteTotals[opp.id], 1, 'COMMA', 0, 'POINT') + ' €'}"></span>
+                                    <span th:unless="${quoteTotals.containsKey(opp.id) and quoteTotals[opp.id].signum() > 0}"
+                                          class="text-muted">—</span>
+                                </td>
+                                <td>
+                                    <span th:if="${opp.expectedCloseDate != null}"
+                                          th:class="${opp.expectedCloseDate.isBefore(today) and opp.status.name() != 'GAGNE' and opp.status.name() != 'PERDU' ? 'text-danger small' : 'text-muted small'}"
+                                          th:text="${#temporals.format(opp.expectedCloseDate, 'dd/MM/yyyy')}"></span>
+                                    <span th:unless="${opp.expectedCloseDate != null}" class="text-muted">—</span>
+                                </td>
+                                <td>
+                                    <a th:href="@{/intra/pipeline/{id}(id=${opp.id})}"
+                                       class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+const VIEW_KEY = 'pipeline_view';
+function toggleView() {
+    const kanban = document.getElementById('kanbanView');
+    const table  = document.getElementById('tableView');
+    const btn    = document.getElementById('toggleBtn');
+    const isKanban = !kanban.classList.contains('d-none');
+    kanban.classList.toggle('d-none', isKanban);
+    table.classList.toggle('d-none', !isKanban);
+    btn.innerHTML = isKanban
+        ? '<i class="fas fa-th-large me-1"></i>Vue Kanban'
+        : '<i class="fas fa-list me-1"></i>Vue Table';
+    sessionStorage.setItem(VIEW_KEY, isKanban ? 'table' : 'kanban');
+}
+document.addEventListener('DOMContentLoaded', function () {
+    if (sessionStorage.getItem(VIEW_KEY) === 'table') {
+        document.getElementById('kanbanView').classList.add('d-none');
+        document.getElementById('tableView').classList.remove('d-none');
+        document.getElementById('toggleBtn').innerHTML = '<i class="fas fa-th-large me-1"></i>Vue Kanban';
+    }
+});
+</script>
+
+</div>
+</body>
+</html>

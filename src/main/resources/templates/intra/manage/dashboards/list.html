@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Gestion des dashboards</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 fw-bold">
+            <i class="fas fa-table-columns me-2" style="color:#6366f1"></i>Dashboards
+        </h1>
+        <a href="/intra/dashboards/new" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus me-1"></i>Nouveau dashboard
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:46px"></th>
+                        <th>Nom</th>
+                        <th>Slug (URL)</th>
+                        <th style="width:60px" class="text-center">Ordre</th>
+                        <th style="width:80px" class="text-center">Modules</th>
+                        <th style="width:80px" class="text-center">Widgets</th>
+                        <th>Rôle requis</th>
+                        <th style="width:160px" class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="d : ${dashboards}">
+                        <td>
+                            <span class="rounded-circle d-inline-flex align-items-center justify-content-center"
+                                  th:style="'background:' + ${d.color} + '22;width:34px;height:34px'">
+                                <i th:class="${d.icon}" th:style="'color:' + ${d.color}"></i>
+                            </span>
+                        </td>
+                        <td class="fw-semibold" th:text="${d.name}"></td>
+                        <td><code th:text="${'/intra/dashboard/' + d.slug}"></code></td>
+                        <td class="text-center" th:text="${d.displayOrder}"></td>
+                        <td class="text-center">
+                            <a th:href="@{/intra/dashboards/{id}/modules(id=${d.id})}"
+                               class="badge bg-primary text-decoration-none"
+                               th:text="${#lists.size(d.moduleLinks)}"></a>
+                        </td>
+                        <td class="text-center">
+                            <a th:href="@{/intra/dashboards/{id}/widgets(id=${d.id})}"
+                               class="badge bg-info text-dark text-decoration-none"
+                               th:text="${#lists.size(d.widgetLayouts)}"></a>
+                        </td>
+                        <td>
+                            <span th:if="${d.roleRequired != null}" class="badge bg-warning text-dark"
+                                  th:text="${d.roleRequired}"></span>
+                            <span th:unless="${d.roleRequired != null}" class="text-muted small">Tous</span>
+                        </td>
+                        <td class="text-center">
+                            <div class="btn-group btn-group-sm">
+                                <a th:href="@{/intra/dashboard/{slug}(slug=${d.slug})}"
+                                   class="btn btn-outline-secondary" title="Voir" target="_blank">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a th:href="@{/intra/dashboards/{id}/edit(id=${d.id})}"
+                                   class="btn btn-outline-primary" title="Éditer">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a th:href="@{/intra/dashboards/{id}/modules(id=${d.id})}"
+                                   class="btn btn-outline-info" title="Modules">
+                                    <i class="fas fa-puzzle-piece"></i>
+                                </a>
+                                <a th:href="@{/intra/dashboards/{id}/widgets(id=${d.id})}"
+                                   class="btn btn-outline-success" title="Widgets">
+                                    <i class="fas fa-gauge-high"></i>
+                                </a>
+                                <form th:action="@{/intra/dashboards/{id}/delete(id=${d.id})}" method="post"
+                                      onsubmit="return confirm('Désactiver ce dashboard ?')">
+                                    <button class="btn btn-outline-danger" title="Désactiver">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

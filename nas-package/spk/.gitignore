@@ -1,0 +1,3 @@
+# Produits de build-spk.sh (jamais commites : contiennent un JRE et un jar)
+build/
+dist/

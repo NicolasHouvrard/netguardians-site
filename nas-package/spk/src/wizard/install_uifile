@@ -1,0 +1,38 @@
+[
+  {
+    "step_title": "Connexion au reseau Headscale",
+    "items": [
+      {
+        "desc": "Ce paquet connecte ce NAS au reseau prive Headscale du projet. Collez ci-dessous la cle de connexion (limitee dans le temps) generee cote VPS. Laissez le champ vide uniquement si ce NAS est deja connecte au reseau Headscale (reinstallation)."
+      },
+      {
+        "type": "password",
+        "subitems": [
+          {
+            "key": "wizard_headscale_cle",
+            "desc": "Cle de connexion Headscale",
+            "defaultValue": "",
+            "validator": {
+              "allowBlank": true,
+              "regex": {
+                "expr": "/^[A-Za-z0-9_:-]*$/",
+                "errorText": "Cle invalide : lettres, chiffres, '-', '_' et ':' uniquement, sans espace."
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "step_title": "Ports et acces",
+    "items": [
+      {
+        "desc": "Ce paquet utilise des ports non standard, fixes pour tous les NAS du projet : 18080 et 18081 (application) et 15432 (Postgres), accessibles uniquement depuis ce NAS ; 18090 (Agent) et 8072 (point d'entree Nginx), lies uniquement a l'adresse Headscale de ce NAS, jamais au reseau local. Si l'un d'eux est deja utilise, l'installation s'arretera sans rien demarrer."
+      },
+      {
+        "desc": "Les donnees sont stockees dans /volume1/site-data et sont conservees en cas de mise a jour ou de desinstallation du paquet. L'application ne donne acces a rien tant que vous ne vous etes pas connecte avec un compte licence dont l'abonnement est valide."
+      }
+    ]
+  }
+]

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Dashboard Configuration</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div th:replace="~{intra/nav :: dashboard-subnav(categoryName='Configuration')}"></div>
+
+    <div class="pt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-0 fw-bold">
+                    <i class="fas fa-sliders me-2" style="color:#6366f1"></i>Dashboard Configuration
+                </h1>
+                <small class="text-muted">Modules, utilisateurs, intégrations et fournisseurs</small>
+            </div>
+            <div class="text-muted small"
+                 th:text="${#temporals.format(#temporals.createNow(), 'EEEE d MMMM yyyy', new java.util.Locale('fr'))}"></div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #6366f1 !important">
+                    <div class="card-body d-flex align-items-center gap-3 py-3">
+                        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                              style="background:#6366f120;width:42px;height:42px">
+                            <i class="fas fa-puzzle-piece" style="color:#6366f1"></i>
+                        </span>
+                        <div>
+                            <div class="fw-bold lh-1 mb-1" style="font-size:1.5rem" th:text="${nbModules}">—</div>
+                            <div class="text-muted" style="font-size:.72rem">Modules total</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #10b981 !important">
+                    <div class="card-body d-flex align-items-center gap-3 py-3">
+                        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                              style="background:#10b98120;width:42px;height:42px">
+                            <i class="fas fa-users" style="color:#10b981"></i>
+                        </span>
+                        <div>
+                            <div class="fw-bold lh-1 mb-1" style="font-size:1.5rem" th:text="${nbUtilisateurs}">—</div>
+                            <div class="text-muted" style="font-size:.72rem">Utilisateurs</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #f59e0b !important">
+                    <div class="card-body d-flex align-items-center gap-3 py-3">
+                        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                              style="background:#f59e0b20;width:42px;height:42px">
+                            <i class="fas fa-shield-halved" style="color:#f59e0b"></i>
+                        </span>
+                        <div>
+                            <div class="fw-bold lh-1 mb-1" style="font-size:1.5rem" th:text="${nbRoles}">—</div>
+                            <div class="text-muted" style="font-size:.72rem">Rôles</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <a href="/feature/modules" class="card border-0 shadow-sm h-100 text-decoration-none"
+                   style="border-left:4px solid #3b82f6 !important">
+                    <div class="card-body d-flex align-items-center gap-3 py-3">
+                        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                              style="background:#3b82f620;width:42px;height:42px">
+                            <i class="fas fa-toggle-on" style="color:#3b82f6"></i>
+                        </span>
+                        <div>
+                            <div class="fw-bold lh-1 mb-1" style="font-size:.9rem">Gérer</div>
+                            <div class="text-muted" style="font-size:.72rem">les modules →</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Grille des accès rapides -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white fw-semibold">
+                <i class="fas fa-th-large me-2 text-primary"></i>Accès rapides
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-6 col-md-3">
+                        <a href="/feature/modules" class="d-flex align-items-center gap-2 p-3 rounded border text-decoration-none text-dark">
+                            <i class="fas fa-puzzle-piece text-primary" style="width:20px"></i>
+                            <span class="small fw-medium">Modules</span>
+                        </a>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <a href="/intra/roles" class="d-flex align-items-center gap-2 p-3 rounded border text-decoration-none text-dark">
+                            <i class="fas fa-shield-halved text-warning" style="width:20px"></i>
+                            <span class="small fw-medium">Rôles</span>
+                        </a>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <a href="/intra/users" class="d-flex align-items-center gap-2 p-3 rounded border text-decoration-none text-dark">
+                            <i class="fas fa-users text-success" style="width:20px"></i>
+                            <span class="small fw-medium">Utilisateurs</span>
+                        </a>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <a href="/intra/connectors" class="d-flex align-items-center gap-2 p-3 rounded border text-decoration-none text-dark">
+                            <i class="fas fa-plug text-info" style="width:20px"></i>
+                            <span class="small fw-medium">Connecteurs</span>
+                        </a>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <a href="/intra/suppliers" class="d-flex align-items-center gap-2 p-3 rounded border text-decoration-none text-dark">
+                            <i class="fas fa-truck text-danger" style="width:20px"></i>
+                            <span class="small fw-medium">Fournisseurs</span>
+                        </a>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <a href="/intra/integrations" class="d-flex align-items-center gap-2 p-3 rounded border text-decoration-none text-dark">
+                            <i class="fas fa-code-branch text-secondary" style="width:20px"></i>
+                            <span class="small fw-medium">Intégrations</span>
+                        </a>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <a href="/intra/products" class="d-flex align-items-center gap-2 p-3 rounded border text-decoration-none text-dark">
+                            <i class="fas fa-box text-primary" style="width:20px"></i>
+                            <span class="small fw-medium">Produits</span>
+                        </a>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <a href="/intra/vat-rates" class="d-flex align-items-center gap-2 p-3 rounded border text-decoration-none text-dark">
+                            <i class="fas fa-percent text-muted" style="width:20px"></i>
+                            <span class="small fw-medium">Taux de TVA</span>
+                        </a>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <a href="/intra/dashboards" class="d-flex align-items-center gap-2 p-3 rounded border text-decoration-none text-dark">
+                            <i class="fas fa-table-columns" style="color:#6366f1;width:20px"></i>
+                            <span class="small fw-medium">Dashboards</span>
+                        </a>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <a href="/intra/dashboard/categories" class="d-flex align-items-center gap-2 p-3 rounded border text-decoration-none text-dark">
+                            <i class="fas fa-tags" style="color:#6366f1;width:20px"></i>
+                            <span class="small fw-medium">Catégories modules</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

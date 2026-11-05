@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<div id="ingram-sync-status" th:fragment="status">
+
+    <!-- RUNNING : polling toutes les 3 s -->
+    <th:block th:if="${syncState.status.name() == 'RUNNING'}">
+        <div class="card border-warning border-opacity-50"
+             th:attr="hx-get=@{/intra/suppliers/{id}/sync/ingram/status(id=${supplierId})}"
+             hx-trigger="every 3s"
+             hx-target="#ingram-sync-status"
+             hx-swap="outerHTML">
+            <div class="card-body p-3">
+                <div class="d-flex align-items-center mb-2">
+                    <div class="spinner-border spinner-border-sm text-warning me-2" role="status">
+                        <span class="visually-hidden">En cours…</span>
+                    </div>
+                    <small class="fw-semibold">
+                        Sync complète — page <span th:text="${syncState.page}"></span>
+                    </small>
+                </div>
+                <div class="progress mb-2" style="height:4px">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
+                         style="width:100%"></div>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <span class="badge text-bg-success" style="font-size:.7rem"
+                          th:text="'Créés : ' + ${syncState.created}"></span>
+                    <span class="badge text-bg-primary" style="font-size:.7rem"
+                          th:text="'MàJ : ' + ${syncState.updated}"></span>
+                    <span th:if="${syncState.errors > 0}" class="badge text-bg-danger" style="font-size:.7rem"
+                          th:text="'Erreurs : ' + ${syncState.errors}"></span>
+                </div>
+                <div class="text-muted mt-1" style="font-size:.72rem" th:text="${syncState.message}"></div>
+                <!-- Filtres actifs -->
+                <div class="mt-1 d-flex gap-1 flex-wrap">
+                    <span th:if="${syncState.filterVendors != null}" class="badge bg-secondary" style="font-size:.65rem"
+                          th:text="'Marques: ' + ${syncState.filterVendors}"></span>
+                    <span th:if="${syncState.filterCategory != null}" class="badge bg-secondary" style="font-size:.65rem"
+                          th:text="'Catégorie: ' + ${syncState.filterCategory}"></span>
+                    <span th:if="${syncState.filterKeyword != null}" class="badge bg-secondary" style="font-size:.65rem"
+                          th:text="'Mot-clé: ' + ${syncState.filterKeyword}"></span>
+                    <span th:if="${syncState.filterVendors == null and syncState.filterCategory == null and syncState.filterKeyword == null}"
+                          class="badge bg-secondary" style="font-size:.65rem">Catalogue complet (sans filtre)</span>
+                </div>
+                <div class="text-muted mt-1" style="font-size:.72rem"
+                     th:if="${syncState.startedAt != null}"
+                     th:text="'Démarré le ' + ${#temporals.format(syncState.startedAt,'dd/MM/yyyy HH:mm')}"></div>
+            </div>
+        </div>
+    </th:block>
+
+    <!-- DONE -->
+    <th:block th:if="${syncState.status.name() == 'DONE'}">
+        <div class="alert alert-success py-2 px-3 mb-0">
+            <div class="d-flex align-items-start gap-2">
+                <i class="fas fa-check-circle mt-1 flex-shrink-0"></i>
+                <div>
+                    <div class="small fw-semibold" th:text="${syncState.message}"></div>
+                    <div class="text-muted mt-1" style="font-size:.72rem"
+                         th:if="${syncState.finishedAt != null}"
+                         th:text="'Terminé le ' + ${#temporals.format(syncState.finishedAt,'dd/MM/yyyy HH:mm')}"></div>
+                </div>
+            </div>
+        </div>
+    </th:block>
+
+    <!-- ERROR -->
+    <th:block th:if="${syncState.status.name() == 'ERROR'}">
+        <div class="alert alert-danger py-2 px-3 mb-0">
+            <i class="fas fa-exclamation-triangle me-1"></i>
+            <span class="small" th:text="${syncState.message}"></span>
+        </div>
+    </th:block>
+
+    <!-- IDLE : rien -->
+
+</div>
+
+</body>
+</html>

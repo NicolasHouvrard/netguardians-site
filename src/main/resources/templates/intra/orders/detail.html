@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Devis / Commande</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a th:href="${order.ticket != null ? '/intra/tickets/' + order.ticket.id : '/intra/orders'}"
+           class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0">
+            <i class="fas fa-file-signature me-2 text-success"></i>
+            <span th:text="${order.orderNumber}"></span>
+        </h4>
+        <span class="badge ms-1" th:classappend="${order.status.badgeCss}" th:text="${order.status.label}"></span>
+        <span th:if="${order.source != null and order.source.name() == 'SHOP'}"
+              class="badge text-bg-info ms-1">
+            <i class="fas fa-store me-1"></i>Boutique
+        </span>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div th:if="${order.ticket != null}" class="alert alert-info d-flex align-items-center gap-2 mb-4">
+        <i class="fas fa-ticket"></i>
+        <span>Lié au ticket
+            <a th:href="@{/intra/tickets/{id}(id=${order.ticket.id})}" class="fw-bold">
+                #<span th:text="${order.ticket.id}"></span> – <span th:text="${order.ticket.title}"></span>
+            </a>
+        </span>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- ── Colonne principale ─────────────────────────────────────────── -->
+        <div class="col-lg-8">
+
+            <!-- Récapitulatif TVA & Marges -->
+            <div th:if="${vatSummary != null and not #lists.isEmpty(vatSummary)}"
+                 class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0">
+                        <i class="fas fa-chart-pie me-2 text-success"></i>Récapitulatif TVA &amp; Marges
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Taux TVA</th>
+                            <th class="text-end">Base HT</th>
+                            <th class="text-end">TVA</th>
+                            <th class="text-end">Total TTC</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="row : ${vatSummary}">
+                            <td th:text="${#numbers.formatDecimal(row['rate'], 1, 2) + ' %'}"></td>
+                            <td class="text-end" th:text="${#numbers.formatDecimal(row['baseHT'], 1, 2) + ' €'}"></td>
+                            <td class="text-end" th:text="${#numbers.formatDecimal(row['tva'], 1, 2) + ' €'}"></td>
+                            <td class="text-end fw-semibold" th:text="${#numbers.formatDecimal(row['ttc'], 1, 2) + ' €'}"></td>
+                        </tr>
+                        </tbody>
+                        <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td>Total</td>
+                            <td class="text-end"
+                                th:text="${#numbers.formatDecimal(order.totalAmount != null ? order.totalAmount : 0, 1, 2) + ' €'}"></td>
+                            <td class="text-end"
+                                th:text="${#numbers.formatDecimal(order.totalTVA != null ? order.totalTVA : 0, 1, 2) + ' €'}"></td>
+                            <td class="text-end text-success"
+                                th:text="${#numbers.formatDecimal((order.totalAmount != null ? order.totalAmount : 0) + (order.totalTVA != null ? order.totalTVA : 0), 1, 2) + ' €'}"></td>
+                        </tr>
+                        </tfoot>
+                    </table>
+                    <!-- Marge -->
+                    <div th:if="${order.totalCost != null and order.totalCost > 0}"
+                         class="px-3 py-2 border-top d-flex flex-wrap gap-4 align-items-center">
+                        <div>
+                            <span class="text-muted small">Coût total</span>
+                            <span class="ms-2 fw-semibold"
+                                  th:text="${#numbers.formatDecimal(order.totalCost, 1, 2) + ' €'}"></span>
+                        </div>
+                        <div>
+                            <span class="text-muted small">Marge brute</span>
+                            <span class="ms-2 fw-semibold text-success"
+                                  th:text="${#numbers.formatDecimal(order.totalAmount - order.totalCost, 1, 2) + ' €'}"></span>
+                        </div>
+                        <div th:if="${order.totalAmount != null and order.totalAmount > 0}">
+                            <span class="text-muted small">Taux de marge</span>
+                            <span class="ms-2 badge text-bg-success"
+                                  th:text="${#numbers.formatDecimal((order.totalAmount - order.totalCost) / order.totalAmount * 100, 1, 1) + ' %'}"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lignes du devis -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-list me-2 text-success"></i>Lignes</h6>
+                    <span class="fw-bold text-success">
+                        Total HT :
+                        <span th:text="${order.totalAmount != null ? #numbers.formatDecimal(order.totalAmount, 1, 2) + ' €' : '0,00 €'}"></span>
+                    </span>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(order.lines)}" class="text-center py-4 text-muted small">
+                        Aucune ligne. Ajoutez des prestations ci-dessous.
+                    </div>
+                    <div class="table-responsive" th:unless="${#lists.isEmpty(order.lines)}">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-center" style="width:55px">Qté</th>
+                                <th class="text-end" style="width:100px">P.U. HT</th>
+                                <th class="text-center" style="width:75px">TVA</th>
+                                <th class="text-end" style="width:100px">Total HT</th>
+                                <th style="width:65px"></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="line : ${order.lines}">
+                                <td>
+                                    <span th:text="${line.description}"></span>
+                                    <span th:if="${line.costPrice != null}" class="d-block text-muted" style="font-size:.75rem">
+                                        coût : <span th:text="${#numbers.formatDecimal(line.costPrice, 1, 2) + ' €'}"></span>
+                                    </span>
+                                </td>
+                                <td class="text-center" th:text="${line.quantity}"></td>
+                                <td class="text-end"
+                                    th:text="${line.unitPrice != null ? #numbers.formatDecimal(line.unitPrice, 1, 2) + ' €' : '—'}"></td>
+                                <td class="text-center small text-muted"
+                                    th:text="${line.vatRate != null ? #numbers.formatDecimal(line.vatRate, 1, 2) + ' %' : '—'}"></td>
+                                <td class="text-end fw-semibold"
+                                    th:text="${line.totalHT != null ? #numbers.formatDecimal(line.totalHT, 1, 2) + ' €' : '—'}"></td>
+                                <td class="text-center">
+                                    <div class="d-flex gap-1 justify-content-center">
+                                        <button type="button"
+                                                class="btn btn-xs btn-outline-secondary py-0 px-1"
+                                                th:data-lid="${line.id}"
+                                                th:data-desc="${line.description}"
+                                                th:data-qty="${line.quantity}"
+                                                th:data-price="${line.unitPrice}"
+                                                th:data-vat="${line.vatRate}"
+                                                th:data-cost="${line.costPrice}"
+                                                onclick="openEditLine(this)">
+                                            <i class="fas fa-pen" style="font-size:.65rem"></i>
+                                        </button>
+                                        <form th:action="@{/intra/orders/{id}/lines/{lid}/delete(id=${order.id},lid=${line.id})}"
+                                              method="post"
+                                              onsubmit="return confirm('Supprimer cette ligne ?')">
+                                            <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1">
+                                                <i class="fas fa-trash" style="font-size:.65rem"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- Formulaire ajout ligne -->
+                <div class="card-footer bg-white border-top pt-3">
+                    <h6 class="fw-semibold mb-2 text-muted small">Ajouter une ligne</h6>
+                    <form th:action="@{/intra/orders/{id}/lines(id=${order.id})}" method="post">
+                        <input type="hidden" name="productId" id="orderProductId">
+                        <div class="mb-2 position-relative">
+                            <label class="form-label small">Rechercher dans le catalogue <span class="text-muted">(optionnel)</span></label>
+                            <input type="text" id="orderProductSearch" class="form-control form-control-sm"
+                                   autocomplete="off" placeholder="Tapez un nom de produit...">
+                            <ul id="orderProductResults" class="list-group shadow position-absolute w-100"
+                                style="z-index:1050;display:none;max-height:220px;overflow-y:auto;top:100%;left:0"></ul>
+                        </div>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-sm-4">
+                                <label class="form-label small">Description <span class="text-danger">*</span></label>
+                                <input type="text" name="description" id="orderDesc" class="form-control form-control-sm"
+                                       required placeholder="Prestation, matériel...">
+                            </div>
+                            <div class="col-sm-1">
+                                <label class="form-label small">Qté</label>
+                                <input type="number" name="quantity" id="orderQty" class="form-control form-control-sm"
+                                       min="1" value="1" required>
+                            </div>
+                            <div class="col-sm-2">
+                                <label class="form-label small">P.U. HT (€)</label>
+                                <input type="number" name="unitPrice" id="orderPrice" class="form-control form-control-sm"
+                                       step="0.01" min="0" required placeholder="0.00">
+                            </div>
+                            <div class="col-sm-2">
+                                <label class="form-label small">TVA</label>
+                                <select name="vatRateId" id="addVatSelect" class="form-select form-select-sm">
+                                    <th:block th:each="vr : ${vatRates}">
+                                        <option th:value="${vr.id}"
+                                                th:text="${vr.label}"
+                                                th:selected="${vr.isDefault()}"></option>
+                                    </th:block>
+                                </select>
+                            </div>
+                            <div class="col-sm-2">
+                                <label class="form-label small">Coût unit. (€)</label>
+                                <input type="number" name="costPrice" class="form-control form-control-sm"
+                                       step="0.01" min="0" placeholder="0.00">
+                            </div>
+                            <div class="col-sm-1">
+                                <button type="submit" class="btn btn-success btn-sm w-100">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="card border-0 shadow-sm mb-4"
+                 th:if="${order.notes != null and not #strings.isEmpty(order.notes)}">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-sticky-note me-2 text-secondary"></i>Notes</h6>
+                </div>
+                <div class="card-body">
+                    <div class="small" style="white-space:pre-wrap" th:text="${order.notes}"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ── Colonne latérale ───────────────────────────────────────────── -->
+        <div class="col-lg-4">
+
+            <!-- Infos -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-info-circle me-2 text-secondary"></i>Informations</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <div class="text-muted small">Client</div>
+                        <div class="fw-semibold"
+                             th:text="${order.customer != null ? order.customer.companyName : '—'}"></div>
+                    </div>
+                    <div class="mb-2">
+                        <div class="text-muted small">Date du devis</div>
+                        <div th:text="${order.orderDate != null ? #temporals.format(order.orderDate,'dd/MM/yyyy') : '—'}"></div>
+                    </div>
+                    <div class="mb-2">
+                        <div class="text-muted small">Date souhaitée</div>
+                        <div th:text="${order.expectedDate != null ? #temporals.format(order.expectedDate,'dd/MM/yyyy') : '—'}"></div>
+                    </div>
+                    <hr>
+                    <form th:action="@{/intra/orders/{id}/update(id=${order.id})}" method="post">
+                        <div class="mb-2">
+                            <label class="form-label small">Date du devis</label>
+                            <input type="date" name="orderDate" class="form-control form-control-sm"
+                                   th:value="${order.orderDate != null ? #temporals.format(order.orderDate,'yyyy-MM-dd') : ''}">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Date souhaitée</label>
+                            <input type="date" name="expectedDate" class="form-control form-control-sm"
+                                   th:value="${order.expectedDate != null ? #temporals.format(order.expectedDate,'yyyy-MM-dd') : ''}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small">Notes</label>
+                            <textarea name="notes" class="form-control form-control-sm" rows="3"
+                                      th:text="${order.notes}"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-secondary btn-sm w-100">
+                            <i class="fas fa-save me-1"></i>Enregistrer
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-bolt me-2 text-warning"></i>Actions</h6>
+                </div>
+                <div class="card-body d-flex flex-column gap-2">
+                    <form th:action="@{/intra/orders/{id}/create-invoice(id=${order.id})}" method="post"
+                          onsubmit="return confirm('Créer une facture à partir de ce devis ?')">
+                        <button type="submit" class="btn btn-primary btn-sm w-100 text-start">
+                            <i class="fas fa-file-invoice me-2"></i>Créer une facture
+                        </button>
+                    </form>
+                    <a th:href="@{/intra/orders/{id}/delivery-note(id=${order.id})}"
+                       target="_blank" class="btn btn-outline-secondary btn-sm w-100 text-start">
+                        <i class="fas fa-truck me-2"></i>Bon de livraison
+                    </a>
+                </div>
+            </div>
+
+            <!-- Origine boutique -->
+            <div th:if="${order.source != null and order.source.name() == 'SHOP'}"
+                 class="card border-0 shadow-sm mb-4 border-info border-opacity-50">
+                <div class="card-header bg-info bg-opacity-10 border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0 text-info"><i class="fas fa-store me-2"></i>Commande boutique</h6>
+                </div>
+                <div class="card-body py-2">
+                    <div class="small text-muted mb-1">Référence boutique</div>
+                    <div class="fw-semibold mb-2" th:text="${order.shopOrderRef}"></div>
+                    <div th:if="${order.notes != null and order.notes.contains('Livraison')}">
+                        <div class="small text-muted mb-1"><i class="fas fa-truck me-1"></i>Livraison &amp; contact</div>
+                        <pre class="small mb-0 text-dark" style="white-space:pre-wrap;font-family:inherit"
+                             th:text="${order.notes}"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ingram Micro -->
+            <div class="card border-0 shadow-sm mb-4 border-primary border-opacity-25">
+                <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0 text-primary">
+                        <i class="fas fa-truck-loading me-2"></i>Commande Ingram Micro
+                    </h6>
+                    <span th:if="${order.ingramOrderNumber != null}"
+                          class="badge text-bg-success">
+                        <i class="fas fa-check me-1"></i>Commandé
+                    </span>
+                    <span th:if="${order.ingramOrderNumber == null and order.ingramOrderError != null}"
+                          class="badge text-bg-danger">
+                        <i class="fas fa-times me-1"></i>Erreur
+                    </span>
+                </div>
+                <div class="card-body">
+                    <!-- Numéro de commande Ingram -->
+                    <div th:if="${order.ingramOrderNumber != null}" class="mb-3">
+                        <div class="text-muted small">N° commande Ingram</div>
+                        <div class="fw-semibold font-monospace" th:text="${order.ingramOrderNumber}"></div>
+                        <div class="text-muted small" th:if="${order.ingramOrderedAt != null}"
+                             th:text="'Passée le ' + ${#temporals.format(order.ingramOrderedAt,'dd/MM/yyyy HH:mm')}"></div>
+                    </div>
+                    <!-- Erreur Ingram -->
+                    <div th:if="${order.ingramOrderError != null}" class="alert alert-warning py-2 small mb-3"
+                         th:text="${order.ingramOrderError}"></div>
+                    <!-- Pas encore commandé -->
+                    <div th:if="${order.ingramOrderNumber == null and order.ingramOrderError == null}"
+                         class="text-muted small mb-3">
+                        Sera passée automatiquement à la confirmation. Ou lancez manuellement ci-dessous.
+                    </div>
+
+                    <!-- Mode de livraison -->
+                    <form th:action="@{/intra/orders/{id}/delivery-mode(id=${order.id})}" method="post" class="mb-3">
+                        <label class="form-label small fw-semibold">Mode de livraison</label>
+                        <select name="deliveryMode" class="form-select form-select-sm mb-2"
+                                onchange="this.form.submit()">
+                            <option th:each="dm : ${deliveryModes}"
+                                    th:value="${dm.name()}"
+                                    th:text="${dm.label}"
+                                    th:selected="${order.deliveryMode == dm}"></option>
+                        </select>
+                    </form>
+
+                    <!-- Adresse de livraison (drop-shipping uniquement) -->
+                    <div th:if="${order.deliveryMode == null or order.deliveryMode.name() == 'CUSTOMER'}">
+                        <form th:action="@{/intra/orders/{id}/delivery-address(id=${order.id})}" method="post" class="mb-3">
+                            <label class="form-label small fw-semibold">Adresse de livraison</label>
+                            <input type="text" name="deliveryCompany" class="form-control form-control-sm mb-1"
+                                   placeholder="Entreprise" th:value="${order.deliveryCompany}">
+                            <input type="text" name="deliveryContact" class="form-control form-control-sm mb-1"
+                                   placeholder="Contact" th:value="${order.deliveryContact}">
+                            <input type="text" name="deliveryAddress1" class="form-control form-control-sm mb-1"
+                                   placeholder="Adresse ligne 1 *" th:value="${order.deliveryAddress1}">
+                            <input type="text" name="deliveryAddress2" class="form-control form-control-sm mb-1"
+                                   placeholder="Adresse ligne 2" th:value="${order.deliveryAddress2}">
+                            <div class="row g-1 mb-1">
+                                <div class="col-4">
+                                    <input type="text" name="deliveryPostalCode" class="form-control form-control-sm"
+                                           placeholder="CP *" th:value="${order.deliveryPostalCode}">
+                                </div>
+                                <div class="col-8">
+                                    <input type="text" name="deliveryCity" class="form-control form-control-sm"
+                                           placeholder="Ville *" th:value="${order.deliveryCity}">
+                                </div>
+                            </div>
+                            <div class="row g-1 mb-2">
+                                <div class="col-6">
+                                    <input type="text" name="deliveryCountry" class="form-control form-control-sm"
+                                           placeholder="Pays (FR)" th:value="${order.deliveryCountry ?: 'FR'}">
+                                </div>
+                                <div class="col-6">
+                                    <input type="text" name="deliveryPhone" class="form-control form-control-sm"
+                                           placeholder="Téléphone" th:value="${order.deliveryPhone}">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
+                                <i class="fas fa-save me-1"></i>Enregistrer l'adresse
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Relancer manuellement -->
+                    <form th:action="@{/intra/orders/{id}/ingram-order(id=${order.id})}" method="post"
+                          onsubmit="return confirm('Passer la commande chez Ingram Micro maintenant ?')">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="fas fa-paper-plane me-2"></i>
+                            <span th:text="${order.ingramOrderNumber != null ? 'Re-commander chez Ingram' : 'Commander chez Ingram'}"></span>
+                        </button>
+                    </form>
+
+                    <!-- Détails commande Ingram -->
+                    <div th:if="${order.ingramOrderNumber != null}" class="mt-2">
+                        <a th:href="@{/intra/orders/{id}/ingram-details(id=${order.id})}"
+                           class="btn btn-outline-primary btn-sm w-100">
+                            <i class="fas fa-search me-2"></i>Détails commande Ingram
+                        </a>
+                    </div>
+
+                    <!-- Import factures Ingram -->
+                    <div th:if="${order.ingramOrderNumber != null}" class="mt-2 d-flex gap-2">
+                        <a th:href="@{/intra/supplier-invoices/preview-ingram/{id}(id=${order.id})}"
+                           class="btn btn-outline-secondary btn-sm flex-fill">
+                            <i class="fas fa-eye me-1"></i>Voir
+                        </a>
+                        <form th:action="@{/intra/supplier-invoices/import-ingram/{id}(id=${order.id})}" method="post"
+                              class="flex-fill">
+                            <button type="submit" class="btn btn-outline-success btn-sm w-100">
+                                <i class="fas fa-download me-1"></i>Importer
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Factures fournisseur Ingram -->
+            <div th:if="${!supplierInvoices.empty}" class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0">
+                        <i class="fas fa-file-invoice-dollar me-2 text-success"></i>Factures fournisseur
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm align-middle mb-0">
+                        <tbody>
+                        <tr th:each="si : ${supplierInvoices}">
+                            <td class="ps-3">
+                                <a th:href="@{/intra/supplier-invoices/{id}(id=${si.id})}"
+                                   class="fw-semibold text-decoration-none font-monospace small"
+                                   th:text="${si.invoiceNumber}"></a>
+                                <div class="text-muted" style="font-size:0.75rem"
+                                     th:text="${si.invoiceDate != null ? #temporals.format(si.invoiceDate,'dd/MM/yyyy') : ''}"></div>
+                            </td>
+                            <td class="text-end pe-2">
+                                <div class="fw-semibold small"
+                                     th:text="${si.totalTTC != null ? #numbers.formatDecimal(si.totalTTC,1,2) + ' €' : '—'}"></div>
+                                <span class="badge small" th:classappend="${si.status.badgeCss}"
+                                      th:text="${si.status.label}"></span>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Équipe assignée -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-users me-2 text-info"></i>Équipe</h6>
+                </div>
+                <div class="card-body">
+                    <div th:if="${order.team != null}" class="mb-2">
+                        <span class="badge text-bg-info fs-6 px-3" th:text="${order.team.name}"></span>
+                    </div>
+                    <form th:action="@{/intra/orders/{id}/team(id=${order.id})}" method="post">
+                        <select name="teamId" class="form-select form-select-sm mb-2">
+                            <option value="">— Aucune équipe —</option>
+                            <option th:each="t : ${teams}"
+                                    th:value="${t.id}"
+                                    th:text="${t.name}"
+                                    th:selected="${order.team != null and order.team.id == t.id}"></option>
+                        </select>
+                        <button type="submit" class="btn btn-info btn-sm w-100">
+                            <i class="fas fa-save me-1"></i>Assigner
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Statut -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-sliders-h me-2"></i>Statut</h6>
+                </div>
+                <div class="card-body d-flex flex-column gap-2">
+                    <th:block th:each="s : ${statuses}">
+                        <form th:if="${s != order.status}"
+                              th:action="@{/intra/orders/{id}/status(id=${order.id})}" method="post">
+                            <input type="hidden" name="status" th:value="${s.name()}">
+                            <button type="submit" class="btn btn-sm w-100 text-start"
+                                    th:classappend="${s.name() == 'CONFIRMED'   ? 'btn-primary'   :
+                                                      s.name() == 'IN_PROGRESS' ? 'btn-warning'   :
+                                                      s.name() == 'DELIVERED'   ? 'btn-success'   :
+                                                      s.name() == 'CANCELLED'   ? 'btn-danger'    : 'btn-outline-secondary'}">
+                                <span th:text="${s.label}"></span>
+                            </button>
+                        </form>
+                    </th:block>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ── Modal édition de ligne ──────────────────────────────────────────── -->
+    <div class="modal fade" id="editLineModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form id="editLineForm" method="post">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h6 class="modal-title fw-bold">
+                            <i class="fas fa-pen me-2 text-success"></i>Modifier la ligne
+                        </h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Description <span class="text-danger">*</span></label>
+                            <input type="text" name="description" id="elDesc" class="form-control" required>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Qté</label>
+                                <input type="number" name="quantity" id="elQty" class="form-control" min="1" required>
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label small fw-semibold">P.U. HT (€)</label>
+                                <input type="number" name="unitPrice" id="elPrice" class="form-control" step="0.01" min="0" required>
+                            </div>
+                            <div class="col-sm-5">
+                                <label class="form-label small fw-semibold">TVA</label>
+                                <select name="vatRateId" id="elVat" class="form-select">
+                                    <th:block th:each="vr : ${vatRates}">
+                                        <option th:value="${vr.id}"
+                                                th:text="${vr.label}"
+                                                th:attr="data-rate=${vr.rate}"></option>
+                                    </th:block>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <label class="form-label small fw-semibold">
+                                Coût unitaire HT (€) <span class="text-muted fw-normal">— optionnel</span>
+                            </label>
+                            <input type="number" name="costPrice" id="elCost" class="form-control"
+                                   step="0.01" min="0" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <i class="fas fa-save me-1"></i>Enregistrer
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script th:inline="javascript">
+(function() {
+    // ── Recherche produit catalogue ───────────────────────────────────────
+    var search  = document.getElementById('orderProductSearch');
+    var results = document.getElementById('orderProductResults');
+    var desc    = document.getElementById('orderDesc');
+    var price   = document.getElementById('orderPrice');
+    var pid     = document.getElementById('orderProductId');
+    if (!search) return;
+
+    var timer = null, ctrl = null;
+
+    function fmt(n) {
+        return parseFloat(n).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+    }
+
+    function showResults(items) {
+        results.innerHTML = '';
+        if (!items.length) { results.style.display = 'none'; return; }
+        items.forEach(function(p) {
+            var li = document.createElement('li');
+            li.className = 'list-group-item list-group-item-action py-2 px-3 d-flex justify-content-between align-items-center';
+            li.innerHTML = '<span class="fw-semibold small">' + p.name + '</span>'
+                         + '<span class="badge text-bg-success ms-3 text-nowrap">' + fmt(p.price) + ' HT</span>';
+            li.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                search.value = p.name;
+                pid.value    = p.id;
+                desc.value   = p.name;
+                price.value  = p.price;
+                results.style.display = 'none';
+            });
+            results.appendChild(li);
+        });
+        results.style.display = '';
+    }
+
+    function doSearch(term) {
+        if (ctrl) ctrl.abort();
+        if (!term || term.length < 2) { results.style.display = 'none'; return; }
+        ctrl = new AbortController();
+        results.innerHTML = '<li class="list-group-item text-muted small py-2 px-3"><i class="fas fa-spinner fa-spin me-1"></i>Recherche…</li>';
+        results.style.display = '';
+        fetch('/intra/products/search?q=' + encodeURIComponent(term), {signal: ctrl.signal})
+            .then(function(r) { return r.json(); })
+            .then(showResults)
+            .catch(function() {});
+    }
+
+    search.addEventListener('input',   function() { clearTimeout(timer); timer = setTimeout(function() { doSearch(search.value); }, 300); });
+    search.addEventListener('focus',   function() { if (search.value.length >= 2) doSearch(search.value); });
+    search.addEventListener('blur',    function() { setTimeout(function() { results.style.display = 'none'; }, 200); });
+    search.addEventListener('keydown', function(e) { if (e.key === 'Escape') { results.style.display = 'none'; search.value = ''; pid.value = ''; } });
+})();
+
+// ── Modal édition de ligne ────────────────────────────────────────────────
+var ORDER_ID = /*[[${order.id}]]*/ 0;
+
+function openEditLine(btn) {
+    document.getElementById('elDesc').value  = btn.dataset.desc  || '';
+    document.getElementById('elQty').value   = btn.dataset.qty   || 1;
+    document.getElementById('elPrice').value = btn.dataset.price || '';
+    var cost = btn.dataset.cost;
+    document.getElementById('elCost').value  = (cost && cost !== 'null') ? cost : '';
+
+    // Pré-sélectionner le taux TVA le plus proche
+    var vatNum = parseFloat(btn.dataset.vat);
+    var sel = document.getElementById('elVat');
+    if (!isNaN(vatNum) && sel) {
+        var best = 0, bestDiff = Infinity;
+        for (var i = 0; i < sel.options.length; i++) {
+            var diff = Math.abs(parseFloat(sel.options[i].dataset.rate) - vatNum);
+            if (diff < bestDiff) { bestDiff = diff; best = i; }
+        }
+        sel.selectedIndex = best;
+    }
+
+    document.getElementById('editLineForm').action =
+        '/intra/orders/' + ORDER_ID + '/lines/' + btn.dataset.lid + '/update';
+
+    new bootstrap.Modal(document.getElementById('editLineModal')).show();
+}
+</script>
+</th:block>
+</body>
+</html>

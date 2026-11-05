@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="widget" class="widget-links-body">
+    <div class="widget-list-header">
+        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+              th:style="'background:' + ${widget.color} + '22;width:26px;height:26px'">
+            <i th:class="${widget.icon}" th:style="'color:' + ${widget.color} + ';font-size:.7rem'"></i>
+        </span>
+        <span class="fw-semibold small flex-grow-1 text-truncate" th:text="${widget.label}"></span>
+        <form th:if="${dashboard != null}"
+              th:action="@{/intra/dashboard/{s}/widget/remove(s=${dashboard})}" method="post" class="ms-1">
+            <input type="hidden" name="widgetType" th:value="${widgetKey}">
+            <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1 btn-widget-remove" title="Retirer"
+                    onclick="return confirm('Retirer ce widget ?')">
+                <i class="fas fa-times" style="font-size:.65rem"></i>
+            </button>
+        </form>
+    </div>
+    <div class="widget-links-list">
+        <a th:each="row : ${rows}"
+           th:href="${row[2]}"
+           class="btn btn-outline-secondary btn-sm text-start d-flex align-items-center gap-2">
+            <i th:class="${row[0]}" th:style="'color:' + ${widget.color}"></i>
+            <span th:text="${row[1]}"></span>
+        </a>
+    </div>
+</div>
+</body>
+</html>

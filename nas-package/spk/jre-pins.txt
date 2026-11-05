@@ -1,0 +1,7 @@
+# JRE Temurin epingles : <arch_spk> <sha256> <url>
+# Une ligne par architecture. Modifier ce fichier = changer le JRE embarque dans le
+# paquet (execute en root sur le NAS) : a relire comme du code. Pour proposer une
+# nouvelle version : ./fetch-jre.sh proposer <arch>, puis recouper la somme avec le
+# fichier .sha256.txt publie sur la page de la release GitHub avant de la coller ici.
+# x86_64 : pas encore epingle (aucun NAS x86_64 cible pour l'instant).
+armv8 963931723891302ebb2687178532c3d793d71e2577cd058061c7efb396140a86 https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.5%2B8/OpenJDK25U-jre_aarch64_linux_hotspot_25.0.5_8.tar.gz

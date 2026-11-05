@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Réinitialisation base de données</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0 text-danger">
+                <i class="fas fa-skull-crossbones me-2"></i>Réinitialisation base de données
+            </h4>
+            <div class="text-muted small mt-1">Action irréversible — réservée à l'administrateur</div>
+        </div>
+    </div>
+
+    <!-- Flash messages -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-triangle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- Avertissement -->
+        <div class="col-lg-7">
+            <div class="alert alert-danger border-danger border-2 mb-4">
+                <h5 class="alert-heading fw-bold">
+                    <i class="fas fa-triangle-exclamation me-2"></i>Attention — action irréversible
+                </h5>
+                <p class="mb-0">
+                    Cette action supprime <strong>définitivement et sans retour possible</strong>
+                    toutes les données métier. Faites un dump PostgreSQL avant de continuer.
+                </p>
+            </div>
+
+            <!-- Ce qui est supprimé -->
+            <div class="card border-danger border mb-3">
+                <div class="card-header bg-danger bg-opacity-10 text-danger fw-semibold py-2">
+                    <i class="fas fa-trash me-2"></i>Sera supprimé
+                </div>
+                <div class="card-body py-2">
+                    <div class="row g-1 small">
+                        <div class="col-6">
+                            <ul class="list-unstyled mb-0">
+                                <li><i class="fas fa-times text-danger me-1"></i>Clients &amp; contacts</li>
+                                <li><i class="fas fa-times text-danger me-1"></i>Commandes &amp; factures</li>
+                                <li><i class="fas fa-times text-danger me-1"></i>Produits &amp; catégories</li>
+                                <li><i class="fas fa-times text-danger me-1"></i>Abonnements &amp; plans</li>
+                                <li><i class="fas fa-times text-danger me-1"></i>Tickets &amp; interventions</li>
+                                <li><i class="fas fa-times text-danger me-1"></i>Comptabilité complète</li>
+                            </ul>
+                        </div>
+                        <div class="col-6">
+                            <ul class="list-unstyled mb-0">
+                                <li><i class="fas fa-times text-danger me-1"></i>Boutique en ligne</li>
+                                <li><i class="fas fa-times text-danger me-1"></i>Stock</li>
+                                <li><i class="fas fa-times text-danger me-1"></i>Fournisseurs &amp; syncs</li>
+                                <li><i class="fas fa-times text-danger me-1"></i>Messagerie &amp; campagnes</li>
+                                <li><i class="fas fa-times text-danger me-1"></i>Équipes</li>
+                                <li><i class="fas fa-times text-danger me-1"></i>Comptes portail clients</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ce qui est conservé -->
+            <div class="card border-success border mb-4">
+                <div class="card-header bg-success bg-opacity-10 text-success fw-semibold py-2">
+                    <i class="fas fa-shield-halved me-2"></i>Sera conservé
+                </div>
+                <div class="card-body py-2">
+                    <ul class="list-unstyled mb-0 small">
+                        <li><i class="fas fa-check text-success me-1"></i>Pages du site public (pages, blocs, menus)</li>
+                        <li><i class="fas fa-check text-success me-1"></i>Paramètres du site</li>
+                        <li><i class="fas fa-check text-success me-1"></i>Modules de navigation intra</li>
+                        <li><i class="fas fa-check text-success me-1"></i>Tenants &amp; rôles</li>
+                        <li><i class="fas fa-check text-success me-1"></i>Comptes utilisateurs intra (admin, commercial, tech…)</li>
+                        <li><i class="fas fa-check text-success me-1"></i>Taux de TVA</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Formulaire de confirmation -->
+            <div class="card border-danger border-2 shadow-sm">
+                <div class="card-body">
+                    <form method="post" action="/intra/admin/reset" id="resetForm">
+                        <p class="fw-semibold mb-3">
+                            Pour confirmer, tapez votre adresse e-mail
+                            <code class="text-danger fw-bold" th:text="${userEmail}"></code>
+                            dans le champ ci-dessous :
+                        </p>
+                        <div class="mb-3">
+                            <input type="email"
+                                   name="confirmation"
+                                   id="confirmInput"
+                                   class="form-control form-control-lg border-danger"
+                                   placeholder="Votre adresse e-mail"
+                                   autocomplete="off"
+                                   th:attr="data-email=${userEmail}"
+                                   oninput="checkConfirmation(this.value)">
+                        </div>
+                        <button type="button"
+                                id="submitBtn"
+                                class="btn btn-danger btn-lg w-100 disabled"
+                                onclick="document.getElementById('resetForm').submit()">
+                            <i class="fas fa-skull-crossbones me-2"></i>
+                            Réinitialiser la base de données
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Commande backup -->
+        <div class="col-lg-5">
+            <div class="card border-warning border">
+                <div class="card-header bg-warning bg-opacity-10 text-warning fw-semibold py-2">
+                    <i class="fas fa-database me-2"></i>Backup recommandé avant toute action
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-2">Exécuter sur le serveur ou via tunnel SSH :</p>
+                    <pre class="bg-dark text-light rounded p-3 small"><code>pg_dump \
+  -h localhost \
+  -U UTILISATEUR \
+  NOMBASE \
+  &gt; backup-$(date +%Y%m%d-%H%M%S).sql</code></pre>
+                    <hr class="my-3">
+                    <p class="small text-muted mb-2">
+                        Ou depuis le script SQL fourni (pour psql manuel) :
+                    </p>
+                    <pre class="bg-dark text-light rounded p-3 small"><code>psql -h HOST -U USER \
+  -d DATABASE \
+  -f reset-prod-data.sql</code></pre>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script>
+function checkConfirmation(val) {
+    const btn   = document.getElementById('submitBtn');
+    const email = document.getElementById('confirmInput').dataset.email;
+    if (val.trim().toLowerCase() === email.toLowerCase()) {
+        btn.classList.remove('disabled');
+    } else {
+        btn.classList.add('disabled');
+    }
+}
+</script>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 fw-bold"><i class="fab fa-stripe me-2 text-primary"></i>Stripe</h1>
+            <small class="text-muted">Configuration du paiement par carte bancaire via Stripe</small>
+        </div>
+        <a th:href="@{/intra/payment/bank-transfer}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-university me-1"></i>Virement
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+
+            <!-- Statut actuel -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div th:if="${config.active}" class="text-success">
+                        <i class="fas fa-circle-check fa-2x"></i>
+                    </div>
+                    <div th:unless="${config.active}" class="text-secondary">
+                        <i class="fas fa-circle-xmark fa-2x"></i>
+                    </div>
+                    <div>
+                        <div class="fw-semibold"
+                             th:text="${config.active} ? 'Stripe activé' : 'Stripe désactivé'"></div>
+                        <small class="text-muted"
+                               th:if="${config.updatedAt}"
+                               th:text="'Dernière mise à jour : ' + ${#temporals.format(config.updatedAt,'dd/MM/yyyy à HH:mm')}"></small>
+                        <small class="text-muted" th:unless="${config.updatedAt}">Jamais configuré</small>
+                    </div>
+                    <div class="ms-auto">
+                        <span class="badge"
+                              th:classappend="${config.active} ? 'bg-success' : 'bg-secondary'"
+                              th:text="${config.active} ? 'Actif' : 'Inactif'"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Aide -->
+            <div class="alert alert-info small d-flex gap-2 mb-4">
+                <i class="fas fa-circle-info mt-1 flex-shrink-0"></i>
+                <div>
+                    Retrouvez vos clés API dans le
+                    <strong>Dashboard Stripe → Développeurs → Clés API</strong>.
+                    Utilisez les clés <strong>test</strong> (préfixe <code>sk_test_</code>)
+                    pendant la phase de développement, puis les clés <strong>live</strong> en production.
+                </div>
+            </div>
+
+            <!-- Formulaire -->
+            <form th:action="@{/intra/payment/stripe}" method="post">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-transparent fw-semibold">
+                        Clés API Stripe
+                    </div>
+                    <div class="card-body">
+
+                        <!-- Secret key -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Clé secrète (Secret Key)</label>
+                            <div th:if="${config.hasStripeSecretKey()}" class="input-group mb-1">
+                                <span class="input-group-text"><i class="fas fa-lock text-muted"></i></span>
+                                <input type="text" class="form-control font-monospace text-muted"
+                                       value="sk_•••••••••••••••••••••••••••••••••••••••••••" readonly>
+                            </div>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-pen text-muted"></i></span>
+                                <input type="password" name="stripeSecretKey" class="form-control font-monospace"
+                                       th:placeholder="${config.hasStripeSecretKey()} ? 'Laisser vide pour conserver l\'actuelle' : 'sk_test_...'"
+                                       autocomplete="new-password">
+                                <button class="btn btn-outline-secondary" type="button"
+                                        onclick="toggleVisibility(this, 'stripeSecretKey')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">Commence par <code>sk_test_</code> ou <code>sk_live_</code>. Ne jamais partager cette clé.</div>
+                        </div>
+
+                        <!-- Publishable key -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Clé publique (Publishable Key)</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-key text-muted"></i></span>
+                                <input type="text" name="stripePublishableKey" class="form-control font-monospace"
+                                       th:placeholder="'pk_test_... (optionnel pour le moment)'"
+                                       autocomplete="off">
+                            </div>
+                            <div class="form-text">Commence par <code>pk_test_</code> ou <code>pk_live_</code>. Utilisée côté client.</div>
+                        </div>
+
+                        <!-- Webhook secret -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
+                                Secret Webhook
+                                <span class="badge bg-secondary fw-normal ms-1">optionnel</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-pen text-muted"></i></span>
+                                <input type="password" name="stripeWebhookSecret" class="form-control font-monospace"
+                                       th:placeholder="'whsec_... (pour valider les événements Stripe)'"
+                                       autocomplete="new-password">
+                                <button class="btn btn-outline-secondary" type="button"
+                                        onclick="toggleVisibility(this, 'stripeWebhookSecret')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                Stripe → Développeurs → Webhooks → votre endpoint → Signing secret.
+                                Endpoint à configurer : <code th:text="${baseUrl} + '/boutique/paiement/webhook'"></code>
+                            </div>
+                        </div>
+
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" name="active" id="activeSwitch"
+                                   th:checked="${config.active}">
+                            <label class="form-check-label fw-semibold" for="activeSwitch">
+                                Activer le paiement par carte (Stripe)
+                            </label>
+                        </div>
+                        <div class="form-text mb-0">
+                            Lorsqu'activé, l'option carte bancaire est proposée lors du checkout.
+                            Nécessite une clé secrète valide.
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Enregistrer
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Info sécurité -->
+            <div class="alert alert-light border mt-4 small d-flex gap-2">
+                <i class="fas fa-shield-halved text-primary mt-1 flex-shrink-0"></i>
+                <span>Les clés Stripe sont chiffrées en AES-256 dans la base de données et jamais affichées en clair dans l'interface.</span>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<script>
+function toggleVisibility(btn, fieldName) {
+    var input = btn.closest('.input-group').querySelector('input[name="' + fieldName + '"]');
+    var icon  = btn.querySelector('i');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.replace('fa-eye', 'fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.replace('fa-eye-slash', 'fa-eye');
+    }
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,5 @@
+# Genere par l'Agent (BasculeNginx) : ne pas editer a la main.
+# __PORT__ est remplace par le port de la version active (bleu ou vert).
+upstream site_actif {
+    server 127.0.0.1:__PORT__;
+}

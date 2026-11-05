@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Commandes fournisseurs</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-truck-loading me-2 text-primary"></i>Commandes fournisseurs</h4>
+            <div class="text-muted small mt-1">Commandes passées automatiquement chez Ingram Micro</div>
+        </div>
+        <a href="/intra/orders" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Toutes les commandes
+        </a>
+    </div>
+
+    <!-- Totaux -->
+    <div th:if="${!orders.empty}" class="row g-3 mb-4">
+        <div class="col-sm-4">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="fs-4 fw-bold text-primary" th:text="${orders.size()}"></div>
+                <div class="text-muted small">Commandes Ingram</div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="fs-4 fw-bold text-success"
+                     th:text="${#numbers.formatDecimal(totalHT, 1, 2) + ' €'}"></div>
+                <div class="text-muted small">Total HT commandé</div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <div class="fs-4 fw-bold text-info" th:text="${invoiceCount}"></div>
+                <div class="text-muted small">Factures générées</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aucune commande -->
+    <div th:if="${orders.empty}" class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5 text-muted">
+            <i class="fas fa-truck-loading fa-3x mb-3 d-block opacity-25"></i>
+            <p>Aucune commande fournisseur enregistrée.</p>
+            <p class="small">Les commandes passées chez Ingram Micro apparaîtront ici automatiquement.</p>
+        </div>
+    </div>
+
+    <!-- Tableau -->
+    <div th:unless="${orders.empty}" class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                <tr>
+                    <th>N° commande</th>
+                    <th>N° Ingram</th>
+                    <th>Date Ingram</th>
+                    <th>Client</th>
+                    <th>Livraison</th>
+                    <th class="text-end">Montant HT</th>
+                    <th>Statut</th>
+                    <th>Facture</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="o : ${orders}">
+                    <td>
+                        <a th:href="@{/intra/orders/{id}(id=${o.id})}"
+                           class="fw-semibold text-decoration-none"
+                           th:text="${o.orderNumber}"></a>
+                    </td>
+                    <td>
+                        <span class="font-monospace small text-primary fw-semibold"
+                              th:text="${o.ingramOrderNumber}"></span>
+                    </td>
+                    <td class="text-muted small"
+                        th:text="${o.ingramOrderedAt != null ? #temporals.format(o.ingramOrderedAt,'dd/MM/yyyy HH:mm') : '—'}"></td>
+                    <td>
+                        <span th:text="${o.customer != null ? o.customer.companyName : '—'}"></span>
+                    </td>
+                    <td>
+                        <span th:if="${o.deliveryMode != null and o.deliveryMode.name() == 'RESELLER'}"
+                              class="badge text-bg-secondary small">
+                            <i class="fas fa-warehouse me-1"></i>Revendeur
+                        </span>
+                        <span th:if="${o.deliveryMode == null or o.deliveryMode.name() == 'CUSTOMER'}"
+                              class="badge text-bg-info small">
+                            <i class="fas fa-map-marker-alt me-1"></i>Client
+                        </span>
+                    </td>
+                    <td class="text-end fw-semibold"
+                        th:text="${#numbers.formatDecimal(o.totalAmount, 1, 2) + ' €'}"></td>
+                    <td>
+                        <span class="badge" th:classappend="${o.status.badgeCss}" th:text="${o.status.label}"></span>
+                    </td>
+                    <td>
+                        <a th:if="${o.invoice != null}"
+                           th:href="@{/intra/invoices/{id}(id=${o.invoice.id})}"
+                           class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-file-invoice me-1"></i>
+                            <span th:text="${o.invoice.invoiceNumber}"></span>
+                        </a>
+                        <span th:unless="${o.invoice != null}" class="text-muted small">—</span>
+                    </td>
+                    <td class="text-end">
+                        <div class="btn-group btn-group-sm">
+                            <a th:href="@{/intra/orders/{id}(id=${o.id})}"
+                               class="btn btn-outline-secondary" title="Voir la commande">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a th:href="@{/intra/orders/{id}/ingram-details(id=${o.id})}"
+                               class="btn btn-outline-primary" title="Détails Ingram">
+                                <i class="fas fa-truck-loading"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

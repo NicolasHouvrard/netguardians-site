@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Stock du site</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a href="/intra/stock">Stock</a></li>
+                    <li class="breadcrumb-item active" th:text="${site.name}"></li>
+                </ol>
+            </nav>
+            <h4 class="mb-0">
+                <i class="fas fa-warehouse me-2 text-primary"></i>
+                <span th:text="${site.name}"></span>
+            </h4>
+            <div class="text-muted small mt-1">
+                <span th:text="${site.customer.companyName}"></span>
+                <span th:if="${site.city != null}"> — <span th:text="${site.city}"></span></span>
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalEntry">
+                <i class="fas fa-arrow-down me-1"></i>Entrée
+            </button>
+            <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#modalExit">
+                <i class="fas fa-arrow-up me-1"></i>Sortie
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalTransfer">
+                <i class="fas fa-truck me-1"></i>Transfert
+            </button>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- ── Tableau du stock ──────────────────────────────────────────────── -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+            <span class="fw-semibold"><i class="fas fa-boxes me-2 text-primary"></i>Stock actuel</span>
+            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalAdjust">
+                <i class="fas fa-sliders me-1"></i>Ajustement inventaire
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(items)}" class="text-center py-5 text-muted">
+                <i class="fas fa-box-open fa-2x mb-3 d-block"></i>
+                Aucun produit en stock sur ce site.
+            </div>
+            <table th:if="${!#lists.isEmpty(items)}" class="table table-hover mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th>Produit</th>
+                        <th>Référence</th>
+                        <th class="text-center">Qté</th>
+                        <th class="text-center">Seuil alerte</th>
+                        <th>Emplacement</th>
+                        <th>Mise à jour</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="item : ${items}"
+                        th:classappend="${item.lowStock ? 'table-warning' : ''}">
+                        <td>
+                            <div class="fw-semibold" th:text="${item.product.name}"></div>
+                            <div class="text-muted" th:text="${item.product.type.label}"></div>
+                        </td>
+                        <td class="text-muted" th:text="${item.product.sku ?: '—'}"></td>
+                        <td class="text-center">
+                            <span class="badge fs-6"
+                                  th:classappend="${item.lowStock ? 'text-bg-warning' : item.quantity == 0 ? 'text-bg-secondary' : 'text-bg-success'}"
+                                  th:text="${item.quantity}"></span>
+                        </td>
+                        <td class="text-center text-muted small">
+                            <span th:text="${item.minQuantity > 0 ? item.minQuantity : '—'}"></span>
+                        </td>
+                        <td class="text-muted small" th:text="${item.locationLabel ?: '—'}"></td>
+                        <td class="text-muted small">
+                            <span th:if="${item.updatedAt != null}"
+                                  th:text="${#temporals.format(item.updatedAt,'dd/MM HH:mm')}"></span>
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    th:data-item-id="${item.id}"
+                                    th:data-product-name="${item.product.name}"
+                                    th:data-quantity="${item.quantity}"
+                                    th:data-min-quantity="${item.minQuantity}"
+                                    th:data-location="${item.locationLabel}"
+                                    onclick="openSettings(this)">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ── Historique des mouvements ─────────────────────────────────────── -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 fw-semibold">
+            <i class="fas fa-history me-2 text-secondary"></i>Historique des mouvements
+        </div>
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(moves)}" class="text-center py-4 text-muted small">
+                Aucun mouvement enregistré.
+            </div>
+            <table th:if="${!#lists.isEmpty(moves)}" class="table table-hover mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Produit</th>
+                        <th>Type</th>
+                        <th class="text-center">Qté</th>
+                        <th class="text-center">Après</th>
+                        <th>Raison / Référence</th>
+                        <th>Par</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="m : ${moves}">
+                        <td class="text-muted"
+                            th:text="${#temporals.format(m.createdAt,'dd/MM/yy HH:mm')}"></td>
+                        <td th:text="${m.stockItem.product.name}"></td>
+                        <td>
+                            <span class="badge"
+                                  th:classappend="'text-bg-' + ${m.type.badgeCss}"
+                                  th:text="${m.type.label}"></span>
+                        </td>
+                        <td class="text-center fw-semibold" th:text="${m.quantity}"></td>
+                        <td class="text-center text-muted" th:text="${m.quantityAfter}"></td>
+                        <td>
+                            <span th:text="${m.reason ?: ''}"></span>
+                            <span th:if="${m.reference != null}" class="text-muted ms-1">
+                                (<span th:text="${m.reference}"></span>)
+                            </span>
+                        </td>
+                        <td class="text-muted">
+                            <span th:if="${m.createdBy != null}"
+                                  th:text="${m.createdBy.fullName}"></span>
+                            <span th:if="${m.createdBy == null}" class="text-muted">Système</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         Modals
+    ═══════════════════════════════════════════════════════════════════════ -->
+
+    <!-- Modal Entrée -->
+    <div class="modal fade" id="modalEntry" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form th:action="@{/intra/stock/entry}" method="post">
+                    <input type="hidden" name="siteId" th:value="${site.id}">
+                    <div class="modal-header">
+                        <h5 class="modal-title text-success"><i class="fas fa-arrow-down me-2"></i>Entrée de stock</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Produit <span class="text-danger">*</span></label>
+                            <select name="productId" class="form-select form-select-sm" required>
+                                <option value="">— Sélectionner —</option>
+                                <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name}"></option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Quantité <span class="text-danger">*</span></label>
+                            <input type="number" name="quantity" class="form-control form-control-sm" min="1" value="1" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Raison</label>
+                            <input type="text" name="reason" class="form-control form-control-sm" placeholder="Réapprovisionnement, retour client…">
+                        </div>
+                        <div>
+                            <label class="form-label small fw-semibold">Référence</label>
+                            <input type="text" name="reference" class="form-control form-control-sm" placeholder="N° bon de livraison, commande…">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-check me-1"></i>Valider l'entrée</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Sortie -->
+    <div class="modal fade" id="modalExit" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form th:action="@{/intra/stock/exit}" method="post">
+                    <input type="hidden" name="siteId" th:value="${site.id}">
+                    <div class="modal-header">
+                        <h5 class="modal-title text-danger"><i class="fas fa-arrow-up me-2"></i>Sortie de stock</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Produit <span class="text-danger">*</span></label>
+                            <select name="productId" class="form-select form-select-sm" required>
+                                <option value="">— Sélectionner —</option>
+                                <option th:each="item : ${items}" th:value="${item.product.id}"
+                                        th:text="${item.product.name + ' (' + item.quantity + ' dispo)'}"></option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Quantité <span class="text-danger">*</span></label>
+                            <input type="number" name="quantity" class="form-control form-control-sm" min="1" value="1" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Raison</label>
+                            <input type="text" name="reason" class="form-control form-control-sm" placeholder="Déploiement client, panne, retour fournisseur…">
+                        </div>
+                        <div>
+                            <label class="form-label small fw-semibold">Référence</label>
+                            <input type="text" name="reference" class="form-control form-control-sm" placeholder="N° intervention, ticket…">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-check me-1"></i>Valider la sortie</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ajustement -->
+    <div class="modal fade" id="modalAdjust" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form th:action="@{/intra/stock/adjust}" method="post">
+                    <input type="hidden" name="siteId" th:value="${site.id}">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-sliders me-2 text-secondary"></i>Ajustement d'inventaire</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info small py-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Utilisez ceci pour corriger une quantité après un inventaire physique.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Produit <span class="text-danger">*</span></label>
+                            <select name="productId" class="form-select form-select-sm" required>
+                                <option value="">— Sélectionner —</option>
+                                <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name}"></option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Nouvelle quantité réelle <span class="text-danger">*</span></label>
+                            <input type="number" name="newQuantity" class="form-control form-control-sm" min="0" required>
+                        </div>
+                        <div>
+                            <label class="form-label small fw-semibold">Raison</label>
+                            <input type="text" name="reason" class="form-control form-control-sm" value="Inventaire physique">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-check me-1"></i>Appliquer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Transfert -->
+    <div class="modal fade" id="modalTransfer" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form th:action="@{/intra/stock/transfer}" method="post">
+                    <input type="hidden" name="fromSiteId" th:value="${site.id}">
+                    <div class="modal-header">
+                        <h5 class="modal-title text-warning"><i class="fas fa-truck me-2"></i>Transfert vers un autre site</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Site destinataire <span class="text-danger">*</span></label>
+                            <select name="toSiteId" class="form-select form-select-sm" required>
+                                <option value="">— Sélectionner —</option>
+                                <option th:each="s : ${sites}" th:value="${s.id}"
+                                        th:text="${s.name + ' (' + s.customer.companyName + ')'}"></option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Produit <span class="text-danger">*</span></label>
+                            <select name="productId" class="form-select form-select-sm" required>
+                                <option value="">— Sélectionner —</option>
+                                <option th:each="item : ${items}" th:value="${item.product.id}"
+                                        th:text="${item.product.name + ' (' + item.quantity + ' dispo)'}"></option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Quantité <span class="text-danger">*</span></label>
+                            <input type="number" name="quantity" class="form-control form-control-sm" min="1" value="1" required>
+                        </div>
+                        <div>
+                            <label class="form-label small fw-semibold">Raison</label>
+                            <input type="text" name="reason" class="form-control form-control-sm" placeholder="Optionnel">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-warning btn-sm"><i class="fas fa-check me-1"></i>Transférer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Paramètres ligne -->
+    <div class="modal fade" id="modalSettings" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form action="/intra/stock/settings" method="post">
+                    <input type="hidden" name="stockItemId" id="settingsItemId">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-cog me-2"></i>Paramètres — <span id="settingsProductName"></span></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Seuil d'alerte stock bas</label>
+                            <input type="number" name="minQuantity" id="settingsMinQty"
+                                   class="form-control form-control-sm" min="0" value="0">
+                            <div class="form-text">0 = pas d'alerte</div>
+                        </div>
+                        <div>
+                            <label class="form-label small fw-semibold">Emplacement dans le site</label>
+                            <input type="text" name="locationLabel" id="settingsLocation"
+                                   class="form-control form-control-sm" placeholder="Ex: Étagère A3, Réserve…">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save me-1"></i>Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script th:inline="none">
+function openSettings(btn) {
+    var d = btn.dataset;
+    document.getElementById('settingsItemId').value    = d.itemId;
+    document.getElementById('settingsProductName').textContent = d.productName;
+    document.getElementById('settingsMinQty').value   = d.minQuantity || 0;
+    document.getElementById('settingsLocation').value = d.location || '';
+    new bootstrap.Modal(document.getElementById('modalSettings')).show();
+}
+</script>
+</th:block>
+</body>
+</html>

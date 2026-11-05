@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Importer une facture fournisseur</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="/intra/supplier-invoices" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h5 class="mb-0 ms-1"><i class="fas fa-file-import me-2 text-warning"></i>Importer une facture fournisseur</h5>
+    </div>
+
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-triangle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Étape 1 : Upload + Analyse OCR -->
+    <div th:if="${mindeeResult == null}" class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0">
+                <i class="fas fa-brain me-2 text-info"></i>Analyse automatique OCR
+            </h6>
+        </div>
+        <div class="card-body">
+            <div th:if="${mindeeReady or googleAiReady}">
+                <p class="text-muted small mb-3">
+                    Téléversez un PDF ou une image — le moteur OCR extrait automatiquement les informations de la facture.
+                </p>
+                <!-- Formulaire unique, boutons avec formaction différent selon le moteur -->
+                <form method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="qontoTxId" th:value="${qontoTxId}">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Fichier PDF / Image</label>
+                        <input type="file" name="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required>
+                        <div class="form-text">Formats acceptés : PDF, JPG, PNG — max 10 Mo</div>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button th:if="${mindeeReady}" type="submit"
+                                formaction="/intra/supplier-invoices/analyze"
+                                class="btn btn-info text-white">
+                            <i class="fas fa-brain me-1"></i>Analyser avec Mindee
+                            <span class="badge bg-white text-info ms-1 small">~0,03 €/page</span>
+                        </button>
+                        <button th:if="${googleAiReady}" type="submit"
+                                formaction="/intra/supplier-invoices/analyze-google"
+                                class="btn btn-primary">
+                            <i class="fab fa-google me-1"></i>Analyser avec Google Doc AI
+                            <span class="badge bg-white text-primary ms-1 small">1000 pages/mois gratuites</span>
+                        </button>
+                        <div th:if="${!mindeeReady and !googleAiReady}" class="alert alert-warning mb-0 w-100">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Aucun moteur OCR configuré. Configurez
+                            <code>mindee.api-key</code> (Mindee) ou
+                            <code>google.document-ai.*</code> (Google Doc AI).
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div th:unless="${mindeeReady or googleAiReady}" class="alert alert-warning mb-0">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Aucun moteur OCR configuré — saisie manuelle uniquement.
+                Configurez <code>mindee.api-key</code> ou <code>google.document-ai.*</code>.
+            </div>
+        </div>
+    </div>
+
+    <!-- Étape 2 : Formulaire de validation / saisie manuelle -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0">
+                <i class="fas fa-edit me-2 text-warning"></i>
+                <span th:if="${mindeeResult != null}">Vérifier et compléter les informations extraites</span>
+                <span th:unless="${mindeeResult != null}">Saisir les informations de la facture</span>
+            </h6>
+        </div>
+        <div class="card-body">
+            <div th:if="${mindeeResult != null}" class="alert alert-info py-2 mb-3">
+                <i class="fas fa-brain me-2"></i>
+                Données extraites par OCR — vérifiez et corrigez si nécessaire avant d'enregistrer.
+            </div>
+            <form method="post" action="/intra/supplier-invoices/save">
+                <input type="hidden" name="filePath" th:value="${savedFilePath}">
+                <input type="hidden" name="qontoTxId" th:value="${qontoTxId}">
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Fournisseur <span class="text-danger">*</span></label>
+                        <input type="text" name="vendorName" class="form-control"
+                               th:value="${mindeeResult != null ? mindeeResult.supplierName() : ''}"
+                               placeholder="Nom du fournisseur" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">N° de facture</label>
+                        <input type="text" name="invoiceNumber" class="form-control"
+                               th:value="${mindeeResult != null ? mindeeResult.invoiceNumber() : ''}"
+                               placeholder="FA-2024-001">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Date de facture</label>
+                        <input type="date" name="invoiceDate" class="form-control"
+                               th:value="${mindeeResult != null and mindeeResult.invoiceDate() != null ? mindeeResult.invoiceDate() : ''}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Date d'échéance</label>
+                        <input type="date" name="dueDate" class="form-control"
+                               th:value="${mindeeResult != null and mindeeResult.dueDate() != null ? mindeeResult.dueDate() : ''}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Total HT</label>
+                        <div class="input-group">
+                            <input type="number" name="totalHT" class="form-control" step="0.01"
+                                   th:value="${mindeeResult != null ? mindeeResult.totalHT() : ''}">
+                            <span class="input-group-text">€</span>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">TVA</label>
+                        <div class="input-group">
+                            <input type="number" name="totalTVA" class="form-control" step="0.01"
+                                   th:value="${mindeeResult != null ? mindeeResult.totalTVA() : ''}">
+                            <span class="input-group-text">€</span>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Total TTC <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="number" name="totalTTC" class="form-control" step="0.01"
+                                   th:value="${mindeeResult != null ? mindeeResult.totalTTC() : ''}"
+                                   required>
+                            <span class="input-group-text">€</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Devise</label>
+                        <input type="text" name="currency" class="form-control" maxlength="3"
+                               th:value="${mindeeResult != null ? mindeeResult.currency() : 'EUR'}"
+                               placeholder="EUR">
+                    </div>
+                    <div class="col-md-9" th:if="${accounts != null and not #lists.isEmpty(accounts)}">
+                        <label class="form-label fw-semibold">Compte de charge (6xx)</label>
+                        <select name="chargeAccountNumber" class="form-select">
+                            <option value="">— Sélectionner un compte (optionnel, 604000 par défaut) —</option>
+                            <option th:each="acc : ${accounts}"
+                                    th:if="${acc.number.startsWith('6')}"
+                                    th:value="${acc.number}"
+                                    th:text="${acc.number + ' — ' + acc.label}"></option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Notes</label>
+                        <textarea name="notes" class="form-control" rows="2"
+                                  placeholder="Informations complémentaires..."></textarea>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save me-1"></i>Enregistrer la facture
+                    </button>
+                    <a href="/intra/supplier-invoices" class="btn btn-outline-secondary">Annuler</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Détails commande Ingram</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a th:href="@{/intra/orders/{id}(id=${order.id})}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <div>
+            <h4 class="mb-0">
+                <i class="fas fa-truck-loading me-2 text-primary"></i>
+                Commande Ingram — <span class="font-monospace" th:text="${details.ingramOrderNumber}"></span>
+            </h4>
+            <div class="text-muted small">
+                Notre ref. <strong th:text="${order.orderNumber}"></strong> ·
+                <span th:text="${details.ingramOrderDate}"></span> ·
+                <span class="badge"
+                      th:classappend="${details.orderStatus == 'Shipped' ? 'text-bg-primary' :
+                                       details.orderStatus == 'Delivered' ? 'text-bg-success' :
+                                       details.orderStatus == 'Canceled' ? 'text-bg-danger' :
+                                       details.orderStatus == 'Backordered' ? 'text-bg-warning' :
+                                       details.orderStatus == 'On Hold' ? 'text-bg-secondary' : 'text-bg-info'}"
+                      th:text="${details.orderStatus == 'Shipped' ? 'Expédiée' :
+                                 details.orderStatus == 'Delivered' ? 'Livrée' :
+                                 details.orderStatus == 'Canceled' ? 'Annulée' :
+                                 details.orderStatus == 'Backordered' ? 'En rupture' :
+                                 details.orderStatus == 'Processing' ? 'En cours' :
+                                 details.orderStatus == 'On Hold' ? 'En attente' :
+                                 details.orderStatus}"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- ── Colonne principale ───────────────────────────────────────────── -->
+        <div class="col-lg-8">
+
+            <!-- Lignes de commande -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-list me-2 text-secondary"></i>Lignes de commande</h6>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Réf. Ingram</th>
+                            <th>Réf. fabricant</th>
+                            <th>Description</th>
+                            <th>Marque</th>
+                            <th class="text-end">P.U.</th>
+                            <th class="text-center">Qté</th>
+                            <th class="text-end">Total</th>
+                            <th>Statut</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="line : ${details.lines}">
+                            <td class="font-monospace small" th:text="${line.ingramPartNumber}"></td>
+                            <td class="small text-muted" th:text="${line.vendorPartNumber}"></td>
+                            <td class="small" th:text="${line.partDescription}"></td>
+                            <td class="small text-muted" th:text="${line.vendorName}"></td>
+                            <td class="text-end small"
+                                th:text="${line.unitPrice != null ? #numbers.formatDecimal(line.unitPrice, 1, 2) + ' €' : '—'}"></td>
+                            <td class="text-center small" th:text="${line.quantityOrdered}"></td>
+                            <td class="text-end small fw-semibold"
+                                th:text="${line.extendedPrice != null ? #numbers.formatDecimal(line.extendedPrice, 1, 2) + ' €' : '—'}"></td>
+                            <td>
+                                <span class="badge small"
+                                      th:classappend="${line.lineStatus == 'Shipped' ? 'text-bg-primary' :
+                                                       line.lineStatus == 'Delivered' ? 'text-bg-success' :
+                                                       line.lineStatus == 'Canceled' ? 'text-bg-danger' :
+                                                       line.lineStatus == 'Backordered' ? 'text-bg-warning' :
+                                                       line.lineStatus == 'On Hold' ? 'text-bg-secondary' : 'text-bg-info'}"
+                                      th:text="${line.lineStatus == 'Shipped' ? 'Expédiée' :
+                                                 line.lineStatus == 'Delivered' ? 'Livrée' :
+                                                 line.lineStatus == 'Canceled' ? 'Annulée' :
+                                                 line.lineStatus == 'Backordered' ? 'En rupture' :
+                                                 line.lineStatus == 'In Progress' ? 'En cours' :
+                                                 line.lineStatus == 'On Hold' ? 'En attente' :
+                                                 line.lineStatus}"></span>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Frais divers (miscellaneousCharges) -->
+            <div th:if="${details.miscellaneousCharges != null and !details.miscellaneousCharges.empty}"
+                 class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-receipt me-2 text-secondary"></i>Frais divers</h6>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Type</th>
+                            <th>Description</th>
+                            <th class="text-end">Montant</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="charge : ${details.miscellaneousCharges}">
+                            <td class="small text-muted" th:text="${charge.chargeLineReference}"></td>
+                            <td class="small" th:text="${charge.chargeDescription}"></td>
+                            <td class="text-end small fw-semibold"
+                                th:text="${charge.chargeAmount != null ? charge.chargeAmount : '—'}"></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ── Colonne latérale ─────────────────────────────────────────────── -->
+        <div class="col-lg-4">
+
+            <!-- Récapitulatif financier -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-calculator me-2 text-success"></i>Récapitulatif</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted small">Sous-total</span>
+                        <span th:text="${details.orderSubTotal != null ? #numbers.formatDecimal(details.orderSubTotal, 1, 2) + ' ' + (details.currencyCode ?: '€') : '—'}"></span>
+                    </div>
+                    <div th:if="${details.freightCharges != null}" class="d-flex justify-content-between mb-2">
+                        <span class="text-muted small"><i class="fas fa-truck me-1"></i>Frais de port</span>
+                        <span class="text-warning fw-semibold"
+                              th:text="${#numbers.formatDecimal(details.freightCharges, 1, 2) + ' ' + (details.currencyCode ?: '€')}"></span>
+                    </div>
+                    <div th:if="${details.totalTax != null and details.totalTax > 0}"
+                         class="d-flex justify-content-between mb-2">
+                        <span class="text-muted small">Taxes</span>
+                        <span th:text="${#numbers.formatDecimal(details.totalTax, 1, 2) + ' ' + (details.currencyCode ?: '€')}"></span>
+                    </div>
+                    <div th:if="${details.totalFees != null and details.totalFees > 0}"
+                         class="d-flex justify-content-between mb-2">
+                        <span class="text-muted small">Frais divers</span>
+                        <span th:text="${#numbers.formatDecimal(details.totalFees, 1, 2) + ' ' + (details.currencyCode ?: '€')}"></span>
+                    </div>
+                    <div th:if="${details.totalWeight != null}" class="d-flex justify-content-between mb-2">
+                        <span class="text-muted small">Poids total</span>
+                        <span th:text="${#numbers.formatDecimal(details.totalWeight, 1, 2) + ' kg'}"></span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                        <span class="fw-bold">Total</span>
+                        <span class="fw-bold fs-5 text-success"
+                              th:text="${details.orderTotal != null ? #numbers.formatDecimal(details.orderTotal, 1, 2) + ' ' + (details.currencyCode ?: '€') : '—'}"></span>
+                    </div>
+                    <div th:if="${details.paymentTerms != null}" class="text-muted small mt-2">
+                        Conditions paiement : <span th:text="${details.paymentTerms}"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Adresse de livraison Ingram -->
+            <div th:if="${details.shipToInfo != null}" class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-map-marker-alt me-2 text-info"></i>Livraison</h6>
+                </div>
+                <div class="card-body small">
+                    <div class="fw-semibold" th:text="${details.shipToInfo.companyName}"></div>
+                    <div th:if="${details.shipToInfo.contact != null}" class="text-muted"
+                         th:text="${details.shipToInfo.contact}"></div>
+                    <div th:text="${details.shipToInfo.addressLine1}"></div>
+                    <div th:if="${details.shipToInfo.addressLine2 != null}"
+                         th:text="${details.shipToInfo.addressLine2}"></div>
+                    <div>
+                        <span th:text="${details.shipToInfo.postalCode}"></span>
+                        <span th:text="${details.shipToInfo.city}"></span>
+                    </div>
+                    <div th:text="${details.shipToInfo.countryCode}"></div>
+                    <div th:if="${details.shipToInfo.phoneNumber != null}" class="mt-1 text-muted">
+                        <i class="fas fa-phone me-1"></i><span th:text="${details.shipToInfo.phoneNumber}"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Adresse de facturation Ingram -->
+            <div th:if="${details.billToInfo != null}" class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-file-invoice me-2 text-secondary"></i>Facturation</h6>
+                </div>
+                <div class="card-body small">
+                    <div class="fw-semibold" th:text="${details.billToInfo.companyName}"></div>
+                    <div th:text="${details.billToInfo.addressLine1}"></div>
+                    <div th:if="${details.billToInfo.addressLine2 != null}"
+                         th:text="${details.billToInfo.addressLine2}"></div>
+                    <div>
+                        <span th:text="${details.billToInfo.postalCode}"></span>
+                        <span th:text="${details.billToInfo.city}"></span>
+                    </div>
+                    <div th:text="${details.billToInfo.countryCode}"></div>
+                </div>
+            </div>
+
+            <!-- Notes Ingram -->
+            <div th:if="${details.notes != null and !#strings.isEmpty(details.notes)}"
+                 class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-sticky-note me-2 text-secondary"></i>Notes Ingram</h6>
+                </div>
+                <div class="card-body small" th:text="${details.notes}"></div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

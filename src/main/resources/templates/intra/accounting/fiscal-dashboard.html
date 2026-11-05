@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Tableau de bord fiscal</title></head>
+<body>
+<div layout:fragment="content">
+    <h5 class="fw-bold mb-4"><i class="fas fa-scale-balanced me-2 text-info"></i>Tableau de bord fiscal</h5>
+
+    <!-- Rapports comptables -->
+    <h6 class="text-muted text-uppercase fw-bold small mb-3">Rapports comptables</h6>
+    <div class="row g-3 mb-5">
+        <div class="col-sm-6 col-lg-4">
+            <a href="/intra/accounting/reports/balance" class="card border-0 shadow-sm text-decoration-none text-dark h-100">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-info bg-opacity-10 p-3">
+                        <i class="fas fa-scale-balanced text-info fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fw-semibold">Balance générale</div>
+                        <div class="text-muted small">Soldes de tous les comptes</div>
+                    </div>
+                    <i class="fas fa-chevron-right text-muted ms-auto"></i>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-lg-4">
+            <a href="/intra/accounting/reports/grand-livre" class="card border-0 shadow-sm text-decoration-none text-dark h-100">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-info bg-opacity-10 p-3">
+                        <i class="fas fa-book-open text-info fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fw-semibold">Grand livre</div>
+                        <div class="text-muted small">Détail des mouvements par compte</div>
+                    </div>
+                    <i class="fas fa-chevron-right text-muted ms-auto"></i>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-lg-4">
+            <a href="/intra/accounting/reports/livre-des-tiers" class="card border-0 shadow-sm text-decoration-none text-dark h-100">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-info bg-opacity-10 p-3">
+                        <i class="fas fa-users text-info fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fw-semibold">Livre des tiers</div>
+                        <div class="text-muted small">Clients, fournisseurs, partenaires</div>
+                    </div>
+                    <i class="fas fa-chevron-right text-muted ms-auto"></i>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-lg-4">
+            <a href="/intra/accounting/reports/bilan" class="card border-0 shadow-sm text-decoration-none text-dark h-100">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3">
+                        <i class="fas fa-landmark text-primary fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fw-semibold">Bilan</div>
+                        <div class="text-muted small">Actif / Passif à date</div>
+                    </div>
+                    <i class="fas fa-chevron-right text-muted ms-auto"></i>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-lg-4">
+            <a href="/intra/accounting/reports/compte-resultat" class="card border-0 shadow-sm text-decoration-none text-dark h-100">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3">
+                        <i class="fas fa-chart-line text-primary fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fw-semibold">Compte de résultat</div>
+                        <div class="text-muted small">Produits et charges de l'exercice</div>
+                    </div>
+                    <i class="fas fa-chevron-right text-muted ms-auto"></i>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Liasses fiscales -->
+    <h6 class="text-muted text-uppercase fw-bold small mb-3">Déclarations fiscales</h6>
+    <div class="row g-3">
+        <div class="col-sm-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-3 border-warning">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3">
+                        <i class="fas fa-percent text-warning fa-lg"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold">TVA (CA3)</div>
+                        <div class="text-muted small">Déclaration mensuelle / trimestrielle</div>
+                    </div>
+                    <span class="badge text-bg-secondary">Bientôt</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-3 border-warning">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3">
+                        <i class="fas fa-building text-warning fa-lg"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold">Impôt sur les sociétés (IS)</div>
+                        <div class="text-muted small">Liasse 2065 / acomptes 2571</div>
+                    </div>
+                    <span class="badge text-bg-secondary">Bientôt</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-3 border-secondary">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-secondary bg-opacity-10 p-3">
+                        <i class="fas fa-city text-secondary fa-lg"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold">CET / CFE</div>
+                        <div class="text-muted small">Contribution économique territoriale</div>
+                    </div>
+                    <span class="badge text-bg-secondary">Bientôt</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-3 border-secondary">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-secondary bg-opacity-10 p-3">
+                        <i class="fas fa-file-export text-secondary fa-lg"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold">FEC</div>
+                        <div class="text-muted small">Export fichier des écritures comptables</div>
+                    </div>
+                    <a href="/intra/accounting/payfit" class="btn btn-sm btn-outline-secondary">Générer</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-3 border-secondary">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-secondary bg-opacity-10 p-3">
+                        <i class="fas fa-file-import text-secondary fa-lg"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold">DAS2 / Honoraires</div>
+                        <div class="text-muted small">Déclaration des honoraires versés</div>
+                    </div>
+                    <span class="badge text-bg-secondary">Bientôt</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-3 border-secondary">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div class="rounded-circle bg-secondary bg-opacity-10 p-3">
+                        <i class="fas fa-users text-secondary fa-lg"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold">DSN / Salaires</div>
+                        <div class="text-muted small">Import Payfit, déclaration sociale</div>
+                    </div>
+                    <a href="/intra/accounting/payfit" class="btn btn-sm btn-outline-secondary">Voir</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

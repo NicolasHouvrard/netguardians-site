@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Commandes</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-shopping-cart me-2 text-success"></i>Commandes</h4>
+            <div class="text-muted small mt-1">Devis &amp; commandes internes · Boutique en ligne</div>
+        </div>
+        <a href="/intra/orders/new" class="btn btn-success btn-sm">
+            <i class="fas fa-plus me-1"></i>Nouveau devis
+        </a>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3">
+                        <i class="fas fa-hourglass-half text-warning fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${pending}">0</div>
+                        <div class="text-muted small">Devis en attente</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-info bg-opacity-10 p-3">
+                        <i class="fas fa-spinner text-info fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${inProgress}">0</div>
+                        <div class="text-muted small">Commandes en cours</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <a href="/intra/orders?tab=shop" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle p-3"
+                         th:classappend="${shopPendingValidation > 0} ? 'bg-warning bg-opacity-15' : 'bg-secondary bg-opacity-10'">
+                        <i class="fas fa-store fa-lg"
+                           th:classappend="${shopPendingValidation > 0} ? 'text-warning' : 'text-secondary'"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${shopPendingValidation}">0</div>
+                        <div class="text-muted small">Boutique à valider</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                        <i class="fas fa-shopping-bag text-success fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${#lists.size(shopOrders)}">0</div>
+                        <div class="text-muted small">Commandes boutique</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Onglets -->
+    <ul class="nav nav-tabs mb-0" id="orderTabs" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link"
+               th:classappend="${activeTab == 'internal'} ? ' active' : ''"
+               id="tab-internal" href="#panel-internal"
+               data-bs-toggle="tab" role="tab">
+                <i class="fas fa-file-signature me-1"></i>Devis &amp; Commandes
+                <span class="badge text-bg-secondary ms-1" th:text="${#lists.size(orders)}">0</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link"
+               th:classappend="${activeTab == 'shop'} ? ' active' : ''"
+               id="tab-shop" href="#panel-shop"
+               data-bs-toggle="tab" role="tab">
+                <i class="fas fa-store me-1"></i>Boutique en ligne
+                <span class="badge ms-1"
+                      th:classappend="${shopPendingValidation > 0} ? 'text-bg-warning text-dark' : 'text-bg-secondary'"
+                      th:text="${#lists.size(shopOrders)}">0</span>
+            </a>
+        </li>
+    </ul>
+
+    <div class="tab-content border border-top-0 rounded-bottom shadow-sm bg-white">
+
+        <!-- ── Onglet Devis & Commandes internes ──────────────────────────── -->
+        <div class="tab-pane fade"
+             th:classappend="${activeTab == 'internal'} ? ' show active' : ''"
+             id="panel-internal" role="tabpanel">
+            <div th:if="${#lists.isEmpty(orders)}" class="text-center py-5 text-muted">
+                <i class="fas fa-file-signature fa-2x mb-3 d-block"></i>Aucun devis ou commande.
+            </div>
+            <div class="table-responsive" th:unless="${#lists.isEmpty(orders)}">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>N° commande</th>
+                        <th>Client</th>
+                        <th>Équipe</th>
+                        <th>Date</th>
+                        <th class="text-end">Montant HT</th>
+                        <th>Statut</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="o : ${orders}">
+                        <td>
+                            <a th:href="@{/intra/orders/{id}(id=${o.id})}" class="fw-semibold text-decoration-none"
+                               th:text="${o.orderNumber}"></a>
+                            <span th:if="${o.source != null and o.source.name() == 'SHOP'}"
+                                  class="badge text-bg-info ms-1" style="font-size:.65rem">
+                                <i class="fas fa-store"></i>
+                            </span>
+                        </td>
+                        <td th:text="${o.customer != null ? o.customer.companyName : '—'}"></td>
+                        <td>
+                            <span th:if="${o.team != null}"
+                                  class="badge text-bg-secondary"
+                                  th:text="${o.team.name}"></span>
+                            <span th:unless="${o.team != null}" class="text-muted small">—</span>
+                        </td>
+                        <td th:text="${o.orderDate != null ? #temporals.format(o.orderDate, 'dd/MM/yyyy') : '—'}"></td>
+                        <td class="text-end" th:text="${o.totalAmount != null ? #numbers.formatDecimal(o.totalAmount, 1, 'COMMA', 2, 'POINT') + ' €' : '—'}"></td>
+                        <td>
+                            <span class="badge" th:classappend="${o.status.badgeCss}" th:text="${o.status.label}"></span>
+                        </td>
+                        <td>
+                            <a th:href="@{/intra/orders/{id}(id=${o.id})}" class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ── Onglet Boutique en ligne ────────────────────────────────────── -->
+        <div class="tab-pane fade"
+             th:classappend="${activeTab == 'shop'} ? ' show active' : ''"
+             id="panel-shop" role="tabpanel">
+
+            <!-- Alert en attente de validation -->
+            <div th:if="${shopPendingValidation > 0}"
+                 class="alert alert-warning d-flex align-items-center gap-3 m-3 mb-0">
+                <i class="fas fa-hourglass-half fa-lg flex-shrink-0"></i>
+                <div>
+                    <strong th:text="${shopPendingValidation} + ' commande(s) en attente de validation'"></strong><br>
+                    <span class="small">Ces commandes ont été soumises par des clients et attendent votre traitement.</span>
+                </div>
+            </div>
+
+            <!-- Filtres statut boutique -->
+            <div class="d-flex flex-wrap gap-2 p-3 pb-0">
+                <a th:href="@{/intra/orders(tab='shop')}"
+                   th:class="${currentShopStatus == null} ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline-secondary'">
+                    Toutes
+                </a>
+                <a th:each="s : ${shopStatuses}"
+                   th:href="@{/intra/orders(tab='shop', shopStatus=${s.name()})}"
+                   th:class="${currentShopStatus == s.name()} ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline-secondary'"
+                   th:text="${s.label}"></a>
+            </div>
+
+            <div th:if="${#lists.isEmpty(shopOrders)}" class="text-center py-5 text-muted">
+                <i class="fas fa-store fa-2x mb-3 d-block"></i>Aucune commande boutique.
+            </div>
+            <div class="table-responsive" th:unless="${#lists.isEmpty(shopOrders)}">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Référence</th>
+                        <th>Client</th>
+                        <th>Date</th>
+                        <th>Paiement</th>
+                        <th class="text-end">Total TTC</th>
+                        <th>Statut</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="o : ${shopOrders}"
+                        th:class="${o.status.name() == 'PENDING_VALIDATION'} ? 'table-warning' : ''">
+                        <td>
+                            <a th:href="@{/intra/shop/orders/{id}(id=${o.id})}"
+                               class="fw-semibold text-decoration-none" th:text="${o.reference}"></a>
+                        </td>
+                        <td>
+                            <div th:text="${o.customerName}"></div>
+                            <small class="text-muted" th:text="${o.email}"></small>
+                        </td>
+                        <td th:text="${#temporals.format(o.createdAt, 'dd/MM/yyyy HH:mm')}"></td>
+                        <td>
+                            <i th:if="${o.paymentMethod?.name() == 'STRIPE'}" class="fab fa-stripe text-primary me-1"></i>
+                            <i th:if="${o.paymentMethod?.name() == 'BANK_TRANSFER'}" class="fas fa-university text-success me-1"></i>
+                            <span th:text="${o.paymentMethod?.label}"></span>
+                        </td>
+                        <td class="text-end fw-semibold"
+                            th:text="${#numbers.formatDecimal(o.totalTTC, 1, 'COMMA', 2, 'POINT')} + ' €'"></td>
+                        <td>
+                            <span class="badge" th:classappend="'bg-' + ${o.status.badgeCss}" th:text="${o.status.label}"></span>
+                        </td>
+                        <td>
+                            <a th:href="@{/intra/shop/orders/{id}(id=${o.id})}"
+                               class="btn btn-sm btn-outline-secondary" title="Voir la commande">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Flash message -->
+    <div th:if="${successMessage}" class="position-fixed bottom-0 end-0 p-3" style="z-index:9999">
+        <div class="toast show text-bg-success">
+            <div class="toast-body" th:text="${successMessage}"></div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

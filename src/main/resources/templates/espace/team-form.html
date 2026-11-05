@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{espace-layout}">
+<head><title th:text="${editUser != null ? 'Modifier un membre' : 'Ajouter un membre'}">Membre</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/espace/team" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0" th:text="${editUser != null ? 'Modifier un membre' : 'Ajouter un membre'}"></h4>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <form th:action="${editUser != null ? '/espace/team/' + editUser.id + '/edit' : '/espace/team/add'}"
+                          method="post">
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Nom complet <span class="text-danger">*</span></label>
+                            <input type="text" name="fullName" class="form-control" required
+                                   th:value="${editUser != null ? editUser.fullName : ''}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Email <span class="text-danger">*</span></label>
+                            <input type="email" name="email" class="form-control" required
+                                   th:value="${editUser != null ? editUser.email : ''}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">
+                                Mot de passe
+                                <span th:if="${editUser == null}" class="text-danger">*</span>
+                                <span th:if="${editUser != null}" class="text-muted">(laisser vide pour ne pas changer)</span>
+                            </label>
+                            <input type="password" name="password" class="form-control"
+                                   th:required="${editUser == null}" autocomplete="new-password">
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold small">Rôle <span class="text-danger">*</span></label>
+                            <select name="role" class="form-select">
+                                <option value="CLIENT"
+                                        th:selected="${editUser == null or not #sets.contains(editUser.roles.![name], 'GESTIONNAIRE')}">
+                                    Utilisateur
+                                </option>
+                                <option value="GESTIONNAIRE"
+                                        th:selected="${editUser != null and #sets.contains(editUser.roles.![name], 'GESTIONNAIRE')}">
+                                    Gestionnaire
+                                </option>
+                            </select>
+                            <div class="form-text">
+                                Le <strong>Gestionnaire</strong> peut gérer l'équipe, l'entreprise et les factures.
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>
+                                <span th:text="${editUser != null ? 'Enregistrer' : 'Créer le compte'}"></span>
+                            </button>
+                            <a href="/espace/team" class="btn btn-outline-secondary">Annuler</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

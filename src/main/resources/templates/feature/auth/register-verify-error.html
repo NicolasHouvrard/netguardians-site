@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head><title>Lien invalide</title></head>
+<body>
+<section layout:fragment="content">
+<div class="row justify-content-center align-items-center" style="min-height:80vh">
+<div class="col-md-5 text-center">
+    <div class="card border-0 shadow-sm p-5">
+        <div class="mb-4">
+            <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-danger bg-opacity-10"
+                  style="width:72px;height:72px">
+                <i class="fas fa-times-circle fa-2x text-danger"></i>
+            </span>
+        </div>
+        <h3 class="fw-bold mb-2 text-danger">Lien invalide ou expiré</h3>
+        <p class="text-muted mb-4" th:text="${error}">Ce lien de confirmation n'est plus valide.</p>
+        <p class="text-muted small mb-4">
+            Si votre compte n'est toujours pas activé, contactez-nous pour régulariser votre situation.
+        </p>
+        <a href="/login" class="btn btn-outline-secondary">
+            <i class="fas fa-sign-in-alt me-1"></i>Retour à la connexion
+        </a>
+    </div>
+</div>
+</div>
+</section>
+</body>
+</html>

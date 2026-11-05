@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+        <h5 class="mb-1"><i class="fas fa-headset me-2 text-primary"></i>Soumettre une demande</h5>
+        <p class="text-muted small mb-3">Notre équipe vous répondra dans les plus brefs délais.</p>
+
+        <form method="post" action="/public/demande">
+
+            <!-- Connecté : bandeau + champs masqués -->
+            <div th:if="${loggedUser != null}" class="alert alert-info d-flex align-items-center gap-2 mb-3 py-2 small">
+                <i class="fas fa-user-circle"></i>
+                <span>Connecté en tant que <strong th:text="${loggedUser.username}"></strong></span>
+            </div>
+
+            <!-- Non connecté : champs identité -->
+            <div th:unless="${loggedUser != null}">
+                <div class="row g-2 mb-2">
+                    <div class="col-sm-6">
+                        <input type="text" name="firstName" class="form-control form-control-sm"
+                               placeholder="Prénom"
+                               th:value="${contact?.firstName}">
+                    </div>
+                    <div class="col-sm-6">
+                        <input type="text" name="lastName" class="form-control form-control-sm"
+                               placeholder="Nom"
+                               th:value="${contact?.lastName}">
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <input type="email" name="email" class="form-control form-control-sm"
+                           placeholder="Votre adresse e-mail *" required
+                           th:value="${contact?.email}">
+                </div>
+                <div class="mb-2">
+                    <input type="text" name="company" class="form-control form-control-sm"
+                           placeholder="Société (optionnel)">
+                </div>
+            </div>
+
+            <div class="mb-2">
+                <input type="text" name="subject" class="form-control form-control-sm"
+                       placeholder="Sujet *" required>
+            </div>
+            <div class="mb-3">
+                <textarea name="message" class="form-control form-control-sm" rows="4"
+                          placeholder="Décrivez votre demande…" required></textarea>
+            </div>
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="fas fa-paper-plane me-1"></i>Envoyer
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+</body>
+</html>

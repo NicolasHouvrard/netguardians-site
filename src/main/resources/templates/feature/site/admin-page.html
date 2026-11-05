@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+<head>
+    <title>Gestion des Pages et du Menu</title>
+</head>
+<body>
+
+<div layout:fragment="content" id="main-content" class="container-fluid py-4">
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="h3 mb-0 text-gray-800">Structure du Site & Menu</h2>
+            <p class="text-muted">Organisez vos pages dans des dossiers ou en liens directs.</p>
+        </div>
+        <div class="btn-group">
+            <a th:href="@{/admin/pages/new}" class="btn btn-primary m-1">
+                <i class="bi bi-plus-circle me-2"></i>Nouvelle Page
+            </a>
+            <button class="btn btn-outline-primary m-1" onclick="document.getElementById('quick-cat-form').classList.toggle('d-none')">
+                <i class="bi bi-folder-plus me-2"></i>Nouveau Dossier
+            </button>
+        </div>
+    </div>
+
+    <div id="quick-cat-form" class="card mb-4 d-none border-primary shadow-sm">
+        <div class="card-body">
+            <form th:hx-post="@{/admin/pages/categories/quick-add}" hx-target="#page-list-container" class="row g-3">
+                <div class="col-auto">
+                    <input type="text" name="name" class="form-control" placeholder="Nom du dossier" required>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary">Créer le dossier</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-5">
+        <div class="card-header bg-dark text-white">
+            <h5 class="mb-0 small text-uppercase fw-bold"><i class="bi bi-collection me-2"></i>Structure du Menu Public</h5>
+        </div>
+        <div th:fragment="page-list" id="page-list-container" class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 30%">Nom du Dossier / Page</th>
+                            <th style="width: 10%">Home</th>
+                            <th style="width: 20%">Slug / URL</th>
+                            <th style="width: 40%" class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    
+                    <tbody  >
+                        <th:block th:each="item : ${adminFullMenu}">
+                            
+                            <tr th:if="${item.menuType == 'PAGE'}" class="table-warning">
+                                <td class="fw-bold">
+                                    <i class="bi bi-link-45deg me-2 text-warning"></i>
+                                    <span th:text="${item.title}">Titre</span>
+                                    
+                                </td>
+                                <td class="text-center">
+                                    <i th:if="${item.homePage ?: false}" class="bi bi-house-door-fill text-warning"></i>
+                                    <button th:unless="${item.homePage ?: false}" class="btn btn-sm btn-link p-0 text-muted"
+                                            th:hx-post="'/admin/pages/' + ${item.id} + '/set-home'" hx-target="#page-list-container" >
+                                        <i class="bi bi-house-door"></i>
+                                    </button>
+                                </td>
+                                <td><code class="small text-muted" th:text="'/' + ${item.slug}">/slug</code></td>
+                                <td class="text-end pe-3">
+                                    <div class="btn-group btn-group-sm">
+                                        <a th:href="@{'/p/' + ${item.slug}}" target="_blank" class="btn btn-outline-info"><i class="bi bi-eye"></i></a>
+                                        <a th:href="@{/admin/pages/edit/{id}(id=${item.id})}" class="btn btn-outline-primary"><i class="bi bi-pencil"></i></a>
+                                        <button class="btn btn-outline-danger" th:hx-delete="'/admin/pages/' + ${item.id}" hx-confirm="Supprimer ?" hx-target="#page-list-container">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary" th:hx-post="'/admin/pages/' + ${item.id} + '/move-up'" hx-target="#page-list-container"><i class="bi bi-chevron-up"></i></button>
+                                        <button class="btn btn-outline-secondary" th:hx-post="'/admin/pages/' + ${item.id} + '/move-down'" hx-target="#page-list-container"><i class="bi bi-chevron-down"></i></button>
+                                        
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <th:block th:if="${item.menuType == 'CATEGORY'}">
+                                <tr class="table-info border-top">
+                                    <td colspan="3" class="fw-bold text-primary">
+                                        <div class="d-flex align-items-center" th:id="'cat-display-' + ${item.id}">
+                                            <i class="bi bi-folder2-open me-2"></i>
+                                            <span th:text="${item.name}">DOSSIER</span>
+                                            <button class="btn btn-sm btn-link ms-2 p-0" 
+                                                    th:hx-get="|/admin/pages/categories/${item.id}/edit-name|"
+                                                    th:hx-target="'#cat-display-' + ${item.id}"
+                                                    hx-swap="outerHTML">
+                                                <i class="bi bi-pencil-fill small"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                    <td class="text-end pe-3">
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary" th:hx-post="'/admin/pages/categories/' + ${item.id} + '/move-up'" hx-target="#page-list-container"><i class="bi bi-chevron-up"></i></button>
+                                            <button class="btn btn-outline-primary" th:hx-post="'/admin/pages/categories/' + ${item.id} + '/move-down'" hx-target="#page-list-container"><i class="bi bi-chevron-down"></i></button>
+                                            <button th:if="${item.pages.isEmpty()}" class="btn btn-outline-danger" th:hx-delete="'/admin/pages/categories/' + ${item.id}" hx-confirm="Supprimer ce dossier ?" hx-target="#page-list-container">
+                                                <i class="bi bi-folder-x"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr th:each="sub : ${item.pages}" class="bg-light small opacity-75">
+                                    <td class="ps-3">
+                                        <i class="bi bi-arrow-return-right ms-4 me-2"></i>
+                                        <span th:text="${sub.title}">Sous-page</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <i th:if="${sub.homePage ?: false}" class="bi bi-house-door-fill text-warning"></i>
+                                            <button th:unless="${sub.homePage ?: false}" class="btn btn-sm btn-link p-0 text-muted"
+                                                    th:hx-post="'/admin/pages/' + ${sub.id} + '/set-home'" hx-target="#page-list-container" hx-swap="innerHTML" >
+                                                <i class="bi bi-house-door"></i>
+                                            </button>
+                                    </td>
+                                    <td><code class="small text-muted" th:text="'/public/' + ${sub.slug}">/slug</code></td>
+                                    <td class="text-end pe-3">
+                                        <div class="btn-group btn-group-sm">
+                                            <a th:href="@{'/p/' + ${sub.slug}}" target="_blank" class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></a>
+                                            <a th:href="@{/admin/pages/edit/{id}(id=${sub.id})}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+                                            <button class="btn btn-sm btn-outline-danger" th:hx-delete="'/admin/pages/' + ${sub.id}" hx-confirm="Supprimer ?" hx-target="#page-list-container">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                            <button class="btn btn-outline-secondary" th:hx-post="'/admin/pages/' + ${sub.id} + '/move-up'" hx-target="#page-list-container"><i class="bi bi-chevron-up"></i></button>
+                                        <button class="btn btn-outline-secondary" th:hx-post="'/admin/pages/' + ${sub.id} + '/move-down'" hx-target="#page-list-container"><i class="bi bi-chevron-down"></i></button>
+                                        
+                                        </div>
+                                    </td>
+                                </tr>
+                            </th:block>
+                        </th:block>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+<th:block th:if="${cat != null}">
+    <div th:fragment="cat-edit-form" class="d-flex align-items-center" th:id="'cat-display-' + ${cat.id}">
+        <i class="bi bi-folder2-open me-2 text-primary"></i>
+        <form th:hx-post="'/admin/pages/categories/' + ${cat.id} + '/rename'" hx-target="#page-list-container" class="d-flex align-items-center">
+            <input type="text" name="name" th:value="${cat.name}" class="form-control form-control-sm me-1" style="width: 150px;" required>
+            <button type="submit" class="btn btn-sm btn-success me-1"><i class="bi bi-check"></i></button>
+            <button type="button" class="btn btn-sm btn-secondary" hx-get="/admin/pages" hx-target="#page-list-container">
+                <i class="bi bi-x"></i>
+            </button>
+        </form>
+    </div>
+</th:block>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Lot d'écritures</title></head>
+<body>
+<div layout:fragment="content">
+    <!-- Header -->
+    <div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-2">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <a href="/intra/accounting/batches" class="text-muted text-decoration-none small">
+                    <i class="fas fa-arrow-left me-1"></i>Lots
+                </a>
+                <span class="text-muted small">/</span>
+                <h4 class="mb-0 fw-bold" th:text="${batch.name}"></h4>
+                <span class="badge ms-1"
+                      th:classappend="${batch.status == 'POSTED'} ? 'text-bg-success' : 'text-bg-warning text-dark'"
+                      th:text="${batch.status == 'POSTED'} ? 'Validé' : 'Brouillon'"></span>
+            </div>
+            <div class="text-muted small d-flex gap-3">
+                <span><i class="fas fa-calendar-alt me-1"></i>
+                    <span th:text="${#temporals.format(batch.batchDate, 'dd/MM/yyyy')}"></span>
+                </span>
+                <span><i class="fas fa-book me-1"></i><span th:text="${batch.journalCode}"></span></span>
+                <span th:if="${batch.description != null}" class="fst-italic" th:text="${batch.description}"></span>
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <!-- Modifier le lot (DRAFT) -->
+            <button th:if="${batch.isDraft()}" class="btn btn-sm btn-outline-secondary"
+                    data-bs-toggle="modal" data-bs-target="#modalEditBatch">
+                <i class="fas fa-pen me-1"></i>Modifier
+            </button>
+            <!-- Valider le lot -->
+            <form th:if="${batch.isDraft()}" method="post"
+                  th:action="@{/intra/accounting/batches/{id}/post(id=${batch.id})}">
+                <button type="submit" class="btn btn-sm btn-success"
+                        th:disabled="${!balanced or #lists.isEmpty(entries)}"
+                        th:title="${!balanced} ? 'Le lot n\'est pas équilibré' : 'Valider et verrouiller toutes les écritures'">
+                    <i class="fas fa-check-double me-1"></i>Valider le lot
+                </button>
+            </form>
+            <!-- Supprimer le lot (DRAFT uniquement) -->
+            <form th:if="${batch.isDraft()}" method="post"
+                  th:action="@{/intra/accounting/batches/{id}/delete(id=${batch.id})}"
+                  onsubmit="return confirm('Supprimer ce lot et toutes ses écritures ?');">
+                <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-circle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Barre de solde global -->
+    <div class="card border-0 shadow-sm mb-4"
+         th:classappend="${balanced and !#lists.isEmpty(entries)} ? 'border-start border-5 border-success' : 'border-start border-5 border-warning'">
+        <div class="card-body py-2 d-flex align-items-center gap-4 flex-wrap">
+            <div>
+                <span class="text-muted small">Total débit</span>
+                <div class="fw-bold fs-5" th:text="${#numbers.formatDecimal(totalDebit, 1, 'COMMA', 2, 'POINT') + ' €'}"></div>
+            </div>
+            <div>
+                <span class="text-muted small">Total crédit</span>
+                <div class="fw-bold fs-5" th:text="${#numbers.formatDecimal(totalCredit, 1, 'COMMA', 2, 'POINT') + ' €'}"></div>
+            </div>
+            <div>
+                <span class="text-muted small">Écart</span>
+                <div class="fw-bold fs-5"
+                     th:with="ecart=${totalDebit.subtract(totalCredit)}"
+                     th:classappend="${ecart.compareTo(T(java.math.BigDecimal).ZERO) == 0} ? 'text-success' : 'text-danger'"
+                     th:text="${#numbers.formatDecimal(ecart, 1, 'COMMA', 2, 'POINT') + ' €'}"></div>
+            </div>
+            <div class="ms-auto">
+                <span class="badge fs-6"
+                      th:classappend="${balanced and !#lists.isEmpty(entries)} ? 'text-bg-success' : 'text-bg-warning text-dark'">
+                    <i class="fas me-1"
+                       th:classappend="${balanced and !#lists.isEmpty(entries)} ? 'fa-check-circle' : 'fa-exclamation-triangle'"></i>
+                    <span th:text="${balanced and !#lists.isEmpty(entries)} ? 'Équilibré' : 'Non équilibré'"></span>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Liste des écritures -->
+    <div th:if="${#lists.isEmpty(entries)}" class="text-center py-4 text-muted mb-4">
+        <i class="fas fa-inbox fa-2x mb-2 d-block opacity-25"></i>
+        Aucune écriture — saisissez la première ci-dessous.
+    </div>
+
+    <div th:each="entry : ${entries}" class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white border-0 pt-3 pb-1 d-flex align-items-center justify-content-between">
+            <div>
+                <span class="fw-semibold me-2" th:text="${entry.description}"></span>
+                <span class="badge text-bg-secondary font-monospace small" th:text="${entry.reference}"></span>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <a th:href="@{/intra/accounting/entries/{id}(id=${entry.id})}"
+                   class="btn btn-sm btn-outline-secondary py-0 px-2" title="Voir dans le journal">
+                    <i class="fas fa-book-open"></i>
+                </a>
+                <form th:if="${batch.isDraft()}" method="post"
+                      th:action="@{/intra/accounting/batches/{bid}/delete-entry/{eid}(bid=${batch.id},eid=${entry.id})}"
+                      onsubmit="return confirm('Supprimer cette écriture ?');" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th style="width:110px">Compte</th>
+                        <th>Libellé</th>
+                        <th class="text-end" style="width:130px">Débit</th>
+                        <th class="text-end" style="width:130px">Crédit</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="line : ${entry.lines}">
+                        <td class="font-monospace small fw-semibold" th:text="${line.account.number}"></td>
+                        <td class="small">
+                            <span th:text="${line.account.label}"></span>
+                            <span class="text-muted ms-1" th:if="${line.label != entry.description}"
+                                  th:text="'— ' + ${line.label}"></span>
+                        </td>
+                        <td class="text-end small">
+                            <span th:if="${line.debit != null and line.debit > 0}"
+                                  th:text="${#numbers.formatDecimal(line.debit, 1, 'COMMA', 2, 'POINT')}"></span>
+                        </td>
+                        <td class="text-end small">
+                            <span th:if="${line.credit != null and line.credit > 0}"
+                                  th:text="${#numbers.formatDecimal(line.credit, 1, 'COMMA', 2, 'POINT')}"></span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulaire d'ajout d'écriture (DRAFT uniquement) -->
+    <div th:if="${batch.isDraft()}" class="card border-0 shadow-sm border-start border-4 border-primary mt-4">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0"><i class="fas fa-plus-circle me-2 text-primary"></i>Ajouter une écriture</h6>
+        </div>
+        <div class="card-body">
+            <form method="post"
+                  th:action="@{/intra/accounting/batches/{id}/add-entry(id=${batch.id})}"
+                  id="addEntryForm">
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-8">
+                        <label class="form-label fw-semibold">Description <span class="text-danger">*</span></label>
+                        <input type="text" name="entryDescription" class="form-control" required
+                               placeholder="Ex : Dotation amortissement matériel, OD Paie…">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Tiers (optionnel)</label>
+                        <input type="text" name="partner" class="form-control"
+                               placeholder="Client, fournisseur…">
+                    </div>
+                </div>
+
+                <!-- Ligne d'écriture template (visible) -->
+                <div class="table-responsive mb-2">
+                    <table class="table table-sm align-middle mb-0" id="linesTable">
+                        <thead class="table-light">
+                        <tr>
+                            <th style="width:150px">N° compte <span class="text-danger">*</span></th>
+                            <th>Libellé ligne</th>
+                            <th style="width:140px">Débit</th>
+                            <th style="width:140px">Crédit</th>
+                            <th style="width:40px"></th>
+                        </tr>
+                        </thead>
+                        <tbody id="linesBody">
+                        <!-- 2 lignes par défaut -->
+                        <tr class="entry-line-row">
+                            <td><input type="text" name="accountNumber" class="form-control form-control-sm font-monospace account-input"
+                                       placeholder="411000" list="accountsList" autocomplete="off"></td>
+                            <td><input type="text" name="lineLabel" class="form-control form-control-sm" placeholder="Libellé…"></td>
+                            <td><input type="number" name="debit" class="form-control form-control-sm text-end amount-input"
+                                       step="0.01" min="0" placeholder="0.00" oninput="updateTotals()"></td>
+                            <td><input type="number" name="credit" class="form-control form-control-sm text-end amount-input"
+                                       step="0.01" min="0" placeholder="0.00" oninput="updateTotals()"></td>
+                            <td></td>
+                        </tr>
+                        <tr class="entry-line-row">
+                            <td><input type="text" name="accountNumber" class="form-control form-control-sm font-monospace account-input"
+                                       placeholder="706000" list="accountsList" autocomplete="off"></td>
+                            <td><input type="text" name="lineLabel" class="form-control form-control-sm" placeholder="Libellé…"></td>
+                            <td><input type="number" name="debit" class="form-control form-control-sm text-end amount-input"
+                                       step="0.01" min="0" placeholder="0.00" oninput="updateTotals()"></td>
+                            <td><input type="number" name="credit" class="form-control form-control-sm text-end amount-input"
+                                       step="0.01" min="0" placeholder="0.00" oninput="updateTotals()"></td>
+                            <td><button type="button" class="btn btn-sm btn-outline-danger py-0 px-1"
+                                        onclick="removeLine(this)"><i class="fas fa-times"></i></button></td>
+                        </tr>
+                        </tbody>
+                        <tfoot class="table-light fw-semibold">
+                        <tr>
+                            <td colspan="2" class="text-end small text-muted">Totaux :</td>
+                            <td class="text-end"><span id="sumDebit">0,00</span></td>
+                            <td class="text-end"><span id="sumCredit">0,00</span></td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td colspan="4">
+                                <span id="balanceIndicator" class="badge text-bg-secondary small">Écart : 0,00 €</span>
+                            </td>
+                            <td></td>
+                        </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addLine()">
+                        <i class="fas fa-plus me-1"></i>Ajouter une ligne
+                    </button>
+                    <button type="submit" id="submitEntry" class="btn btn-sm btn-primary ms-auto">
+                        <i class="fas fa-save me-1"></i>Enregistrer l'écriture
+                    </button>
+                </div>
+            </form>
+
+            <!-- Datalist des comptes -->
+            <datalist id="accountsList">
+                <option th:each="acc : ${accounts}"
+                        th:value="${acc.number}"
+                        th:label="${acc.number + ' — ' + acc.label}"></option>
+            </datalist>
+        </div>
+    </div>
+
+    <!-- Modal modifier le lot -->
+    <div class="modal fade" id="modalEditBatch" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form action="/intra/accounting/batches/save" method="post">
+                    <input type="hidden" name="batchId" th:value="${batch.id}">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-pen me-2"></i>Modifier le lot</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Libellé</label>
+                            <input type="text" name="name" class="form-control" th:value="${batch.name}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Description</label>
+                            <textarea name="description" class="form-control" rows="2"
+                                      th:text="${batch.description}"></textarea>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Date</label>
+                                <input type="date" name="batchDate" class="form-control" required
+                                       th:value="${#temporals.format(batch.batchDate, 'yyyy-MM-dd')}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Journal</label>
+                                <select name="journalCode" class="form-select">
+                                    <th:block th:each="j : ${journals}">
+                                        <option th:value="${j.code}"
+                                                th:text="${j.code + ' — ' + j.label}"
+                                                th:selected="${j.code == batch.journalCode}"></option>
+                                    </th:block>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save me-1"></i>Sauvegarder</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function fmt(n) {
+        return n.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+
+    function updateTotals() {
+        let d = 0, c = 0;
+        document.querySelectorAll('#linesBody .entry-line-row').forEach(row => {
+            const dv = parseFloat(row.querySelector('[name=debit]').value)  || 0;
+            const cv = parseFloat(row.querySelector('[name=credit]').value) || 0;
+            d += dv; c += cv;
+        });
+        document.getElementById('sumDebit').textContent  = fmt(d);
+        document.getElementById('sumCredit').textContent = fmt(c);
+        const ecart = Math.round((d - c) * 100) / 100;
+        const badge = document.getElementById('balanceIndicator');
+        if (ecart === 0 && (d > 0 || c > 0)) {
+            badge.className = 'badge text-bg-success small';
+            badge.textContent = '✓ Équilibré';
+        } else {
+            badge.className = 'badge text-bg-warning text-dark small';
+            badge.textContent = 'Écart : ' + fmt(ecart) + ' €';
+        }
+    }
+
+    function addLine() {
+        const tbody = document.getElementById('linesBody');
+        const row = document.createElement('tr');
+        row.className = 'entry-line-row';
+        row.innerHTML = `
+            <td><input type="text" name="accountNumber" class="form-control form-control-sm font-monospace account-input"
+                       placeholder="Numéro" list="accountsList" autocomplete="off"></td>
+            <td><input type="text" name="lineLabel" class="form-control form-control-sm" placeholder="Libellé…"></td>
+            <td><input type="number" name="debit" class="form-control form-control-sm text-end amount-input"
+                       step="0.01" min="0" placeholder="0.00" oninput="updateTotals()"></td>
+            <td><input type="number" name="credit" class="form-control form-control-sm text-end amount-input"
+                       step="0.01" min="0" placeholder="0.00" oninput="updateTotals()"></td>
+            <td><button type="button" class="btn btn-sm btn-outline-danger py-0 px-1"
+                        onclick="removeLine(this)"><i class="fas fa-times"></i></button></td>
+        `;
+        tbody.appendChild(row);
+        row.querySelector('input').focus();
+    }
+
+    function removeLine(btn) {
+        const rows = document.querySelectorAll('#linesBody .entry-line-row');
+        if (rows.length <= 2) { alert('Un minimum de 2 lignes est requis.'); return; }
+        btn.closest('tr').remove();
+        updateTotals();
+    }
+
+    updateTotals();
+    </script>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Exercices fiscaux</title></head>
+<body>
+<div layout:fragment="content">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-calendar-alt me-2 text-primary"></i>Exercices fiscaux</h4>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalYear">
+            <i class="fas fa-plus me-1"></i>Nouvel exercice
+        </button>
+    </div>
+
+    <!-- Flash messages -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Libellé</th>
+                        <th style="width:130px">Début</th>
+                        <th style="width:130px">Fin</th>
+                        <th class="text-center" style="width:100px">Courant</th>
+                        <th class="text-center" style="width:100px">Statut</th>
+                        <th class="text-center" style="width:180px">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="y : ${years}">
+                        <td class="fw-semibold" th:text="${y.label}"></td>
+                        <td th:text="${#temporals.format(y.startDate, 'dd/MM/yyyy')}"></td>
+                        <td th:text="${#temporals.format(y.endDate, 'dd/MM/yyyy')}"></td>
+                        <td class="text-center">
+                            <span th:if="${y.current}" class="badge bg-primary"><i class="fas fa-star me-1"></i>Courant</span>
+                            <span th:unless="${y.current}" class="text-muted small">—</span>
+                        </td>
+                        <td class="text-center">
+                            <span th:if="${y.closed}" class="badge bg-danger-subtle text-danger"><i class="fas fa-lock me-1"></i>Clôturé</span>
+                            <span th:unless="${y.closed}" class="badge bg-success-subtle text-success"><i class="fas fa-unlock me-1"></i>Ouvert</span>
+                        </td>
+                        <td class="text-center">
+                            <div class="btn-group btn-group-sm">
+                                <form th:unless="${y.current or y.closed}"
+                                      th:action="'/intra/accounting/fiscal-years/' + ${y.id} + '/set-current'"
+                                      method="post" class="d-inline">
+                                    <button type="submit" class="btn btn-outline-primary btn-sm"
+                                            title="Définir comme exercice courant">
+                                        <i class="fas fa-star me-1"></i>Courant
+                                    </button>
+                                </form>
+                                <form th:unless="${y.closed}"
+                                      th:action="'/intra/accounting/fiscal-years/' + ${y.id} + '/close'"
+                                      method="post" class="d-inline"
+                                      onsubmit="return confirm('Clôturer définitivement cet exercice ? Cette action est irréversible.')">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm"
+                                            title="Clôturer l'exercice">
+                                        <i class="fas fa-lock me-1"></i>Clôturer
+                                    </button>
+                                </form>
+                                <span th:if="${y.closed}" class="text-muted small">—</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr th:if="${years.isEmpty()}">
+                        <td colspan="6" class="text-center text-muted py-4">Aucun exercice fiscal. Créez-en un.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal: New fiscal year -->
+    <div class="modal fade" id="modalYear" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form action="/intra/accounting/fiscal-years/save" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i>Nouvel exercice fiscal</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Libellé <span class="text-danger">*</span></label>
+                            <input type="text" name="label" class="form-control" required
+                                   placeholder="Ex: Exercice 2026">
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <label class="form-label fw-semibold">Date de début <span class="text-danger">*</span></label>
+                                <input type="date" name="startDate" class="form-control" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-semibold">Date de fin <span class="text-danger">*</span></label>
+                                <input type="date" name="endDate" class="form-control" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-save me-1"></i>Enregistrer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

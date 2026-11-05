@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{boutique-layout}">
+<body>
+<div layout:fragment="content">
+
+    <h1 class="h3 fw-bold mb-4"><i class="fas fa-shopping-cart me-2"></i>Mon panier</h1>
+
+    <div th:if="${#lists.isEmpty(cart)}" class="text-center py-5 text-muted">
+        <i class="fas fa-cart-arrow-down fa-3x mb-3 d-block"></i>
+        <p>Votre panier est vide.</p>
+        <a th:href="@{/boutique}" class="btn btn-primary">Continuer mes achats</a>
+    </div>
+
+    <div th:unless="${#lists.isEmpty(cart)}" class="row g-4">
+
+        <!-- Lignes panier -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0">
+                    <div th:each="item, stat : ${cart}"
+                         th:class="${stat.last} ? 'p-3' : 'p-3 border-bottom'">
+                        <div class="d-flex gap-3 align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold" th:text="${item.productName}">Produit</div>
+                                <small class="text-muted"
+                                       th:text="${#numbers.formatDecimal(item.unitPriceTTC,1,'COMMA',2,'POINT')} + ' € / unité'"></small>
+                            </div>
+                            <div class="d-flex gap-2 align-items-center">
+                                <!-- Modifier quantité -->
+                                <form th:action="@{/boutique/cart/update}" method="post" class="d-flex gap-1">
+                                    <input type="hidden" name="shopProductId" th:value="${item.shopProductId}">
+                                    <input type="number" name="quantity" th:value="${item.quantity}"
+                                           min="0" style="width:65px" class="form-control form-control-sm text-center"
+                                           onchange="this.form.submit()">
+                                </form>
+                                <!-- Supprimer -->
+                                <form th:action="@{/boutique/cart/remove}" method="post">
+                                    <input type="hidden" name="shopProductId" th:value="${item.shopProductId}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0"
+                                            title="Supprimer">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                            <div class="text-end" style="min-width:80px">
+                                <span class="fw-bold"
+                                      th:text="${#numbers.formatDecimal(item.lineTotalTTC,1,'COMMA',2,'POINT')} + ' €'"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Récapitulatif -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h5 class="fw-semibold mb-3">Récapitulatif</h5>
+                    <div class="d-flex justify-content-between mb-1 text-muted small">
+                        <span>Total HT</span>
+                        <span th:text="${#numbers.formatDecimal(totals.totalHT,1,'COMMA',2,'POINT')} + ' €'"></span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1 text-muted small">
+                        <span>TVA</span>
+                        <span th:text="${#numbers.formatDecimal(totals.totalVAT,1,'COMMA',2,'POINT')} + ' €'"></span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between fw-bold fs-5 mb-3">
+                        <span>Total TTC</span>
+                        <span class="text-primary"
+                              th:text="${#numbers.formatDecimal(totals.totalTTC,1,'COMMA',2,'POINT')} + ' €'"></span>
+                    </div>
+                    <a th:href="@{/boutique/commande}" class="btn btn-primary w-100 btn-lg">
+                        <i class="fas fa-lock me-2"></i>Commander
+                    </a>
+                    <a th:href="@{/boutique}" class="btn btn-link w-100 text-muted mt-2">
+                        Continuer mes achats
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+</body>
+</html>

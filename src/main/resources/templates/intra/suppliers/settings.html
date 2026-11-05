@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title th:text="${supplier.companyName} + ' — Paramètres'">Paramètres fournisseur</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+        <a th:href="@{/intra/suppliers/{id}(id=${supplier.id})}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <div class="flex-grow-1">
+            <h4 class="mb-0" th:text="${supplier.companyName}"></h4>
+            <div class="text-muted small">Paramètres du fournisseur</div>
+        </div>
+        <form th:action="@{/intra/suppliers/{id}/toggle(id=${supplier.id})}" method="post">
+            <button type="submit" class="btn btn-sm btn-outline-secondary"
+                    th:text="${supplier.active ? 'Désactiver' : 'Activer'}"></button>
+        </form>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-triangle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+
+            <!-- Informations générales -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-building me-2 text-secondary"></i>Informations générales</h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/intra/suppliers/{id}/update(id=${supplier.id})}" method="post">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Nom <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control"
+                                       th:value="${supplier.companyName}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Email</label>
+                                <input type="email" name="email" class="form-control"
+                                       th:value="${supplier.email}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Téléphone</label>
+                                <input type="text" name="phone" class="form-control"
+                                       th:value="${supplier.phone}">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Site web</label>
+                                <input type="url" name="website" class="form-control"
+                                       th:value="${supplier.website}">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Adresse</label>
+                                <textarea name="address" class="form-control" rows="2"
+                                          th:text="${supplier.address}"></textarea>
+                            </div>
+
+                            <div class="col-12"><hr class="my-1"><h6 class="fw-bold text-secondary small mt-2">Connexion API</h6></div>
+
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Type d'API</label>
+                                <select name="apiType" class="form-select" id="apiTypeSelect">
+                                    <option th:each="t : ${apiTypes}"
+                                            th:value="${t.name()}"
+                                            th:text="${t.label}"
+                                            th:selected="${supplier.supplierApiType == t}"></option>
+                                </select>
+                            </div>
+
+                            <div id="apiFields">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Client ID (OAuth)</label>
+                                        <input type="text" name="apiClientId" class="form-control"
+                                               th:value="${supplier.supplierApiClientId}"
+                                               placeholder="OAuth client_id">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Secret / Clé API</label>
+                                        <textarea name="apiKey" class="form-control" rows="2"
+                                                  th:text="${supplier.supplierApiKey}"
+                                                  placeholder="OAuth client_secret"></textarea>
+                                    </div>
+                                    <div id="ingramFields" class="col-12">
+                                        <div class="row g-3">
+                                            <div class="col-md-4">
+                                                <label class="form-label fw-semibold">N° client Ingram <span class="text-danger">*</span></label>
+                                                <input type="text" name="customerNumber" class="form-control"
+                                                       th:value="${supplier.supplierCustomerNumber}"
+                                                       placeholder="ex : 20-222222">
+                                                <div class="form-text">IM-CustomerNumber requis pour toutes les API calls.</div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label fw-semibold">Code pays</label>
+                                                <input type="text" name="countryCode" class="form-control"
+                                                       th:value="${supplier.supplierCountryCode ?: 'FR'}"
+                                                       maxlength="2" placeholder="FR"
+                                                       style="text-transform:uppercase">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-semibold">URL de base</label>
+                                                <input type="text" name="apiUrl" class="form-control"
+                                                       th:value="${supplier.supplierApiUrl}"
+                                                       placeholder="https://api.ingrammicro.com:443 (défaut)">
+                                                <div class="form-text">
+                                                    Vide = production. Sandbox : <code>https://api.ingrammicro.com:443/sandbox</code>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="genericUrlField" class="col-12">
+                                        <label class="form-label fw-semibold">URL de base</label>
+                                        <input type="text" name="apiUrl" class="form-control"
+                                               th:value="${supplier.supplierApiUrl}"
+                                               placeholder="https://api.fournisseur.com">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12 pt-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i>Enregistrer
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Colonne droite -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-info-circle me-2 text-secondary"></i>Résumé</h6>
+                </div>
+                <div class="card-body small">
+                    <dl class="row mb-0">
+                        <dt class="col-5 text-muted">Statut</dt>
+                        <dd class="col-7 mb-2">
+                            <span class="badge"
+                                  th:classappend="${supplier.active ? 'text-bg-success' : 'text-bg-secondary'}"
+                                  th:text="${supplier.active ? 'Actif' : 'Inactif'}"></span>
+                        </dd>
+                        <dt class="col-5 text-muted">API</dt>
+                        <dd class="col-7 mb-2" th:text="${supplier.supplierApiType?.label ?: '—'}"></dd>
+                        <dt class="col-5 text-muted">Dernière synchro</dt>
+                        <dd class="col-7 mb-0"
+                            th:text="${supplier.supplierLastSyncAt != null
+                                       ? #temporals.format(supplier.supplierLastSyncAt,'dd/MM/yyyy HH:mm')
+                                       : 'Jamais'}"></dd>
+                    </dl>
+                    <hr>
+                    <a th:href="@{/intra/suppliers/{id}(id=${supplier.id})}" class="btn btn-sm btn-outline-secondary w-100 mb-2">
+                        <i class="fas fa-box me-1"></i>Voir le catalogue
+                    </a>
+                    <a href="/intra/sync" class="btn btn-sm btn-outline-primary w-100">
+                        <i class="fas fa-sync-alt me-1"></i>Module Synchronisation
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script>
+(function() {
+    var sel          = document.getElementById('apiTypeSelect');
+    var apiFields    = document.getElementById('apiFields');
+    var ingramFields = document.getElementById('ingramFields');
+    var genericUrl   = document.getElementById('genericUrlField');
+    function update() {
+        var val = sel ? sel.value : 'NONE';
+        if (apiFields)    apiFields.style.display    = (val && val !== 'NONE') ? '' : 'none';
+        if (ingramFields) ingramFields.style.display = (val === 'INGRAM_MICRO') ? '' : 'none';
+        if (genericUrl)   genericUrl.style.display   = (val !== 'NONE' && val !== 'INGRAM_MICRO') ? '' : 'none';
+    }
+    if (sel) { sel.addEventListener('change', update); update(); }
+})();
+</script>
+</th:block>
+</body>
+</html>

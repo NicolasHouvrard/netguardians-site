@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Journaux comptables</title></head>
+<body>
+<div layout:fragment="content">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-book me-2 text-primary"></i>Journaux comptables</h4>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalJournal">
+            <i class="fas fa-plus me-1"></i>Nouveau journal
+        </button>
+    </div>
+
+    <!-- Flash messages -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:100px">Code</th>
+                        <th>Libellé</th>
+                        <th style="width:160px">Type</th>
+                        <th class="text-center" style="width:90px">Actif</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="j : ${journals}" th:classappend="${!j.active} ? 'text-muted opacity-50'">
+                        <td class="fw-semibold" th:text="${j.code}"></td>
+                        <td th:text="${j.label}"></td>
+                        <td>
+                            <span th:if="${j.type != null}" class="badge"
+                                  th:classappend="${j.type.name() == 'SALES'} ? 'bg-success-subtle text-success' :
+                                                  (${j.type.name() == 'PURCHASES'} ? 'bg-danger-subtle text-danger' :
+                                                  (${j.type.name() == 'BANK'} ? 'bg-info-subtle text-info' :
+                                                  (${j.type.name() == 'CASH'} ? 'bg-warning-subtle text-warning' :
+                                                  'bg-secondary-subtle text-secondary')))"
+                                  th:text="${j.type.label}">
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <span th:if="${j.active}" class="badge bg-primary-subtle text-primary">Actif</span>
+                            <span th:unless="${j.active}" class="badge bg-danger-subtle text-danger">Inactif</span>
+                        </td>
+                    </tr>
+                    <tr th:if="${journals.isEmpty()}">
+                        <td colspan="4" class="text-center text-muted py-4">Aucun journal. Créez-en un.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal: New journal -->
+    <div class="modal fade" id="modalJournal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form action="/intra/accounting/journals/save" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i>Nouveau journal</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Code <span class="text-danger">*</span></label>
+                            <input type="text" name="code" class="form-control text-uppercase" required
+                                   placeholder="Ex: VTE" maxlength="10"
+                                   oninput="this.value=this.value.toUpperCase()">
+                            <div class="form-text">Code court unique (ex : VTE, ACH, BNQ).</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Libellé <span class="text-danger">*</span></label>
+                            <input type="text" name="label" class="form-control" required
+                                   placeholder="Ex: Journal des ventes">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Type</label>
+                            <select name="type" class="form-select">
+                                <option value="">— Sélectionner —</option>
+                                <option th:each="t : ${journalTypes}"
+                                        th:value="${t.name()}"
+                                        th:text="${t.label}">
+                                </option>
+                            </select>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="active" id="chkJActive" value="true" checked>
+                            <label class="form-check-label" for="chkJActive">Journal actif</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-save me-1"></i>Enregistrer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

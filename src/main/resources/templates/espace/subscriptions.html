@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{espace-layout}">
+<head><title>Mes abonnements</title></head>
+<body>
+<div layout:fragment="content">
+
+    <h4 class="mb-4"><i class="fas fa-box-open me-2"></i>Mes abonnements</h4>
+
+    <div th:if="${#lists.isEmpty(subscriptions)}" class="text-center py-5 text-muted">
+        <i class="fas fa-box-open fa-2x mb-2 d-block"></i>
+        Aucun abonnement enregistré.
+    </div>
+
+    <div th:each="sub : ${subscriptions}"
+         class="card border-0 shadow-sm mb-3"
+         th:classappend="${!sub.active ? ' opacity-50' : ''}">
+        <div class="card-body">
+            <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+                <div>
+                    <span class="fw-bold fs-6" th:text="${sub.effectiveName}"></span>
+                    <span th:if="${sub.effectiveCategory != null}"
+                          class="badge ms-2" th:classappend="${sub.effectiveCategory.badgeCss}"
+                          th:text="${sub.effectiveCategory.label}"></span>
+                    <span class="badge ms-1 text-bg-light border"
+                          th:text="${sub.effectiveBillingModel.label}"></span>
+                </div>
+                <span class="badge text-bg-success" th:if="${sub.active}">Actif</span>
+                <span class="badge text-bg-secondary" th:unless="${sub.active}">Inactif</span>
+            </div>
+
+            <div class="small text-muted d-flex flex-wrap gap-3 mb-2">
+                <span th:if="${sub.effectivePeriod != null}">
+                    <i class="fas fa-calendar-alt me-1"></i>
+                    <span th:text="${sub.effectivePeriod.label}"></span>
+                </span>
+                <span th:if="${sub.effectiveBillingModel.name() == 'FORFAIT' and sub.effectivePricePerPeriod != null}">
+                    <i class="fas fa-euro-sign me-1"></i>
+                    <span th:text="${#numbers.formatDecimal(sub.effectivePricePerPeriod,1,'POINT',2,'COMMA') + ' €'}"></span>
+                </span>
+                <span th:if="${sub.effectiveBillingModel.name() == 'HOURLY' and sub.effectiveHourlyRate != null}">
+                    <span th:text="${#numbers.formatDecimal(sub.effectiveHourlyRate,1,'POINT',2,'COMMA') + ' €/h'}"></span>
+                </span>
+                <span>
+                    <i class="fas fa-play me-1"></i>
+                    <span th:text="${#temporals.format(sub.startDate,'dd/MM/yyyy')}"></span>
+                    <span th:if="${sub.endDate != null}">
+                        → <span th:text="${#temporals.format(sub.endDate,'dd/MM/yyyy')}"></span>
+                    </span>
+                </span>
+            </div>
+
+            <!-- Barre de progression FORFAIT -->
+            <div th:if="${sub.effectiveBillingModel.name() == 'FORFAIT' and sub.effectiveIncludedMinutes != null}">
+                <div class="d-flex justify-content-between small mb-1">
+                    <span>Consommé : <strong th:text="${sub.formattedSpent}"></strong></span>
+                    <span>
+                        Inclus : <strong th:text="${sub.formattedIncluded}"></strong>
+                        <span th:classappend="${sub.progressPercent >= 100 ? ' text-danger fw-bold' : ''}"
+                              th:text="' (' + ${sub.progressPercent} + '%)'"></span>
+                    </span>
+                </div>
+                <div class="progress" style="height:8px">
+                    <div class="progress-bar"
+                         th:classappend="${sub.progressPercent >= 100 ? ' bg-danger' :
+                                          sub.progressPercent >= 80 ? ' bg-warning' : ' bg-success'}"
+                         role="progressbar"
+                         th:style="'width:' + ${sub.progressPercent} + '%'"></div>
+                </div>
+            </div>
+
+            <div th:if="${sub.notes}" class="small text-muted mt-2 fst-italic" th:text="${sub.notes}"></div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

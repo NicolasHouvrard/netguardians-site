@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Dashboard Commercial</title></head>
+<body>
+<div layout:fragment="content">
+
+    <!-- Sous-nav modules Commercial (depuis AdminModule DB) -->
+    <div th:replace="~{intra/nav :: dashboard-subnav(categoryName='Commercial')}"></div>
+
+    <div class="pt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-0 fw-bold">
+                    <i class="fas fa-handshake me-2" style="color:#6366f1"></i>Dashboard Commercial
+                </h1>
+                <small class="text-muted">Suivi clients, commandes et abonnements</small>
+            </div>
+            <div class="text-muted small"
+                 th:text="${#temporals.format(#temporals.createNow(), 'EEEE d MMMM yyyy', new java.util.Locale('fr'))}"></div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #6366f1 !important">
+                    <div class="card-body d-flex align-items-center gap-3 py-3">
+                        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                              style="background:#6366f120;width:42px;height:42px">
+                            <i class="fas fa-building" style="color:#6366f1"></i>
+                        </span>
+                        <div>
+                            <div class="fw-bold lh-1 mb-1" style="font-size:1.5rem" th:text="${nbClients}">—</div>
+                            <div class="text-muted" style="font-size:.72rem">Clients</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <a href="/intra/shop/orders" class="card border-0 shadow-sm h-100 text-decoration-none"
+                   style="border-left:4px solid #f59e0b !important">
+                    <div class="card-body d-flex align-items-center gap-3 py-3">
+                        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                              style="background:#f59e0b20;width:42px;height:42px">
+                            <i class="fas fa-shopping-bag" style="color:#f59e0b"></i>
+                        </span>
+                        <div>
+                            <div class="fw-bold lh-1 mb-1" style="font-size:1.5rem" th:text="${nbCommandesPending}">—</div>
+                            <div class="text-muted" style="font-size:.72rem">Commandes à valider</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #10b981 !important">
+                    <div class="card-body d-flex align-items-center gap-3 py-3">
+                        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                              style="background:#10b98120;width:42px;height:42px">
+                            <i class="fas fa-repeat" style="color:#10b981"></i>
+                        </span>
+                        <div>
+                            <div class="fw-bold lh-1 mb-1" style="font-size:1.5rem" th:text="${nbAbonnements}">—</div>
+                            <div class="text-muted" style="font-size:.72rem">Abonnements actifs</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #3b82f6 !important">
+                    <div class="card-body d-flex align-items-center gap-3 py-3">
+                        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                              style="background:#3b82f620;width:42px;height:42px">
+                            <i class="fas fa-box-archive" style="color:#3b82f6"></i>
+                        </span>
+                        <div>
+                            <div class="fw-bold lh-1 mb-1" style="font-size:1.5rem" th:text="${nbCommandesTotal}">—</div>
+                            <div class="text-muted" style="font-size:.72rem">Commandes total</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Commandes en attente -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">
+                    <i class="fas fa-shopping-bag me-2 text-warning"></i>Commandes en attente de validation
+                </span>
+                <a href="/intra/shop/orders" class="btn btn-sm btn-outline-secondary">Voir tout</a>
+            </div>
+            <div th:if="${#lists.isEmpty(recentOrders)}" class="card-body text-center text-muted py-4">
+                <i class="fas fa-check-circle me-1 text-success"></i>Aucune commande en attente
+            </div>
+            <ul th:unless="${#lists.isEmpty(recentOrders)}" class="list-group list-group-flush">
+                <li th:each="o : ${recentOrders}" class="list-group-item list-group-item-action px-3 py-2">
+                    <a th:href="@{/intra/shop/orders/{id}(id=${o.id})}"
+                       class="text-decoration-none text-dark d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fw-semibold small" th:text="${o.reference}">REF</div>
+                            <div class="text-muted" style="font-size:.75rem" th:text="${o.customerName}"></div>
+                        </div>
+                        <div class="text-end">
+                            <div class="fw-semibold small text-primary"
+                                 th:text="${#numbers.formatDecimal(o.totalTTC,1,'COMMA',2,'POINT')} + ' €'"></div>
+                            <div class="text-muted" style="font-size:.7rem"
+                                 th:text="${#temporals.format(o.createdAt,'dd/MM/yyyy')}"></div>
+                        </div>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

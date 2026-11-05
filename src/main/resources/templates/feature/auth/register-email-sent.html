@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head><title>Vérifiez votre email</title></head>
+<body>
+<section layout:fragment="content">
+<div class="row justify-content-center align-items-center" style="min-height:80vh">
+<div class="col-md-5 text-center">
+    <div class="card border-0 shadow-sm p-5">
+        <div class="mb-4">
+            <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-info bg-opacity-10"
+                  style="width:72px;height:72px">
+                <i class="fas fa-envelope-open-text fa-2x text-info"></i>
+            </span>
+        </div>
+        <h3 class="fw-bold mb-2">Vérifiez votre boîte mail</h3>
+        <p class="text-muted mb-4">
+            Un email de confirmation vous a été envoyé.<br>
+            Cliquez sur le lien dans l'email pour activer votre compte.
+        </p>
+        <div class="bg-light rounded p-3 mb-4 text-start small">
+            <div class="d-flex gap-2 mb-2">
+                <i class="fas fa-clock text-muted mt-1"></i>
+                <span>L'email peut prendre quelques minutes à arriver.</span>
+            </div>
+            <div class="d-flex gap-2">
+                <i class="fas fa-folder text-muted mt-1"></i>
+                <span>Pensez à vérifier vos <strong>spams</strong> si vous ne le recevez pas.</span>
+            </div>
+        </div>
+
+        <!-- Renvoi de l'email -->
+        <div class="border-top pt-4 mt-2">
+            <p class="text-muted small mb-2">Vous n'avez pas reçu l'email ?</p>
+            <form th:if="${email != null}" action="/register/resend" method="post">
+                <input type="hidden" name="email" th:value="${email}">
+                <button type="submit" class="btn btn-outline-info btn-sm w-100 mb-3">
+                    <i class="fas fa-redo me-1"></i>Renvoyer l'email de confirmation
+                </button>
+            </form>
+            <form th:if="${email == null}" action="/register/resend" method="post">
+                <div class="input-group input-group-sm mb-3">
+                    <input type="email" name="email" class="form-control" placeholder="Votre email" required>
+                    <button type="submit" class="btn btn-outline-info">
+                        <i class="fas fa-redo me-1"></i>Renvoyer
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <a href="/login" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-sign-in-alt me-1"></i>Retour à la connexion
+        </a>
+    </div>
+</div>
+</div>
+</section>
+</body>
+</html>

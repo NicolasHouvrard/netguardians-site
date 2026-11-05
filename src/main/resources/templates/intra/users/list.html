@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Utilisateurs</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-users me-2 text-primary"></i>Gestion des utilisateurs</h4>
+        <div class="d-flex gap-2">
+            <a th:if="${isAdmin}" href="/intra/roles" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-shield-alt me-1"></i>Gérer les rôles
+            </a>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCreate">
+                <i class="fas fa-plus me-1"></i>Nouvel utilisateur
+            </button>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-circle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div th:if="${users == null or users.isEmpty()}" class="text-center py-5 text-muted">
+                Aucun utilisateur.
+            </div>
+            <div class="table-responsive" th:if="${users != null and !users.isEmpty()}">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Utilisateur</th>
+                            <th>Rattachement</th>
+                            <th>Équipes</th>
+                            <th>Rôles</th>
+                            <th>Statut</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="user : ${users}">
+                            <td>
+                                <div class="fw-semibold" th:text="${user.fullName}"></div>
+                                <small class="text-muted" th:text="${user.email}"></small>
+                            </td>
+
+                            <!-- Rattachement -->
+                            <td>
+                                <!-- Utilisateur portail (customerId non null) -->
+                                <span th:if="${user.customerId != null and customerNames[user.customerId] != null}"
+                                      class="badge text-bg-success"
+                                      th:text="${customerNames[user.customerId]}"></span>
+
+                                <!-- Utilisateur interne avec contact lié -->
+                                <div th:if="${user.customerId == null and contactByUserId[user.id] != null}">
+                                    <span class="badge text-bg-info"
+                                          th:text="${contactByUserId[user.id].customer?.companyName}"></span>
+                                    <form th:action="@{/intra/users/{id}/unlink-customer(id=${user.id})}"
+                                          method="post" class="d-inline ms-1">
+                                        <button type="submit" class="btn btn-link btn-sm p-0 text-muted"
+                                                title="Supprimer la liaison"
+                                                onclick="return confirm('Supprimer la liaison avec ce client ?')">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <!-- Utilisateur interne sans contact — bouton pour lier -->
+                                <div th:if="${user.customerId == null and contactByUserId[user.id] == null}">
+                                    <span class="badge text-bg-primary me-1">
+                                        <i class="fas fa-building me-1"></i>Équipe ESN
+                                    </span>
+                                    <button class="btn btn-link btn-sm p-0 text-muted"
+                                            title="Lier à un client"
+                                            th:attr="data-user-id=${user.id}, data-user-name=${user.fullName}"
+                                            onclick="openLinkModal(this)">
+                                        <i class="fas fa-link"></i>
+                                    </button>
+                                </div>
+                            </td>
+
+                            <!-- Équipes -->
+                            <td>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <span th:each="team : ${userTeams[user.id]}"
+                                          class="badge text-bg-light border text-dark small"
+                                          th:text="${team}"></span>
+                                    <span th:if="${userTeams[user.id] == null or userTeams[user.id].isEmpty()}"
+                                          class="text-muted small">—</span>
+                                </div>
+                            </td>
+
+                            <!-- Rôles -->
+                            <td>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <th:block th:each="role : ${user.roles}">
+                                        <span class="badge"
+                                              th:classappend="${role.type == 'ESN'} ? 'text-bg-primary' : 'text-bg-success'"
+                                              th:text="${role.label}"></span>
+                                    </th:block>
+                                    <span th:if="${user.roles == null or user.roles.isEmpty()}"
+                                          class="text-muted small">Aucun rôle</span>
+                                </div>
+                            </td>
+
+                            <!-- Statut -->
+                            <td>
+                                <span th:if="${user.active}"  class="badge text-bg-success">Actif</span>
+                                <span th:if="${!user.active}" class="badge text-bg-secondary">Inactif</span>
+                            </td>
+
+                            <!-- Actions -->
+                            <td class="text-end">
+                                <div class="d-flex gap-1 justify-content-end">
+                                    <span th:each="r : ${user.roles}"
+                                          class="user-role-id d-none"
+                                          th:attr="data-rid=${r.id}"></span>
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            th:attr="data-user-id=${user.id}, data-user-name=${user.fullName}"
+                                            onclick="openEditRoles(this)" title="Modifier les rôles">
+                                        <i class="fas fa-user-tag"></i>
+                                    </button>
+                                    <form th:action="@{/intra/users/{id}/toggle-active(id=${user.id})}" method="post" class="d-inline">
+                                        <button type="submit" class="btn btn-sm"
+                                                th:classappend="${user.active} ? 'btn-outline-warning' : 'btn-outline-success'"
+                                                th:title="${user.active} ? 'Désactiver' : 'Activer'">
+                                            <i class="fas" th:classappend="${user.active} ? 'fa-ban' : 'fa-check'"></i>
+                                        </button>
+                                    </form>
+                                    <form th:action="@{/intra/users/{id}/reset-password(id=${user.id})}" method="post" class="d-inline"
+                                          onsubmit="return confirm('Réinitialiser le mot de passe ?')">
+                                        <button type="submit" class="btn btn-sm btn-outline-info" title="Réinitialiser le MDP">
+                                            <i class="fas fa-key"></i>
+                                        </button>
+                                    </form>
+                                    <form th:if="${isAdmin}"
+                                          th:action="@{/intra/users/{id}/delete(id=${user.id})}" method="post" class="d-inline"
+                                          onsubmit="return confirm('Supprimer définitivement cet utilisateur ?')">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Supprimer">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Modal : Lier à un client ──────────────────────────────────────── -->
+    <div class="modal fade" id="modalLinkCustomer" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <form id="formLinkCustomer" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-link me-2"></i>Lier à un client</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted small mb-3">
+                            <span id="linkUserName" class="fw-semibold"></span> apparaîtra comme contact de ce client.
+                        </p>
+                        <label class="form-label">Client / ESN</label>
+                        <select name="customerId" class="form-select" required>
+                            <option value="">— Sélectionner —</option>
+                            <option th:each="c : ${allCustomers}"
+                                    th:value="${c.id}"
+                                    th:text="${c.companyName}"></option>
+                        </select>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Lier</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Modal : Édition des rôles ─────────────────────────────────────── -->
+    <div class="modal fade" id="modalEditRoles" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="formEditRoles" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-user-tag me-2"></i>Rôles de <span id="editUserName"></span></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="fw-semibold text-primary mb-2"><i class="fas fa-building me-1"></i>Rôles internes (ESN)</p>
+                        <div class="row g-2 mb-3">
+                            <div th:each="role : ${esnRoles != null ? esnRoles : T(java.util.Collections).emptyList()}" class="col-6">
+                                <div class="form-check">
+                                    <input class="form-check-input role-check" type="checkbox"
+                                           th:id="'esn_' + ${role.id}" name="roleIds"
+                                           th:value="${role.id}" th:attr="data-role-id=${role.id}">
+                                    <label class="form-check-label" th:for="'esn_' + ${role.id}" th:text="${role.label}"></label>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="fw-semibold text-success mb-2"><i class="fas fa-user me-1"></i>Rôles portail (CLIENT)</p>
+                        <div class="row g-2">
+                            <div th:each="role : ${clientRoles != null ? clientRoles : T(java.util.Collections).emptyList()}" class="col-6">
+                                <div class="form-check">
+                                    <input class="form-check-input role-check" type="checkbox"
+                                           th:id="'cli_' + ${role.id}" name="roleIds"
+                                           th:value="${role.id}" th:attr="data-role-id=${role.id}">
+                                    <label class="form-check-label" th:for="'cli_' + ${role.id}" th:text="${role.label}"></label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Modal : Création utilisateur ──────────────────────────────────── -->
+    <div class="modal fade" id="modalCreate" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form action="/intra/users" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Nouvel utilisateur</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Nom complet</label>
+                            <input type="text" name="fullName" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" name="email" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Mot de passe</label>
+                            <input type="password" name="password" class="form-control" required minlength="8">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Rattacher comme contact de
+                                <span class="text-muted fw-normal">(optionnel)</span>
+                            </label>
+                            <select name="customerId" class="form-select">
+                                <option value="">— Aucun rattachement —</option>
+                                <option th:each="c : ${allCustomers}"
+                                        th:value="${c.id}"
+                                        th:text="${c.companyName}"></option>
+                            </select>
+                            <div class="form-text">L'utilisateur sera créé comme contact dans la fiche du client sélectionné.</div>
+                        </div>
+                        <hr>
+                        <p class="fw-semibold text-primary mb-2">Rôles internes (ESN)</p>
+                        <div class="row g-2 mb-3">
+                            <div th:each="role : ${esnRoles != null ? esnRoles : T(java.util.Collections).emptyList()}" class="col-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox"
+                                           th:id="'new_esn_' + ${role.id}" name="roleIds" th:value="${role.id}">
+                                    <label class="form-check-label" th:for="'new_esn_' + ${role.id}" th:text="${role.label}"></label>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="fw-semibold text-success mb-2">Rôles portail (CLIENT)</p>
+                        <div class="row g-2">
+                            <div th:each="role : ${clientRoles != null ? clientRoles : T(java.util.Collections).emptyList()}" class="col-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox"
+                                           th:id="'new_cli_' + ${role.id}" name="roleIds" th:value="${role.id}">
+                                    <label class="form-check-label" th:for="'new_cli_' + ${role.id}" th:text="${role.label}"></label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Créer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<th:block layout:fragment="script">
+<script>
+function openEditRoles(btn) {
+    const userId   = btn.dataset.userId;
+    const userName = btn.dataset.userName;
+    const cell = btn.closest('td');
+    const currentIds = Array.from(cell.querySelectorAll('.user-role-id')).map(s => s.dataset.rid);
+    document.getElementById('editUserName').textContent = userName;
+    document.getElementById('formEditRoles').action = '/intra/users/' + userId + '/roles';
+    document.querySelectorAll('.role-check').forEach(cb => {
+        cb.checked = currentIds.includes(cb.dataset.roleId);
+    });
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditRoles')).show();
+}
+
+function openLinkModal(btn) {
+    const userId   = btn.dataset.userId;
+    const userName = btn.dataset.userName;
+    document.getElementById('linkUserName').textContent = userName;
+    document.getElementById('formLinkCustomer').action = '/intra/users/' + userId + '/link-customer';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalLinkCustomer')).show();
+}
+</script>
+</th:block>
+</body>
+</html>

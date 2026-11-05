@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 fw-bold">Règles de prix</h1>
+            <small class="text-muted">Formule : <span class="font-monospace text-primary">(PA + marge fixe) × (1 + %/100)</span></small>
+        </div>
+        <a th:href="@{/intra/shop/products}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Boutique
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- Liste des règles -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-percent me-2 text-primary"></i>Règles configurées</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(rules)}" class="text-center py-5 text-muted">
+                        <i class="fas fa-percent fa-2x mb-3 d-block"></i>Aucune règle configurée.
+                    </div>
+                    <table th:unless="${#lists.isEmpty(rules)}" class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Nom</th>
+                            <th class="text-center">Marge fixe</th>
+                            <th class="text-center">Pourcentage</th>
+                            <th>Formule</th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="r : ${rules}">
+                            <td>
+                                <span class="fw-semibold" th:text="${r.name}"></span>
+                                <span th:if="${r.isDefault}" class="badge text-bg-success ms-2">
+                                    <i class="fas fa-star me-1"></i>Défaut
+                                </span>
+                            </td>
+                            <td class="text-center font-monospace small"
+                                th:text="${#numbers.formatDecimal(r.fixedMargin ?: 0, 1, 2)} + ' €'"></td>
+                            <td class="text-center font-monospace small"
+                                th:text="${#numbers.formatDecimal(r.percentage ?: 0, 1, 2)} + ' %'"></td>
+                            <td class="font-monospace small text-primary" th:text="${r.summary}"></td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary"
+                                        data-bs-toggle="modal" data-bs-target="#editRuleModal"
+                                        th:onclick="openEditRule(this)"
+                                        th:data-id="${r.id}"
+                                        th:data-name="${r.name}"
+                                        th:data-fixed-margin="${r.fixedMargin ?: 0}"
+                                        th:data-percentage="${r.percentage ?: 0}"
+                                        th:data-is-default="${r.isDefault}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </td>
+                            <td class="pe-3">
+                                <div class="d-flex gap-1 justify-content-end">
+                                    <form th:unless="${r.isDefault}"
+                                          th:action="@{/intra/shop/pricing-rules/{id}/set-default(id=${r.id})}"
+                                          method="post">
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                                title="Définir par défaut">
+                                            <i class="fas fa-star"></i>
+                                        </button>
+                                    </form>
+                                    <form th:action="@{/intra/shop/pricing-rules/{id}/delete(id=${r.id})}"
+                                          method="post"
+                                          onsubmit="return confirm('Supprimer cette règle ?')">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Formulaire création -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-plus me-2 text-success"></i>Nouvelle règle</h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/intra/shop/pricing-rules}" method="post">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Nom <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" required
+                                   placeholder="ex : PA+20 marge 30%">
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Marge fixe (€)</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" name="fixedMargin" class="form-control"
+                                           step="0.01" min="0" value="0"
+                                           id="newFixedMargin">
+                                    <span class="input-group-text">€</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Pourcentage (%)</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" name="percentage" class="form-control"
+                                           step="0.01" min="0" value="0"
+                                           id="newPercentage">
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3 p-2 bg-light rounded small font-monospace text-primary" id="newPreview">
+                            Aperçu : PA + 0 € (× 1)
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="isDefault"
+                                       id="isDefault" value="true">
+                                <label class="form-check-label small" for="isDefault">
+                                    Règle par défaut
+                                </label>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-plus me-1"></i>Créer la règle
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mt-3">
+                <div class="card-body">
+                    <h6 class="fw-semibold small mb-2">
+                        <i class="fas fa-info-circle me-1 text-info"></i>Formule
+                    </h6>
+                    <p class="font-monospace text-primary small mb-2">Prix HT = (PA + marge) × (1 + %/100)</p>
+                    <ul class="small text-muted ps-3 mb-0">
+                        <li class="mb-1">Marge 0 € + 30% → <code>PA × 1,30</code></li>
+                        <li class="mb-1">Marge 10 € + 0% → <code>PA + 10 €</code></li>
+                        <li>Marge 20 € + 30% → <code>(PA + 20 €) × 1,30</code></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Modifier -->
+    <div class="modal fade" id="editRuleModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form id="editRuleForm" method="post">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-semibold">Modifier la règle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Nom</label>
+                        <input type="text" id="eName" name="name" class="form-control" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Marge fixe (€)</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" id="eFixedMargin" name="fixedMargin"
+                                       class="form-control" step="0.01" min="0">
+                                <span class="input-group-text">€</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Pourcentage (%)</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" id="ePercentage" name="percentage"
+                                       class="form-control" step="0.01" min="0">
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3 p-2 bg-light rounded small font-monospace text-primary" id="editPreview">
+                        Aperçu : —
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="eIsDefault" name="isDefault" value="true">
+                        <label class="form-check-label small" for="eIsDefault">Règle par défaut</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+            </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script>
+function formatPreview(margin, pct) {
+    margin = parseFloat(margin) || 0;
+    pct    = parseFloat(pct)    || 0;
+    const coeff = (1 + pct / 100).toFixed(pct === 0 ? 0 : 2);
+    if (margin !== 0 && pct !== 0) {
+        return '(PA + ' + margin.toFixed(2) + ' €) × ' + coeff;
+    } else if (margin !== 0) {
+        return 'PA + ' + margin.toFixed(2) + ' €';
+    } else if (pct !== 0) {
+        return 'PA × ' + coeff + ' (' + pct.toFixed(2) + '%)';
+    } else {
+        return 'PA (aucune marge)';
+    }
+}
+
+// Aperçu en temps réel — formulaire création
+(function() {
+    const mInput = document.getElementById('newFixedMargin');
+    const pInput = document.getElementById('newPercentage');
+    const preview = document.getElementById('newPreview');
+    function update() { preview.textContent = 'Aperçu : ' + formatPreview(mInput.value, pInput.value); }
+    mInput.addEventListener('input', update);
+    pInput.addEventListener('input', update);
+    update();
+})();
+
+// Aperçu en temps réel — modal édition
+(function() {
+    const mInput = document.getElementById('eFixedMargin');
+    const pInput = document.getElementById('ePercentage');
+    const preview = document.getElementById('editPreview');
+    function update() { if (preview) preview.textContent = 'Aperçu : ' + formatPreview(mInput.value, pInput.value); }
+    mInput.addEventListener('input', update);
+    pInput.addEventListener('input', update);
+})();
+
+function openEditRule(btn) {
+    document.getElementById('editRuleForm').action = '/intra/shop/pricing-rules/' + btn.dataset.id + '/update';
+    document.getElementById('eName').value         = btn.dataset.name        || '';
+    document.getElementById('eFixedMargin').value  = btn.dataset.fixedMargin || '0';
+    document.getElementById('ePercentage').value   = btn.dataset.percentage  || '0';
+    document.getElementById('eIsDefault').checked  = btn.dataset.isDefault === 'true';
+    const preview = document.getElementById('editPreview');
+    if (preview) preview.textContent = 'Aperçu : ' + formatPreview(btn.dataset.fixedMargin, btn.dataset.percentage);
+}
+</script>
+</th:block>
+</body>
+</html>

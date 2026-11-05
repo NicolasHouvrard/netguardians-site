@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Qonto — Import comptable</title></head>
+<body>
+<div layout:fragment="content">
+    <!-- Page header -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="mb-1 fw-bold">
+                <i class="fas fa-landmark me-2" style="color:#0E6FFF;"></i>
+                Intégration Qonto
+                <span th:if="${anyConfigured}" class="badge text-bg-success ms-2 fs-6 align-middle">
+                    <i class="fas fa-check me-1"></i>Configuré
+                </span>
+                <span th:unless="${anyConfigured}" class="badge text-bg-warning ms-2 fs-6 align-middle text-dark">
+                    <i class="fas fa-triangle-exclamation me-1"></i>Non configuré
+                </span>
+            </h2>
+            <div class="text-muted small mt-1">Import automatique des transactions Qonto vers le plan comptable PCG</div>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-sm" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#addAccountForm">
+                <i class="fas fa-plus me-1"></i>Ajouter un compte
+            </button>
+            <a href="/intra/accounting" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>Comptabilité
+            </a>
+        </div>
+    </div>
+
+    <!-- Flash messages -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-circle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- ── Add new account (collapsed by default) ─────────────────────────── -->
+    <div class="collapse mb-4" id="addAccountForm">
+        <div class="card border-0 shadow-sm border-start border-4 border-primary">
+            <div class="card-header bg-white border-0 pt-3 pb-2">
+                <h6 class="fw-bold mb-0"><i class="fas fa-plus-circle me-2 text-primary"></i>Nouveau compte Qonto</h6>
+            </div>
+            <div class="card-body">
+                <form method="post" action="/intra/accounting/qonto/config/save">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Libellé interne</label>
+                            <input type="text" name="label" class="form-control" placeholder="Compte principal" value="Compte principal">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Slug organisation</label>
+                            <input type="text" name="organizationSlug" class="form-control" placeholder="ma-societe-123">
+                            <div class="form-text">Visible dans l'URL Qonto</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Clé secrète</label>
+                            <input type="password" name="secretKey" class="form-control" placeholder="••••••••" autocomplete="new-password">
+                            <div class="form-text text-warning"><i class="fas fa-lock me-1"></i>Chiffré AES-256 en base.</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">IBAN du compte</label>
+                            <input type="text" name="iban" class="form-control font-monospace" placeholder="FR76...">
+                            <div class="form-text">Vide = tous les comptes</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">Libellé PCG du compte</label>
+                            <input type="text" name="bankAccountLabel" class="form-control" placeholder="512100 — Qonto">
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Créer le compte
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary ms-2"
+                                    data-bs-toggle="collapse" data-bs-target="#addAccountForm">
+                                Annuler
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Accounts list ──────────────────────────────────────────────────── -->
+    <div th:if="${#lists.isEmpty(configs)}" class="alert alert-warning">
+        <i class="fas fa-triangle-exclamation me-2"></i>
+        Aucun compte Qonto configuré. Cliquez sur <strong>Ajouter un compte</strong> pour commencer.
+    </div>
+
+    <div th:each="cfg, stat : ${configs}" class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-3">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <!-- Status icon -->
+                <div class="rounded-circle d-flex align-items-center justify-content-center"
+                     style="width:42px;height:42px;background:#0E6FFF22;">
+                    <i class="fas fa-landmark" style="color:#0E6FFF;"></i>
+                </div>
+
+                <!-- Info -->
+                <div class="flex-grow-1">
+                    <div class="fw-semibold" th:text="${cfg.label != null ? cfg.label : 'Compte Qonto'}"></div>
+                    <div class="text-muted small">
+                        <span th:if="${cfg.organizationSlug != null}"
+                              th:text="'Slug : ' + ${cfg.organizationSlug}"></span>
+                        <span th:if="${cfg.iban != null and !cfg.iban.isBlank()}"
+                              class="ms-3 font-monospace"
+                              th:text="'IBAN : ' + ${cfg.iban}"></span>
+                        <span th:if="${cfg.bankAccountLabel != null and !cfg.bankAccountLabel.isBlank()}"
+                              class="ms-3"
+                              th:text="'PCG : ' + ${cfg.bankAccountLabel}"></span>
+                    </div>
+                </div>
+
+                <!-- Status badge -->
+                <span th:if="${cfg.isConfigured()}" class="badge text-bg-success">
+                    <i class="fas fa-check me-1"></i>Configuré
+                </span>
+                <span th:unless="${cfg.isConfigured()}" class="badge text-bg-warning text-dark">
+                    <i class="fas fa-triangle-exclamation me-1"></i>Incomplet
+                </span>
+
+                <!-- Per-account sync form -->
+                <form method="post" action="/intra/accounting/qonto/sync" class="d-flex gap-2 align-items-center">
+                    <input type="hidden" name="configId" th:value="${cfg.id}">
+                    <select name="days" class="form-select form-select-sm" style="width:auto;">
+                        <option value="7">7 j</option>
+                        <option value="14">14 j</option>
+                        <option value="30" selected>30 j</option>
+                        <option value="60">60 j</option>
+                        <option value="90">90 j</option>
+                        <option value="180">180 j</option>
+                        <option value="ytd">Depuis le 1er jan.</option>
+                        <option value="365">1 an</option>
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-primary" th:disabled="${!cfg.isConfigured()}">
+                        <i class="fas fa-sync me-1"></i>Synchroniser
+                    </button>
+                </form>
+
+                <!-- Edit toggle -->
+                <button class="btn btn-sm btn-outline-secondary"
+                        type="button" data-bs-toggle="collapse"
+                        th:data-bs-target="'#editForm' + ${cfg.id}">
+                    <i class="fas fa-edit me-1"></i>Modifier
+                </button>
+
+                <!-- Delete -->
+                <form method="post" th:action="@{/intra/accounting/qonto/config/{id}/delete(id=${cfg.id})}"
+                      onsubmit="return confirm('Supprimer ce compte Qonto ?');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Edit form (collapsed) -->
+            <div class="collapse mt-3" th:id="'editForm' + ${cfg.id}">
+                <hr class="my-2">
+                <form method="post" action="/intra/accounting/qonto/config/save">
+                    <input type="hidden" name="configId" th:value="${cfg.id}">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Libellé interne</label>
+                            <input type="text" name="label" class="form-control"
+                                   th:value="${cfg.label}" placeholder="Compte principal">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Slug organisation</label>
+                            <input type="text" name="organizationSlug" class="form-control"
+                                   th:value="${cfg.organizationSlug}" placeholder="ma-societe-123">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Clé secrète</label>
+                            <input type="password" name="secretKey" class="form-control"
+                                   placeholder="Laissez vide pour conserver la clé actuelle" autocomplete="new-password">
+                            <div class="form-text text-warning"><i class="fas fa-lock me-1"></i>Chiffré AES-256. Vide = inchangé.</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">IBAN du compte</label>
+                            <input type="text" name="iban" class="form-control font-monospace"
+                                   th:value="${cfg.iban}" placeholder="FR76...">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">Libellé PCG</label>
+                            <input type="text" name="bankAccountLabel" class="form-control"
+                                   th:value="${cfg.bankAccountLabel}" placeholder="512100 — Qonto">
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-save me-2"></i>Sauvegarder
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm ms-2"
+                                    data-bs-toggle="collapse"
+                                    th:data-bs-target="'#editForm' + ${cfg.id}">
+                                Annuler
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="row g-3 mb-4 mt-2">
+        <div class="col-sm-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-5 border-success">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                        <i class="fas fa-check-circle text-success fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-2 fw-bold text-success" th:text="${countImported}">0</div>
+                        <div class="text-muted small">Importées</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-5 border-warning">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3">
+                        <i class="fas fa-forward text-warning fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-2 fw-bold text-warning" th:text="${countSkipped}">0</div>
+                        <div class="text-muted small">Ignorées</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-5 border-danger">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-danger bg-opacity-10 p-3">
+                        <i class="fas fa-times-circle text-danger fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-2 fw-bold text-danger" th:text="${countErrors}">0</div>
+                        <div class="text-muted small">Erreurs</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mappings card -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0"><i class="fas fa-sitemap me-2 text-secondary"></i>Correspondances comptables</h6>
+        </div>
+        <div class="card-body pb-2">
+            <p class="text-muted small mb-3">
+                La clé est au format <code>operationType:side</code>.
+                Ex&nbsp;: <code>income:credit</code> = virement reçu,&nbsp;
+                <code>transfer:debit</code> = virement émis,&nbsp;
+                <code>card:debit</code> = dépense carte.
+            </p>
+        </div>
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(mappings)}" class="text-center py-4 text-muted">
+                <i class="fas fa-sitemap fa-2x mb-2 d-block"></i>
+                Aucun mapping configuré. Redémarrez l'application pour initialiser les mappings par défaut.
+            </div>
+            <div class="table-responsive" th:unless="${#lists.isEmpty(mappings)}">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Clé</th>
+                        <th>Libellé</th>
+                        <th>Compte débit</th>
+                        <th>Compte crédit</th>
+                        <th class="text-center">Actif</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="mapping : ${mappings}">
+                        <form method="post" action="/intra/accounting/qonto/mappings/save">
+                            <input type="hidden" name="id" th:value="${mapping.id}">
+                            <td>
+                                <code class="small" th:text="${mapping.mappingKey}"></code>
+                            </td>
+                            <td class="text-muted small" th:text="${mapping.label}"></td>
+                            <td>
+                                <select name="debitAccountNumber" class="form-select form-select-sm" style="min-width:190px;">
+                                    <optgroup label="Classe 1 — Capitaux">
+                                        <th:block th:each="acc : ${accounts}" th:if="${acc.number.startsWith('1')}">
+                                            <option th:value="${acc.number}"
+                                                    th:text="${acc.number + ' — ' + acc.label}"
+                                                    th:selected="${acc.number == mapping.debitAccountNumber}"></option>
+                                        </th:block>
+                                    </optgroup>
+                                    <optgroup label="Classe 2 — Immobilisations">
+                                        <th:block th:each="acc : ${accounts}" th:if="${acc.number.startsWith('2')}">
+                                            <option th:value="${acc.number}"
+                                                    th:text="${acc.number + ' — ' + acc.label}"
+                                                    th:selected="${acc.number == mapping.debitAccountNumber}"></option>
+                                        </th:block>
+                                    </optgroup>
+                                    <optgroup label="Classe 4 — Tiers">
+                                        <th:block th:each="acc : ${accounts}" th:if="${acc.number.startsWith('4')}">
+                                            <option th:value="${acc.number}"
+                                                    th:text="${acc.number + ' — ' + acc.label}"
+                                                    th:selected="${acc.number == mapping.debitAccountNumber}"></option>
+                                        </th:block>
+                                    </optgroup>
+                                    <optgroup label="Classe 5 — Trésorerie">
+                                        <th:block th:each="acc : ${accounts}" th:if="${acc.number.startsWith('5')}">
+                                            <option th:value="${acc.number}"
+                                                    th:text="${acc.number + ' — ' + acc.label}"
+                                                    th:selected="${acc.number == mapping.debitAccountNumber}"></option>
+                                        </th:block>
+                                    </optgroup>
+                                    <optgroup label="Classe 6 — Charges">
+                                        <th:block th:each="acc : ${accounts}" th:if="${acc.number.startsWith('6')}">
+                                            <option th:value="${acc.number}"
+                                                    th:text="${acc.number + ' — ' + acc.label}"
+                                                    th:selected="${acc.number == mapping.debitAccountNumber}"></option>
+                                        </th:block>
+                                    </optgroup>
+                                    <optgroup label="Classe 7 — Produits">
+                                        <th:block th:each="acc : ${accounts}" th:if="${acc.number.startsWith('7')}">
+                                            <option th:value="${acc.number}"
+                                                    th:text="${acc.number + ' — ' + acc.label}"
+                                                    th:selected="${acc.number == mapping.debitAccountNumber}"></option>
+                                        </th:block>
+                                    </optgroup>
+                                </select>
+                            </td>
+                            <td>
+                                <select name="creditAccountNumber" class="form-select form-select-sm" style="min-width:190px;">
+                                    <optgroup label="Classe 1 — Capitaux">
+                                        <th:block th:each="acc : ${accounts}" th:if="${acc.number.startsWith('1')}">
+                                            <option th:value="${acc.number}"
+                                                    th:text="${acc.number + ' — ' + acc.label}"
+                                                    th:selected="${acc.number == mapping.creditAccountNumber}"></option>
+                                        </th:block>
+                                    </optgroup>
+                                    <optgroup label="Classe 2 — Immobilisations">
+                                        <th:block th:each="acc : ${accounts}" th:if="${acc.number.startsWith('2')}">
+                                            <option th:value="${acc.number}"
+                                                    th:text="${acc.number + ' — ' + acc.label}"
+                                                    th:selected="${acc.number == mapping.creditAccountNumber}"></option>
+                                        </th:block>
+                                    </optgroup>
+                                    <optgroup label="Classe 4 — Tiers">
+                                        <th:block th:each="acc : ${accounts}" th:if="${acc.number.startsWith('4')}">
+                                            <option th:value="${acc.number}"
+                                                    th:text="${acc.number + ' — ' + acc.label}"
+                                                    th:selected="${acc.number == mapping.creditAccountNumber}"></option>
+                                        </th:block>
+                                    </optgroup>
+                                    <optgroup label="Classe 5 — Trésorerie">
+                                        <th:block th:each="acc : ${accounts}" th:if="${acc.number.startsWith('5')}">
+                                            <option th:value="${acc.number}"
+                                                    th:text="${acc.number + ' — ' + acc.label}"
+                                                    th:selected="${acc.number == mapping.creditAccountNumber}"></option>
+                                        </th:block>
+                                    </optgroup>
+                                    <optgroup label="Classe 6 — Charges">
+                                        <th:block th:each="acc : ${accounts}" th:if="${acc.number.startsWith('6')}">
+                                            <option th:value="${acc.number}"
+                                                    th:text="${acc.number + ' — ' + acc.label}"
+                                                    th:selected="${acc.number == mapping.creditAccountNumber}"></option>
+                                        </th:block>
+                                    </optgroup>
+                                    <optgroup label="Classe 7 — Produits">
+                                        <th:block th:each="acc : ${accounts}" th:if="${acc.number.startsWith('7')}">
+                                            <option th:value="${acc.number}"
+                                                    th:text="${acc.number + ' — ' + acc.label}"
+                                                    th:selected="${acc.number == mapping.creditAccountNumber}"></option>
+                                        </th:block>
+                                    </optgroup>
+                                </select>
+                            </td>
+                            <td class="text-center">
+                                <div class="form-check form-switch d-flex justify-content-center mb-0">
+                                    <input class="form-check-input" type="checkbox" name="active"
+                                           th:checked="${mapping.active}">
+                                </div>
+                            </td>
+                            <td>
+                                <button type="submit" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-save me-1"></i>Sauvegarder
+                                </button>
+                            </td>
+                        </form>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent transactions -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+            <h6 class="fw-bold mb-0"><i class="fas fa-history me-2 text-secondary"></i>50 dernières transactions</h6>
+            <span class="badge text-bg-secondary" th:text="${#lists.size(transactions)} + ' transactions'"></span>
+        </div>
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(transactions)}" class="text-center py-5 text-muted">
+                <i class="fas fa-landmark fa-2x mb-3 d-block" style="color:#0E6FFF;opacity:.3;"></i>
+                Aucune transaction importée pour l'instant.
+            </div>
+            <div class="table-responsive" th:unless="${#lists.isEmpty(transactions)}">
+                <table class="table table-hover table-sm align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Qonto ID</th>
+                        <th>Opération</th>
+                        <th class="text-center">Sens</th>
+                        <th>Description</th>
+                        <th class="text-end">Montant</th>
+                        <th class="text-center">Statut</th>
+                        <th>Écriture</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="tx : ${transactions}">
+                        <td class="small text-muted text-nowrap"
+                            th:text="${tx.settledAt != null ? #temporals.format(tx.settledAt, 'dd/MM/yyyy') : #temporals.format(tx.importedAt, 'dd/MM/yyyy')}"></td>
+                        <td>
+                            <code class="small text-muted"
+                                  th:text="${#strings.abbreviate(tx.qontoId, 24)}"
+                                  th:title="${tx.qontoId}"></code>
+                        </td>
+                        <td>
+                            <span class="badge text-bg-light text-dark border small font-monospace"
+                                  th:text="${tx.operationType}"></span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge"
+                                  th:classappend="${tx.side == 'credit' ? 'text-bg-success' : 'text-bg-danger'}"
+                                  th:text="${tx.side}"></span>
+                        </td>
+                        <td class="small text-muted" th:text="${tx.label != null ? tx.label : (tx.reference != null ? tx.reference : '—')}"></td>
+                        <td class="text-end fw-semibold text-nowrap">
+                            <span th:text="${tx.amount != null ? #numbers.formatDecimal(tx.amount, 1, 2) : '—'}"></span>
+                            <span class="text-uppercase small text-muted" th:text="${tx.currency}"></span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge"
+                                  th:classappend="${tx.importStatus == 'IMPORTED' ? 'text-bg-success' : (tx.importStatus == 'ERROR' ? 'text-bg-danger' : 'text-bg-warning')}"
+                                  th:text="${tx.importStatus}"></span>
+                        </td>
+                        <td>
+                            <a th:if="${tx.accountingEntryId != null}"
+                               th:href="@{/intra/accounting/entries/{id}(id=${tx.accountingEntryId})}"
+                               class="btn btn-sm btn-outline-secondary py-0">
+                                <i class="fas fa-book-open me-1"></i>Voir
+                            </a>
+                            <span th:if="${tx.accountingEntryId == null}" class="text-muted small"
+                                  th:title="${tx.errorMessage}">—</span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<th:block layout:fragment="scripts">
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var tooltipEls = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipEls.forEach(function (el) { new bootstrap.Tooltip(el); });
+});
+</script>
+</th:block>
+</body>
+</html>

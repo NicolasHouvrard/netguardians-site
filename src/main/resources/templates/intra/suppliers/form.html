@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Nouveau fournisseur</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/intra/suppliers" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0">
+            <i class="fas fa-truck me-2 text-secondary"></i>Nouveau fournisseur
+        </h4>
+    </div>
+
+    <form th:action="@{/intra/suppliers}" method="post">
+        <div class="row g-4">
+
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-0 pt-3 pb-2">
+                        <h6 class="fw-bold mb-0"><i class="fas fa-info-circle me-2 text-secondary"></i>Informations générales</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Nom <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" required
+                                   placeholder="Nom du fournisseur (ex : Ingram Micro France)">
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Email</label>
+                                <input type="email" name="email" class="form-control"
+                                       placeholder="contact@fournisseur.fr">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Téléphone</label>
+                                <input type="text" name="phone" class="form-control"
+                                       placeholder="01 23 45 67 89">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Site web</label>
+                            <input type="url" name="website" class="form-control"
+                                   placeholder="https://www.fournisseur.fr">
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label fw-semibold">Adresse</label>
+                            <textarea name="address" class="form-control" rows="3"
+                                      placeholder="Adresse complète..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section API -->
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0 pt-3 pb-2">
+                        <h6 class="fw-bold mb-0"><i class="fas fa-plug me-2 text-secondary"></i>Synchronisation API</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Type d'API</label>
+                            <select name="apiType" class="form-select" id="apiTypeSelect">
+                                <option th:each="t : ${apiTypes}"
+                                        th:value="${t.name()}"
+                                        th:text="${t.label}"></option>
+                            </select>
+                        </div>
+                        <div id="apiFields" style="display:none">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Client ID / Identifiant</label>
+                                <input type="text" name="apiClientId" class="form-control"
+                                       placeholder="Identifiant client API">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Clé API / Secret</label>
+                                <textarea name="apiKey" class="form-control" rows="3"
+                                          placeholder="Clé API, token ou secret..."></textarea>
+                            </div>
+                            <div id="apiUrlField" class="mb-0" style="display:none">
+                                <label class="form-label fw-semibold">URL de l'API</label>
+                                <input type="url" name="apiUrl" class="form-control"
+                                       placeholder="https://api.fournisseur.fr/v1">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="alert alert-info small mb-0">
+                            <i class="fas fa-info-circle me-1"></i>
+                            La synchronisation API permet d'importer automatiquement les prix et disponibilités
+                            depuis les distributeurs compatibles (Ingram Micro, Tech Data).
+                        </div>
+                    </div>
+                </div>
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Créer le fournisseur
+                    </button>
+                    <a href="/intra/suppliers" class="btn btn-outline-secondary">Annuler</a>
+                </div>
+            </div>
+
+        </div>
+    </form>
+
+</div>
+<th:block layout:fragment="script">
+<script>
+(function() {
+    var sel         = document.getElementById('apiTypeSelect');
+    var apiFields   = document.getElementById('apiFields');
+    var apiUrlField = document.getElementById('apiUrlField');
+    function updateVisibility() {
+        var val = sel ? sel.value : 'NONE';
+        if (apiFields)   apiFields.style.display   = (val && val !== 'NONE') ? '' : 'none';
+        if (apiUrlField) apiUrlField.style.display  = (val === 'CUSTOM')     ? '' : 'none';
+    }
+    if (sel) { sel.addEventListener('change', updateVisibility); updateVisibility(); }
+})();
+</script>
+</th:block>
+</body>
+</html>

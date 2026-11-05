@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+    Fragment rétrocompat (sections dropdown) — conservé pour les autres templates.
+-->
+<ul th:fragment="sections" class="navbar-nav flex-wrap gap-1 w-100 align-items-center">
+    <li th:each="section : ${intraSections != null ? intraSections : T(java.util.Collections).emptyList()}"
+        class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" href="#" role="button"
+           data-bs-toggle="dropdown" aria-expanded="false"
+           th:text="${section.category}">Menu</a>
+        <ul class="dropdown-menu" th:if="${section.modules != null}">
+            <li th:each="m : ${section.modules}">
+                <a class="dropdown-item"
+                   th:href="${m.url}"
+                   th:classappend="${currentUri != null and currentUri.startsWith(m.url) ? ' active' : ''}">
+                    <i th:class="${m.icon} + ' me-2'"></i>
+                    <span th:text="${m.title}"></span>
+                </a>
+            </li>
+        </ul>
+    </li>
+</ul>
+
+<!--
+    Sous-nav de dashboard : affiche les modules d'une catégorie AdminModule donnée.
+    Usage : th:replace="~{intra/nav :: dashboard-subnav(categoryName='Commercial')}"
+-->
+<nav th:fragment="dashboard-subnav(categoryName)"
+     class="bg-white border-bottom px-4 py-2 d-flex align-items-center gap-1 flex-wrap">
+    <th:block th:each="section : ${intraSections != null ? intraSections : T(java.util.Collections).emptyList()}">
+        <th:block th:if="${#strings.equalsIgnoreCase(section.category, categoryName)}">
+            <a th:each="m : ${section.modules}"
+               th:href="${m.url}"
+               class="btn btn-sm btn-light text-dark me-1 my-1"
+               th:classappend="${currentUri != null and currentUri.startsWith(m.url) ? ' active border-primary text-primary fw-semibold' : ''}">
+                <i th:class="${m.icon} + ' me-1'" th:style="'color:' + ${m.color}"></i>
+                <span th:text="${m.title}"></span>
+            </a>
+        </th:block>
+    </th:block>
+    <small th:if="${intraSections == null or intraSections.isEmpty()}"
+           class="text-muted fst-italic small">
+        Aucun module configuré pour cette section —
+        <a href="/feature/modules" class="ms-1 text-primary">Configurer les modules →</a>
+    </small>
+</nav>
+
+</body>
+</html>

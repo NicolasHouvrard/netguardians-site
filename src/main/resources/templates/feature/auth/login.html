@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" 
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+       layout:decorate="~{layout}">  
+<head>
+    <title>Connexion</title>
+    <th:block th:if="${captchaEnabled}">
+        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    </th:block>
+</head>
+<body>
+    <section layout:fragment="content">
+        <div class="row justify-content-center align-items-center" style="min-height: 80vh;">
+            <div class="col-md-4">
+                <div class="card shadow border-0 p-4">
+                    <h2 class="text-center mb-4">Connexion</h2>
+                    
+                    <div th:if="${param.error != null and param.error[0] == 'captcha'}" class="alert alert-danger">
+                        <i class="fas fa-shield-halved me-1"></i>
+                        Vérification anti-robot échouée. Veuillez réessayer.
+                    </div>
+                    <div th:if="${param.error != null and param.error[0] != 'captcha'}" class="alert alert-danger">
+                        <div th:if="${oauthError != null}" th:text="${oauthError}"></div>
+                        <div th:if="${oauthError == null}">Identifiants incorrects ou compte non activé.</div>
+                        <div class="mt-2 small" th:if="${oauthError == null}">Si vous venez de vous inscrire, vérifiez l'email de confirmation reçu.</div>
+                    </div>
+                    <div th:if="${param.verified}" class="alert alert-success">
+                        <i class="fas fa-check-circle me-1"></i>
+                        Votre adresse email a été confirmée. Vous pouvez vous connecter.
+                    </div>
+
+                    <form th:action="@{/login}" method="post">
+                        <div class="mb-3">
+                            <label class="form-label">Identifiant</label>
+                            <input type="text" name="username" class="form-control" required autofocus>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Mot de passe</label>
+                            <input type="password" name="password" class="form-control" required>
+                        </div>
+                        <div class="mb-3 form-check">
+        <input type="checkbox" class="form-check-input" id="rememberMe" name="remember-me">
+        <label class="form-check-label" for="rememberMe">Se souvenir de moi</label>
+    </div>
+                        <div th:if="${captchaEnabled}" class="mb-3">
+                            <div class="cf-turnstile"
+                                 th:attr="data-sitekey=${captchaSiteKey}"
+                                 data-theme="light"></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Se connecter</button>
+                    </form>
+                    <div class="text-center mt-3">
+                        <a href="/reset-password" class="text-muted small">Mot de passe oublié ?</a>
+                    </div>
+                    <div th:if="${param.reset}" class="alert alert-success mt-3 mb-0">
+                        Votre mot de passe a été réinitialisé. Vous pouvez vous connecter.
+                    </div>
+
+                    <!-- Social login -->
+                    <div th:if="${googleEnabled or microsoftEnabled}">
+                        <div class="position-relative my-4">
+                            <hr>
+                            <span class="position-absolute top-50 start-50 translate-middle bg-white px-2 text-muted"
+                                  style="font-size:.8rem">ou continuer avec</span>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <a th:if="${googleEnabled}" href="/oauth2/authorization/google"
+                               class="btn btn-outline-secondary d-flex align-items-center justify-content-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 48 48">
+                                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                                </svg>
+                                Continuer avec Google
+                            </a>
+                            <a th:if="${microsoftEnabled}" href="/oauth2/authorization/microsoft"
+                               class="btn btn-outline-secondary d-flex align-items-center justify-content-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 23 23">
+                                    <rect x="1"  y="1"  width="10" height="10" fill="#F35325"/>
+                                    <rect x="12" y="1"  width="10" height="10" fill="#81BC06"/>
+                                    <rect x="1"  y="12" width="10" height="10" fill="#05A6F0"/>
+                                    <rect x="12" y="12" width="10" height="10" fill="#FFBA08"/>
+                                </svg>
+                                Continuer avec Microsoft
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</body>
+</html>

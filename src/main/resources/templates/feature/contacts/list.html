@@ -1,0 +1,53 @@
+<div th:fragment="list-contact">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                Contacts rattachés à l'entreprise (<span th:text="${#lists.size(customer.contacts)}">0</span>)
+            </h6>
+            <a th:href="@{/intra/customers/{id}/contacts/add(id=${customer.id})}" 
+               class="btn btn-primary btn-sm shadow-sm">
+                <i class="fas fa-plus fa-sm"></i> Ajouter un contact
+            </a>
+        </div>
+        
+        <table class="table table-bordered table-hover" width="100%" cellspacing="0">
+            <thead class="table-light">
+                <tr>
+                    <th>Prénom / Nom</th>
+                    <th>Email</th>
+                    <th>Téléphone</th>
+                    <th>Poste</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="cnt : ${customer.contacts}">
+                    <td class="fw-bold" th:text="${cnt.firstName + ' ' + cnt.lastName}"></td>
+                    <td th:text="${cnt.email}"></td>
+                    <td th:text="${cnt.phone}"></td>
+                    <td th:text="${cnt.position}"></td>
+                    <td>
+                        <div class="btn-group">
+                            <a th:href="@{/intra/customers/{cId}/contacts/edit/{id}(cId=${customer.id}, id=${cnt.id})}" 
+                               class="btn btn-sm btn-outline-info">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a th:href="@{/intra/customers/{cId}/contacts/delete/{id}(cId=${customer.id}, id=${cnt.id})}" 
+                               class="btn btn-sm btn-outline-danger" 
+                               onclick="return confirm('Supprimer ce contact ?')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(customer.contacts)}">
+                    <td colspan="5" class="text-center py-4 text-muted">
+                        Aucun contact enregistré pour cette entreprise.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+   
+    
+</div>

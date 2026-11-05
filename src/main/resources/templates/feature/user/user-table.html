@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" 
+        xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+     
+ <head>
+    <title>Accueil</title>
+</head>     
+<body>
+    <section layout:fragment="content">
+       <div class="d-sm-flex align-items-center justify-content-between mb-4">
+            <h1 class="h3 mb-0 text-gray-800">Liste des Utilisateurs </h1>
+            <a th:href="@{/intra/customers/add}" class="btn btn-primary btn-sm shadow-sm">
+                <i class="fas fa-plus fa-sm text-white-50"></i> Nouveau Client 0 TRAITER
+            </a>
+        </div>
+        <div th:fragment="user-list" id="user-module">
+            
+            <div class="mb-3">
+                <input type="text" class="form-control w-25" placeholder="Filtrer les utilisateurs..."
+                    hx-get="/admin/users/search" hx-trigger="keyup changed delay:500ms" hx-target="#user-tbody">
+            </div>
+
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Utilisateur</th>
+                        <th>Rôles</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="user-tbody">
+                    <tr th:each="user : ${users}">
+                        <td>
+                            <div class="fw-bold" th:text="${user.fullName}">Nom</div>
+                            <small class="text-muted" th:text="${user.email}">email@test.com</small>
+                        </td>
+                        <td>
+                            <div class="d-flex gap-2">
+                                <div th:each="role : ${allRoles}" class="form-check form-check-inline">
+                                    
+                                    <input class="form-check-input" type="checkbox"
+                                        th:checked="${user.roles != null && user.roles.contains(role)}"
+                                        th:hx-post="|/admin/users/${user.id}/roles/${role.id}|"
+                                        
+                                        hx-trigger="click"
+                                        >
+                                    <label class="form-check-label small" th:text="${role.name}">ROLE</label>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-danger" 
+                                    th:hx-delete="'/admin/users/' + ${user.id}"
+                                    hx-confirm="Êtes-vous sûr ?">
+                                Supprimer
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </section>
+</body>
+</html>

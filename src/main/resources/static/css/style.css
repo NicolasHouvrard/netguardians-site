@@ -1,0 +1,164 @@
+ body { display: flex;
+        flex-direction: column;
+        min-height: 100vh; 
+       overflow: auto !important; /* Rend le scroll si Bootstrap l'avait bloqué */
+       padding-right: 0 !important;
+}
+        /* Si la page change mais que le backdrop reste, on le cache */
+.modal-backdrop {
+    display: none !important;
+}
+        .wrapper { display: flex; flex: 1; }
+        #sidebar { min-width: 250px; max-width: 250px; background: #343a40; color: white; min-height: 100%; }
+        #content { flex: 1; padding: 20px; }
+        footer { background: #f8f9fa; padding: 10px; text-align: center; }
+
+        /* Rend les tuiles cliquables proprement */
+.tile-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    aspect-ratio: 1 / 1; /* Force le format carré */
+}
+
+.tile {
+    transition: transform 0.2s ease-in-out, shadow 0.2s;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Effet au survol */
+.tile:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important;
+    filter: brightness(1.1);
+}
+
+/* Adaptation pour les icônes (FontAwesome) */
+.tile-icon i {
+    display: block;
+}
+
+.active{
+    color:#f8f9fa;
+
+}
+
+.ce-EditorJsColumns__col img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Optionnel : Ajoute un peu de style pour que ça ressemble à Notion */
+    .notion-style p { margin-bottom: 1rem; line-height: 1.6; }
+    .notion-style h2 { 
+        font-weight: 700; 
+        margin-top: 2rem; 
+        border: 1px solid gray;
+        border-radius: 10px;
+        text-align: center;
+        
+    }
+    .notion-style .row { margin-bottom: 1rem; } /* Pour tes colonnes ! */
+
+    /* Quelques styles pour aider le rendu des colonnes */
+     .notion-style {
+          color: black;
+    }
+
+    .notion-style .tableau {
+       
+        border: 1px solid grey;
+        box-shadow: #555;
+        border-radius:20px;
+        
+       
+        
+       
+    }
+    .notion-style .col {
+        flex: 1;
+        flex-direction: column;
+        border: 1px solid green;
+        min-width: 0; /* Évite que les colonnes ne débordent */
+    }
+    .notion-style blockquote {
+        border-left: 4px solid #ddd;
+        padding-left: 15px;
+        font-style: italic;
+        color: #555;
+    }
+
+  @media (min-width: 992px) {
+    .dropdown:hover .dropdown-menu {
+        display: block;
+        margin-top: 0; 
+    }
+}
+.custom-control-input {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+/* 3. Effet au survol */
+    .custom-control-label.btn:hover {
+        border-color: #4e73df;
+        background-color: #f8f9fc;
+    }
+
+    /* 4. Style quand le bouton est sélectionné (magie du sélecteur :checked) */
+    .custom-control-input:checked + .custom-control-label.btn {
+        background-color: #4e73df !important;
+        color: white !important;
+        border-color: #2e59d9 !important;
+        box-shadow: 0 0.125rem 0.25rem 0 rgba(58, 59, 69, 0.2) !important;
+    }
+
+    
+        .custom-control-input:checked + .custom-control-label {
+            background-color: #4e73df;
+            color: white !important;
+            border-color: #4e73df;
+        }
+        .custom-control-label::before, .custom-control-label::after { display: none !important; }
+        .custom-control-label { padding-left: 0 !important; cursor: pointer; transition: 0.2s; }
+
+
+        .table-responsive {
+    overflow: visible !important;
+}
+/* Assure que la cellule des actions ne coupe pas le menu */
+td.align-middle {
+    vertical-align: middle !important;
+    overflow: visible !important;
+}
+
+/* Optionnel : donner un z-index élevé au dropdown pour qu'il passe devant les autres lignes */
+.dropdown-menu {
+    z-index: 9999 !important;
+}
+
+.nav-link.active .badge {
+    background-color: #4e73df !important; /* Couleur primaire */
+    color: white !important;
+}
+/* Change le curseur en mode "aide" ou "texte" sur les éléments verrouillés */
+.form-control-plaintext[style*="pointer-events: none"] {
+    cursor: help;
+}
+
+/* Survol de la zone parente */
+div[ondblclick]:hover {
+    background-color: rgba(0,0,0,0.02);
+    border-radius: 4px;
+}

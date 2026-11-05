@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{espace-layout}">
+<head><title>Mes conversations</title></head>
+<body>
+<section layout:fragment="content">
+<div class="container py-4" style="max-width:760px">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h5 class="mb-0"><i class="fas fa-comments me-2 text-primary"></i>Mes conversations</h5>
+        <form action="/espace/chat/start" method="post">
+            <button class="btn btn-primary btn-sm">
+                <i class="fas fa-plus me-1"></i>Nouvelle conversation
+            </button>
+        </form>
+    </div>
+
+    <div th:if="${conversations.isEmpty()}" class="text-center text-muted py-5">
+        <i class="fas fa-comments fa-3x mb-3 opacity-25"></i>
+        <p class="mb-3">Vous n'avez pas encore de conversation.</p>
+        <form action="/espace/chat/start" method="post">
+            <button class="btn btn-primary">
+                <i class="fas fa-comments me-2"></i>Démarrer une conversation
+            </button>
+        </form>
+    </div>
+
+    <div th:if="${!conversations.isEmpty()}" class="list-group shadow-sm">
+        <a th:each="conv : ${conversations}"
+           th:href="'/espace/chat/' + ${conv.id}"
+           class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3">
+            <span class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                  th:class="${conv.status.name() == 'OPEN'} ? 'rounded-circle bg-success-subtle text-success d-flex align-items-center justify-content-center flex-shrink-0' :
+                             (${conv.status.name() == 'PENDING'} ? 'rounded-circle bg-warning-subtle text-warning d-flex align-items-center justify-content-center flex-shrink-0' :
+                             'rounded-circle bg-secondary-subtle text-secondary d-flex align-items-center justify-content-center flex-shrink-0')"
+                  style="width:40px;height:40px">
+                <i class="fas fa-comments"></i>
+            </span>
+            <div class="flex-grow-1 min-w-0">
+                <div class="fw-semibold">
+                    Conversation du <span th:text="${#temporals.format(conv.createdAt,'dd/MM/yyyy')}"></span>
+                </div>
+                <small class="text-muted"
+                       th:text="${conv.lastMessageAt != null ? 'Dernier message : ' + #temporals.format(conv.lastMessageAt,'HH:mm dd/MM/yyyy') : 'Aucun message'}"></small>
+            </div>
+            <span class="badge" th:classappend="${conv.status.badgeCss}" th:text="${conv.status.label}"></span>
+        </a>
+    </div>
+
+</div>
+</section>
+</body>
+</html>

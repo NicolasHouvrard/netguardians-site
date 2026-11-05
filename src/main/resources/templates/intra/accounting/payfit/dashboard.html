@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Payfit &amp; Import FEC</title></head>
+<body>
+<div layout:fragment="content">
+    <!-- Page header -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="mb-1 fw-bold">
+                <i class="fas fa-file-import me-2" style="color:#7c3aed;"></i>
+                Payfit &amp; Import FEC
+            </h2>
+            <div class="text-muted small mt-1">
+                Format FEC (Fichier des Écritures Comptables) — standard d'export de tous les logiciels de paie français&nbsp;:
+                Payfit, Silae, ADP, Sage Paie, etc.
+            </div>
+        </div>
+        <a href="/intra/accounting" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Comptabilité
+        </a>
+    </div>
+
+    <!-- Flash messages -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-circle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Two-column layout -->
+    <div class="row g-4 mb-4">
+
+        <!-- Left — Import FEC -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0">
+                        <i class="fas fa-file-upload me-2" style="color:#7c3aed;"></i>
+                        Importer un fichier FEC
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info d-flex gap-2 align-items-start mb-3">
+                        <i class="fas fa-circle-info mt-1 flex-shrink-0"></i>
+                        <div class="small">
+                            <strong>Format FEC (Fichier des Écritures Comptables)</strong> — fichier texte
+                            pipe-délimité (<code>.txt</code> ou <code>.fec</code>) produit par Payfit, Silae, ADP,
+                            Sage Paie, etc. L'import est idempotent&nbsp;: les écritures déjà importées sont ignorées.
+                        </div>
+                    </div>
+
+                    <form method="post" action="/intra/accounting/payfit/import"
+                          enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="fecFile" class="form-label fw-semibold">Fichier FEC</label>
+                            <input type="file" id="fecFile" name="file"
+                                   class="form-control" accept=".txt,.fec,.csv" required>
+                            <div class="form-text">Formats acceptés&nbsp;: <code>.txt</code>, <code>.fec</code>, <code>.csv</code></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-upload me-2"></i>Importer
+                        </button>
+                    </form>
+
+                    <!-- Collapsible format reference -->
+                    <details class="mt-4">
+                        <summary class="fw-semibold text-muted small" style="cursor:pointer;">
+                            <i class="fas fa-chevron-right me-1"></i>Format attendu
+                        </summary>
+                        <pre class="mt-2 p-3 rounded bg-light small text-nowrap overflow-auto"
+                             style="font-size:0.72rem;">JournalCode|JournalLib|EcritureNum|EcritureDate|CompteNum|CompteLib|CompAuxNum|CompAuxLib|PieceRef|PieceDate|EcritureLib|Debit|Credit|EcritureLet|DateLet|ValidDate|Montantdevise|Idevise
+SA|Journal Salaires|SA-2026-00001|20260131|641000|Salaires et appointements|||BSV-2026-01|20260131|Salaires janvier 2026|15000,00|0,00||||
+SA|Journal Salaires|SA-2026-00001|20260131|421000|Personnel rémunérations|||BSV-2026-01|20260131|Salaires janvier 2026|0,00|12000,00||||
+SA|Journal Salaires|SA-2026-00001|20260131|431000|URSSAF|||BSV-2026-01|20260131|Salaires janvier 2026|0,00|3000,00||||</pre>
+                        <ul class="small text-muted mt-2 mb-0">
+                            <li>Séparateur&nbsp;: <code>|</code> (pipe)</li>
+                            <li>Dates au format <code>AAAAMMJJ</code> (ex&nbsp;: <code>20260131</code>)</li>
+                            <li>Montants avec virgule décimale (ex&nbsp;: <code>15000,00</code>)</li>
+                            <li>Encodage UTF-8 (ou ISO-8859-1 pour les anciens exports)</li>
+                        </ul>
+                    </details>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right — Export FEC -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0">
+                        <i class="fas fa-file-download me-2 text-success"></i>
+                        Exporter en FEC
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-success d-flex gap-2 align-items-start mb-3">
+                        <i class="fas fa-circle-info mt-1 flex-shrink-0"></i>
+                        <div class="small">
+                            Générez le FEC de votre exercice comptable. Ce fichier est <strong>obligatoire en cas de
+                            contrôle fiscal DGFiP</strong> (art. L.&nbsp;47&nbsp;A du LPF). Il contient toutes les
+                            écritures de l'exercice.
+                        </div>
+                    </div>
+
+                    <form method="get" action="/intra/accounting/payfit/export/fec">
+                        <div class="mb-3">
+                            <label for="yearId" class="form-label fw-semibold">Exercice comptable</label>
+                            <select id="yearId" name="yearId" class="form-select">
+                                <option th:each="year : ${fiscalYears}"
+                                        th:value="${year.id}"
+                                        th:selected="${currentYear != null and year.id == currentYear.id}"
+                                        th:text="${year.label + ' (' + year.startDate + ' → ' + year.endDate + ')'}">
+                                </option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-download me-2"></i>Télécharger le FEC
+                        </button>
+                    </form>
+
+                    <div class="mt-4 small text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Le fichier généré est encodé en UTF-8. Renommez-le au format
+                        <code>SIREN_FEC_AAAAMMJJ.txt</code> avant de le remettre à l'administration fiscale.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payfit API card (full width) -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0">
+                <i class="fas fa-robot me-2" style="color:#7c3aed;"></i>
+                Connexion API Payfit <span class="badge text-bg-secondary ms-2 fw-normal">Phase 5</span>
+            </h6>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">
+                L'API Payfit permettra de récupérer automatiquement les journaux de paie sans export manuel.
+                Cette fonctionnalité sera disponible dans une prochaine version. En attendant, exportez le journal
+                de paie depuis Payfit et importez-le ci-dessus.
+            </p>
+            <ol class="list-unstyled mb-0">
+                <li class="d-flex align-items-start gap-2 mb-2">
+                    <span class="badge rounded-pill text-bg-secondary flex-shrink-0" style="min-width:1.6rem;">1</span>
+                    <span>Connectez-vous à votre espace <strong>Payfit</strong></span>
+                </li>
+                <li class="d-flex align-items-start gap-2 mb-2">
+                    <span class="badge rounded-pill text-bg-secondary flex-shrink-0" style="min-width:1.6rem;">2</span>
+                    <span>Allez dans <strong>Paramètres</strong> → <strong>Exports comptables</strong></span>
+                </li>
+                <li class="d-flex align-items-start gap-2 mb-2">
+                    <span class="badge rounded-pill text-bg-secondary flex-shrink-0" style="min-width:1.6rem;">3</span>
+                    <span>Choisissez <strong>"Export FEC"</strong> pour la période souhaitée</span>
+                </li>
+                <li class="d-flex align-items-start gap-2 mb-2">
+                    <span class="badge rounded-pill text-bg-secondary flex-shrink-0" style="min-width:1.6rem;">4</span>
+                    <span>Téléchargez le fichier <code>.txt</code></span>
+                </li>
+                <li class="d-flex align-items-start gap-2 mb-0">
+                    <span class="badge rounded-pill text-bg-primary flex-shrink-0" style="min-width:1.6rem;">5</span>
+                    <span>Importez-le via le formulaire <strong>"Importer un fichier FEC"</strong> ci-dessus</span>
+                </li>
+            </ol>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

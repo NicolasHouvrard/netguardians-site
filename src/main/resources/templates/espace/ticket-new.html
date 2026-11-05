@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{espace-layout}">
+<head><title>Nouvelle demande</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center mb-4 gap-3">
+        <a href="/espace/tickets" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0"><i class="fas fa-plus-circle me-2 text-primary"></i>Nouvelle demande</h4>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <!-- Choix du type -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0">Quel type de demande ?</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2" id="typeCards">
+                        <div th:each="t : ${requestTypes}" class="col-sm-6 col-lg-4">
+                            <label th:for="${'type-' + t.name()}" class="type-card d-block border rounded p-3 text-center"
+                                   style="cursor:pointer;transition:.15s">
+                                <input type="radio" name="_typeSelect" th:id="${'type-' + t.name()}"
+                                       th:value="${t.name()}" class="d-none type-radio"
+                                       th:attr="data-label=${t.label}">
+                                <i th:class="${'fas ' + t.icon + ' fa-lg mb-2 d-block ' + t.color}"></i>
+                                <div class="small fw-semibold" th:text="${t.label}"></div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulaire -->
+            <form th:action="@{/espace/tickets/new}" method="post" enctype="multipart/form-data" id="ticketForm">
+                <input type="hidden" name="type" id="hiddenType">
+
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Sujet <span class="text-danger">*</span></label>
+                            <input type="text" name="title" class="form-control" required
+                                   placeholder="Décrivez brièvement votre demande">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Priorité</label>
+                            <select name="priority" class="form-select">
+                                <option value="LOW">Basse</option>
+                                <option value="MEDIUM" selected>Normale</option>
+                                <option value="HIGH">Haute</option>
+                                <option value="URGENT">Urgente</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Description</label>
+                            <textarea name="description" class="form-control" rows="5"
+                                      placeholder="Décrivez le problème ou votre demande en détail..."></textarea>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Pièce jointe <span class="text-muted fw-normal">(optionnel)</span></label>
+                            <input type="file" name="file" class="form-control"
+                                   accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip">
+                            <div class="form-text">Image, PDF, document — max 10 Mo</div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane me-1"></i>Envoyer la demande
+                            </button>
+                            <a href="/espace/tickets" class="btn btn-outline-secondary">Annuler</a>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+    <style>
+    .type-card { border-color: #dee2e6 !important; }
+    .type-card:hover { border-color: #0d6efd !important; background: #f0f4ff; }
+    .type-card.selected { border-color: #0d6efd !important; background: #e8f0fe; }
+    </style>
+
+    <script>
+    document.querySelectorAll('.type-radio').forEach(radio => {
+        radio.addEventListener('change', () => {
+            document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
+            radio.closest('.type-card').classList.add('selected');
+            document.getElementById('hiddenType').value = radio.value;
+        });
+    });
+    </script>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body { background:#f8fafc; margin:0; }
+        .img-card { position:relative; border-radius:.5rem; overflow:hidden; border:2px solid #e2e8f0; aspect-ratio:16/9; background:#fff; cursor:pointer; transition:.15s; }
+        .img-card:hover { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.2); }
+        .img-card img { width:100%; height:100%; object-fit:cover; }
+        .img-card .img-name { position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,.6); color:#fff; font-size:.65rem; padding:.2rem .4rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
+        .upload-zone { border:2px dashed #cbd5e1; border-radius:.5rem; background:#fff; padding:1rem; text-align:center; cursor:pointer; font-size:.85rem; color:#64748b; transition:.15s; }
+        .upload-zone:hover { border-color:#6366f1; background:#eff6ff; }
+        .toolbar { background:#fff; border-bottom:1px solid #e2e8f0; padding:.5rem .75rem; display:flex; align-items:center; gap:.5rem; position:sticky; top:0; z-index:10; }
+    </style>
+</head>
+<body>
+
+<div class="toolbar">
+    <span class="fw-semibold small text-muted">
+        <i class="fas fa-images me-1 text-primary"></i>Choisir une image
+    </span>
+    <span class="badge bg-secondary ms-auto" th:text="${#lists.size(images)} + ' image(s)'">0</span>
+    <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('fileInput').click()">
+        <i class="fas fa-upload me-1"></i>Uploader
+    </button>
+</div>
+
+<!-- Upload form (hidden, submits and reloads picker) -->
+<form method="post" action="/intra/images/upload" enctype="multipart/form-data" id="uploadForm">
+    <input type="hidden" name="returnTo" value="picker">
+    <input type="file" id="fileInput" name="files" multiple accept="image/*" class="d-none"
+           onchange="document.getElementById('uploadForm').submit()">
+</form>
+
+<div class="p-3">
+    <div th:if="${images.isEmpty()}" class="text-center text-muted py-5">
+        <i class="fas fa-images fa-2x mb-2 d-block opacity-25"></i>
+        Aucune image. Cliquez sur "Uploader" pour ajouter des images.
+    </div>
+    <div class="row g-2">
+        <div class="col-6 col-md-4 col-lg-3" th:each="img : ${images}">
+            <div class="img-card" th:data-url="${img}" onclick="selectImage(this.dataset.url)">
+                <img th:src="${img}" th:alt="${img}" loading="lazy">
+                <div class="img-name" th:text="${#strings.substringAfter(img, '/uploads/images/')}">nom.jpg</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script th:inline="none">
+function selectImage(url) {
+    if (window.parent && window.parent !== window && typeof window.parent.imageSelected === 'function') {
+        window.parent.imageSelected(url);
+    } else {
+        navigator.clipboard.writeText(url).then(() => alert('URL copiée : ' + url));
+    }
+}
+</script>
+</body>
+</html>

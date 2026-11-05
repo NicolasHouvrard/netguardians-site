@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Catégories produits</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/intra/products" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Produits
+        </a>
+        <h4 class="mb-0"><i class="fas fa-tags me-2 text-success"></i>Catégories produits</h4>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-triangle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- Arborescence -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-sitemap me-2 text-success"></i>Arborescence</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(roots)}" class="text-center py-5 text-muted">
+                        <i class="fas fa-tags fa-2x mb-3 d-block"></i>Aucune catégorie. Créez-en une ci-contre.
+                    </div>
+                    <ul th:unless="${#lists.isEmpty(roots)}" class="list-unstyled mb-0">
+
+                        <li th:each="root : ${roots}" class="border-bottom">
+
+                            <!-- Ligne catégorie racine -->
+                            <div class="d-flex align-items-center px-3 py-2 gap-2">
+                                <i th:class="${root.icon + ' fa-fw'}" th:style="'color:' + ${root.color}"></i>
+                                <span class="fw-semibold flex-grow-1" th:text="${root.name}"></span>
+                                <span class="badge text-bg-light text-dark border small me-1"
+                                      th:text="${#lists.size(root.children)} + ' ss-cat.'"></span>
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        th:attr="data-bs-toggle='collapse', data-bs-target='#edit-' + ${root.id}"
+                                        type="button" title="Modifier">
+                                    <i class="fas fa-pencil-alt"></i>
+                                </button>
+                                <form th:action="@{/intra/products/categories/{id}/delete(id=${root.id})}"
+                                      method="post" class="d-inline"
+                                      onsubmit="return confirm('Supprimer cette catégorie ?')">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Supprimer">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+
+                            <!-- Formulaire édition racine (collapse) -->
+                            <div th:id="'edit-' + ${root.id}" class="collapse border-top bg-light px-3 py-2">
+                                <form th:action="@{/intra/products/categories/{id}/update(id=${root.id})}" method="post">
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-4">
+                                            <label class="form-label small fw-semibold mb-1">Nom</label>
+                                            <input type="text" name="name" class="form-control form-control-sm"
+                                                   th:value="${root.name}" required>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small fw-semibold mb-1">Icône FA</label>
+                                            <input type="text" name="icon" class="form-control form-control-sm"
+                                                   th:value="${root.icon}" placeholder="fas fa-tag">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small fw-semibold mb-1">Couleur</label>
+                                            <input type="color" name="color" class="form-control form-control-sm form-control-color w-100"
+                                                   th:value="${root.color}">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <button type="submit" class="btn btn-sm btn-primary w-100">
+                                                <i class="fas fa-save me-1"></i>Enregistrer
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <!-- Sous-catégories -->
+                            <ul th:unless="${#lists.isEmpty(root.children)}" class="list-unstyled mb-0">
+                                <li th:each="child : ${root.children}" class="border-top">
+                                    <div class="d-flex align-items-center ps-5 pe-3 py-2 gap-2">
+                                        <i class="fas fa-level-up-alt fa-rotate-90 text-muted fa-fw" style="font-size:.7rem"></i>
+                                        <i th:class="${child.icon + ' fa-fw'}" th:style="'color:' + ${child.color}"></i>
+                                        <span class="flex-grow-1" th:text="${child.name}"></span>
+                                        <button class="btn btn-sm btn-outline-secondary"
+                                                th:attr="data-bs-toggle='collapse', data-bs-target='#edit-' + ${child.id}"
+                                                type="button" title="Modifier">
+                                            <i class="fas fa-pencil-alt"></i>
+                                        </button>
+                                        <form th:action="@{/intra/products/categories/{id}/delete(id=${child.id})}"
+                                              method="post" class="d-inline"
+                                              onsubmit="return confirm('Supprimer cette sous-catégorie ?')">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    <!-- Formulaire édition sous-catégorie (collapse) -->
+                                    <div th:id="'edit-' + ${child.id}" class="collapse border-top bg-light ps-5 pe-3 py-2">
+                                        <form th:action="@{/intra/products/categories/{id}/update(id=${child.id})}" method="post">
+                                            <div class="row g-2 align-items-end">
+                                                <div class="col-md-3">
+                                                    <label class="form-label small fw-semibold mb-1">Nom</label>
+                                                    <input type="text" name="name" class="form-control form-control-sm"
+                                                           th:value="${child.name}" required>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label small fw-semibold mb-1">Icône FA</label>
+                                                    <input type="text" name="icon" class="form-control form-control-sm"
+                                                           th:value="${child.icon}">
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <label class="form-label small fw-semibold mb-1">Couleur</label>
+                                                    <input type="color" name="color" class="form-control form-control-sm form-control-color w-100"
+                                                           th:value="${child.color}">
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <label class="form-label small fw-semibold mb-1">Parent</label>
+                                                    <select name="parentId" class="form-select form-select-sm">
+                                                        <option value="">— Racine —</option>
+                                                        <option th:each="r : ${roots}"
+                                                                th:value="${r.id}"
+                                                                th:text="${r.name}"
+                                                                th:selected="${child.parent != null and child.parent.id == r.id}"></option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <button type="submit" class="btn btn-sm btn-primary w-100">
+                                                        <i class="fas fa-save me-1"></i>OK
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </li>
+                            </ul>
+
+                            <!-- Ajouter une sous-catégorie -->
+                            <div class="border-top bg-light ps-5 pe-3 py-2">
+                                <form th:action="@{/intra/products/categories}" method="post" class="d-flex gap-2 align-items-center">
+                                    <input type="hidden" name="parentId" th:value="${root.id}">
+                                    <input type="text" name="name" class="form-control form-control-sm flex-grow-1"
+                                           placeholder="Nouvelle sous-catégorie..." required>
+                                    <input type="text" name="icon" class="form-control form-control-sm"
+                                           style="max-width:120px" placeholder="fas fa-tag" value="fas fa-tag">
+                                    <input type="color" name="color" class="form-control form-control-sm form-control-color"
+                                           value="#64748b">
+                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Ajouter">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </form>
+                            </div>
+
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Créer catégorie racine -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-plus-circle me-2 text-success"></i>Nouvelle catégorie</h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/intra/products/categories}" method="post">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Nom <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" required
+                                   placeholder="Ex : Matériel informatique">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Icône <span class="text-muted">(FontAwesome)</span></label>
+                            <input type="text" name="icon" class="form-control" value="fas fa-tag"
+                                   placeholder="fas fa-tag">
+                            <div class="form-text">Ex : fas fa-laptop, fas fa-tools, fas fa-cloud</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Couleur</label>
+                            <input type="color" name="color" class="form-control form-control-color w-100"
+                                   value="#64748b">
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-plus me-1"></i>Créer la catégorie
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+</body>
+</html>

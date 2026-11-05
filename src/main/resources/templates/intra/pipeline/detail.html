@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title th:text="${opp.name}">Affaire</title></head>
+<body>
+<div layout:fragment="content">
+
+    <!-- Breadcrumb + statut -->
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <a href="/intra/pipeline" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Pipeline
+        </a>
+        <h4 class="mb-0 me-2" th:text="${opp.name}"></h4>
+        <span th:class="${'badge ' + opp.status.badgeCss}" style="font-size:.85rem"
+              th:text="${opp.status.label}"></span>
+        <div class="flex-grow-1"></div>
+        <!-- Formulaires de statut (hors du dropdown pour HTML valide) -->
+        <form th:each="s : ${statuses}" th:if="${s != opp.status and s.name() != 'PERDU'}"
+              th:id="${'form-status-' + s.name()}"
+              th:action="@{/intra/pipeline/{id}/status(id=${opp.id})}" method="post" class="d-none">
+            <input type="hidden" name="status" th:value="${s.name()}">
+        </form>
+
+        <!-- Changer le statut -->
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="fas fa-arrows-alt-h me-1"></i>Changer statut
+            </button>
+            <ul class="dropdown-menu">
+                <li th:each="s : ${statuses}" th:if="${s.name() != 'PERDU'}">
+                    <button th:if="${s != opp.status}"
+                            th:form="${'form-status-' + s.name()}"
+                            type="submit" class="dropdown-item d-flex align-items-center gap-2">
+                        <span th:class="${'badge ' + s.badgeCss}" style="font-size:.7rem"
+                              th:text="${s.label}"></span>
+                    </button>
+                    <span th:if="${s == opp.status}"
+                          class="dropdown-item text-muted d-flex align-items-center gap-2">
+                        <span th:class="${'badge ' + s.badgeCss}" style="font-size:.7rem"
+                              th:text="${s.label}"></span>
+                        <i class="fas fa-check text-success ms-auto"></i>
+                    </span>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <a class="dropdown-item text-danger" href="#"
+                       data-bs-toggle="modal" data-bs-target="#lostModal">
+                        <i class="fas fa-times-circle me-1"></i>Marquer Perdu…
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Alertes flash -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible py-2 mb-3">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Résumé KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body py-3">
+                    <div class="text-muted small mb-1"><i class="fas fa-building me-1"></i>Client</div>
+                    <div class="fw-semibold">
+                        <a th:if="${opp.customer != null}"
+                           th:href="@{/intra/customers/{id}(id=${opp.customer.id})}"
+                           class="text-decoration-none text-dark"
+                           th:text="${opp.customer.companyName}"></a>
+                        <span th:unless="${opp.customer != null}" class="text-muted">—</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body py-3">
+                    <div class="text-muted small mb-1"><i class="fas fa-tag me-1"></i>Valeur estimée</div>
+                    <div class="fw-bold fs-5">
+                        <span th:if="${opp.estimatedValue != null}"
+                              th:text="${#numbers.formatDecimal(opp.estimatedValue, 1, 'COMMA', 0, 'POINT') + ' €'}"></span>
+                        <span th:unless="${opp.estimatedValue != null}" class="text-muted fs-6">—</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body py-3">
+                    <div class="text-muted small mb-1"><i class="fas fa-file-signature me-1"></i>Devis (ENVOYE/ACCEPTE)</div>
+                    <div class="fw-bold fs-5 text-success"
+                         th:text="${#numbers.formatDecimal(quoteTotalHT, 1, 'COMMA', 0, 'POINT') + ' €'}"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body py-3">
+                    <div class="text-muted small mb-1"><i class="fas fa-calendar me-1"></i>Clôture prévue</div>
+                    <div th:if="${opp.expectedCloseDate != null}"
+                         th:class="${opp.expectedCloseDate.isBefore(today) and opp.status.name() != 'GAGNE' and opp.status.name() != 'PERDU' ? 'fw-semibold text-danger' : 'fw-semibold'}"
+                         th:text="${#temporals.format(opp.expectedCloseDate, 'dd/MM/yyyy')}"></div>
+                    <div th:unless="${opp.expectedCloseDate != null}" class="text-muted">—</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Onglets -->
+    <ul class="nav nav-tabs mb-4" id="oppTabs">
+        <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#tab-info">
+                <i class="fas fa-info-circle me-1"></i>Informations
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#tab-activities" id="tab-activities-link">
+                <i class="fas fa-comments me-1"></i>Activités
+                <span class="badge text-bg-secondary ms-1" th:text="${activities.size()}"></span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#tab-quotes" id="tab-quotes-link">
+                <i class="fas fa-file-invoice-dollar me-1"></i>Devis
+                <span class="badge text-bg-secondary ms-1" th:text="${quotes.size()}"></span>
+            </a>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+
+        <!-- ── Onglet Info ────────────────────────────────────────────────────── -->
+        <div class="tab-pane fade show active" id="tab-info">
+            <div class="card border-0 shadow-sm" style="max-width:700px">
+                <div class="card-body">
+                    <form th:action="@{/intra/pipeline/{id}/update(id=${opp.id})}" method="post">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Nom du projet <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control" required th:value="${opp.name}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Source</label>
+                                <select name="source" class="form-select">
+                                    <option value="">— Aucune —</option>
+                                    <option th:each="s : ${sources}" th:value="${s.name()}"
+                                            th:text="${s.label}"
+                                            th:selected="${s == opp.source}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Commercial</label>
+                                <span th:if="${commercialName != null}" class="form-control-plaintext"
+                                      th:text="${commercialName}"></span>
+                                <span th:unless="${commercialName != null}" class="form-control-plaintext text-muted">—</span>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Valeur estimée (€)</label>
+                                <input type="number" name="estimatedValue" class="form-control" step="100" min="0"
+                                       th:value="${opp.estimatedValue}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Date de clôture prévue</label>
+                                <input type="date" name="expectedCloseDate" class="form-control"
+                                       th:value="${opp.expectedCloseDate}">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Notes</label>
+                                <textarea name="notes" class="form-control" rows="4"
+                                          th:text="${opp.notes}"></textarea>
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i>Enregistrer
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div th:if="${opp.status.name() == 'PERDU' and opp.lostReason != null}"
+                 class="mt-3 alert alert-danger py-2">
+                <strong>Raison de la perte :</strong> <span th:text="${opp.lostReason}"></span>
+            </div>
+        </div>
+
+        <!-- ── Onglet Activités ───────────────────────────────────────────────── -->
+        <div class="tab-pane fade" id="tab-activities">
+            <div class="row g-4">
+                <!-- Formulaire ajout activité -->
+                <div class="col-lg-4">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white fw-semibold py-2">
+                            <i class="fas fa-plus me-1 text-primary"></i>Nouvelle activité
+                        </div>
+                        <div class="card-body">
+                            <form th:action="@{/intra/pipeline/{id}/activities(id=${opp.id})}" method="post">
+                                <div class="mb-2">
+                                    <label class="form-label fw-semibold small">Type <span class="text-danger">*</span></label>
+                                    <select name="type" class="form-select form-select-sm" required>
+                                        <option th:each="t : ${activityTypes}"
+                                                th:value="${t.name()}"
+                                                th:text="${t.label}"></option>
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-semibold small">Date <span class="text-danger">*</span></label>
+                                    <input type="date" name="activityDate" class="form-control form-control-sm"
+                                           required th:value="${today}">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-semibold small">Durée (min)</label>
+                                    <input type="number" name="duration" class="form-control form-control-sm" min="0" step="15">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-semibold small">Notes</label>
+                                    <textarea name="notes" class="form-control form-control-sm" rows="3"></textarea>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-semibold small">Prochaine action</label>
+                                    <input type="text" name="nextAction" class="form-control form-control-sm"
+                                           placeholder="Rappeler, envoyer devis…">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold small">Date prochaine action</label>
+                                    <input type="date" name="nextActionDate" class="form-control form-control-sm">
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm w-100">
+                                    <i class="fas fa-save me-1"></i>Enregistrer
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timeline activités -->
+                <div class="col-lg-8">
+                    <div th:if="${activities.isEmpty()}" class="text-center py-5 text-muted">
+                        <i class="fas fa-comments fa-2x mb-2 d-block opacity-25"></i>
+                        Aucune activité enregistrée.
+                    </div>
+                    <div class="d-flex flex-column gap-3">
+                        <div th:each="a : ${activities}" class="card border-0 shadow-sm">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-start gap-3">
+                                    <div class="text-primary mt-1" style="width:22px; text-align:center">
+                                        <i th:class="${a.type.icon}"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            <span class="fw-semibold" th:text="${a.type.label}"></span>
+                                            <span class="text-muted small"
+                                                  th:text="${#temporals.format(a.activityDate, 'dd/MM/yyyy')}"></span>
+                                            <span th:if="${a.duration != null}"
+                                                  class="badge text-bg-light text-dark"
+                                                  th:text="${a.duration + ' min'}"></span>
+                                            <span th:if="${a.commercial != null}"
+                                                  class="text-muted small ms-auto"
+                                                  th:text="${a.commercial.fullName}"></span>
+                                        </div>
+                                        <p th:if="${a.notes != null and !#strings.isEmpty(a.notes)}"
+                                           class="text-muted small mb-1 mt-1" th:text="${a.notes}"></p>
+                                        <div th:if="${a.nextAction != null and !#strings.isEmpty(a.nextAction)}"
+                                             class="small text-info">
+                                            <i class="fas fa-arrow-right me-1"></i>
+                                            <span th:text="${a.nextAction}"></span>
+                                            <span th:if="${a.nextActionDate != null}"
+                                                  th:text="${' — ' + #temporals.format(a.nextActionDate, 'dd/MM/yyyy')}"></span>
+                                        </div>
+                                    </div>
+                                    <form th:action="@{/intra/pipeline/{id}/activities/{actId}/delete(id=${opp.id},actId=${a.id})}"
+                                          method="post" class="ms-2">
+                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0"
+                                                onclick="return confirm('Supprimer cette activité ?')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Onglet Devis ───────────────────────────────────────────────────── -->
+        <div class="tab-pane fade" id="tab-quotes">
+            <!-- Devis déjà rattachés -->
+            <div class="mb-4">
+                <div th:if="${quotes.isEmpty()}" class="text-center py-4 text-muted">
+                    <i class="fas fa-file-invoice-dollar fa-2x mb-2 d-block opacity-25"></i>
+                    Aucun devis rattaché.
+                </div>
+                <div class="card border-0 shadow-sm" th:if="${!quotes.isEmpty()}">
+                    <div class="card-body p-0">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">N° Devis</th>
+                                    <th>Date</th>
+                                    <th>Statut</th>
+                                    <th>Total HT</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="q : ${quotes}">
+                                    <td class="ps-3 fw-semibold">
+                                        <a th:href="@{/intra/quotes/{id}(id=${q.id})}"
+                                           th:text="${q.quoteNumber}" class="text-decoration-none"></a>
+                                    </td>
+                                    <td class="text-muted small"
+                                        th:text="${#temporals.format(q.quoteDate, 'dd/MM/yyyy')}"></td>
+                                    <td>
+                                        <span th:class="${'badge ' + q.status.badgeCss}"
+                                              th:text="${q.status.label}"></span>
+                                    </td>
+                                    <td class="fw-semibold"
+                                        th:text="${#numbers.formatDecimal(q.totalHT, 1, 'COMMA', 2, 'POINT') + ' €'}"></td>
+                                    <td>
+                                        <form th:action="@{/intra/pipeline/{id}/unlink-quote(id=${opp.id})}" method="post"
+                                              class="d-inline">
+                                            <input type="hidden" name="quoteId" th:value="${q.id}">
+                                            <button type="submit" class="btn btn-sm btn-link text-danger p-0"
+                                                    title="Détacher" onclick="return confirm('Détacher ce devis ?')">
+                                                <i class="fas fa-unlink"></i>
+                                            </button>
+                                        </form>
+                                        <a th:href="@{/intra/quotes/{id}(id=${q.id})}"
+                                           class="btn btn-sm btn-outline-secondary ms-1">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex flex-wrap gap-2">
+                <!-- Nouveau devis pour ce client -->
+                <a th:href="@{/intra/quotes/new(opportunityId=${opp.id})}"
+                   class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus me-1"></i>Nouveau devis
+                </a>
+                <!-- Rattacher devis existant -->
+                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse"
+                        data-bs-target="#linkQuoteForm">
+                    <i class="fas fa-link me-1"></i>Rattacher un devis existant
+                </button>
+            </div>
+
+            <div id="linkQuoteForm" class="collapse mt-3" style="max-width:500px">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <form th:action="@{/intra/pipeline/{id}/link-quote(id=${opp.id})}" method="post">
+                            <label class="form-label fw-semibold small">Sélectionner un devis</label>
+                            <select name="quoteId" class="form-select form-select-sm mb-2" required>
+                                <option value="">— Choisir —</option>
+                                <option th:each="q : ${allQuotes}"
+                                        th:if="${q.opportunity == null}"
+                                        th:value="${q.id}"
+                                        th:text="${q.quoteNumber + ' — ' + (q.customer != null ? q.customer.companyName : '?') + ' — ' + q.status.label + ' — ' + #numbers.formatDecimal(q.totalHT, 1, 'COMMA', 0, 'POINT') + ' €'}"></option>
+                            </select>
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-link me-1"></i>Rattacher
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- end tab-content -->
+
+    <!-- Modal Perdu -->
+    <div class="modal fade" id="lostModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <h6 class="modal-title"><i class="fas fa-times-circle text-danger me-1"></i>Marquer comme Perdu</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form th:action="@{/intra/pipeline/{id}/status(id=${opp.id})}" method="post">
+                    <div class="modal-body">
+                        <input type="hidden" name="status" value="PERDU">
+                        <label class="form-label fw-semibold small">Raison de la perte</label>
+                        <textarea name="lostReason" class="form-control form-control-sm" rows="3"
+                                  placeholder="Prix, concurrent, pas de budget…"></textarea>
+                    </div>
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="submit" class="btn btn-danger btn-sm">Confirmer</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+<script>
+// Activer l'onglet depuis l'ancre URL
+document.addEventListener('DOMContentLoaded', function () {
+    const hash = window.location.hash;
+    if (hash) {
+        const trigger = document.querySelector('[href="' + hash + '"]');
+        if (trigger) new bootstrap.Tab(trigger).show();
+    }
+});
+</script>
+
+</div>
+</body>
+</html>

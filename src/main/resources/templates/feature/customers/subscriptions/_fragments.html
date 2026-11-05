@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- ══ Liste des abonnements ══════════════════════════════════════════════ -->
+<div th:fragment="subscriptions-list"
+     id="subscriptions-list"
+     th:hx-get="@{/intra/customers/{id}/subscriptions/list(id=${customer.id})}"
+     hx-trigger="refreshSubscriptions from:body"
+     hx-swap="outerHTML">
+
+    <div th:if="${#lists.isEmpty(customer.subscriptions)}" class="text-center py-4 text-muted">
+        <i class="fas fa-file-invoice-dollar fa-2x mb-2 d-block"></i>
+        Aucun abonnement pour ce client.
+    </div>
+
+    <div th:each="sub : ${customer.subscriptions}" class="card mb-3"
+         th:classappend="${!sub.active ? ' opacity-50' : ''}">
+        <div class="card-body py-2 px-3">
+            <div class="d-flex align-items-start justify-content-between gap-2">
+
+                <div class="flex-grow-1">
+                    <!-- En-tête : nom + badges -->
+                    <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                        <span class="fw-bold" th:text="${sub.effectiveName}"></span>
+                        <span th:if="${sub.effectiveCategory != null}"
+                              class="badge small"
+                              th:classappend="${sub.effectiveCategory.badgeCss}"
+                              th:text="${sub.effectiveCategory.label}"></span>
+                        <span class="badge text-bg-light border small"
+                              th:text="${sub.effectiveBillingModel.label}"></span>
+                        <span class="badge text-bg-success" th:if="${sub.active}">Actif</span>
+                        <span class="badge text-bg-secondary" th:unless="${sub.active}">Inactif</span>
+                        <!-- Indique si des valeurs sont négociées -->
+                        <span th:if="${sub.billingModel != null or sub.pricePerPeriod != null
+                                       or sub.hourlyRate != null or sub.includedMinutes != null
+                                       or sub.unitPrice != null}"
+                              class="badge text-bg-warning text-dark small">
+                            <i class="fas fa-handshake fa-xs me-1"></i>Négocié
+                        </span>
+                    </div>
+
+                    <!-- Détails tarification -->
+                    <div class="small text-muted d-flex flex-wrap gap-3">
+                        <span th:if="${sub.plan != null}" class="text-muted">
+                            <i class="fas fa-layer-group fa-xs me-1"></i>
+                            <span th:text="${sub.plan.name}"></span>
+                        </span>
+                        <span th:if="${sub.effectivePeriod != null}" th:text="${sub.effectivePeriod.label}"></span>
+                        <span th:if="${sub.effectiveBillingModel.name() == 'FORFAIT' and sub.effectivePricePerPeriod != null}">
+                            <i class="fas fa-euro-sign me-1"></i>
+                            <span th:text="${#numbers.formatDecimal(sub.effectivePricePerPeriod,1,'POINT',2,'COMMA') + ' €'}"></span>
+                        </span>
+                        <span th:if="${sub.effectiveIncludedMinutes != null}">
+                            <i class="fas fa-clock me-1"></i>
+                            <span th:text="${sub.formattedIncluded + ' incluses'}"></span>
+                        </span>
+                        <span th:if="${sub.effectiveBillingModel.name() == 'HOURLY' and sub.effectiveHourlyRate != null}">
+                            <span th:text="${#numbers.formatDecimal(sub.effectiveHourlyRate,1,'POINT',2,'COMMA') + ' €/h'}"></span>
+                        </span>
+                        <span th:if="${sub.effectiveBillingModel.name() == 'PER_UNIT' and sub.unitCount != null}">
+                            <i class="fas fa-layer-group me-1"></i>
+                            <span th:text="${sub.unitCount + ' ' + sub.effectiveUnitLabel}"></span>
+                            <span th:if="${sub.effectiveUnitPrice != null}"
+                                  th:text="${' × ' + #numbers.formatDecimal(sub.effectiveUnitPrice,1,'POINT',2,'COMMA') + ' €'}"></span>
+                        </span>
+                        <span>
+                            <i class="fas fa-calendar-alt me-1"></i>
+                            <span th:text="${#temporals.format(sub.startDate,'dd/MM/yyyy')}"></span>
+                            <span th:if="${sub.endDate != null}">→ <span th:text="${#temporals.format(sub.endDate,'dd/MM/yyyy')}"></span></span>
+                        </span>
+                    </div>
+
+                    <!-- Barre de progression FORFAIT -->
+                    <div th:if="${sub.effectiveBillingModel.name() == 'FORFAIT' and sub.effectiveIncludedMinutes != null}"
+                         class="mt-2">
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span th:text="${'Consommé : ' + sub.formattedSpent}"></span>
+                            <span th:classappend="${sub.overBudget ? ' text-danger fw-bold' : ' text-muted'}"
+                                  th:text="${sub.progressPercent + '%' + (sub.overBudget ? ' ⚠' : '')}"></span>
+                        </div>
+                        <div class="progress" style="height:6px">
+                            <div class="progress-bar"
+                                 th:classappend="${sub.progressPercent >= 100 ? ' bg-danger' : (sub.progressPercent >= 80 ? ' bg-warning' : ' bg-success')}"
+                                 role="progressbar"
+                                 th:style="'width:' + ${sub.progressPercent} + '%'"></div>
+                        </div>
+                    </div>
+
+                    <!-- Coût estimé HOURLY -->
+                    <div th:if="${sub.effectiveBillingModel.name() == 'HOURLY'}" class="mt-1 small">
+                        <i class="fas fa-stopwatch text-success me-1"></i>
+                        Saisi : <strong th:text="${sub.formattedSpent}"></strong>
+                        <span th:if="${sub.effectiveHourlyRate != null}" class="text-muted ms-2">
+                            → <strong th:text="${#numbers.formatDecimal(sub.estimatedCost,1,'POINT',2,'COMMA') + ' €'}"></strong>
+                        </span>
+                    </div>
+
+                    <!-- Coût mensuel PER_UNIT -->
+                    <div th:if="${sub.effectiveBillingModel.name() == 'PER_UNIT' and sub.unitCount != null and sub.effectiveUnitPrice != null}"
+                         class="mt-1 small text-muted">
+                        <i class="fas fa-calculator me-1"></i>
+                        Total :
+                        <strong th:text="${#numbers.formatDecimal(sub.unitMonthlyCost,1,'POINT',2,'COMMA') + ' €'
+                                          + (sub.effectivePeriod != null ? '/' + sub.effectivePeriod.label.toLowerCase() : '')}"></strong>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="d-flex gap-1 align-items-start flex-shrink-0">
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            th:hx-get="@{/intra/customers/{cid}/subscriptions/edit/{sid}(cid=${customer.id},sid=${sub.id})}"
+                            hx-target="#subscription-modal-body"
+                            hx-swap="innerHTML"
+                            data-bs-toggle="modal"
+                            data-bs-target="#subscriptionModal"
+                            title="Modifier">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                            th:hx-delete="@{/intra/customers/{cid}/subscriptions/delete/{sid}(cid=${customer.id},sid=${sub.id})}"
+                            hx-target="#subscriptions-list"
+                            hx-swap="outerHTML"
+                            hx-confirm="Supprimer cet abonnement ?"
+                            title="Supprimer">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ══ Formulaire création / édition ══════════════════════════════════════ -->
+<div th:fragment="subscription-form">
+    <form th:action="@{/intra/customers/{id}/subscriptions/save(id=${customer.id})}"
+          th:object="${subscription}" method="post">
+        <input type="hidden" th:field="*{id}" />
+
+        <!-- Sélection de la formule -->
+        <div class="mb-3">
+            <label class="form-label fw-bold">Formule catalogue</label>
+            <select name="planId" class="form-select"
+                    th:hx-get="@{/intra/customers/{id}/subscriptions/plan-fields(id=${customer.id})}"
+                    hx-include="this"
+                    hx-target="#plan-fields-section"
+                    hx-swap="innerHTML"
+                    hx-trigger="change">
+                <option value="">— Aucune formule (saisie manuelle) —</option>
+                <optgroup th:each="cat : ${categories}"
+                          th:label="${cat.label}">
+                    <option th:each="p : ${plans}"
+                            th:if="${p.category == cat}"
+                            th:value="${p.id}"
+                            th:text="${p.name}"
+                            th:selected="${subscription.plan != null and subscription.plan.id == p.id}">
+                    </option>
+                </optgroup>
+            </select>
+            <div class="form-text text-muted">
+                Sélectionnez une formule pour pré-remplir les valeurs. Vous pouvez les modifier ci-dessous.
+            </div>
+        </div>
+
+        <!-- Champs rechargés par HTMX selon la formule sélectionnée -->
+        <div id="plan-fields-section">
+            <div th:replace="~{feature/customers/subscriptions/_fragments :: plan-fields}"></div>
+        </div>
+
+        <!-- Nom personnalisé -->
+        <div class="mb-3 mt-3">
+            <label class="form-label fw-bold">Nom personnalisé
+                <small class="text-muted fw-normal">(vide = nom de la formule)</small>
+            </label>
+            <input type="text" th:field="*{name}" class="form-control"
+                   th:placeholder="${subscription.plan != null ? subscription.plan.name : 'Nom de l\'abonnement'}">
+        </div>
+
+        <!-- Dates + Actif -->
+        <div class="row g-2 mb-3">
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Date de début *</label>
+                <input type="date" th:field="*{startDate}" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Date de fin <small class="text-muted">(vide = illimité)</small></label>
+                <input type="date" th:field="*{endDate}" class="form-control">
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <div class="form-check form-switch ms-1 mb-1">
+                    <input class="form-check-input" type="checkbox" th:field="*{active}" id="subActive">
+                    <label class="form-check-label" for="subActive">Actif</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="mb-3">
+            <label class="form-label fw-bold">Notes / conditions négociées</label>
+            <textarea th:field="*{notes}" class="form-control" rows="2"
+                      placeholder="Conditions particulières, remises accordées…"></textarea>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+            <button type="submit" class="btn btn-success">
+                <i class="fas fa-save me-1"></i> Enregistrer
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- ══ Section champs selon plan sélectionné ══════════════════════════════ -->
+<div th:fragment="plan-fields">
+
+    <div th:if="${subscription.plan == null}" class="border rounded p-3 bg-light mb-2">
+        <p class="text-muted small mb-2">Aucune formule sélectionnée — saisie manuelle :</p>
+
+        <div class="row g-2">
+            <div class="col-md-4">
+                <label class="form-label small fw-bold">Modèle</label>
+                <select name="billingModel" class="form-select form-select-sm">
+                    <option value="">— Choisir —</option>
+                    <option th:value="'FORFAIT'" th:selected="${subscription.billingModel?.name() == 'FORFAIT'}">Forfait</option>
+                    <option th:value="'HOURLY'"  th:selected="${subscription.billingModel?.name() == 'HOURLY'}">À l'heure</option>
+                    <option th:value="'PER_UNIT'" th:selected="${subscription.billingModel?.name() == 'PER_UNIT'}">Par unité</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold">Périodicité</label>
+                <select name="period" class="form-select form-select-sm">
+                    <option value="">— Choisir —</option>
+                    <option th:value="'MONTHLY'"    th:selected="${subscription.period?.name() == 'MONTHLY'}">Mensuel</option>
+                    <option th:value="'QUARTERLY'"  th:selected="${subscription.period?.name() == 'QUARTERLY'}">Trimestriel</option>
+                    <option th:value="'YEARLY'"     th:selected="${subscription.period?.name() == 'YEARLY'}">Annuel</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold">Prix</label>
+                <div class="input-group input-group-sm">
+                    <input type="number" name="pricePerPeriod" min="0" step="0.01"
+                           th:value="${subscription.pricePerPeriod}" class="form-control" placeholder="0.00">
+                    <span class="input-group-text">€</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Valeurs quand une formule est sélectionnée -->
+    <div th:if="${subscription.plan != null}" class="border rounded p-3 mb-2">
+        <p class="small text-muted mb-2">
+            <i class="fas fa-layer-group me-1 text-primary"></i>
+            Valeurs de la formule <strong th:text="${subscription.plan.name}"></strong>
+            — modifiez uniquement ce qui est négocié :
+        </p>
+
+        <div class="row g-2">
+            <!-- FORFAIT -->
+            <th:block th:if="${subscription.effectiveBillingModel.name() == 'FORFAIT'}">
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold">
+                        Heures incluses
+                        <span th:if="${subscription.plan.defaultIncludedMinutes != null}"
+                              class="text-muted fw-normal"
+                              th:text="'(plan : ' + ${subscription.plan.formattedDefaultIncluded} + ')'"></span>
+                    </label>
+                    <div class="input-group input-group-sm">
+                        <input type="number" name="includedHours" min="0"
+                               th:value="${subscription.includedMinutes != null ? subscription.includedMinutes / 60 :
+                                          (subscription.plan.defaultIncludedMinutes != null ? subscription.plan.defaultIncludedMinutes / 60 : 0)}"
+                               class="form-control" style="max-width:60px">
+                        <span class="input-group-text">h</span>
+                        <input type="number" name="includedMins" min="0" max="59"
+                               th:value="${subscription.includedMinutes != null ? subscription.includedMinutes % 60 :
+                                          (subscription.plan.defaultIncludedMinutes != null ? subscription.plan.defaultIncludedMinutes % 60 : 0)}"
+                               class="form-control" style="max-width:60px">
+                        <span class="input-group-text">min</span>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold">
+                        Prix
+                        <span th:if="${subscription.plan.defaultPricePerPeriod != null}"
+                              class="text-muted fw-normal"
+                              th:text="'(plan : ' + ${#numbers.formatDecimal(subscription.plan.defaultPricePerPeriod,1,'POINT',2,'COMMA')} + ' €)'"></span>
+                    </label>
+                    <div class="input-group input-group-sm">
+                        <input type="number" name="pricePerPeriod" min="0" step="0.01"
+                               th:value="${subscription.pricePerPeriod != null ? subscription.pricePerPeriod : subscription.plan.defaultPricePerPeriod}"
+                               class="form-control" placeholder="0.00">
+                        <span class="input-group-text">€</span>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold">Périodicité</label>
+                    <select name="period" class="form-select form-select-sm">
+                        <option value="">— Plan par défaut —</option>
+                        <option th:value="'MONTHLY'"   th:selected="${(subscription.period != null ? subscription.period : subscription.plan.defaultPeriod)?.name() == 'MONTHLY'}">Mensuel</option>
+                        <option th:value="'QUARTERLY'" th:selected="${(subscription.period != null ? subscription.period : subscription.plan.defaultPeriod)?.name() == 'QUARTERLY'}">Trimestriel</option>
+                        <option th:value="'YEARLY'"    th:selected="${(subscription.period != null ? subscription.period : subscription.plan.defaultPeriod)?.name() == 'YEARLY'}">Annuel</option>
+                    </select>
+                </div>
+            </th:block>
+
+            <!-- HOURLY -->
+            <th:block th:if="${subscription.effectiveBillingModel.name() == 'HOURLY'}">
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold">
+                        Tarif horaire
+                        <span th:if="${subscription.plan.defaultHourlyRate != null}"
+                              class="text-muted fw-normal"
+                              th:text="'(plan : ' + ${#numbers.formatDecimal(subscription.plan.defaultHourlyRate,1,'POINT',2,'COMMA')} + ' €/h)'"></span>
+                    </label>
+                    <div class="input-group input-group-sm">
+                        <input type="number" name="hourlyRate" min="0" step="0.01"
+                               th:value="${subscription.hourlyRate != null ? subscription.hourlyRate : subscription.plan.defaultHourlyRate}"
+                               class="form-control" placeholder="0.00">
+                        <span class="input-group-text">€/h</span>
+                    </div>
+                </div>
+            </th:block>
+
+            <!-- PER_UNIT -->
+            <th:block th:if="${subscription.effectiveBillingModel.name() == 'PER_UNIT'}">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold"
+                           th:text="'Nombre de ' + ${subscription.effectiveUnitLabel + 's'}"></label>
+                    <input type="number" name="unitCount" min="0"
+                           th:value="${subscription.unitCount}"
+                           class="form-control form-control-sm" placeholder="0">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold">
+                        Prix unitaire
+                        <span th:if="${subscription.plan.defaultUnitPrice != null}"
+                              class="text-muted fw-normal"
+                              th:text="'(plan : ' + ${#numbers.formatDecimal(subscription.plan.defaultUnitPrice,1,'POINT',2,'COMMA')} + ' €)'"></span>
+                    </label>
+                    <div class="input-group input-group-sm">
+                        <input type="number" name="unitPrice" min="0" step="0.01"
+                               th:value="${subscription.unitPrice != null ? subscription.unitPrice : subscription.plan.defaultUnitPrice}"
+                               class="form-control" placeholder="0.00">
+                        <span class="input-group-text" th:text="'€/' + ${subscription.effectiveUnitLabel}">€/unité</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Périodicité</label>
+                    <select name="period" class="form-select form-select-sm">
+                        <option value="">— Plan —</option>
+                        <option th:value="'MONTHLY'"   th:selected="${(subscription.period != null ? subscription.period : subscription.plan.defaultPeriod)?.name() == 'MONTHLY'}">Mensuel</option>
+                        <option th:value="'QUARTERLY'" th:selected="${(subscription.period != null ? subscription.period : subscription.plan.defaultPeriod)?.name() == 'QUARTERLY'}">Trimestriel</option>
+                        <option th:value="'YEARLY'"    th:selected="${(subscription.period != null ? subscription.period : subscription.plan.defaultPeriod)?.name() == 'YEARLY'}">Annuel</option>
+                    </select>
+                </div>
+            </th:block>
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>

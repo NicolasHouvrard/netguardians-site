@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Facturation interventions</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/intra/interventions" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0">
+            <i class="fas fa-file-invoice me-2 text-success"></i>Facturation des interventions
+        </h4>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Filtres -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0"><i class="fas fa-filter me-2 text-secondary"></i>Filtrer les interventions terminées</h6>
+        </div>
+        <div class="card-body">
+            <form method="get" action="/intra/interventions/billing" class="row g-3 align-items-end">
+                <div class="col-sm-4">
+                    <label class="form-label small fw-semibold">Client</label>
+                    <select name="customerId" class="form-select form-select-sm">
+                        <option value="">— Tous les clients —</option>
+                        <option th:each="c : ${customers}" th:value="${c.id}"
+                                th:text="${c.companyName}"
+                                th:selected="${customerId != null and c.id == customerId}"></option>
+                    </select>
+                </div>
+                <div class="col-sm-3">
+                    <label class="form-label small fw-semibold">Du</label>
+                    <input type="date" name="from" class="form-control form-control-sm"
+                           th:value="${from != null ? #temporals.format(from,'yyyy-MM-dd') : ''}">
+                </div>
+                <div class="col-sm-3">
+                    <label class="form-label small fw-semibold">Au</label>
+                    <input type="date" name="to" class="form-control form-control-sm"
+                           th:value="${to != null ? #temporals.format(to,'yyyy-MM-dd') : ''}">
+                </div>
+                <div class="col-sm-2">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
+                        <i class="fas fa-search me-1"></i>Filtrer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Liste des interventions à facturer -->
+    <form method="post" action="/intra/interventions/billing/generate" id="billForm">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+                <h6 class="fw-bold mb-0">
+                    <i class="fas fa-list-check me-2 text-success"></i>Interventions à facturer
+                    <span class="badge text-bg-secondary ms-1" th:text="${#lists.size(billable)}"></span>
+                </h6>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleAll()">
+                    <i class="fas fa-check-double me-1"></i>Tout sélectionner
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div th:if="${#lists.isEmpty(billable)}" class="text-center py-5 text-muted">
+                    <i class="fas fa-check-circle fa-2x mb-3 d-block text-success"></i>
+                    Aucune intervention terminée en attente de facturation.
+                </div>
+                <div class="table-responsive" th:unless="${#lists.isEmpty(billable)}">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th style="width:40px"><input type="checkbox" id="checkAll" onclick="toggleAll()"></th>
+                            <th>Réf.</th>
+                            <th>Client</th>
+                            <th>Date</th>
+                            <th>Durée</th>
+                            <th class="text-end">Montant HT</th>
+                            <th class="text-end">Coût ESN</th>
+                            <th class="text-end">Marge</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="i : ${billable}">
+                            <td><input type="checkbox" name="interventionIds" th:value="${i.id}" class="item-check"></td>
+                            <td>
+                                <a th:href="@{/intra/interventions/{id}(id=${i.id})}" class="fw-semibold text-decoration-none"
+                                   th:text="${i.reference}"></a>
+                            </td>
+                            <td th:text="${i.customer != null ? i.customer.companyName : '—'}"></td>
+                            <td th:text="${i.date != null ? #temporals.format(i.date,'dd/MM/yyyy') : '—'}"></td>
+                            <td th:text="${i.formattedDuration}"></td>
+                            <td class="text-end fw-semibold">
+                                <span th:if="${i.clientAmount != null and i.clientAmount > 0}" class="text-success"
+                                      th:text="${#numbers.formatDecimal(i.clientAmount, 1, 2) + ' €'}"></span>
+                                <span th:unless="${i.clientAmount != null and i.clientAmount > 0}" class="text-muted">—</span>
+                            </td>
+                            <td class="text-end">
+                                <span th:if="${i.esnAmount != null and i.esnAmount > 0}" class="text-danger"
+                                      th:text="${#numbers.formatDecimal(i.esnAmount, 1, 2) + ' €'}"></span>
+                                <span th:unless="${i.esnAmount != null and i.esnAmount > 0}" class="text-muted">—</span>
+                            </td>
+                            <td class="text-end fw-semibold">
+                                <span th:if="${i.clientAmount != null and i.esnAmount != null}"
+                                      th:classappend="${i.clientAmount - i.esnAmount >= 0 ? 'text-success' : 'text-danger'}"
+                                      th:text="${#numbers.formatDecimal(i.clientAmount - i.esnAmount, 1, 2) + ' €'}"></span>
+                                <span th:unless="${i.clientAmount != null and i.esnAmount != null}" class="text-muted">—</span>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div th:unless="${#lists.isEmpty(billable)}" class="card-footer bg-white d-flex align-items-center justify-content-between flex-wrap gap-3 pt-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="perIntervention" value="true" id="perInvSwitch">
+                        <label class="form-check-label small" for="perInvSwitch">
+                            Une facture <strong>par intervention</strong>
+                            <span class="text-muted">(sinon : une seule facture regroupant tout)</span>
+                        </label>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success btn-sm">
+                    <i class="fas fa-file-invoice me-1"></i>Générer les factures
+                </button>
+            </div>
+        </div>
+    </form>
+
+</div>
+<th:block layout:fragment="script">
+<script>
+function toggleAll() {
+    var checks = document.querySelectorAll('.item-check');
+    var all = document.getElementById('checkAll');
+    checks.forEach(function(c) { c.checked = all.checked; });
+}
+</script>
+</th:block>
+</body>
+</html>

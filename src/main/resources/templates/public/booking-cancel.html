@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head><title>Annulation de rendez-vous</title></head>
+<body>
+<div layout:fragment="content">
+<div style="max-width:560px;margin:0 auto;" class="py-5">
+
+    <!-- Erreur : token invalide -->
+    <div th:if="${error != null}" class="text-center">
+        <div style="font-size:3rem" class="mb-3">🔗</div>
+        <h3 class="fw-bold text-danger">Lien invalide</h3>
+        <p class="text-muted" th:text="${error}"></p>
+        <a href="/" class="btn btn-outline-secondary mt-3">
+            <i class="fas fa-home me-1"></i>Accueil
+        </a>
+    </div>
+
+    <!-- Déjà annulé ou vient d'être annulé -->
+    <div th:if="${error == null and done}" class="text-center">
+        <div style="font-size:3.5rem" class="mb-3">✅</div>
+        <h2 class="fw-bold">Rendez-vous annulé</h2>
+        <p class="text-muted">Votre rendez-vous a bien été annulé. Vous allez recevoir une confirmation par email.</p>
+
+        <div th:if="${appointment != null}" class="card border-0 shadow-sm mt-4">
+            <div class="card-body text-start">
+                <p class="text-muted mb-1 small">Rendez-vous annulé :</p>
+                <p class="fw-semibold" th:text="${appointment.title}"></p>
+                <p class="text-muted small">
+                    <i class="fas fa-calendar me-1"></i>
+                    <span th:text="${#temporals.format(appointment.startAt,'EEEE d MMMM yyyy à HH:mm',#locale)}"></span>
+                </p>
+            </div>
+        </div>
+
+        <a href="/" class="btn btn-outline-primary mt-4">
+            <i class="fas fa-home me-1"></i>Retour à l'accueil
+        </a>
+    </div>
+
+    <!-- Demande de confirmation d'annulation -->
+    <div th:if="${error == null and !done}">
+        <div class="text-center mb-4">
+            <div style="font-size:3rem" class="mb-3">📅</div>
+            <h2 class="fw-bold">Annuler votre rendez-vous ?</h2>
+        </div>
+
+        <div th:if="${appointment != null}" class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <h5 class="fw-bold mb-3" th:text="${appointment.title}"></h5>
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-2">
+                        <i class="fas fa-calendar me-2 text-primary"></i>
+                        <span th:text="${#temporals.format(appointment.startAt,'EEEE d MMMM yyyy',#locale)}"></span>
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-clock me-2 text-primary"></i>
+                        <span th:text="${#temporals.format(appointment.startAt,'HH:mm')}"></span>
+                        <span th:if="${appointment.endAt != null}">
+                            → <span th:text="${#temporals.format(appointment.endAt,'HH:mm')}"></span>
+                        </span>
+                    </li>
+                    <li th:if="${appointment.assignedTo != null}">
+                        <i class="fas fa-user me-2 text-primary"></i>
+                        <span th:text="${appointment.assignedTo.fullName}"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Cette action est <strong>irréversible</strong>. Pour reprendre un rendez-vous, vous devrez effectuer une nouvelle réservation.
+        </div>
+
+        <div class="d-grid gap-2">
+            <form th:action="'/booking/cancel/' + ${token}" method="post">
+                <button type="submit" class="btn btn-danger btn-lg w-100">
+                    <i class="fas fa-times-circle me-2"></i>Confirmer l'annulation
+                </button>
+            </form>
+            <a href="javascript:history.back()" class="btn btn-outline-secondary btn-lg">
+                <i class="fas fa-arrow-left me-1"></i>Ne pas annuler
+            </a>
+        </div>
+    </div>
+
+</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" 
+        xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+      
+ <head>
+    <title>Clients</title>
+</head> 
+<body>
+    <section layout:fragment="content">
+            <div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Gestion des Modules</h1>
+        <a th:href="@{/admin/settings/modules/new}" class="btn btn-primary shadow-sm">
+            <i class="fas fa-plus fa-sm text-white-50"></i> Créer une nouvelle tuile
+        </a>
+        
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle" id="modulesTable">
+                    <thead class="thead-light">
+                        <tr>
+                            <th style="width: 50px">Ordre</th>
+                            <th style="width: 80px">Aperçu</th>
+                            <th>Titre du Module</th>
+                            <th>Catégorie</th>
+                            <th>Lien (URL)</th>
+                            <th>Rôle requis</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody th:if="${listeModules != null}">
+                        <tr th:each="item : ${listeModules}">
+                            <td th:text="${item.displayOrder}"
+                             class="font-weight-bold text-center">1</td>
+                            <td>
+                                <div class="rounded shadow-sm d-flex align-items-center justify-content-center" 
+                                     th:style="|background-color: ${item.color} ; width: 45px; height: 45px; border-radius: 8px;|">
+                                    <i th:class="|${item.icon} text-white|"></i>
+                                </div>
+                            </td>
+                            <td>
+                                <span th:text="${item.title}" class="h6 font-weight-bold mb-0">Nom</span>
+                            </td>
+                            <td>
+                                <span class="badge text-bg-primary border text-uppercase" th:text="${item.category}">Cat</span>
+                            </td>
+                            <td>
+                                <code th:text="${item.url}">/url</code>
+                            </td>
+                            <td>
+                                <span class="text-xs font-weight-bold" 
+                                      th:classappend="${item.roleRequired == 'ROLE_ADMIN'} ? 'text-danger' : 'text-primary'"
+                                      th:text="${item.roleRequired ?: 'PUBLIC'}">
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group">
+                                    <a th:href="@{/admin/settings/modules/edit/{id}(id=${item.id})}" 
+                                       class="btn btn-sm btn-outline-primary" title="Modifier">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <form th:action="@{/admin/settings/modules/delete/{id}(id=${item.id})}"
+                                          method="post" class="d-inline"
+                                          onsubmit="return confirm('Supprimer définitivement ce module ?')">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Supprimer">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+    </section>
+ 
+</body>
+</html>

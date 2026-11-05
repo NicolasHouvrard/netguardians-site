@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="widget" class="d-flex flex-column h-100">
+    <div class="widget-list-header">
+        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+              th:style="'background:' + ${widget.color} + '22;width:26px;height:26px'">
+            <i th:class="${widget.icon}" th:style="'color:' + ${widget.color} + ';font-size:.7rem'"></i>
+        </span>
+        <span class="fw-semibold small flex-grow-1 text-truncate" th:text="${widget.label}"></span>
+        <a th:href="${widget.link}" class="btn btn-xs btn-outline-secondary py-0 px-2"
+           style="font-size:.7rem;white-space:nowrap">Voir tout →</a>
+        <form th:if="${dashboard != null}"
+              th:action="@{/intra/dashboard/{s}/widget/remove(s=${dashboard})}" method="post" class="ms-1">
+            <input type="hidden" name="widgetType" th:value="${widgetKey}">
+            <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1 btn-widget-remove" title="Retirer"
+                    onclick="return confirm('Retirer ce widget ?')">
+                <i class="fas fa-times" style="font-size:.65rem"></i>
+            </button>
+        </form>
+    </div>
+    <div class="widget-list-scroll">
+        <table class="widget-list-table">
+            <thead th:if="${headers != null}">
+                <tr>
+                    <th th:each="h : ${headers}" th:text="${h}"
+                        style="font-size:.68rem;color:#94a3b8;padding:.25rem .75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="row : ${rows}">
+                    <td th:each="cell : ${row}" th:text="${cell}"></td>
+                </tr>
+                <tr th:if="${rows == null or #lists.isEmpty(rows)}">
+                    <td colspan="5" class="text-center text-muted py-3">Aucun résultat</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

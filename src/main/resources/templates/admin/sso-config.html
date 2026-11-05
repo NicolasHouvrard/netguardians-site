@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+<head><title>Authentification SSO</title></head>
+<body>
+<div layout:fragment="content">
+<div class="container-fluid">
+
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h4 class="mb-0"><i class="fas fa-key me-2 text-primary"></i>Authentification SSO</h4>
+      <div class="text-muted small mt-1">
+        Boutons de connexion Google / Microsoft dans l'intranet Angular.
+        Les credentials sont lus depuis les comptes mail OAuth2 configurés.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Statut des providers ── -->
+  <div class="row g-4 mb-4">
+
+    <!-- Google -->
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header d-flex align-items-center gap-2">
+          <i class="fab fa-google text-danger"></i>
+          <strong>Google</strong>
+          <span th:if="${googleActive}"    class="badge bg-success ms-auto">Actif</span>
+          <span th:unless="${googleActive}" class="badge bg-secondary ms-auto">Inactif</span>
+        </div>
+        <div class="card-body">
+          <div th:if="${googleAccounts.empty}" class="text-muted small">
+            <i class="fas fa-info-circle me-1"></i>
+            Aucun compte mail Google OAuth2 configuré.
+          </div>
+          <div th:unless="${googleAccounts.empty}">
+            <p class="small text-muted mb-2">Compte(s) mail utilisés comme source :</p>
+            <ul class="list-unstyled mb-0">
+              <li th:each="a, i : ${googleAccounts}" class="mb-1">
+                <i class="fas fa-circle-check text-success me-1" th:if="${i.first}"></i>
+                <i class="fas fa-circle text-muted me-1"          th:unless="${i.first}"></i>
+                <span class="fw-medium" th:text="${a.name}"></span>
+                <span class="text-muted small ms-1" th:text="'(' + ${a.username} + ')'"></span>
+                <span class="badge bg-success-subtle text-success-emphasis ms-1" th:if="${i.first}">utilisé</span>
+              </li>
+            </ul>
+            <div class="alert alert-info small mt-3 mb-0" th:if="${googleAccounts.size() > 1}">
+              Seul le premier compte est utilisé pour le SSO. Les autres servent uniquement pour le mail.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Microsoft -->
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header d-flex align-items-center gap-2">
+          <i class="fab fa-microsoft text-primary"></i>
+          <strong>Microsoft</strong>
+          <span th:if="${microsoftActive}"    class="badge bg-success ms-auto">Actif</span>
+          <span th:unless="${microsoftActive}" class="badge bg-secondary ms-auto">Inactif</span>
+        </div>
+        <div class="card-body">
+          <div th:if="${microsoftAccounts.empty}" class="text-muted small">
+            <i class="fas fa-info-circle me-1"></i>
+            Aucun compte mail Microsoft OAuth2 configuré.
+          </div>
+          <div th:unless="${microsoftAccounts.empty}">
+            <p class="small text-muted mb-2">Compte(s) mail utilisés comme source :</p>
+            <ul class="list-unstyled mb-0">
+              <li th:each="a, i : ${microsoftAccounts}" class="mb-1">
+                <i class="fas fa-circle-check text-success me-1" th:if="${i.first}"></i>
+                <i class="fas fa-circle text-muted me-1"          th:unless="${i.first}"></i>
+                <span class="fw-medium" th:text="${a.name}"></span>
+                <span class="text-muted small ms-1" th:text="'(' + ${a.username} + ')'"></span>
+                <span class="badge bg-success-subtle text-success-emphasis ms-1" th:if="${i.first}">utilisé</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Guide configuration ── -->
+  <div class="card">
+    <div class="card-header"><strong><i class="fas fa-circle-question me-2"></i>Comment activer un provider ?</strong></div>
+    <div class="card-body">
+      <div class="row g-4">
+
+        <div class="col-md-6">
+          <h6><i class="fab fa-google text-danger me-1"></i>Google</h6>
+          <ol class="small">
+            <li>Aller dans <a th:href="@{/intra/mail/accounts}"><strong>Paramètres → Comptes mail</strong></a></li>
+            <li>Ajouter ou modifier un compte → type <strong>Google OAuth2 (Gmail API)</strong></li>
+            <li>Renseigner le <strong>Client ID</strong> et le <strong>Client Secret</strong>
+              obtenu depuis <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
+            <li>URL de callback à déclarer chez Google :<br>
+              <code th:text="${#request.scheme + '://' + #request.serverName + ':' + #request.serverPort + '/login/oauth2/code/google'}" class="small"></code>
+            </li>
+            <li><strong>Redémarrer l'application</strong> pour activer le bouton SSO</li>
+          </ol>
+        </div>
+
+        <div class="col-md-6">
+          <h6><i class="fab fa-microsoft text-primary me-1"></i>Microsoft / Azure AD</h6>
+          <ol class="small">
+            <li>Aller dans <a th:href="@{/intra/mail/accounts}"><strong>Paramètres → Comptes mail</strong></a></li>
+            <li>Ajouter ou modifier un compte → type <strong>Microsoft OAuth2 (Graph API)</strong></li>
+            <li>Renseigner le <strong>Client ID</strong>, <strong>Client Secret</strong> et le <strong>Tenant ID</strong>
+              depuis <a href="https://portal.azure.com/" target="_blank">Azure App Registrations</a></li>
+            <li>URL de callback à déclarer :<br>
+              <code th:text="${#request.scheme + '://' + #request.serverName + ':' + #request.serverPort + '/login/oauth2/code/microsoft'}" class="small"></code>
+            </li>
+            <li><strong>Redémarrer l'application</strong> pour activer le bouton SSO</li>
+          </ol>
+        </div>
+
+      </div>
+
+      <div class="alert alert-secondary small mt-3 mb-0">
+        <i class="fas fa-lock me-1"></i>
+        Les <strong>Client ID</strong> et <strong>Client Secret</strong> sont chiffrés en base de données (AES-256).
+        Le même compte mail sert à la fois pour la synchronisation des emails <em>et</em> pour le bouton de connexion SSO.
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+</body>
+</html>

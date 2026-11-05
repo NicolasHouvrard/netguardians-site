@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title th:text="${prospect.companyName + ' — Prospect'}">Prospect</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-3">
+        <a href="/intra/prospects" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0">
+            <i class="fas fa-users-line me-2 text-indigo"></i>
+            <span th:text="${prospect.companyName}"></span>
+        </h4>
+        <span class="badge ms-1"
+              th:classappend="${prospect.prospectStatus?.badgeCss}"
+              th:text="${prospect.prospectStatus?.label ?: 'Nouveau'}"></span>
+        <form th:action="@{/intra/prospects/{id}/convert(id=${prospect.id})}" method="post" class="ms-auto">
+            <button type="submit" class="btn btn-sm btn-success"
+                    onclick="return confirm('Convertir ce prospect en client ?')">
+                <i class="fas fa-check me-1"></i>Convertir en client
+            </button>
+        </form>
+    </div>
+
+    <!-- ── Barre de progression pipeline ──────────────────────────────────── -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <div class="d-flex gap-1 align-items-center">
+                <th:block th:each="s, iter : ${statuses}">
+                    <div class="flex-fill text-center py-1 rounded small"
+                         th:classappend="${s == prospect.prospectStatus} ? 'fw-bold text-white' : 'text-muted'"
+                         th:style="${s == prospect.prospectStatus} ? 'background:' + s.color : 'background:#f1f5f9'"
+                         th:text="${s.label}">
+                    </div>
+                    <i th:unless="${iter.last}" class="fas fa-chevron-right text-muted" style="font-size:.65rem"></i>
+                </th:block>
+            </div>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show py-2">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- ── Onglets ─────────────────────────────────────────────────────────── -->
+    <ul class="nav nav-tabs mb-3" id="prospectTabs">
+        <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabInfos">
+                <i class="fas fa-info-circle me-1"></i>Infos
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabActivites" id="tabActivitesBtn">
+                <i class="fas fa-calendar-check me-1"></i>Activités
+                <span class="badge text-bg-secondary ms-1" th:text="${#lists.size(activities)}"></span>
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDevis">
+                <i class="fas fa-file-signature me-1"></i>Devis
+                <span class="badge text-bg-secondary ms-1" th:text="${#lists.size(quotes)}"></span>
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+
+        <!-- ── Infos ─────────────────────────────────────────────────────── -->
+        <div class="tab-pane fade show active" id="tabInfos">
+            <div class="row g-4">
+                <div class="col-lg-7">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white border-0 pt-3 pb-2">
+                            <h6 class="fw-bold mb-0"><i class="fas fa-building me-2 text-primary"></i>Informations</h6>
+                        </div>
+                        <div class="card-body">
+                            <form th:action="@{/intra/prospects/{id}/update(id=${prospect.id})}" method="post">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Entreprise</label>
+                                        <input type="text" name="companyName" class="form-control"
+                                               th:value="${prospect.companyName}" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Contact</label>
+                                        <input type="text" name="contactName" class="form-control"
+                                               th:value="${prospect.contactName}">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Email</label>
+                                        <input type="email" name="email" class="form-control"
+                                               th:value="${prospect.email}">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Téléphone</label>
+                                        <input type="tel" name="phone" class="form-control"
+                                               th:value="${prospect.phone}">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Site web</label>
+                                        <input type="text" name="website" class="form-control"
+                                               th:value="${prospect.website}">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Source</label>
+                                        <select name="prospectSource" class="form-select">
+                                            <option value="">— Sélectionner —</option>
+                                            <option th:each="s : ${sources}"
+                                                    th:value="${s.name()}"
+                                                    th:selected="${s == prospect.prospectSource}"
+                                                    th:text="${s.label}"></option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Équipe commerciale</label>
+                                        <select name="teamId" id="teamSelectDetail" class="form-select"
+                                                hx-get="/intra/prospects/team-members"
+                                                hx-trigger="change"
+                                                hx-target="#commercialSelectDetail"
+                                                hx-include="[name='teamId']">
+                                            <option value="">— Toutes les équipes —</option>
+                                            <option th:each="t : ${teams}"
+                                                    th:value="${t.id}"
+                                                    th:selected="${t.id == prospect.assignedTeamId}"
+                                                    th:text="${t.name}"></option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Commercial</label>
+                                        <select name="assignedCommercialId" id="commercialSelectDetail" class="form-select">
+                                            <option value="">— Aucun —</option>
+                                            <option th:each="u : ${commercials}"
+                                                    th:value="${u.id}"
+                                                    th:selected="${u.id == prospect.assignedCommercialId}"
+                                                    th:text="${u.fullName}"></option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Valeur estimée (€)</label>
+                                        <input type="number" name="estimatedValue" class="form-control"
+                                               step="100" min="0"
+                                               th:value="${prospect.estimatedValue}">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Clôture prévue</label>
+                                        <input type="date" name="expectedCloseDate" class="form-control"
+                                               th:value="${prospect.expectedCloseDate}">
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-semibold">Notes</label>
+                                        <textarea name="prospectNotes" class="form-control" rows="3"
+                                                  th:text="${prospect.prospectNotes}"></textarea>
+                                    </div>
+                                    <div class="col-12">
+                                        <button type="submit" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-save me-1"></i>Enregistrer
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-5">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white border-0 pt-3 pb-2">
+                            <h6 class="fw-bold mb-0"><i class="fas fa-flag me-2 text-warning"></i>Changer le statut</h6>
+                        </div>
+                        <div class="card-body">
+                            <form th:action="@{/intra/prospects/{id}/status(id=${prospect.id})}" method="post">
+                                <div class="mb-2">
+                                    <select name="status" class="form-select form-select-sm" required>
+                                        <option th:each="s : ${statuses}"
+                                                th:value="${s.name()}"
+                                                th:selected="${s == prospect.prospectStatus}"
+                                                th:text="${s.label}"></option>
+                                    </select>
+                                </div>
+                                <div class="mb-2" id="lostReasonDiv" style="display:none">
+                                    <input type="text" name="lostReason" class="form-control form-control-sm"
+                                           placeholder="Raison de la perte..." th:value="${prospect.lostReason}">
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-outline-warning w-100">
+                                    <i class="fas fa-arrows-rotate me-1"></i>Mettre à jour
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    <div th:if="${prospect.lostReason != null and not #strings.isEmpty(prospect.lostReason)}"
+                         class="card border-0 shadow-sm mt-3">
+                        <div class="card-body">
+                            <small class="text-muted fw-semibold">Raison de perte :</small>
+                            <p class="mb-0 small" th:text="${prospect.lostReason}"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Activités ──────────────────────────────────────────────────── -->
+        <div class="tab-pane fade" id="tabActivites">
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-plus-circle me-2 text-success"></i>Enregistrer une activité</h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/intra/prospects/{id}/activities(id=${prospect.id})}" method="post">
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold">Type</label>
+                                <select name="type" class="form-select form-select-sm" required>
+                                    <option th:each="t : ${activityTypes}"
+                                            th:value="${t.name()}"
+                                            th:text="${t.label}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold">Date</label>
+                                <input type="date" name="activityDate" class="form-control form-control-sm"
+                                       th:value="${#temporals.format(#temporals.createNow(), 'yyyy-MM-dd')}" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold">Durée (min)</label>
+                                <input type="number" name="duration" class="form-control form-control-sm" min="0">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Prochaine action</label>
+                                <input type="text" name="nextAction" class="form-control form-control-sm"
+                                       placeholder="Rappeler, envoyer devis…">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold">Date prochaine action</label>
+                                <input type="date" name="nextActionDate" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-9">
+                                <label class="form-label small fw-semibold">Notes</label>
+                                <input type="text" name="notes" class="form-control form-control-sm"
+                                       placeholder="Résumé de l'échange…">
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-sm btn-success">
+                                    <i class="fas fa-save me-1"></i>Enregistrer
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Timeline activités -->
+            <div th:if="${#lists.isEmpty(activities)}" class="text-center text-muted py-4">
+                <i class="fas fa-calendar-xmark fa-2x mb-2 d-block opacity-25"></i>
+                Aucune activité enregistrée.
+            </div>
+            <div class="timeline" th:unless="${#lists.isEmpty(activities)}">
+                <div th:each="a : ${activities}" class="card border-0 shadow-sm mb-2">
+                    <div class="card-body py-2 px-3 d-flex align-items-start gap-3">
+                        <div class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                             style="width:32px;height:32px;background:#6366f122">
+                            <i th:class="${a.type.icon}" style="color:#6366f1;font-size:.8rem"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fw-semibold small" th:text="${a.type.label}"></span>
+                                <span class="text-muted small"
+                                      th:text="${#temporals.format(a.activityDate, 'dd/MM/yyyy')}"></span>
+                                <span th:if="${a.duration != null}"
+                                      class="badge text-bg-light text-muted border"
+                                      th:text="${a.duration + ' min'}"></span>
+                                <span th:if="${a.commercial != null}"
+                                      class="badge text-bg-light text-muted border"
+                                      th:text="${a.commercial.fullName}"></span>
+                            </div>
+                            <div th:if="${a.notes != null}" class="text-muted small mt-1"
+                                 th:text="${a.notes}"></div>
+                            <div th:if="${a.nextAction != null}" class="mt-1">
+                                <small class="text-primary">
+                                    <i class="fas fa-arrow-right me-1"></i>
+                                    <span th:text="${a.nextAction}"></span>
+                                    <span th:if="${a.nextActionDate != null}"
+                                          th:text="${' le ' + #temporals.format(a.nextActionDate, 'dd/MM/yyyy')}"></span>
+                                </small>
+                            </div>
+                        </div>
+                        <form th:action="@{/intra/prospects/{id}/activities/{actId}/delete(id=${prospect.id},actId=${a.id})}"
+                              method="post" class="flex-shrink-0">
+                            <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1"
+                                    onclick="return confirm('Supprimer cette activité ?')"
+                                    title="Supprimer">
+                                <i class="fas fa-times" style="font-size:.65rem"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Devis ──────────────────────────────────────────────────────── -->
+        <div class="tab-pane fade" id="tabDevis">
+            <div class="d-flex justify-content-end mb-2">
+                <a th:href="@{/intra/quotes/new(customerId=${prospect.id})}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus me-1"></i>Nouveau devis
+                </a>
+            </div>
+            <div th:if="${#lists.isEmpty(quotes)}" class="text-center text-muted py-4">
+                <i class="fas fa-file-signature fa-2x mb-2 d-block opacity-25"></i>
+                Aucun devis associé.
+            </div>
+            <div class="table-responsive" th:unless="${#lists.isEmpty(quotes)}">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Numéro</th>
+                        <th>Date</th>
+                        <th>Valide jusqu'au</th>
+                        <th>Statut</th>
+                        <th class="text-end">Total HT</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="q : ${quotes}">
+                        <td class="fw-semibold" th:text="${q.quoteNumber}"></td>
+                        <td class="small text-muted"
+                            th:text="${q.quoteDate != null ? #temporals.format(q.quoteDate, 'dd/MM/yyyy') : '—'}"></td>
+                        <td class="small text-muted"
+                            th:text="${q.validUntil != null ? #temporals.format(q.validUntil, 'dd/MM/yyyy') : '—'}"></td>
+                        <td>
+                            <span class="badge" th:classappend="${q.status.badgeCss}"
+                                  th:text="${q.status.label}"></span>
+                        </td>
+                        <td class="text-end small"
+                            th:text="${#numbers.formatDecimal(q.totalHT, 1, 2) + ' €'}"></td>
+                        <td>
+                            <a th:href="@{/intra/quotes/{id}(id=${q.id})}"
+                               class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+<th:block layout:fragment="script">
+<script>
+document.querySelector('select[name="status"]').addEventListener('change', function() {
+    document.getElementById('lostReasonDiv').style.display =
+        this.value === 'PERDU' ? '' : 'none';
+});
+// Si l'URL contient #activites, activer l'onglet activités
+if (location.hash === '#activites') {
+    document.getElementById('tabActivitesBtn').click();
+}
+</script>
+</th:block>
+</html>

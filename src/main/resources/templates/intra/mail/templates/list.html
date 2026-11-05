@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Modèles d'emails</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-0 fw-bold"><i class="fas fa-envelope-open-text me-2 text-primary"></i>Modèles d'emails</h4>
+            <small class="text-muted">Personnalisez les emails automatiques envoyés par l'application</small>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Type</th>
+                        <th>Sujet</th>
+                        <th>Variables disponibles</th>
+                        <th>Mis à jour</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="tpl : ${templates}">
+                        <td>
+                            <span class="badge text-bg-primary" th:text="${tpl.type.label}"></span>
+                        </td>
+                        <td class="text-truncate" style="max-width:220px" th:text="${tpl.subject}"></td>
+                        <td>
+                            <small class="text-muted font-monospace" th:text="${tpl.type.variables}"></small>
+                        </td>
+                        <td>
+                            <small class="text-muted"
+                                   th:text="${tpl.updatedAt != null ? #temporals.format(tpl.updatedAt,'dd/MM/yyyy HH:mm') : '—'}"></small>
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm">
+                                <a th:href="'/intra/mail/templates/' + ${tpl.id} + '/edit'"
+                                   class="btn btn-outline-primary" title="Modifier">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <form th:action="'/intra/mail/templates/' + ${tpl.id} + '/reset'" method="post"
+                                      onsubmit="return confirm('Réinitialiser ce template aux valeurs par défaut ?')">
+                                    <button type="submit" class="btn btn-outline-secondary" title="Réinitialiser">
+                                        <i class="fas fa-undo"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<nav th:fragment="accountingNav" class="d-flex flex-wrap gap-1 mb-4 pb-3 border-bottom">
+    <a href="/intra/dashboard"               class="btn btn-sm btn-secondary"><i class="fas fa-arrow-left me-1"></i>Dashboard</a>
+    <span class="border-start mx-1"></span>
+    <a href="/intra/accounting"              class="btn btn-sm btn-outline-secondary"><i class="fas fa-home me-1"></i>Tableau de bord</a>
+    <a href="/intra/accounting/plan"         class="btn btn-sm btn-outline-secondary"><i class="fas fa-list-ol me-1"></i>Plan comptable</a>
+    <a href="/intra/accounting/journals"     class="btn btn-sm btn-outline-secondary"><i class="fas fa-book me-1"></i>Journaux</a>
+    <a href="/intra/accounting/entries"      class="btn btn-sm btn-outline-secondary"><i class="fas fa-pen-to-square me-1"></i>Écritures</a>
+    <a href="/intra/accounting/batches"      class="btn btn-sm btn-outline-secondary"><i class="fas fa-layer-group me-1"></i>Lots OD</a>
+    <a href="/intra/accounting/fiscal-years" class="btn btn-sm btn-outline-secondary"><i class="fas fa-calendar-alt me-1"></i>Exercices</a>
+    <span class="border-start mx-1"></span>
+    <a href="/intra/accounting/fiscal"                    class="btn btn-sm btn-outline-info"><i class="fas fa-scale-balanced me-1"></i>Fiscal</a>
+    <span class="border-start mx-1"></span>
+    <a href="/intra/accounting/qonto"              class="btn btn-sm btn-outline-secondary"><i class="fas fa-landmark me-1"></i>Qonto</a>
+    <a href="/intra/accounting/qonto/transactions" class="btn btn-sm btn-outline-secondary"><i class="fas fa-list me-1"></i>Transactions Qonto</a>
+    <a href="/intra/accounting/stripe"             class="btn btn-sm btn-outline-secondary"><i class="fab fa-stripe me-1"></i>Stripe</a>
+    <a href="/intra/accounting/stripe/transactions"class="btn btn-sm btn-outline-secondary"><i class="fas fa-list me-1"></i>Transactions Stripe</a>
+    <a href="/intra/accounting/payfit"             class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-import me-1"></i>FEC / Salaires</a>
+    <span class="border-start mx-1"></span>
+    <a href="/intra/supplier-invoices"             class="btn btn-sm btn-outline-warning"><i class="fas fa-file-import me-1"></i>Factures fournisseurs</a>
+</nav>
+</body>
+</html>

@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Facture</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a th:href="${invoice.ticket != null ? '/intra/tickets/' + invoice.ticket.id : '/intra/invoices'}"
+           class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0">
+            <i class="fas fa-file-invoice me-2 text-primary"></i>
+            <span th:text="${invoice.invoiceNumber}"></span>
+        </h4>
+        <span class="badge ms-1" th:classappend="${invoice.status != null ? invoice.status.badgeCss : ''}" th:text="${invoice.status != null ? invoice.status.label : ''}"></span>
+        <a th:href="@{/intra/invoices/{id}/print(id=${invoice.id})}" target="_blank"
+           class="btn btn-sm btn-outline-primary ms-auto">
+            <i class="fas fa-print me-1"></i>Imprimer / PDF
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div th:if="${invoice.ticket != null}" class="alert alert-info d-flex align-items-center gap-2 mb-4">
+        <i class="fas fa-ticket"></i>
+        <span>Liée au ticket
+            <a th:href="@{/intra/tickets/{id}(id=${invoice.ticket.id})}" class="fw-bold">
+                #<span th:text="${invoice.ticket.id}"></span> – <span th:text="${invoice.ticket.title}"></span>
+            </a>
+        </span>
+    </div>
+
+    <!-- Onglets -->
+    <ul class="nav nav-tabs mb-4" id="invoiceTabs">
+        <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#tabDetail">
+                <i class="fas fa-file-invoice me-1"></i>Détail
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#tabAccounting">
+                <i class="fas fa-book me-1"></i>Comptabilité
+                <span th:if="${accountingEntries != null and not #lists.isEmpty(accountingEntries)}"
+                      class="badge text-bg-primary ms-1"
+                      th:text="${#lists.size(accountingEntries)}"></span>
+            </a>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+    <div id="tabDetail" class="tab-pane fade show active">
+    <div class="row g-4">
+
+        <!-- ── Colonne principale ─────────────────────────────────────────── -->
+        <div class="col-lg-8">
+
+            <!-- Récapitulatif TVA & Marges -->
+            <div th:if="${vatSummary != null and not #lists.isEmpty(vatSummary)}"
+                 class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0">
+                        <i class="fas fa-chart-pie me-2 text-primary"></i>Récapitulatif TVA &amp; Marges
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Taux TVA</th>
+                            <th class="text-end">Base HT</th>
+                            <th class="text-end">TVA</th>
+                            <th class="text-end">Total TTC</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="row : ${vatSummary}">
+                            <td th:text="${#numbers.formatDecimal(row['rate'], 1, 2) + ' %'}"></td>
+                            <td class="text-end" th:text="${#numbers.formatDecimal(row['baseHT'], 1, 2) + ' €'}"></td>
+                            <td class="text-end" th:text="${#numbers.formatDecimal(row['tva'], 1, 2) + ' €'}"></td>
+                            <td class="text-end fw-semibold" th:text="${#numbers.formatDecimal(row['ttc'], 1, 2) + ' €'}"></td>
+                        </tr>
+                        </tbody>
+                        <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td>Total</td>
+                            <td class="text-end"
+                                th:text="${#numbers.formatDecimal(invoice.totalHT != null ? invoice.totalHT : 0, 1, 2) + ' €'}"></td>
+                            <td class="text-end"
+                                th:text="${#numbers.formatDecimal(invoice.totalTVA != null ? invoice.totalTVA : 0, 1, 2) + ' €'}"></td>
+                            <td class="text-end text-primary"
+                                th:text="${#numbers.formatDecimal(invoice.totalTTC != null ? invoice.totalTTC : 0, 1, 2) + ' €'}"></td>
+                        </tr>
+                        </tfoot>
+                    </table>
+                    <!-- Marge -->
+                    <div th:if="${invoice.totalCost != null and invoice.totalCost > 0}"
+                         class="px-3 py-2 border-top d-flex flex-wrap gap-4 align-items-center">
+                        <div>
+                            <span class="text-muted small">Coût total</span>
+                            <span class="ms-2 fw-semibold"
+                                  th:text="${#numbers.formatDecimal(invoice.totalCost, 1, 2) + ' €'}"></span>
+                        </div>
+                        <div>
+                            <span class="text-muted small">Marge brute</span>
+                            <span class="ms-2 fw-semibold text-success"
+                                  th:text="${#numbers.formatDecimal((invoice.totalHT != null ? invoice.totalHT : 0) - invoice.totalCost, 1, 2) + ' €'}"></span>
+                        </div>
+                        <div th:if="${invoice.totalHT != null and invoice.totalHT > 0}">
+                            <span class="text-muted small">Taux de marge</span>
+                            <span class="ms-2 badge text-bg-success"
+                                  th:text="${#numbers.formatDecimal(((invoice.totalHT - invoice.totalCost) / invoice.totalHT) * 100, 1, 1) + ' %'}"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lignes de la facture -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-list me-2 text-primary"></i>Lignes</h6>
+                    <span class="fw-bold text-primary">
+                        Total HT :
+                        <span th:text="${invoice.totalHT != null ? #numbers.formatDecimal(invoice.totalHT, 1, 2) + ' €' : '0,00 €'}"></span>
+                    </span>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(invoice.lines)}" class="text-center py-4 text-muted small">
+                        Aucune ligne. Ajoutez des prestations ci-dessous.
+                    </div>
+                    <div class="table-responsive" th:unless="${#lists.isEmpty(invoice.lines)}">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-center" style="width:55px">Qté</th>
+                                <th class="text-end" style="width:100px">P.U. HT</th>
+                                <th class="text-center" style="width:75px">TVA</th>
+                                <th class="text-end" style="width:100px">Total HT</th>
+                                <th style="width:65px"></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="line : ${invoice.lines}">
+                                <td>
+                                    <span th:text="${line.description}"></span>
+                                    <span th:if="${line.costPrice != null}" class="d-block text-muted" style="font-size:.75rem">
+                                        coût : <span th:text="${#numbers.formatDecimal(line.costPrice, 1, 2) + ' €'}"></span>
+                                    </span>
+                                </td>
+                                <td class="text-center" th:text="${line.quantity}"></td>
+                                <td class="text-end"
+                                    th:text="${line.unitPrice != null ? #numbers.formatDecimal(line.unitPrice, 1, 2) + ' €' : '—'}"></td>
+                                <td class="text-center small text-muted"
+                                    th:text="${line.vatRate != null ? #numbers.formatDecimal(line.vatRate, 1, 2) + ' %' : '—'}"></td>
+                                <td class="text-end fw-semibold"
+                                    th:text="${line.totalHT != null ? #numbers.formatDecimal(line.totalHT, 1, 2) + ' €' : '—'}"></td>
+                                <td class="text-center">
+                                    <div class="d-flex gap-1 justify-content-center">
+                                        <button type="button"
+                                                class="btn btn-xs btn-outline-secondary py-0 px-1"
+                                                th:data-lid="${line.id}"
+                                                th:data-desc="${line.description}"
+                                                th:data-qty="${line.quantity}"
+                                                th:data-price="${line.unitPrice}"
+                                                th:data-vat="${line.vatRate}"
+                                                th:data-cost="${line.costPrice}"
+                                                onclick="openEditLine(this)">
+                                            <i class="fas fa-pen" style="font-size:.65rem"></i>
+                                        </button>
+                                        <form th:action="@{/intra/invoices/{id}/lines/{lid}/delete(id=${invoice.id},lid=${line.id})}"
+                                              method="post"
+                                              onsubmit="return confirm('Supprimer cette ligne ?')">
+                                            <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1">
+                                                <i class="fas fa-trash" style="font-size:.65rem"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Totaux -->
+                    <div th:unless="${#lists.isEmpty(invoice.lines)}"
+                         class="d-flex flex-column align-items-end px-3 py-3 border-top gap-1">
+                        <div class="d-flex gap-4">
+                            <span class="text-muted small">Total HT</span>
+                            <span class="fw-semibold"
+                                  th:text="${#numbers.formatDecimal(invoice.totalHT != null ? invoice.totalHT : 0, 1, 2) + ' €'}"></span>
+                        </div>
+                        <div class="d-flex gap-4">
+                            <span class="text-muted small">TVA</span>
+                            <span th:text="${#numbers.formatDecimal(invoice.totalTVA != null ? invoice.totalTVA : 0, 1, 2) + ' €'}"></span>
+                        </div>
+                        <div class="d-flex gap-4 border-top pt-1 mt-1">
+                            <span class="fw-bold">Total TTC</span>
+                            <span class="fw-bold text-primary fs-5"
+                                  th:text="${#numbers.formatDecimal(invoice.totalTTC != null ? invoice.totalTTC : 0, 1, 2) + ' €'}"></span>
+                        </div>
+                        <div th:if="${invoice.vatMention != null and not #strings.isEmpty(invoice.vatMention)}"
+                             class="mt-2 pt-2 border-top w-100 text-muted small fst-italic"
+                             th:text="${invoice.vatMention}"></div>
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-top pt-3">
+                    <h6 class="fw-semibold mb-2 text-muted small">Ajouter une ligne</h6>
+                    <form th:action="@{/intra/invoices/{id}/lines(id=${invoice.id})}" method="post">
+                        <input type="hidden" name="productId" id="invProductId">
+                        <div class="mb-2 position-relative">
+                            <label class="form-label small">Rechercher dans le catalogue <span class="text-muted">(optionnel)</span></label>
+                            <input type="text" id="invProductSearch" class="form-control form-control-sm"
+                                   autocomplete="off" placeholder="Tapez un nom de produit...">
+                            <ul id="invProductResults" class="list-group shadow position-absolute w-100"
+                                style="z-index:1050;display:none;max-height:220px;overflow-y:auto;top:100%;left:0"></ul>
+                        </div>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-sm-4">
+                                <label class="form-label small">Description <span class="text-danger">*</span></label>
+                                <input type="text" name="description" id="invDesc" class="form-control form-control-sm"
+                                       required placeholder="Prestation, matériel...">
+                            </div>
+                            <div class="col-sm-1">
+                                <label class="form-label small">Qté</label>
+                                <input type="number" name="quantity" id="invQty" class="form-control form-control-sm"
+                                       min="1" value="1" required>
+                            </div>
+                            <div class="col-sm-2">
+                                <label class="form-label small">P.U. HT (€)</label>
+                                <input type="number" name="unitPrice" id="invPrice" class="form-control form-control-sm"
+                                       step="0.01" min="0" required placeholder="0.00">
+                            </div>
+                            <div class="col-sm-2">
+                                <label class="form-label small">TVA</label>
+                                <select name="vatRateId" id="addVatSelect" class="form-select form-select-sm">
+                                    <th:block th:each="vr : ${vatRates}">
+                                        <option th:value="${vr.id}"
+                                                th:text="${vr.label}"
+                                                th:selected="${vr.isDefault()}"></option>
+                                    </th:block>
+                                </select>
+                            </div>
+                            <div class="col-sm-2">
+                                <label class="form-label small">Coût unit. (€)</label>
+                                <input type="number" name="costPrice" class="form-control form-control-sm"
+                                       step="0.01" min="0" placeholder="0.00">
+                            </div>
+                            <div class="col-sm-1">
+                                <button type="submit" class="btn btn-primary btn-sm w-100">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="card border-0 shadow-sm mb-4"
+                 th:if="${invoice.notes != null and not #strings.isEmpty(invoice.notes)}">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-sticky-note me-2 text-secondary"></i>Notes</h6>
+                </div>
+                <div class="card-body">
+                    <div class="small" style="white-space:pre-wrap" th:text="${invoice.notes}"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ── Colonne latérale ───────────────────────────────────────────── -->
+        <div class="col-lg-4">
+
+            <!-- Infos -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-info-circle me-2 text-secondary"></i>Informations</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <div class="text-muted small">Client</div>
+                        <div class="fw-semibold"
+                             th:text="${invoice.customer != null ? invoice.customer.companyName : '—'}"></div>
+                    </div>
+                    <div class="mb-2">
+                        <div class="text-muted small">Date facture</div>
+                        <div th:text="${invoice.invoiceDate != null ? #temporals.format(invoice.invoiceDate,'dd/MM/yyyy') : '—'}"></div>
+                    </div>
+                    <div class="mb-2">
+                        <div class="text-muted small">Échéance</div>
+                        <div th:text="${invoice.dueDate != null ? #temporals.format(invoice.dueDate,'dd/MM/yyyy') : '—'}"></div>
+                    </div>
+                    <div class="mb-2" th:if="${invoice.createdBy != null}">
+                        <div class="text-muted small">Créée par</div>
+                        <div th:text="${invoice.createdBy.fullName}"></div>
+                    </div>
+                    <hr>
+                    <form th:action="@{/intra/invoices/{id}/update(id=${invoice.id})}" method="post">
+                        <div class="mb-2">
+                            <label class="form-label small">Date facture</label>
+                            <input type="date" name="invoiceDate" class="form-control form-control-sm"
+                                   th:value="${invoice.invoiceDate != null ? #temporals.format(invoice.invoiceDate,'yyyy-MM-dd') : ''}">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Échéance</label>
+                            <input type="date" name="dueDate" class="form-control form-control-sm"
+                                   th:value="${invoice.dueDate != null ? #temporals.format(invoice.dueDate,'yyyy-MM-dd') : ''}">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">
+                                Mention légale TVA
+                                <span th:if="${invoice.customer != null and invoice.customer.fiscalZone != null and invoice.customer.fiscalZone.name() != 'FRANCE'}"
+                                      class="badge ms-1"
+                                      th:classappend="${invoice.customer.fiscalZone.name() == 'EU' ? 'text-bg-warning' : 'text-bg-secondary'}"
+                                      th:text="${invoice.customer.fiscalZone.taxLabel}"></span>
+                            </label>
+                            <textarea name="vatMention" class="form-control form-control-sm" rows="3"
+                                      placeholder="Ex : Autoliquidation – art. 283-2 du CGI…"
+                                      th:text="${invoice.vatMention}"></textarea>
+                            <div class="form-text">Apparaît sur la facture. Laissez vide si TVA normale.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small">Notes</label>
+                            <textarea name="notes" class="form-control form-control-sm" rows="3"
+                                      th:text="${invoice.notes}"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-secondary btn-sm w-100">
+                            <i class="fas fa-save me-1"></i>Enregistrer
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Facturation électronique -->
+            <div class="card border-0 shadow-sm mb-4" th:if="${invoice.type != null and invoice.type.name() == 'SALE'}">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-file-shield me-2 text-info"></i>E-Facturation</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3 d-flex align-items-center gap-2">
+                        <span class="text-muted small">Statut PDP :</span>
+                        <span class="badge"
+                              th:classappend="${invoice.eInvoicingStatus != null ? invoice.eInvoicingStatus.badgeCss() : ''}"
+                              th:text="${invoice.eInvoicingStatus != null ? invoice.eInvoicingStatus.label : ''}">
+                        </span>
+                    </div>
+                    <div th:if="${invoice.eInvoicingSubmittedAt != null}" class="mb-2 text-muted small">
+                        Soumise le <span th:text="${#temporals.format(invoice.eInvoicingSubmittedAt,'dd/MM/yyyy HH:mm')}"></span>
+                    </div>
+                    <div th:if="${invoice.eInvoicingMessage != null and not #strings.isEmpty(invoice.eInvoicingMessage)}"
+                         class="mb-3 small p-2 rounded bg-light border"
+                         style="word-break:break-word"
+                         th:text="${invoice.eInvoicingMessage}">
+                    </div>
+                    <!-- Soumettre -->
+                    <form th:if="${invoice.eInvoicingStatus == null or invoice.eInvoicingStatus.name() != 'ACCEPTED'}"
+                          th:action="@{/intra/accounting/einvoicing/{id}/submit(id=${invoice.id})}"
+                          method="post" class="mb-2">
+                        <button type="submit" class="btn btn-info btn-sm w-100"
+                                onclick="return confirm('Soumettre cette facture au PDP Qonto pour la facturation électronique ?')">
+                            <i class="fas fa-paper-plane me-1"></i>
+                            <span th:text="${invoice.eInvoicingStatus == null or invoice.eInvoicingStatus.name() == 'NONE' ? 'Soumettre au PDP' : 'Resoumettre au PDP'}"></span>
+                        </button>
+                    </form>
+                    <!-- Vérifier statut -->
+                    <form th:if="${invoice.eInvoicingStatus != null and invoice.eInvoicingStatus.name() != 'NONE'}"
+                          th:action="@{/intra/accounting/einvoicing/{id}/check-status(id=${invoice.id})}"
+                          method="post">
+                        <button type="submit" class="btn btn-outline-info btn-sm w-100">
+                            <i class="fas fa-rotate me-1"></i>Vérifier le statut
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Statut -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-sliders-h me-2"></i>Statut</h6>
+                </div>
+                <div class="card-body d-flex flex-column gap-2">
+                    <th:block th:each="s : ${statuses}">
+                        <form th:if="${s != invoice.status}"
+                              th:action="@{/intra/invoices/{id}/status(id=${invoice.id})}" method="post">
+                            <input type="hidden" name="status" th:value="${s.name()}">
+                            <button type="submit" class="btn btn-sm w-100 text-start"
+                                    th:classappend="${s.name() == 'SENT'      ? 'btn-primary'   :
+                                                      s.name() == 'PAID'      ? 'btn-success'   :
+                                                      s.name() == 'OVERDUE'   ? 'btn-danger'    :
+                                                      s.name() == 'CANCELLED' ? 'btn-dark'      : 'btn-outline-secondary'}">
+                                <span th:text="${s.label}"></span>
+                            </button>
+                        </form>
+                    </th:block>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    </div><!-- /tabDetail -->
+
+    <!-- ── Onglet Comptabilité ──────────────────────────────────────────────── -->
+    <div id="tabAccounting" class="tab-pane fade">
+
+        <div th:if="${accountingEntries == null or #lists.isEmpty(accountingEntries)}"
+             class="card border-0 shadow-sm mb-3 border-start border-4 border-secondary">
+            <div class="card-body d-flex align-items-center justify-content-between gap-3">
+                <div>
+                    <div class="fw-semibold">Aucune écriture comptable</div>
+                    <div class="text-muted small"
+                         th:if="${invoice.status != null and (invoice.status.name() == 'SENT' or invoice.status.name() == 'OVERDUE' or invoice.status.name() == 'PAID')}">
+                        La facture est validée mais l'écriture de vente n'a pas encore été générée.
+                    </div>
+                    <div class="text-muted small"
+                         th:if="${invoice.status == null or invoice.status.name() == 'DRAFT'}">
+                        Passez la facture en <strong>Envoyée</strong> pour générer l'écriture de vente (VT).
+                    </div>
+                </div>
+                <form th:if="${invoice.status != null and invoice.status.name() != 'DRAFT' and invoice.status.name() != 'CANCELLED'}"
+                      th:action="@{/intra/invoices/{id}/generate-vt(id=${invoice.id})}" method="post">
+                    <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">
+                        <i class="fas fa-magic me-1"></i>Générer l'écriture VT
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Écritures comptables -->
+        <div th:each="entry : ${accountingEntries}" class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="fw-bold font-monospace small" th:text="${entry.reference}"></span>
+                    <span class="ms-2 text-muted small"
+                          th:text="${#temporals.format(entry.entryDate,'dd/MM/yyyy')}"></span>
+                    <span class="ms-2 badge text-bg-secondary font-monospace small"
+                          th:text="${entry.journal.code}"></span>
+                </div>
+                <a th:href="@{/intra/accounting/entries/{id}(id=${entry.id})}"
+                   class="btn btn-xs btn-outline-secondary py-0 px-2 small">
+                    <i class="fas fa-external-link-alt me-1"></i>Voir
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm align-middle mb-0 font-monospace" style="font-size:.82rem">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Compte</th>
+                        <th>Libellé</th>
+                        <th class="text-end">Débit</th>
+                        <th class="text-end">Crédit</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="line : ${entry.lines}">
+                        <td th:text="${line.account.number}"></td>
+                        <td th:text="${line.label}" style="font-family:Arial,sans-serif;font-size:.82rem"></td>
+                        <td class="text-end"
+                            th:text="${line.debit != null and line.debit.compareTo(T(java.math.BigDecimal).ZERO) > 0 ? #numbers.formatDecimal(line.debit,1,2) + ' €' : ''}"></td>
+                        <td class="text-end"
+                            th:text="${line.credit != null and line.credit.compareTo(T(java.math.BigDecimal).ZERO) > 0 ? #numbers.formatDecimal(line.credit,1,2) + ' €' : ''}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Transactions bancaires liées -->
+        <div th:if="${(qontoTxs != null and not #lists.isEmpty(qontoTxs)) or (stripeTxs != null and not #lists.isEmpty(stripeTxs))}"
+             class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white border-0 pt-3 pb-2">
+                <h6 class="fw-bold mb-0">
+                    <i class="fas fa-link me-2 text-success"></i>Transactions bancaires rapprochées
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm align-middle mb-0" style="font-size:.85rem">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Source</th>
+                        <th>Date</th>
+                        <th>Libellé</th>
+                        <th class="text-end">Montant</th>
+                        <th class="text-center">Rapproché</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="tx : ${qontoTxs}">
+                        <td><span class="badge text-bg-secondary">Qonto</span></td>
+                        <td th:text="${tx.settledAt != null ? #temporals.format(tx.settledAt,'dd/MM/yyyy') : '—'}"></td>
+                        <td th:text="${tx.label}"></td>
+                        <td class="text-end fw-semibold"
+                            th:text="${tx.amount != null ? #numbers.formatDecimal(tx.amount,1,2) + ' €' : '—'}"></td>
+                        <td class="text-center">
+                            <i th:class="${tx.reconciled ? 'fas fa-check-circle text-success' : 'fas fa-clock text-warning'}"></i>
+                        </td>
+                    </tr>
+                    <tr th:each="tx : ${stripeTxs}">
+                        <td><span class="badge text-bg-primary" style="background:#6772e5!important">Stripe</span></td>
+                        <td th:text="${tx.importedAt != null ? #temporals.format(tx.importedAt,'dd/MM/yyyy') : '—'}"></td>
+                        <td th:text="${tx.description}"></td>
+                        <td class="text-end fw-semibold"
+                            th:text="${tx.amount != null ? #numbers.formatDecimal(tx.amount,1,2) + ' €' : '—'}"></td>
+                        <td class="text-center">
+                            <i th:class="${tx.reconciled ? 'fas fa-check-circle text-success' : 'fas fa-clock text-warning'}"></i>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Rapprochement : transactions candidates -->
+        <div th:if="${qontoCandidates != null or stripeCandidates != null}"
+             class="card border-0 shadow-sm mb-3 border-start border-4 border-warning">
+            <div class="card-header bg-white border-0 pt-3 pb-2">
+                <h6 class="fw-bold mb-0">
+                    <i class="fas fa-link me-2 text-warning"></i>Rapprocher un encaissement
+                </h6>
+                <div class="text-muted small mt-1">
+                    Sélectionnez la transaction bancaire correspondant au paiement de cette facture
+                    (<strong th:text="${#numbers.formatDecimal(invoice.totalTTC != null ? invoice.totalTTC : 0, 1, 2) + ' €'}"></strong> TTC).
+                    Cela validera le paiement et clôturera la facture.
+                </div>
+            </div>
+            <div class="card-body p-0">
+
+                <!-- Candidats Qonto -->
+                <div th:if="${not #lists.isEmpty(qontoCandidates)}"
+                     class="px-3 py-2 bg-light border-bottom d-flex align-items-center gap-2">
+                    <i class="fas fa-landmark text-secondary"></i>
+                    <span class="small fw-semibold text-muted">Virements Qonto non rapprochés</span>
+                </div>
+                <div th:each="tx : ${qontoCandidates}"
+                     class="d-flex align-items-center gap-3 px-3 py-2 border-bottom">
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="fw-semibold small text-truncate" th:text="${tx.label}"></div>
+                        <div class="text-muted" style="font-size:.75rem">
+                            <span th:text="${tx.settledAt != null ? #temporals.format(tx.settledAt,'dd/MM/yyyy') : '—'}"></span>
+                            <span class="ms-2 badge text-bg-secondary font-monospace"
+                                  th:if="${tx.bankAccountNumber != null}" th:text="${tx.bankAccountNumber}"></span>
+                        </div>
+                    </div>
+                    <span class="fw-bold text-success"
+                          th:text="${tx.amount != null ? #numbers.formatDecimal(tx.amount,1,2) + ' €' : '—'}"></span>
+                    <form th:action="@{/intra/invoices/{id}/reconcile/qonto/{txId}(id=${invoice.id},txId=${tx.id})}"
+                          method="post"
+                          onsubmit="return confirm('Rapprocher ce virement et passer la facture en Payée ?')">
+                        <button type="submit" class="btn btn-sm btn-warning text-dark">
+                            <i class="fas fa-link me-1"></i>Rapprocher
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Candidats Stripe -->
+                <div th:if="${not #lists.isEmpty(stripeCandidates)}"
+                     class="px-3 py-2 bg-light border-bottom d-flex align-items-center gap-2">
+                    <i class="fab fa-stripe text-primary"></i>
+                    <span class="small fw-semibold text-muted">Paiements Stripe non rapprochés</span>
+                </div>
+                <div th:each="tx : ${stripeCandidates}"
+                     class="d-flex align-items-center gap-3 px-3 py-2 border-bottom">
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="fw-semibold small text-truncate" th:text="${tx.description ?: tx.stripeId}"></div>
+                        <div class="text-muted" style="font-size:.75rem"
+                             th:text="${tx.eventDate != null ? #temporals.format(tx.eventDate,'dd/MM/yyyy') : '—'}"></div>
+                    </div>
+                    <span class="fw-bold text-success"
+                          th:text="${tx.amount != null ? #numbers.formatDecimal(tx.amount,1,2) + ' €' : '—'}"></span>
+                    <form th:action="@{/intra/invoices/{id}/reconcile/stripe/{txId}(id=${invoice.id},txId=${tx.id})}"
+                          method="post"
+                          onsubmit="return confirm('Rapprocher ce paiement Stripe et passer la facture en Payée ?')">
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="fas fa-link me-1"></i>Rapprocher
+                        </button>
+                    </form>
+                </div>
+
+                <div th:if="${#lists.isEmpty(qontoCandidates) and #lists.isEmpty(stripeCandidates)}"
+                     class="text-center py-3 text-muted small">
+                    <i class="fas fa-inbox me-1"></i>
+                    Aucune transaction non rapprochée trouvée. Importez d'abord les transactions Qonto ou Stripe.
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /tabAccounting -->
+    </div><!-- /tab-content -->
+
+    <!-- ── Modal édition de ligne ──────────────────────────────────────────── -->
+    <div class="modal fade" id="editLineModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form id="editLineForm" method="post">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h6 class="modal-title fw-bold">
+                            <i class="fas fa-pen me-2 text-primary"></i>Modifier la ligne
+                        </h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Description <span class="text-danger">*</span></label>
+                            <input type="text" name="description" id="elDesc" class="form-control" required>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Qté</label>
+                                <input type="number" name="quantity" id="elQty" class="form-control" min="1" required>
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label small fw-semibold">P.U. HT (€)</label>
+                                <input type="number" name="unitPrice" id="elPrice" class="form-control" step="0.01" min="0" required>
+                            </div>
+                            <div class="col-sm-5">
+                                <label class="form-label small fw-semibold">TVA</label>
+                                <select name="vatRateId" id="elVat" class="form-select">
+                                    <th:block th:each="vr : ${vatRates}">
+                                        <option th:value="${vr.id}"
+                                                th:text="${vr.label}"
+                                                th:attr="data-rate=${vr.rate}"></option>
+                                    </th:block>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <label class="form-label small fw-semibold">
+                                Coût unitaire HT (€) <span class="text-muted fw-normal">— optionnel</span>
+                            </label>
+                            <input type="number" name="costPrice" id="elCost" class="form-control"
+                                   step="0.01" min="0" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-save me-1"></i>Enregistrer
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script th:inline="javascript">
+(function() {
+    // ── Recherche produit catalogue ───────────────────────────────────────
+    var search  = document.getElementById('invProductSearch');
+    var results = document.getElementById('invProductResults');
+    var desc    = document.getElementById('invDesc');
+    var price   = document.getElementById('invPrice');
+    var pid     = document.getElementById('invProductId');
+    if (!search) return;
+
+    var timer = null, ctrl = null;
+
+    function fmt(n) {
+        return parseFloat(n).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+    }
+
+    function showResults(items) {
+        results.innerHTML = '';
+        if (!items.length) { results.style.display = 'none'; return; }
+        items.forEach(function(p) {
+            var li = document.createElement('li');
+            li.className = 'list-group-item list-group-item-action py-2 px-3 d-flex justify-content-between align-items-center';
+            li.innerHTML = '<span class="fw-semibold small">' + p.name + '</span>'
+                         + '<span class="badge text-bg-primary ms-3 text-nowrap">' + fmt(p.price) + ' HT</span>';
+            li.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                search.value = p.name;
+                pid.value    = p.id;
+                desc.value   = p.name;
+                price.value  = p.price;
+                results.style.display = 'none';
+            });
+            results.appendChild(li);
+        });
+        results.style.display = '';
+    }
+
+    function doSearch(term) {
+        if (ctrl) ctrl.abort();
+        if (!term || term.length < 2) { results.style.display = 'none'; return; }
+        ctrl = new AbortController();
+        results.innerHTML = '<li class="list-group-item text-muted small py-2 px-3"><i class="fas fa-spinner fa-spin me-1"></i>Recherche…</li>';
+        results.style.display = '';
+        fetch('/intra/products/search?q=' + encodeURIComponent(term), {signal: ctrl.signal})
+            .then(function(r) { return r.json(); })
+            .then(showResults)
+            .catch(function() {});
+    }
+
+    search.addEventListener('input',   function() { clearTimeout(timer); timer = setTimeout(function() { doSearch(search.value); }, 300); });
+    search.addEventListener('focus',   function() { if (search.value.length >= 2) doSearch(search.value); });
+    search.addEventListener('blur',    function() { setTimeout(function() { results.style.display = 'none'; }, 200); });
+    search.addEventListener('keydown', function(e) { if (e.key === 'Escape') { results.style.display = 'none'; search.value = ''; pid.value = ''; } });
+})();
+
+// ── Modal édition de ligne ────────────────────────────────────────────────
+var INVOICE_ID = /*[[${invoice.id}]]*/ 0;
+
+function openEditLine(btn) {
+    document.getElementById('elDesc').value  = btn.dataset.desc  || '';
+    document.getElementById('elQty').value   = btn.dataset.qty   || 1;
+    document.getElementById('elPrice').value = btn.dataset.price || '';
+    var cost = btn.dataset.cost;
+    document.getElementById('elCost').value  = (cost && cost !== 'null') ? cost : '';
+
+    var vatNum = parseFloat(btn.dataset.vat);
+    var sel = document.getElementById('elVat');
+    if (!isNaN(vatNum) && sel) {
+        var best = 0, bestDiff = Infinity;
+        for (var i = 0; i < sel.options.length; i++) {
+            var diff = Math.abs(parseFloat(sel.options[i].dataset.rate) - vatNum);
+            if (diff < bestDiff) { bestDiff = diff; best = i; }
+        }
+        sel.selectedIndex = best;
+    }
+
+    document.getElementById('editLineForm').action =
+        '/intra/invoices/' + INVOICE_ID + '/lines/' + btn.dataset.lid + '/update';
+
+    new bootstrap.Modal(document.getElementById('editLineModal')).show();
+}
+</script>
+</th:block>
+</body>
+</html>

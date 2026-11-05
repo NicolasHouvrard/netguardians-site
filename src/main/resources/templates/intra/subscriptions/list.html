@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Abonnements &amp; Contrats</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-box-open me-2 text-success"></i>Abonnements &amp; Contrats</h4>
+    </div>
+
+    <!-- Filtres -->
+    <form method="get" action="/intra/subscriptions" class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-sm-5">
+                    <label class="form-label small fw-semibold">Client</label>
+                    <select name="customerId" class="form-select form-select-sm">
+                        <option value="">Tous les clients</option>
+                        <option th:each="c : ${customers != null ? customers : T(java.util.Collections).emptyList()}"
+                                th:value="${c.id}"
+                                th:text="${c.companyName}"
+                                th:selected="${selectedCustomerId != null and selectedCustomerId == c.id}">
+                        </option>
+                    </select>
+                </div>
+                <div class="col-sm-3">
+                    <div class="form-check mt-4">
+                        <input class="form-check-input" type="checkbox" name="activeOnly" value="true"
+                               id="activeOnly"
+                               th:checked="${activeOnly}">
+                        <label class="form-check-label small" for="activeOnly">Actifs uniquement</label>
+                    </div>
+                </div>
+                <div class="col-sm-2">
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                        <i class="fas fa-filter me-1"></i>Filtrer
+                    </button>
+                </div>
+                <div class="col-sm-2">
+                    <a href="/intra/subscriptions" class="btn btn-outline-secondary btn-sm w-100">
+                        Reinitialiser
+                    </a>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Tableau -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <span class="fw-semibold" th:text="${#lists.size(subscriptions)} + ' abonnement(s)'">0</span>
+        </div>
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(subscriptions)}" class="text-center py-5 text-muted">
+                <i class="fas fa-box-open fa-2x mb-3 d-block"></i>
+                Aucun abonnement pour ces filtres.
+            </div>
+            <div class="table-responsive" th:if="${not #lists.isEmpty(subscriptions)}">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Client</th>
+                            <th>Abonnement</th>
+                            <th>Categorie</th>
+                            <th>Facturation</th>
+                            <th>Periode</th>
+                            <th>Debut</th>
+                            <th>Statut</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="s : ${subscriptions != null ? subscriptions : T(java.util.Collections).emptyList()}">
+                            <td class="ps-3">
+                                <a th:href="@{/intra/customers/{id}(id=${s.customer.id})}"
+                                   class="fw-semibold text-decoration-none text-dark"
+                                   th:text="${s.customer.companyName}"></a>
+                            </td>
+                            <td th:text="${s.effectiveName}"></td>
+                            <td>
+                                <span th:if="${s.effectiveCategory != null}"
+                                      class="badge"
+                                      th:classappend="${s.effectiveCategory.badgeCss}"
+                                      th:text="${s.effectiveCategory.label}"></span>
+                            </td>
+                            <td>
+                                <span th:if="${s.effectiveBillingModel != null}"
+                                      class="small text-muted"
+                                      th:text="${s.effectiveBillingModel.label}"></span>
+                            </td>
+                            <td>
+                                <span th:if="${s.effectivePeriod != null}"
+                                      class="small text-muted"
+                                      th:text="${s.effectivePeriod.label}"></span>
+                            </td>
+                            <td class="text-muted small"
+                                th:text="${#temporals.format(s.startDate, 'dd/MM/yyyy')}"></td>
+                            <td>
+                                <span th:if="${s.active}"     class="badge text-bg-success">Actif</span>
+                                <span th:if="${not s.active}" class="badge text-bg-secondary">Inactif</span>
+                            </td>
+                            <td>
+                                <a th:href="@{/intra/customers/{id}(id=${s.customer.id})}"
+                                   class="btn btn-sm btn-outline-secondary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Devis CRM</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h4 class="mb-0"><i class="fas fa-file-signature me-2 text-info"></i>Devis</h4>
+        <a href="/intra/quotes/new" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus me-1"></i>Nouveau devis
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show py-2">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- ── KPI row ───────────────────────────────────────────────────────── -->
+    <div class="row g-3 mb-3">
+        <div th:each="entry : ${statusCounts}" class="col">
+            <a th:href="@{/intra/quotes(status=${entry.key.name()})}" class="text-decoration-none">
+                <div class="card border-0 shadow-sm text-center py-2"
+                     th:classappend="${entry.key.name() == currentStatus} ? 'border-2 border-primary' : ''">
+                    <div class="h4 mb-0" th:text="${entry.value}"></div>
+                    <div class="small">
+                        <span class="badge" th:classappend="${entry.key.badgeCss}"
+                              th:text="${entry.key.label}"></span>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col">
+            <a href="/intra/quotes" class="text-decoration-none">
+                <div class="card border-0 shadow-sm text-center py-2"
+                     th:classappend="${currentStatus == null} ? 'border-2 border-primary' : ''">
+                    <div class="h4 mb-0" th:text="${#lists.size(quotes)}"></div>
+                    <div class="small text-muted">Tous</div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- ── Tableau ───────────────────────────────────────────────────────── -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(quotes)}" class="text-center py-5 text-muted">
+                <i class="fas fa-file-signature fa-2x mb-2 d-block opacity-25"></i>
+                Aucun devis.
+            </div>
+            <div class="table-responsive" th:unless="${#lists.isEmpty(quotes)}">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">Numéro</th>
+                        <th>Client</th>
+                        <th>Date</th>
+                        <th>Valide jusqu'au</th>
+                        <th>Statut</th>
+                        <th class="text-end">Total HT</th>
+                        <th class="text-end">Total TTC</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="q : ${quotes}">
+                        <td class="ps-3 fw-semibold" th:text="${q.quoteNumber}"></td>
+                        <td class="small" th:text="${q.customer != null ? q.customer.companyName : '—'}"></td>
+                        <td class="small text-muted"
+                            th:text="${q.quoteDate != null ? #temporals.format(q.quoteDate,'dd/MM/yyyy') : '—'}"></td>
+                        <td class="small"
+                            th:classappend="${q.validUntil != null and q.validUntil.isBefore(#temporals.createToday()) and q.status.name() == 'ENVOYE'} ? 'text-danger fw-semibold' : 'text-muted'"
+                            th:text="${q.validUntil != null ? #temporals.format(q.validUntil,'dd/MM/yyyy') : '—'}"></td>
+                        <td>
+                            <span class="badge" th:classappend="${q.status.badgeCss}"
+                                  th:text="${q.status.label}"></span>
+                        </td>
+                        <td class="text-end small"
+                            th:text="${#numbers.formatDecimal(q.totalHT != null ? q.totalHT : 0, 1, 2) + ' €'}"></td>
+                        <td class="text-end small fw-semibold"
+                            th:text="${#numbers.formatDecimal(q.totalTTC != null ? q.totalTTC : 0, 1, 2) + ' €'}"></td>
+                        <td class="pe-2">
+                            <a th:href="@{/intra/quotes/{id}(id=${q.id})}"
+                               class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+<head><title>Paramètres du Site</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h2 class="mb-0"><i class="fas fa-cog text-primary me-2"></i>Paramètres du Site</h2>
+    </div>
+
+    <form th:action="@{/intra/settings/site}" method="post" th:object="${settings}">
+
+        <!-- Identité -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header fw-semibold"><i class="fas fa-id-card me-2 text-primary"></i>Identité</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Nom du site</label>
+                        <input type="text" class="form-control" th:field="*{siteName}" placeholder="Mon Site">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">URL du site</label>
+                        <input type="url" class="form-control" th:field="*{siteUrl}" placeholder="https://monsite.fr">
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">Tagline / Accroche</label>
+                        <input type="text" class="form-control" th:field="*{tagline}" placeholder="Votre slogan ici">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">URL du favicon</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" th:field="*{faviconUrl}" id="faviconUrl" placeholder="/uploads/images/favicon.ico">
+                            <button type="button" class="btn btn-outline-secondary" onclick="openPicker('faviconUrl')">
+                                <i class="fas fa-images"></i>
+                            </button>
+                        </div>
+                        <div class="mt-2" th:if="${settings.faviconUrl != null and !#strings.isEmpty(settings.faviconUrl)}">
+                            <img th:src="${settings.faviconUrl}" alt="favicon" style="height:32px; object-fit:contain">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">URL du logo</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" th:field="*{logoUrl}" id="logoUrl" placeholder="/uploads/images/logo.png">
+                            <button type="button" class="btn btn-outline-secondary" onclick="openPicker('logoUrl')">
+                                <i class="fas fa-images"></i>
+                            </button>
+                        </div>
+                        <div class="mt-2" th:if="${settings.logoUrl != null and !#strings.isEmpty(settings.logoUrl)}">
+                            <img th:src="${settings.logoUrl}" alt="logo" style="height:48px; object-fit:contain">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SEO -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header fw-semibold"><i class="fas fa-search me-2 text-success"></i>SEO</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Description (meta)</label>
+                        <textarea class="form-control" th:field="*{metaDescription}" rows="3" placeholder="Description courte du site pour les moteurs de recherche"></textarea>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Mots-clés (meta)</label>
+                        <input type="text" class="form-control" th:field="*{metaKeywords}" placeholder="mot1, mot2, mot3">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contact -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header fw-semibold"><i class="fas fa-envelope me-2 text-warning"></i>Contact</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Email de contact</label>
+                        <input type="email" class="form-control" th:field="*{contactEmail}" placeholder="contact@monsite.fr">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Téléphone</label>
+                        <input type="text" class="form-control" th:field="*{contactPhone}" placeholder="+33 1 23 45 67 89">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Adresse</label>
+                        <textarea class="form-control" th:field="*{address}" rows="2" placeholder="12 rue de la Paix, 75001 Paris"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Réseaux sociaux -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header fw-semibold"><i class="fas fa-share-alt me-2 text-info"></i>Réseaux sociaux</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label"><i class="fab fa-facebook text-primary me-1"></i>Facebook</label>
+                        <input type="url" class="form-control" th:field="*{socialFacebook}" placeholder="https://facebook.com/ma-page">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label"><i class="fab fa-linkedin text-primary me-1"></i>LinkedIn</label>
+                        <input type="url" class="form-control" th:field="*{socialLinkedin}" placeholder="https://linkedin.com/company/...">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label"><i class="fab fa-instagram text-danger me-1"></i>Instagram</label>
+                        <input type="url" class="form-control" th:field="*{socialInstagram}" placeholder="https://instagram.com/...">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label"><i class="fab fa-x-twitter me-1"></i>X / Twitter</label>
+                        <input type="url" class="form-control" th:field="*{socialTwitter}" placeholder="https://x.com/...">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label"><i class="fab fa-youtube text-danger me-1"></i>YouTube</label>
+                        <input type="url" class="form-control" th:field="*{socialYoutube}" placeholder="https://youtube.com/@...">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pied de page & tracking -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header fw-semibold"><i class="fas fa-chart-line me-2 text-secondary"></i>Pied de page & Tracking</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Texte du pied de page</label>
+                        <input type="text" class="form-control" th:field="*{footerText}" placeholder="© 2026 Mon Site — Tous droits réservés">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Google Analytics ID</label>
+                        <input type="text" class="form-control" th:field="*{googleAnalyticsId}" placeholder="G-XXXXXXXXXX">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save me-1"></i>Enregistrer
+            </button>
+        </div>
+
+    </form>
+
+    <!-- Image picker modal -->
+    <div class="modal fade" id="modalImagePicker" tabindex="-1" style="z-index:1060">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-images me-2"></i>Médiathèque</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-upload me-1"></i>Uploader une image
+                            <input type="file" id="pickerFileInput" multiple accept="image/*" class="d-none">
+                        </label>
+                    </div>
+                    <div id="pickerGrid" class="row row-cols-2 row-cols-md-4 g-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<th:block layout:fragment="script">
+<script>
+let pickerTargetId = null;
+
+const pickerModal = document.getElementById('modalImagePicker');
+pickerModal.addEventListener('show.bs.modal', function() {
+    loadPickerImages();
+});
+
+function openPicker(fieldId) {
+    pickerTargetId = fieldId;
+    new bootstrap.Modal(pickerModal).show();
+}
+
+function loadPickerImages() {
+    const grid = document.getElementById('pickerGrid');
+    grid.innerHTML = '<div class="col-12 text-center text-muted py-3"><i class="fas fa-spinner fa-spin"></i></div>';
+    fetch('/intra/images/list').then(r => r.json()).then(function(images) {
+        if (!images.length) {
+            grid.innerHTML = '<div class="col-12 text-center text-muted py-4">Aucune image</div>';
+            return;
+        }
+        grid.innerHTML = images.map(function(url) {
+            return '<div class="col">' +
+                '<img src="' + url + '" class="img-fluid rounded border picker-img" style="cursor:pointer;height:120px;object-fit:cover;width:100%" ' +
+                'onclick="imageSelected(\'' + url + '\')">' +
+                '</div>';
+        }).join('');
+    }).catch(function() {
+        grid.innerHTML = '<div class="col-12 text-center text-danger py-4">Erreur de chargement</div>';
+    });
+}
+
+function imageSelected(url) {
+    if (pickerTargetId) {
+        document.getElementById(pickerTargetId).value = url;
+    }
+    bootstrap.Modal.getInstance(pickerModal).hide();
+}
+
+document.getElementById('pickerFileInput').addEventListener('change', function() {
+    if (!this.files.length) return;
+    const fd = new FormData();
+    Array.from(this.files).forEach(f => fd.append('files', f));
+    fetch('/intra/images/upload-ajax', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(function(res) {
+            if (res.ok) loadPickerImages();
+        });
+    this.value = '';
+});
+</script>
+</th:block>
+</body>
+</html>

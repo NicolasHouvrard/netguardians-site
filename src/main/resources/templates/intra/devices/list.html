@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Appareils</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-desktop me-2 text-info"></i>Appareils — Tous clients</h4>
+        <a href="/admin/ninja/config" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-cog me-1"></i>Config NinjaOne
+        </a>
+    </div>
+
+    <!-- NinjaOne non configuré -->
+    <div th:if="${not ninjaEnabled}" class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        NinjaOne n'est pas active. <a href="/admin/ninja/config" class="alert-link">Configurer</a>
+    </div>
+
+    <!-- KPIs globaux -->
+    <div th:if="${ninjaEnabled}" class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                        <i class="fas fa-circle text-success fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${totalOnline}">0</div>
+                        <div class="text-muted small">En ligne</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-danger bg-opacity-10 p-3">
+                        <i class="fas fa-circle text-danger fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${totalOffline}">0</div>
+                        <div class="text-muted small">Hors ligne</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aucun client lié -->
+    <div th:if="${ninjaEnabled and #lists.isEmpty(clientDevices)}" class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        Aucun client n'est encore associe a une organisation NinjaOne.
+    </div>
+
+    <!-- Un bloc par client -->
+    <div th:each="group : ${clientDevices != null ? clientDevices : T(java.util.Collections).emptyList()}" class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+            <div>
+                <a th:href="@{/intra/customers/{id}(id=${group.customer.id})}"
+                   class="fw-bold text-decoration-none text-dark"
+                   th:text="${group.customer.companyName}"></a>
+            </div>
+            <div class="d-flex gap-2">
+                <span class="badge text-bg-success">
+                    <i class="fas fa-circle me-1"></i><span th:text="${group.onlineCount}">0</span> en ligne
+                </span>
+                <span class="badge text-bg-danger">
+                    <i class="fas fa-circle me-1"></i><span th:text="${group.offlineCount}">0</span> hors ligne
+                </span>
+            </div>
+        </div>
+
+        <div th:if="${#lists.isEmpty(group.devices)}" class="card-body text-muted small">
+            Aucun appareil remonte (erreur API ou organisation vide).
+        </div>
+
+        <div class="card-body p-0" th:if="${not #lists.isEmpty(group.devices)}">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 small">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Appareil</th>
+                            <th>Type</th>
+                            <th>OS</th>
+                            <th>Statut</th>
+                            <th>Dernier contact</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="d : ${group.devices}">
+                            <td class="ps-3 fw-semibold">
+                                <i th:class="${d.icon + ' me-1 text-muted'}"></i>
+                                <span th:text="${d.displayName}"></span>
+                            </td>
+                            <td class="text-muted" th:text="${d.nodeClassLabel}"></td>
+                            <td class="text-muted" th:text="${d.osName}"></td>
+                            <td>
+                                <span th:if="${d.online}"  class="badge text-bg-success">En ligne</span>
+                                <span th:if="${not d.online}" class="badge text-bg-secondary">Hors ligne</span>
+                            </td>
+                            <td class="text-muted"
+                                th:text="${d.lastContactTime != null ? #temporals.format(d.lastContactTime, 'dd/MM/yyyy HH:mm') : '-'}">
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

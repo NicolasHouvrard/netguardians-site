@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Stripe — Paramétrage</title></head>
+<body>
+<div layout:fragment="content">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fab fa-stripe me-2" style="color:#635bff;"></i>Stripe — Paramétrage</h4>
+            <div class="text-muted small mt-1">Synchronisation et correspondances comptables</div>
+        </div>
+        <a href="/intra/accounting/stripe/transactions" class="btn btn-outline-primary btn-sm">
+            <i class="fas fa-list me-1"></i>Voir les transactions
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-circle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div th:if="${!configured}" class="alert alert-warning d-flex align-items-center gap-2 mb-4">
+        <i class="fas fa-exclamation-triangle fa-lg"></i>
+        <div>Clé secrète Stripe non configurée.
+            <a href="/intra/payment/stripe" class="alert-link fw-semibold">Configurer Stripe</a>.
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-sync me-2 text-primary"></i>Synchronisation</h6>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Importe les <strong>PaymentIntents réussis</strong>, <strong>Payouts</strong>
+                        et <strong>remboursements</strong> sur la période choisie.
+                        Chaque transaction est dédupliquée par son identifiant Stripe.
+                    </p>
+                    <form method="post" action="/intra/accounting/stripe/sync">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Période</label>
+                            <select name="days" class="form-select">
+                                <option value="7">7 derniers jours</option>
+                                <option value="30" selected>30 derniers jours</option>
+                                <option value="60">60 derniers jours</option>
+                                <option value="90">90 derniers jours</option>
+                                <option value="180">180 derniers jours</option>
+                                <option value="ytd">Depuis le 1er janvier</option>
+                                <option value="365">1 an</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100" th:disabled="${!configured}">
+                            <i class="fas fa-cloud-download-alt me-2"></i>Synchroniser depuis Stripe
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-link me-2 text-info"></i>Webhook Stripe</h6>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">URL à déclarer dans votre tableau de bord Stripe :</p>
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control font-monospace small" id="webhookUrl"
+                               th:value="${#request.scheme + '://' + #request.serverName + '/api/stripe/webhook'}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyWebhookUrl()">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                    <p class="text-muted small fw-semibold mb-1">Événements requis :</p>
+                    <ul class="list-unstyled small text-muted mb-0">
+                        <li><code>payment_intent.succeeded</code></li>
+                        <li><code>payout.paid</code></li>
+                        <li><code>charge.refunded</code></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mappings -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0"><i class="fas fa-sitemap me-2 text-secondary"></i>Correspondances comptables</h6>
+        </div>
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(mappings)}" class="text-center py-4 text-muted">
+                Aucun mapping. Initialisez la comptabilité d'abord.
+            </div>
+            <div class="table-responsive" th:unless="${#lists.isEmpty(mappings)}">
+                <table class="table table-hover align-middle mb-0 table-sm">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Événement Stripe</th><th>Libellé</th>
+                        <th>Compte débit</th><th>Compte crédit</th>
+                        <th class="text-center">Actif</th><th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="mapping : ${mappings}">
+                        <form method="post" action="/intra/accounting/stripe/mappings/save">
+                            <input type="hidden" name="id" th:value="${mapping.id}">
+                            <td><code class="small" th:text="${mapping.eventType}"></code></td>
+                            <td class="text-muted small" th:text="${mapping.label}"></td>
+                            <td>
+                                <select name="debitAccountNumber" class="form-select form-select-sm" style="min-width:180px;">
+                                    <th:block th:each="acc : ${accounts}">
+                                        <option th:value="${acc.number}"
+                                                th:text="${acc.number + ' — ' + acc.label}"
+                                                th:selected="${acc.number == mapping.debitAccountNumber}"></option>
+                                    </th:block>
+                                </select>
+                            </td>
+                            <td>
+                                <select name="creditAccountNumber" class="form-select form-select-sm" style="min-width:180px;">
+                                    <th:block th:each="acc : ${accounts}">
+                                        <option th:value="${acc.number}"
+                                                th:text="${acc.number + ' — ' + acc.label}"
+                                                th:selected="${acc.number == mapping.creditAccountNumber}"></option>
+                                    </th:block>
+                                </select>
+                            </td>
+                            <td class="text-center">
+                                <div class="form-check form-switch d-flex justify-content-center mb-0">
+                                    <input class="form-check-input" type="checkbox" name="active" th:checked="${mapping.active}">
+                                </div>
+                            </td>
+                            <td><button type="submit" class="btn btn-sm btn-outline-primary"><i class="fas fa-save me-1"></i>Sauvegarder</button></td>
+                        </form>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<th:block layout:fragment="scripts">
+<script>
+function copyWebhookUrl() {
+    var input = document.getElementById('webhookUrl');
+    input.select();
+    navigator.clipboard.writeText(input.value).then(function() {
+        input.nextElementSibling.querySelector('i').className = 'fas fa-check text-success';
+        setTimeout(function() { input.nextElementSibling.querySelector('i').className = 'fas fa-copy'; }, 2000);
+    });
+}
+</script>
+</th:block>
+</body>
+</html>

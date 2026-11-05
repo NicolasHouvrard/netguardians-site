@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <!-- SEO meta tags -->
+    <title th:text="${page.metaTitle != null and !#strings.isEmpty(page.metaTitle)} ? ${page.metaTitle} : ${page.title}">Page</title>
+    <meta name="description" th:if="${page.metaDescription != null}"
+          th:content="${page.metaDescription}">
+    <meta name="keywords" th:if="${page.metaKeywords != null}"
+          th:content="${page.metaKeywords}">
+    <!-- Open Graph -->
+    <meta property="og:title"
+          th:content="${page.metaTitle != null and !#strings.isEmpty(page.metaTitle)} ? ${page.metaTitle} : ${page.title}">
+    <meta property="og:description" th:if="${page.metaDescription != null}"
+          th:content="${page.metaDescription}">
+    <meta property="og:image" th:if="${page.metaOgImage != null}"
+          th:content="${page.metaOgImage}">
+    <style>
+        .hero-block { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .public-page-content { max-width: 900px; margin: 0 auto; }
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.25rem; }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+    <!-- Preview banner for draft pages -->
+    <div th:if="${previewMode}" class="alert alert-warning mb-0 rounded-0 text-center small py-2">
+        <i class="fas fa-eye me-1"></i>
+        <strong>Mode prévisualisation</strong> — Cette page n'est pas encore publiée.
+        <a th:href="'/intra/pages/' + ${page.id} + '/edit'" class="alert-link ms-2">
+            <i class="fas fa-edit me-1"></i>Retour à l'éditeur
+        </a>
+    </div>
+    <div class="public-page-content py-4 px-3">
+        <th:block th:each="rb : ${renderedBlocks}">
+
+            <!-- RICHTEXT -->
+            <div th:if="${rb.block.blockType.name() == 'RICHTEXT'}" class="py-3 richtext-block">
+                <div th:utext="${rb.get('html')}"></div>
+            </div>
+
+            <!-- IMAGE -->
+            <div th:if="${rb.block.blockType.name() == 'IMAGE'}" class="text-center py-3">
+                <img th:src="${rb.get('src')}" th:alt="${rb.get('alt')}" class="img-fluid rounded shadow-sm"
+                     th:if="${not #strings.isEmpty(rb.get('src'))}">
+                <p class="small text-muted mt-2" th:text="${rb.get('caption')}"
+                   th:if="${not #strings.isEmpty(rb.get('caption'))}"></p>
+            </div>
+
+            <!-- HERO -->
+            <div th:if="${rb.block.blockType.name() == 'HERO'}"
+                 class="hero-block text-center mb-4 rounded"
+                 th:style="${'min-height:' + rb.get('height','400px') + ';'} +
+                           ${rb.get('bgType','color') == 'image'
+                             ? 'background-image:url(' + rb.get('bgImage','') + ');background-size:cover;background-position:center;'
+                             : 'background-color:' + rb.get('bgColor','#1e40af') + ';color:' + rb.get('textColor','#ffffff') + ';'}">
+                <!-- Overlay for image backgrounds -->
+                <div th:if="${rb.get('bgType','color') == 'image'}"
+                     style="position:absolute;inset:0;border-radius:inherit"
+                     th:style="'position:absolute;inset:0;border-radius:inherit;background:rgba(0,0,0,' + ${rb.get('bgOverlay','0.4')} + ')'"></div>
+                <div class="container py-5"
+                     th:style="${rb.get('bgType','color') == 'image'
+                                 ? 'position:relative;z-index:1;color:' + rb.get('textColor','#ffffff')
+                                 : ''}">
+                    <h1 class="display-4 fw-bold" th:text="${rb.get('title')}"
+                        th:if="${not #strings.isEmpty(rb.get('title'))}"></h1>
+                    <p class="lead mt-3" th:text="${rb.get('subtitle')}"
+                       th:if="${not #strings.isEmpty(rb.get('subtitle'))}"></p>
+                    <a th:href="${rb.get('ctaUrl','#')}" class="btn btn-light btn-lg mt-3 shadow"
+                       th:text="${rb.get('ctaText')}"
+                       th:if="${not #strings.isEmpty(rb.get('ctaText'))}"></a>
+                </div>
+            </div>
+
+            <!-- CTA -->
+            <div th:if="${rb.block.blockType.name() == 'CTA'}"
+                 class="py-4 px-4 mb-4 rounded text-center"
+                 th:style="'background-color:' + ${rb.get('bgColor','#f0f9ff')}">
+                <h3 class="fw-bold" th:text="${rb.get('title')}"
+                    th:if="${not #strings.isEmpty(rb.get('title'))}"></h3>
+                <p class="text-muted mb-3" th:text="${rb.get('text')}"
+                   th:if="${not #strings.isEmpty(rb.get('text'))}"></p>
+                <a th:href="${rb.get('btnUrl','#')}"
+                   th:class="'btn btn-' + ${rb.get('btnStyle','primary')} + ' btn-lg'"
+                   th:text="${rb.get('btnText')}"
+                   th:if="${not #strings.isEmpty(rb.get('btnText'))}"></a>
+            </div>
+
+            <!-- TEXT_IMAGE -->
+            <div th:if="${rb.block.blockType.name() == 'TEXT_IMAGE'}" class="py-3">
+                <div class="row align-items-center g-4">
+                    <div class="col-md-6 richtext-block">
+                        <div th:utext="${rb.get('html')}"></div>
+                    </div>
+                    <div class="col-md-6 text-center">
+                        <img th:src="${rb.get('src')}" th:alt="${rb.get('alt')}"
+                             class="img-fluid rounded shadow-sm"
+                             th:if="${not #strings.isEmpty(rb.get('src'))}">
+                        <p class="small text-muted mt-2" th:text="${rb.get('caption')}"
+                           th:if="${not #strings.isEmpty(rb.get('caption'))}"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- IMAGE_TEXT -->
+            <div th:if="${rb.block.blockType.name() == 'IMAGE_TEXT'}" class="py-3">
+                <div class="row align-items-center g-4">
+                    <div class="col-md-6 text-center">
+                        <img th:src="${rb.get('src')}" th:alt="${rb.get('alt')}"
+                             class="img-fluid rounded shadow-sm"
+                             th:if="${not #strings.isEmpty(rb.get('src'))}">
+                        <p class="small text-muted mt-2" th:text="${rb.get('caption')}"
+                           th:if="${not #strings.isEmpty(rb.get('caption'))}"></p>
+                    </div>
+                    <div class="col-md-6 richtext-block">
+                        <div th:utext="${rb.get('html')}"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUMNS -->
+            <div th:if="${rb.block.blockType.name() == 'COLUMNS'}" class="py-3">
+                <div th:class="${not #strings.isEmpty(rb.get('col3Html'))} ? 'row row-cols-1 row-cols-md-3 g-4' : 'row row-cols-1 row-cols-md-2 g-4'">
+                    <div class="col">
+                        <div th:utext="${rb.get('col1Html')}"></div>
+                    </div>
+                    <div class="col">
+                        <div th:utext="${rb.get('col2Html')}"></div>
+                    </div>
+                    <div class="col" th:if="${not #strings.isEmpty(rb.get('col3Html'))}">
+                        <div th:utext="${rb.get('col3Html')}"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARDS -->
+            <div th:if="${rb.block.blockType.name() == 'CARDS'}" class="py-3">
+                <div class="card-grid" th:id="'cards-block-' + ${rb.block.id}">
+                    <!-- Rendered by inline script below via JSON parse -->
+                </div>
+                <script th:inline="javascript">
+                /*<![CDATA[*/
+                (function() {
+                    const raw = /*[[${rb.get('cards','[]')}]]*/'[]';
+                    const gridId = 'cards-block-' + /*[[${rb.block.id}]]*/0;
+                    let cards;
+                    try { cards = JSON.parse(raw); } catch(e) { cards = []; }
+                    const grid = document.getElementById(gridId);
+                    if (!grid) return;
+                    cards.forEach(function(card) {
+                        const col = document.createElement('div');
+                        col.className = 'card border-0 shadow-sm h-100';
+                        col.innerHTML = '<div class="card-body text-center">' +
+                            (card.icon ? '<i class="' + card.icon + ' fa-2x text-primary mb-3"></i>' : '') +
+                            (card.title ? '<h5 class="card-title fw-semibold">' + card.title + '</h5>' : '') +
+                            (card.text ? '<p class="card-text text-muted">' + card.text + '</p>' : '') +
+                            (card.link ? '<a href="' + card.link + '" class="btn btn-outline-primary btn-sm mt-2">En savoir plus</a>' : '') +
+                            '</div>';
+                        grid.appendChild(col);
+                    });
+                })();
+                /*]]>*/
+                </script>
+            </div>
+
+            <!-- WIDGET -->
+            <div th:if="${rb.block.blockType.name() == 'WIDGET'}" class="py-2">
+                <div th:utext="${rb.widgetHtml}"></div>
+            </div>
+
+            <!-- DIVIDER -->
+            <div th:if="${rb.block.blockType.name() == 'DIVIDER'}" class="py-2">
+                <hr th:style="'border-style:' + ${rb.get('style','solid')} + '; border-color:' + ${rb.get('color','#dee2e6')} + '; border-top-width:1px'">
+            </div>
+
+            <!-- SPACER -->
+            <div th:if="${rb.block.blockType.name() == 'SPACER'}"
+                 th:style="'height:' + ${rb.get('height','2rem')}"></div>
+
+            <!-- HTML -->
+            <div th:if="${rb.block.blockType.name() == 'HTML'}" class="py-2">
+                <div th:utext="${rb.get('code')}"></div>
+            </div>
+
+        </th:block>
+    </div>
+</div>
+</body>
+</html>

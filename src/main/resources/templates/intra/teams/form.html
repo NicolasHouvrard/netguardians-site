@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Équipe</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/intra/teams" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0">
+            <i class="fas fa-people-group me-2 text-primary"></i>
+            <span th:if="${team.id == null}">Nouvelle équipe</span>
+            <span th:if="${team.id != null}">Modifier l'équipe</span>
+        </h4>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+
+                    <form th:action="${team.id == null ? '/intra/teams' : '/intra/teams/' + team.id + '/update'}"
+                          method="post">
+
+                        <!-- Nom -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Nom de l'équipe <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control"
+                                   th:value="${team.name}" required placeholder="Ex: Support N1, Admin Serveurs…">
+                        </div>
+
+                        <!-- Description -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Description</label>
+                            <textarea name="description" class="form-control" rows="2"
+                                      th:text="${team.description}"
+                                      placeholder="Rôle de l'équipe, périmètre…"></textarea>
+                        </div>
+
+                        <!-- Membres -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold"><i class="fas fa-users me-1 text-primary"></i>Membres</label>
+                            <div th:if="${internalUsers == null or internalUsers.isEmpty()}" class="text-muted small">
+                                Aucun utilisateur interne disponible.
+                            </div>
+                            <div class="row g-2">
+                                <div th:each="u : ${internalUsers}" class="col-sm-6 col-lg-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox"
+                                               name="memberIds"
+                                               th:value="${u.id}"
+                                               th:id="'member_' + ${u.id}"
+                                               th:checked="${team.members != null and team.members.contains(u)}">
+                                        <label class="form-check-label small" th:for="'member_' + ${u.id}"
+                                               th:text="${u.fullName}"></label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Types de demande -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold"><i class="fas fa-tags me-1 text-secondary"></i>Types de demande pris en charge</label>
+                            <div class="small text-muted mb-2">Laissez vide pour que l'équipe apparaisse sur tous les types.</div>
+                            <div class="row g-2">
+                                <div th:each="rt : ${requestTypes}" class="col-sm-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox"
+                                               name="requestTypeNames"
+                                               th:value="${rt.name()}"
+                                               th:id="'rt_' + ${rt.name()}"
+                                               th:checked="${team.requestTypes != null and team.requestTypes.contains(rt)}">
+                                        <label class="form-check-label small" th:for="'rt_' + ${rt.name()}">
+                                            <i class="fas me-1" th:classappend="${rt.icon}"></i>
+                                            <span th:text="${rt.label}"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <a href="/intra/teams" class="btn btn-outline-secondary">Annuler</a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>Enregistrer
+                            </button>
+                        </div>
+
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

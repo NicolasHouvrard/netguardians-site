@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Comptes de licence</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <h4 class="mb-0"><i class="fas fa-key me-2 text-primary"></i>Comptes de licence</h4>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0">Comptes existants</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(comptes)}" class="text-center py-5 text-muted">
+                        Aucun compte de licence. Créez le premier.
+                    </div>
+                    <table th:unless="${#lists.isEmpty(comptes)}" class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Login</th>
+                            <th>Abonnement</th>
+                            <th>Fréquence</th>
+                            <th class="text-center">Serveurs autorisés</th>
+                            <th class="text-center">Statut</th>
+                            <th></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="compte : ${comptes}" th:classappend="${!compte.actif ? ' opacity-50' : ''}">
+                            <td class="fw-bold" th:text="${compte.login}"></td>
+                            <td th:text="${compte.typeAbonnement}"></td>
+                            <td th:text="${compte.frequence}"></td>
+                            <td class="text-center" th:text="${compte.nombreServeursAutorises}"></td>
+                            <td class="text-center">
+                                <span class="badge" th:classappend="${compte.actif ? 'text-bg-success' : 'text-bg-secondary'}"
+                                      th:text="${compte.actif ? 'Actif' : 'Inactif'}"></span>
+                            </td>
+                            <td class="text-end">
+                                <a th:href="@{/intra/licence/comptes/{id}(id=${compte.id})}" class="btn btn-xs py-0 px-2 btn-outline-secondary">
+                                    <i class="fas fa-list"></i> Détail
+                                </a>
+                                <form th:action="@{/intra/licence/comptes/{id}/toggle-actif(id=${compte.id})}" method="post" class="d-inline"
+                                      onsubmit="return confirm('Changer le statut de ce compte ?')">
+                                    <button type="submit" class="btn btn-xs py-0 px-2"
+                                            th:classappend="${compte.actif ? 'btn-outline-danger' : 'btn-outline-success'}">
+                                        <i class="fas" th:classappend="${compte.actif ? 'fa-ban' : 'fa-check'}"></i>
+                                        <span th:text="${compte.actif ? 'Désactiver' : 'Réactiver'}"></span>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-plus me-1 text-primary"></i>Nouveau compte</h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/intra/licence/comptes}" method="post">
+                        <div class="mb-2">
+                            <label class="form-label small">Login <span class="text-danger">*</span></label>
+                            <input type="text" name="login" class="form-control form-control-sm" required placeholder="ex : client-dupont">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Mot de passe <span class="text-danger">*</span></label>
+                            <input type="password" name="motDePasse" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Type d'abonnement</label>
+                            <select name="typeAbonnement" class="form-select form-select-sm">
+                                <th:block th:each="t : ${typesAbonnement}">
+                                    <option th:value="${t}" th:text="${t}"></option>
+                                </th:block>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Fréquence</label>
+                            <select name="frequence" class="form-select form-select-sm">
+                                <th:block th:each="f : ${frequences}">
+                                    <option th:value="${f}" th:text="${f}"></option>
+                                </th:block>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small">Nombre de serveurs autorisés</label>
+                            <input type="number" name="nombreServeursAutorises" class="form-control form-control-sm" min="0" value="1" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="fas fa-plus me-1"></i>Créer
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:if="${detailCompte != null}" class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0">
+                <i class="fas fa-server me-1 text-primary"></i>Serveurs du compte
+                <span th:text="${detailCompte.login}"></span>
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(serveursDuCompte)}" class="text-center py-5 text-muted">
+                Aucun serveur enrolé pour ce compte.
+            </div>
+            <table th:unless="${#lists.isEmpty(serveursDuCompte)}" class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                <tr>
+                    <th>Rôle</th>
+                    <th>Identifiant installation</th>
+                    <th>Adresse déclarée</th>
+                    <th class="text-center">Statut</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="serveur : ${serveursDuCompte}" th:classappend="${serveur.statut.name() == 'REVOQUE' ? ' opacity-50' : ''}">
+                    <td th:text="${serveur.role}"></td>
+                    <td><code th:text="${serveur.identifiantInstallationStable}"></code></td>
+                    <td>
+                        <form th:action="@{/intra/licence/comptes/{compteId}/serveurs/{serveurId}/adresse(compteId=${detailCompte.id},serveurId=${serveur.id})}"
+                              method="post" class="d-flex gap-1">
+                            <input type="text" name="adresseDeclaree" class="form-control form-control-sm" th:value="${serveur.adresseDeclaree}">
+                            <button type="submit" class="btn btn-xs btn-outline-primary py-0 px-2">
+                                <i class="fas fa-save"></i>
+                            </button>
+                        </form>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge" th:classappend="${serveur.statut.name() == 'ACTIF' ? 'text-bg-success' : 'text-bg-secondary'}"
+                              th:text="${serveur.statut}"></span>
+                    </td>
+                    <td class="text-end">
+                        <form th:if="${serveur.statut.name() == 'ACTIF'}"
+                              th:action="@{/intra/licence/comptes/{compteId}/serveurs/{serveurId}/revoquer(compteId=${detailCompte.id},serveurId=${serveur.id})}"
+                              method="post" class="d-inline"
+                              onsubmit="return confirm('Révoquer ce serveur ?')">
+                            <button type="submit" class="btn btn-xs py-0 px-2 btn-outline-danger">
+                                <i class="fas fa-ban"></i> Révoquer
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

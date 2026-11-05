@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head>
+    <title>Réservations en ligne</title>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-0 fw-bold"><i class="fas fa-calendar-plus me-2 text-primary"></i>Réservations en ligne</h4>
+            <small class="text-muted">Widgets de prise de RDV publiés sur votre site</small>
+        </div>
+        <a href="/intra/booking/new" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus me-1"></i>Nouvelle config
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Titre</th>
+                        <th>Équipe</th>
+                        <th>Type</th>
+                        <th>Durée</th>
+                        <th>Jours ouverts</th>
+                        <th>Statut</th>
+                        <th>Lien public</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:if="${configs.empty}">
+                        <td colspan="8" class="text-center text-muted py-4">Aucune configuration de réservation</td>
+                    </tr>
+                    <tr th:each="cfg : ${configs}">
+                        <td class="fw-semibold" th:text="${cfg.title}"></td>
+                        <td>
+                            <span th:if="${cfg.team != null}" th:text="${cfg.team.name}" class="badge bg-secondary"></span>
+                            <span th:unless="${cfg.team != null}" class="text-muted">—</span>
+                        </td>
+                        <td>
+                            <span th:text="${cfg.appointmentType?.label}" class="badge bg-info text-dark"></span>
+                        </td>
+                        <td th:text="${cfg.durationMinutes} + ' min'"></td>
+                        <td>
+                            <span th:each="day, iter : ${cfg.openDays}"
+                                  class="badge bg-light text-dark border me-1 small"
+                                  th:text="${#strings.substring(day.name(), 0, 3)}"></span>
+                        </td>
+                        <td>
+                            <span th:if="${cfg.active}" class="badge bg-success">Actif</span>
+                            <span th:unless="${cfg.active}" class="badge bg-secondary">Inactif</span>
+                        </td>
+                        <td>
+                            <div class="input-group input-group-sm" style="max-width:260px">
+                                <input type="text" class="form-control form-control-sm"
+                                       th:id="'url-' + ${cfg.id}"
+                                       th:value="'/booking/' + ${cfg.slug}" readonly>
+                                <a th:href="'/booking/' + ${cfg.slug}" target="_blank"
+                                   class="btn btn-outline-secondary" title="Ouvrir">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
+                                <button class="btn btn-outline-secondary"
+                                        th:onclick="'copyUrl(\'' + ${cfg.id} + '\')'" title="Copier">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm">
+                                <a th:href="'/intra/booking/' + ${cfg.id} + '/edit'"
+                                   class="btn btn-outline-primary" title="Modifier">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <form th:action="'/intra/booking/' + ${cfg.id} + '/toggle'" method="post" class="d-inline">
+                                    <button type="submit" class="btn"
+                                            th:classappend="${cfg.active} ? 'btn-outline-warning' : 'btn-outline-success'"
+                                            th:title="${cfg.active} ? 'Désactiver' : 'Activer'">
+                                        <i class="fas" th:classappend="${cfg.active} ? 'fa-pause' : 'fa-play'"></i>
+                                    </button>
+                                </form>
+                                <form th:action="'/intra/booking/' + ${cfg.id} + '/delete'" method="post" class="d-inline"
+                                      onsubmit="return confirm('Supprimer cette configuration ?')">
+                                    <button type="submit" class="btn btn-outline-danger" title="Supprimer">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function copyUrl(id) {
+            const input = document.getElementById('url-' + id);
+            navigator.clipboard.writeText(window.location.origin + input.value).then(() => {
+                const btn = input.nextElementSibling.nextElementSibling;
+                btn.innerHTML = '<i class="fas fa-check text-success"></i>';
+                setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i>', 1500);
+            });
+        }
+    </script>
+</div>
+</body>
+</html>

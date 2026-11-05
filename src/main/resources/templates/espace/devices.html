@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{espace-layout}">
+<head><title>Mes appareils</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-desktop me-2"></i>Mes appareils</h4>
+        <span class="text-muted small" th:if="${devices != null}">
+            <i class="fas fa-sync me-1"></i>En temps réel via NinjaOne
+        </span>
+    </div>
+
+    <!-- Erreur NinjaOne -->
+    <div th:if="${ninjaError}" class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i><span th:text="${ninjaError}"></span>
+    </div>
+
+    <!-- Non lié -->
+    <div th:if="${devices == null and ninjaError == null}" class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-satellite-dish fa-3x text-muted mb-3 d-block"></i>
+            <h5 class="fw-bold">Module RMM non activé</h5>
+            <p class="text-muted">Contactez votre prestataire pour lier votre compte à NinjaOne.</p>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div th:if="${devices != null}" class="row g-3 mb-4">
+        <div class="col-sm-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-secondary bg-opacity-10 p-3">
+                        <i class="fas fa-desktop text-secondary fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${#lists.size(devices)}">0</div>
+                        <div class="text-muted small">Total appareils</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                        <i class="fas fa-circle text-success fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold text-success" th:text="${onlineCount}">0</div>
+                        <div class="text-muted small">En ligne</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-danger bg-opacity-10 p-3">
+                        <i class="fas fa-circle text-danger fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold text-danger" th:text="${offlineCount}">0</div>
+                        <div class="text-muted small">Hors ligne</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Liste des appareils -->
+    <div th:if="${devices != null}" class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(devices)}" class="text-center py-5 text-muted">
+                Aucun appareil enregistré dans cette organisation.
+            </div>
+            <div th:each="device : ${devices}"
+                 class="d-flex align-items-center px-3 py-3 border-bottom">
+
+                <!-- Icône type -->
+                <div class="me-3 text-center" style="width:36px">
+                    <i th:class="${device.icon} + ' fa-lg'"
+                       th:classappend="${device.online ? ' text-success' : ' text-secondary'}"></i>
+                </div>
+
+                <!-- Infos -->
+                <div class="flex-grow-1">
+                    <div class="fw-semibold" th:text="${device.displayName}"></div>
+                    <div class="small text-muted d-flex flex-wrap gap-2 mt-1">
+                        <span th:text="${device.nodeClassLabel}"></span>
+                        <span th:if="${device.osName != null and device.osName != '—'}">
+                            · <span th:text="${device.osName}"></span>
+                        </span>
+                        <span th:if="${device.lastContactTime != null}">
+                            · Vu le <span th:text="${#temporals.format(device.lastContactTime, 'dd/MM/yyyy HH:mm')}"></span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Statut -->
+                <div class="flex-shrink-0">
+                    <span th:if="${device.online}"
+                          class="badge text-bg-success">
+                        <i class="fas fa-circle fa-xs me-1"></i>En ligne
+                    </span>
+                    <span th:unless="${device.online}"
+                          class="badge text-bg-secondary">
+                        <i class="fas fa-circle fa-xs me-1"></i>Hors ligne
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

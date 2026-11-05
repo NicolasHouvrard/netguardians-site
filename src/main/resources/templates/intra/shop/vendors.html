@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 fw-bold">Boutique — Vendeurs ESN</h1>
+            <small class="text-muted">Partenaires autorisés à vendre via API</small>
+        </div>
+        <div class="d-flex gap-2">
+            <a th:href="@{/intra/shop/products}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>Produits
+            </a>
+            <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
+                <i class="fas fa-plus me-1"></i>Ajouter un vendeur
+            </button>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Client / Entreprise</th>
+                        <th>Nom boutique</th>
+                        <th>Clé API</th>
+                        <th>Statut</th>
+                        <th>Créé le</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:if="${#lists.isEmpty(vendors)}">
+                        <td colspan="6" class="text-center text-muted py-4">Aucun vendeur ESN</td>
+                    </tr>
+                    <tr th:each="v : ${vendors}">
+                        <td>
+                            <div class="fw-semibold" th:text="${v.customer?.name} ?: '—'"></div>
+                        </td>
+                        <td th:text="${v.vendorName}"></td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <code class="small" th:text="${v.apiKey}"></code>
+                                <button class="btn btn-sm btn-outline-secondary border-0 p-0 px-1"
+                                        title="Copier"
+                                        th:onclick="|navigator.clipboard.writeText('${v.apiKey}')|">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </td>
+                        <td>
+                            <span th:if="${v.active}" class="badge bg-success">Actif</span>
+                            <span th:unless="${v.active}" class="badge bg-secondary">Inactif</span>
+                        </td>
+                        <td th:text="${#temporals.format(v.createdAt,'dd/MM/yyyy')}"></td>
+                        <td class="text-end">
+                            <form th:action="@{/intra/shop/vendors/{id}/regenerate-key(id=${v.id})}" method="post"
+                                  class="d-inline"
+                                  onsubmit="return confirm('Régénérer la clé API ? L\'ancienne ne fonctionnera plus.')">
+                                <button type="submit" class="btn btn-sm btn-outline-warning" title="Régénérer clé API">
+                                    <i class="fas fa-sync"></i>
+                                </button>
+                            </form>
+                            <form th:action="@{/intra/shop/vendors/{id}/toggle(id=${v.id})}" method="post" class="d-inline ms-1">
+                                <button type="submit" class="btn btn-sm"
+                                        th:class="${v.active} ? 'btn btn-sm btn-outline-secondary' : 'btn btn-sm btn-outline-success'">
+                                    <i th:class="${v.active} ? 'fas fa-ban' : 'fas fa-check'"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Documentation API -->
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-transparent fw-semibold">
+            <i class="fas fa-code me-2"></i>Documentation API
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-2">Toutes les requêtes doivent inclure le header <code>X-API-Key: &lt;votre-clé&gt;</code></p>
+            <ul class="small mb-0">
+                <li><code>GET /api/v1/shop/products</code> — Liste vos produits en boutique</li>
+                <li><code>PUT /api/v1/shop/products/{id}/stock</code> — Mettre à jour le stock <code>{"stock": 10}</code></li>
+                <li><code>POST /api/v1/shop/products</code> — Ajouter un produit <code>{"productId":1,"shopTitle":"...","stock":5}</code></li>
+                <li><code>GET /api/v1/shop/orders</code> — Liste vos commandes</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Modal Ajouter vendeur -->
+    <div class="modal fade" id="addModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form th:action="@{/intra/shop/vendors/create}" method="post">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-semibold">Nouveau vendeur ESN</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Client (ESN) *</label>
+                        <select name="customerId" class="form-select" required>
+                            <option value="">— Choisir —</option>
+                            <option th:each="c : ${customers}" th:value="${c.id}"
+                                    th:text="${c.name}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Nom boutique *</label>
+                        <input type="text" name="vendorName" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Description</label>
+                        <textarea name="vendorDescription" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-success">Créer le vendeur</button>
+                </div>
+            </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

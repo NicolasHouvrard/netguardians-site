@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{espace-layout}">
+<head><title>Mes tickets</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-ticket me-2"></i>Mes tickets</h4>
+        <a href="/espace/tickets/new" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus me-1"></i>Nouvelle demande
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(requests)}" class="text-center py-5 text-muted">
+                <i class="fas fa-check-circle fa-2x mb-2 d-block text-success"></i>
+                Aucun ticket pour le moment.
+            </div>
+            <table th:unless="${#lists.isEmpty(requests)}" class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Sujet</th>
+                        <th>Statut</th>
+                        <th>Date</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="r : ${requests}">
+                        <td class="text-muted small align-middle" th:text="${r.id}"></td>
+                        <td class="align-middle fw-semibold" th:text="${r.title}"></td>
+                        <td class="align-middle">
+                            <span th:switch="${r.status.name()}">
+                                <span th:case="'NEW'"         class="badge text-bg-primary">Nouveau</span>
+                                <span th:case="'IN_PROGRESS'" class="badge text-bg-warning">En cours</span>
+                                <span th:case="'COMPLETED'"   class="badge text-bg-success">Terminé</span>
+                                <span th:case="'CANCELLED'"   class="badge text-bg-secondary">Annulé</span>
+                            </span>
+                        </td>
+                        <td class="text-muted small align-middle"
+                            th:text="${#temporals.format(r.createdAt,'dd/MM/yyyy')}"></td>
+                        <td class="align-middle">
+                            <a th:href="@{/espace/tickets/{id}(id=${r.id})}"
+                               class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

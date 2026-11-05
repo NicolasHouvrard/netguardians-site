@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Dashboard</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 fw-bold">
+                <i class="fas fa-tachometer-alt me-2 text-indigo" style="color:#6366f1"></i>Dashboard
+            </h1>
+            <small class="text-muted">Vue d'ensemble de l'activité ESN</small>
+        </div>
+        <div class="text-muted small" th:text="${#temporals.format(#temporals.createNow(), 'EEEE d MMMM yyyy', new java.util.Locale('fr'))}"></div>
+    </div>
+
+    <!-- ── KPI widgets ──────────────────────────────────────────────────── -->
+    <div class="row g-3 mb-4">
+        <div th:each="w : ${widgets}" class="col-6 col-md-4 col-xl-2">
+            <a th:href="${w.link}" class="card h-100 text-decoration-none border-0 shadow-sm kpi-card"
+               th:style="'border-left: 4px solid ' + ${w.color} + ' !important'">
+                <div class="card-body py-3 px-3 d-flex align-items-center gap-3">
+                    <span class="kpi-icon rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                          th:style="'background:' + ${w.color} + '20; width:42px; height:42px'">
+                        <i th:class="${w.icon}" th:style="'color:' + ${w.color} + '; font-size:1rem'"></i>
+                    </span>
+                    <div class="overflow-hidden">
+                        <div class="fw-bold lh-1 mb-1" style="font-size:1.5rem"
+                             th:text="${w.value}">—</div>
+                        <div class="text-muted text-truncate" style="font-size:.72rem"
+                             th:text="${w.label}">—</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- ── Activité récente ─────────────────────────────────────────────── -->
+    <div class="row g-4">
+
+        <!-- Tickets ouverts récents -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center border-bottom">
+                    <span class="fw-semibold">
+                        <i class="fas fa-headset me-2 text-warning"></i>Tickets ouverts récents
+                    </span>
+                    <a href="/intra/tickets" class="btn btn-sm btn-outline-secondary">Voir tout</a>
+                </div>
+                <div th:if="${#lists.isEmpty(recentTickets)}" class="card-body text-muted small py-4 text-center">
+                    <i class="fas fa-check-circle me-1 text-success"></i>Aucun ticket ouvert
+                </div>
+                <ul th:unless="${#lists.isEmpty(recentTickets)}" class="list-group list-group-flush">
+                    <li th:each="t : ${recentTickets}"
+                        class="list-group-item list-group-item-action px-3 py-2">
+                        <a th:href="@{/intra/tickets/{id}(id=${t.id})}" class="text-decoration-none text-dark d-flex justify-content-between align-items-start">
+                            <div class="overflow-hidden me-2">
+                                <div class="fw-semibold text-truncate small" th:text="${t.title}">Titre</div>
+                                <div class="text-muted" style="font-size:.75rem"
+                                     th:text="${t.customer != null ? t.customer.companyName : '—'}">Client</div>
+                            </div>
+                            <div class="flex-shrink-0 text-end">
+                                <span class="badge rounded-pill"
+                                      th:text="${t.status.label}"
+                                      th:classappend="${t.status.name() == 'NEW' ? ' bg-danger' : ' bg-warning text-dark'}">
+                                </span>
+                                <div class="text-muted mt-1" style="font-size:.7rem"
+                                     th:text="${#temporals.format(t.createdAt, 'dd/MM')}"></div>
+                            </div>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Commandes boutique en attente -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center border-bottom">
+                    <span class="fw-semibold">
+                        <i class="fas fa-shopping-bag me-2 text-danger"></i>Commandes à valider
+                    </span>
+                    <a href="/intra/shop/orders" class="btn btn-sm btn-outline-secondary">Voir tout</a>
+                </div>
+                <div th:if="${#lists.isEmpty(pendingOrders)}" class="card-body text-muted small py-4 text-center">
+                    <i class="fas fa-check-circle me-1 text-success"></i>Aucune commande en attente
+                </div>
+                <ul th:unless="${#lists.isEmpty(pendingOrders)}" class="list-group list-group-flush">
+                    <li th:each="o : ${pendingOrders}"
+                        class="list-group-item list-group-item-action px-3 py-2">
+                        <a th:href="@{/intra/shop/orders/{id}(id=${o.id})}" class="text-decoration-none text-dark d-flex justify-content-between align-items-start">
+                            <div class="overflow-hidden me-2">
+                                <div class="fw-semibold small" th:text="${o.reference}">REF</div>
+                                <div class="text-muted" style="font-size:.75rem"
+                                     th:text="${o.customerName}">Client</div>
+                            </div>
+                            <div class="flex-shrink-0 text-end">
+                                <div class="fw-semibold small text-primary"
+                                     th:text="${#numbers.formatDecimal(o.totalTTC,1,'COMMA',2,'POINT')} + ' €'">0,00 €</div>
+                                <div class="text-muted" style="font-size:.7rem"
+                                     th:text="${#temporals.format(o.createdAt, 'dd/MM')}"></div>
+                            </div>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+<title>S'enregistrer</title>
+<th:block th:if="${captchaEnabled}">
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</th:block>
+<style>
+.type-card {
+    cursor: pointer;
+    border: 2px solid #dee2e6;
+    border-radius: 12px;
+    transition: border-color .2s, box-shadow .2s, transform .15s;
+    user-select: none;
+}
+.type-card:hover { border-color: #6c757d; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,.10); }
+.type-card.selected-client { border-color: #0d6efd; box-shadow: 0 0 0 3px rgba(13,110,253,.15); }
+.type-card.selected-esn    { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.15); }
+
+.plan-card {
+    cursor: pointer;
+    border: 2px solid #dee2e6;
+    border-radius: 10px;
+    transition: border-color .2s, box-shadow .2s;
+}
+.plan-card:hover { border-color: #adb5bd; }
+.plan-card.selected { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.15); }
+</style>
+</head>
+<body>
+<section layout:fragment="content">
+<div class="row justify-content-center align-items-center py-5">
+<div class="col-md-7 col-lg-6">
+
+    <!-- Titre -->
+    <div class="text-center mb-4">
+        <h2 class="fw-bold mb-1">Créer mon compte</h2>
+        <p class="text-muted">Choisissez le type de compte qui correspond à votre situation</p>
+    </div>
+
+    <div th:if="${error}" class="alert alert-danger mb-3" th:text="${error}"></div>
+
+    <!-- ── Étape 1 : choix du type ────────────────────────────────────────── -->
+    <div id="stepType" class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="type-card p-4 text-center h-100" id="cardClient" onclick="selectType('CLIENT')">
+                <div class="mb-3">
+                    <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary bg-opacity-10"
+                          style="width:56px;height:56px">
+                        <i class="fas fa-building fa-xl text-primary"></i>
+                    </span>
+                </div>
+                <h5 class="fw-bold mb-2">Je suis un client</h5>
+                <p class="text-muted small mb-0">
+                    J'ai un prestataire informatique et je souhaite accéder à mon espace client.
+                </p>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="type-card p-4 text-center h-100" id="cardEsn" onclick="selectType('ESN')">
+                <div class="mb-3">
+                    <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-warning bg-opacity-10"
+                          style="width:56px;height:56px">
+                        <i class="fas fa-server fa-xl text-warning"></i>
+                    </span>
+                </div>
+                <h5 class="fw-bold mb-2">Je suis une ESN</h5>
+                <p class="text-muted small mb-0">
+                    Je gère des techniciens ou des interventions et je veux accéder à la plateforme.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Formulaire CLIENT ──────────────────────────────────────────────── -->
+    <div id="formClient" style="display:none">
+        <div class="card border-0 shadow-sm p-4">
+            <div class="d-flex align-items-center gap-2 mb-4">
+                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="backToType()">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <div>
+                    <span class="badge text-bg-primary me-1"><i class="fas fa-building me-1"></i>Client</span>
+                    <span class="fw-semibold">Accès espace client</span>
+                </div>
+            </div>
+            <form th:action="@{/register}" method="post">
+                <input type="hidden" name="accountType" value="CLIENT">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Société <span class="text-danger">*</span></label>
+                    <input type="text" name="companyName" class="form-control"
+                           placeholder="Nom de votre entreprise" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Votre nom complet <span class="text-danger">*</span></label>
+                    <input type="text" name="fullName" class="form-control"
+                           placeholder="Prénom Nom" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Email <span class="text-danger">*</span></label>
+                    <input type="email" name="email" class="form-control"
+                           placeholder="votre@email.com" required>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label fw-semibold">Mot de passe <span class="text-danger">*</span></label>
+                    <input type="password" name="password" class="form-control"
+                           placeholder="Minimum 6 caractères" required minlength="6">
+                </div>
+                <div th:if="${captchaEnabled}" class="mb-3">
+                    <div class="cf-turnstile"
+                         th:attr="data-sitekey=${captchaSiteKey}"
+                         data-theme="light"></div>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-user-plus me-1"></i>Créer mon compte
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ── Formulaire ESN ─────────────────────────────────────────────────── -->
+    <div id="formEsn" style="display:none">
+        <div class="card border-0 shadow-sm p-4">
+            <div class="d-flex align-items-center gap-2 mb-4">
+                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="backToType()">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <div>
+                    <span class="badge text-bg-warning text-dark me-1"><i class="fas fa-server me-1"></i>ESN</span>
+                    <span class="fw-semibold">Demande d'abonnement</span>
+                </div>
+            </div>
+            <form th:action="@{/register}" method="post" id="esnForm" onsubmit="return validateEsn()">
+                <input type="hidden" name="accountType" value="ESN">
+                <input type="hidden" name="plan" id="selectedPlan">
+
+                <!-- Choix du plan -->
+                <p class="fw-semibold mb-3">Choisissez votre abonnement <span class="text-danger">*</span></p>
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <div class="plan-card p-3 d-flex align-items-center gap-3"
+                             id="planDISPATCH" onclick="selectPlan('DISPATCH')">
+                            <div class="flex-shrink-0">
+                                <span class="badge text-bg-secondary fs-6 px-3 py-2">DISPATCH</span>
+                            </div>
+                            <div>
+                                <div class="fw-semibold">Technicien Dispatch</div>
+                                <div class="text-muted small">Dispatch d'interventions et gestion des techniciens terrain.</div>
+                            </div>
+                            <div class="ms-auto flex-shrink-0">
+                                <i class="fas fa-circle-check fa-lg text-secondary" id="checkDISPATCH" style="opacity:0"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="plan-card p-3 d-flex align-items-center gap-3"
+                             id="planSTANDARD" onclick="selectPlan('STANDARD')">
+                            <div class="flex-shrink-0">
+                                <span class="badge text-bg-primary fs-6 px-3 py-2">STANDARD</span>
+                            </div>
+                            <div>
+                                <div class="fw-semibold">ESN Standard</div>
+                                <div class="text-muted small">Gestion complète : tickets, interventions, clients, facturation.</div>
+                            </div>
+                            <div class="ms-auto flex-shrink-0">
+                                <i class="fas fa-circle-check fa-lg text-primary" id="checkSTANDARD" style="opacity:0"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="plan-card p-3 d-flex align-items-center gap-3 position-relative"
+                             id="planGOLD" onclick="selectPlan('GOLD')">
+                            <div class="flex-shrink-0">
+                                <span class="badge text-bg-warning text-dark fs-6 px-3 py-2">GOLD</span>
+                            </div>
+                            <div>
+                                <div class="fw-semibold">ESN Gold
+                                    <span class="badge text-bg-warning text-dark ms-1 small">Recommandé</span>
+                                </div>
+                                <div class="text-muted small">Standard + marketplace, API et support prioritaire.</div>
+                            </div>
+                            <div class="ms-auto flex-shrink-0">
+                                <i class="fas fa-circle-check fa-lg text-warning" id="checkGOLD" style="opacity:0"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="planError" class="text-danger small mb-3" style="display:none">
+                    <i class="fas fa-exclamation-circle me-1"></i>Veuillez choisir un abonnement.
+                </div>
+
+                <!-- Coordonnées -->
+                <hr class="my-3">
+                <p class="fw-semibold mb-3">Vos coordonnées</p>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Société <span class="text-danger">*</span></label>
+                        <input type="text" name="companyName" class="form-control"
+                               placeholder="Nom de votre ESN" required>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label fw-semibold">Nom du contact <span class="text-danger">*</span></label>
+                        <input type="text" name="fullName" class="form-control"
+                               placeholder="Prénom Nom" required>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label fw-semibold">Téléphone</label>
+                        <input type="tel" name="phone" class="form-control" placeholder="06 …">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Email <span class="text-danger">*</span></label>
+                        <input type="email" name="email" class="form-control"
+                               placeholder="contact@votresesn.fr" required>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <div th:if="${captchaEnabled}" class="mb-3">
+                        <div class="cf-turnstile"
+                             th:attr="data-sitekey=${captchaSiteKey}"
+                             data-theme="light"></div>
+                    </div>
+                    <button type="submit" class="btn btn-warning w-100 fw-semibold">
+                        <i class="fas fa-paper-plane me-1"></i>Envoyer ma demande
+                    </button>
+                    <p class="text-muted small text-center mt-2 mb-0">
+                        Nous vous contacterons sous 24h pour finaliser votre accès.
+                    </p>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="text-center mt-3 small text-muted">
+        Déjà un compte ? <a th:href="@{/login}">Se connecter</a>
+    </div>
+
+</div>
+</div>
+
+<script th:inline="none">
+var currentType = null;
+var currentPlan = null;
+
+// Pré-sélection en cas d'erreur retournée par le serveur
+(function() {
+    var active = /*[[${activeType}]]*/ null;
+    if (active) selectType(active);
+})();
+
+function selectType(type) {
+    currentType = type;
+    document.getElementById('stepType').style.display = 'none';
+    document.getElementById('formClient').style.display = type === 'CLIENT' ? '' : 'none';
+    document.getElementById('formEsn').style.display   = type === 'ESN'    ? '' : 'none';
+    document.getElementById('cardClient').classList.toggle('selected-client', type === 'CLIENT');
+    document.getElementById('cardEsn').classList.toggle('selected-esn',    type === 'ESN');
+}
+
+function backToType() {
+    document.getElementById('stepType').style.display = '';
+    document.getElementById('formClient').style.display = 'none';
+    document.getElementById('formEsn').style.display   = 'none';
+}
+
+function selectPlan(plan) {
+    currentPlan = plan;
+    document.getElementById('selectedPlan').value = plan;
+    ['DISPATCH','STANDARD','GOLD'].forEach(function(p) {
+        var card  = document.getElementById('plan' + p);
+        var check = document.getElementById('check' + p);
+        card.classList.toggle('selected', p === plan);
+        check.style.opacity = p === plan ? '1' : '0';
+    });
+    document.getElementById('planError').style.display = 'none';
+}
+
+function validateEsn() {
+    if (!currentPlan) {
+        document.getElementById('planError').style.display = '';
+        return false;
+    }
+    return true;
+}
+</script>
+</section>
+</body>
+</html>

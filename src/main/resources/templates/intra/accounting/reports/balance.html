@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Balance des comptes</title></head>
+<body>
+<div layout:fragment="content">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-scale-balanced me-2 text-primary"></i>Balance des comptes</h4>
+        <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-print me-1"></i>Imprimer
+        </button>
+    </div>
+
+    <!-- Year selector -->
+    <form method="get" action="/intra/accounting/reports/balance" class="card border-0 shadow-sm mb-4">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-sm-4">
+                    <label class="form-label small fw-semibold mb-1">Exercice fiscal</label>
+                    <select name="yearId" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option th:each="y : ${fiscalYears}"
+                                th:value="${y.id}"
+                                th:text="${y.label} + (${y.current} ? ' (courant)' : '') + (${y.closed} ? ' [clôturé]' : '')"
+                                th:selected="${year != null and year.id == y.id}">
+                        </option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Year header -->
+    <div th:if="${year != null}" class="mb-3">
+        <div class="text-muted small">
+            <i class="fas fa-calendar me-1"></i>
+            <strong th:text="${year.label}"></strong>
+            (<span th:text="${#temporals.format(year.startDate, 'dd/MM/yyyy')}"></span>
+            – <span th:text="${#temporals.format(year.endDate, 'dd/MM/yyyy')}"></span>)
+        </div>
+    </div>
+
+    <!-- Balance table, grouped by account class -->
+    <div th:if="${lines != null and !lines.isEmpty()}">
+        <div th:each="entry : ${linesByClass}"
+             th:with="cls=${entry.key}, classLines=${entry.value}, sub=${subtotals[entry.key]}">
+            <h6 class="text-muted text-uppercase fw-bold small mt-4 mb-2"
+                th:text="${cls == 0 ? 'Autres' : 'Classe ' + cls}">Classe</h6>
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:100px">Numéro</th>
+                                <th>Compte</th>
+                                <th class="text-end" style="width:140px">Total Débit</th>
+                                <th class="text-end" style="width:140px">Total Crédit</th>
+                                <th class="text-end" style="width:140px">Solde débiteur</th>
+                                <th class="text-end" style="width:140px">Solde créditeur</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="bl : ${classLines}">
+                                <td class="font-monospace fw-semibold" th:text="${bl.account().number}"></td>
+                                <td th:text="${bl.account().label}"></td>
+                                <td class="text-end font-monospace"
+                                    th:text="${#numbers.formatDecimal(bl.totalDebit(), 1, 'COMMA', 2, 'POINT')}">
+                                </td>
+                                <td class="text-end font-monospace"
+                                    th:text="${#numbers.formatDecimal(bl.totalCredit(), 1, 'COMMA', 2, 'POINT')}">
+                                </td>
+                                <td class="text-end font-monospace text-success fw-semibold"
+                                    th:text="${bl.solde().signum() > 0} ? ${#numbers.formatDecimal(bl.solde(), 1, 'COMMA', 2, 'POINT')} : ''">
+                                </td>
+                                <td class="text-end font-monospace text-danger fw-semibold"
+                                    th:text="${bl.solde().signum() < 0} ? ${#numbers.formatDecimal(bl.solde().negate(), 1, 'COMMA', 2, 'POINT')} : ''">
+                                </td>
+                            </tr>
+                            <!-- Class subtotal -->
+                            <tr class="table-light fw-semibold"
+                                th:with="subS=${sub[0].subtract(sub[1])}">
+                                <td colspan="2" class="text-end small text-uppercase text-muted">
+                                    Sous-total <span th:text="${cls == 0 ? 'autres' : 'classe ' + cls}"></span>
+                                </td>
+                                <td class="text-end font-monospace"
+                                    th:text="${#numbers.formatDecimal(sub[0], 1, 'COMMA', 2, 'POINT')}"></td>
+                                <td class="text-end font-monospace"
+                                    th:text="${#numbers.formatDecimal(sub[1], 1, 'COMMA', 2, 'POINT')}"></td>
+                                <td class="text-end font-monospace text-success"
+                                    th:text="${subS.signum() > 0} ? ${#numbers.formatDecimal(subS, 1, 'COMMA', 2, 'POINT')} : ''">
+                                </td>
+                                <td class="text-end font-monospace text-danger"
+                                    th:text="${subS.signum() < 0} ? ${#numbers.formatDecimal(subS.negate(), 1, 'COMMA', 2, 'POINT')} : ''">
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grand total -->
+        <div class="card border-0 shadow-sm bg-light">
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col">
+                        <div class="small text-muted">Total Débit</div>
+                        <div class="fs-5 fw-bold font-monospace"
+                             th:text="${#numbers.formatDecimal(sumDebit, 1, 'COMMA', 2, 'POINT')} + ' €'">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="small text-muted">Total Crédit</div>
+                        <div class="fs-5 fw-bold font-monospace"
+                             th:text="${#numbers.formatDecimal(sumCredit, 1, 'COMMA', 2, 'POINT')} + ' €'">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="small text-muted">Solde</div>
+                        <div class="fs-5 fw-bold font-monospace"
+                             th:classappend="${sumDebit.subtract(sumCredit).compareTo(T(java.math.BigDecimal).ZERO) == 0} ? 'text-success' : 'text-danger'"
+                             th:text="${#numbers.formatDecimal(sumDebit.subtract(sumCredit).abs(), 1, 'COMMA', 2, 'POINT')} + ' €'">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:if="${lines == null or lines.isEmpty()}" class="text-center text-muted py-5">
+        <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+        Aucune écriture pour cet exercice.
+    </div>
+
+</div>
+</body>
+</html>

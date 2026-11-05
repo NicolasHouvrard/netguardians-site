@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Nouvelle publication</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/intra/social/posts" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h4 class="mb-0"><i class="fas fa-bullhorn me-2 text-primary"></i>Nouvelle publication</h4>
+    </div>
+
+    <div th:if="${configs == null or configs.isEmpty()}" class="alert alert-warning">
+        <i class="fas fa-triangle-exclamation me-2"></i>
+        Aucun réseau configuré.
+        <a href="/intra/social/config/new" class="alert-link">Configurez d'abord un réseau →</a>
+    </div>
+
+    <form method="post" action="/intra/social/posts" enctype="multipart/form-data">
+
+        <div class="row g-4">
+
+            <!-- Colonne principale -->
+            <div class="col-lg-8">
+
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Titre interne <span class="text-danger">*</span></label>
+                            <input type="text" name="title" class="form-control" required
+                                   placeholder="Référence interne du post">
+                        </div>
+
+                        <div class="mb-1">
+                            <label class="form-label fw-semibold">Contenu <span class="text-danger">*</span></label>
+                            <textarea name="content" id="mainContent" class="form-control" rows="6" required
+                                      maxlength="63206"
+                                      placeholder="Texte de votre publication…"></textarea>
+                        </div>
+                        <div class="d-flex justify-content-end gap-3 mt-1 small text-muted" id="charCounters">
+                            <span><i class="fab fa-linkedin me-1 text-primary"></i><span id="cntLinkedin">0</span>/3000</span>
+                            <span><i class="fab fa-facebook me-1 text-primary"></i><span id="cntFacebook">0</span>/63206</span>
+                            <span><i class="fab fa-instagram me-1" style="color:#E1306C"></i><span id="cntInstagram">0</span>/2200</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contenu X spécifique -->
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-white">
+                        <i class="fab fa-x-twitter me-2"></i>Contenu X (Twitter) <small class="text-muted">— 280 caractères max</small>
+                    </div>
+                    <div class="card-body">
+                        <textarea name="xContent" id="xContent" class="form-control" rows="3"
+                                  maxlength="280"
+                                  placeholder="Version courte pour X — si vide, le contenu principal sera tronqué à 280 chars."></textarea>
+                        <div class="text-end mt-1 small text-muted">
+                            <span id="cntX">0</span>/280
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Image -->
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white">
+                        <i class="fas fa-image me-2"></i>Image
+                        <small class="text-muted ms-1">— Obligatoire pour Instagram</small>
+                    </div>
+                    <div class="card-body">
+                        <input type="file" name="image" class="form-control" accept="image/*">
+                        <div class="form-text">JPG, PNG, WebP — max 10 Mo</div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Colonne latérale -->
+            <div class="col-lg-4">
+
+                <!-- Réseaux -->
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-white fw-semibold">
+                        <i class="fas fa-share-nodes me-2"></i>Publier sur
+                    </div>
+                    <div class="card-body">
+                        <div th:if="${configs == null or configs.isEmpty()}" class="text-muted small">
+                            Aucun réseau configuré.
+                        </div>
+                        <div th:each="cfg : ${configs}" class="form-check mb-2">
+                            <input type="checkbox" class="form-check-input network-check"
+                                   name="configIds" th:value="${cfg.id}"
+                                   th:id="'cfg_' + ${cfg.id}"
+                                   th:data-type="${cfg.networkType.name()}">
+                            <label class="form-check-label d-flex align-items-center gap-2"
+                                   th:for="'cfg_' + ${cfg.id}">
+                                <i th:class="${cfg.networkType.icon}"></i>
+                                <span th:text="${cfg.name}"></span>
+                                <span th:unless="${cfg.connected}"
+                                      class="badge text-bg-warning ms-auto small">Non connecté</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Planification -->
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-white fw-semibold">
+                        <i class="fas fa-clock me-2"></i>Planification
+                    </div>
+                    <div class="card-body">
+                        <label class="form-label small fw-semibold">Date et heure de publication</label>
+                        <input type="datetime-local" name="scheduledAt" class="form-control">
+                        <div class="form-text">Laisser vide pour enregistrer en brouillon.</div>
+                    </div>
+                </div>
+
+                <!-- Boutons -->
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>Enregistrer
+                    </button>
+                    <a href="/intra/social/posts" class="btn btn-outline-secondary">Annuler</a>
+                </div>
+
+            </div>
+        </div>
+    </form>
+
+</div>
+
+<th:block layout:fragment="script">
+<script>
+(function () {
+    const mainTa  = document.getElementById('mainContent');
+    const xTa     = document.getElementById('xContent');
+    const cntLi   = document.getElementById('cntLinkedin');
+    const cntFb   = document.getElementById('cntFacebook');
+    const cntIg   = document.getElementById('cntInstagram');
+    const cntX    = document.getElementById('cntX');
+
+    function update() {
+        const len = mainTa.value.length;
+        cntLi.textContent = len;
+        cntFb.textContent = len;
+        cntIg.textContent = len;
+        cntLi.className = len > 3000   ? 'text-danger fw-bold' : '';
+        cntIg.className = len > 2200   ? 'text-danger fw-bold' : '';
+    }
+    function updateX() {
+        const len = xTa.value.length;
+        cntX.textContent = len;
+        cntX.className = len > 280 ? 'text-danger fw-bold' : '';
+    }
+
+    mainTa.addEventListener('input', update);
+    xTa.addEventListener('input', updateX);
+    update();
+    updateX();
+})();
+</script>
+</th:block>
+
+</body>
+</html>

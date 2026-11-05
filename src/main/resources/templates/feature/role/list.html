@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" 
+        xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+     
+ <head>
+    <title>Accueil</title>
+</head>     
+<body>
+    <section layout:fragment="content">
+        <div class="container-fluid" >
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Configuration des Rôles Système</h6>
+        </div>
+        <div class="card-body">
+            <form th:action="@{/admin/settings/roles/save}" method="post" class="row g-3 mb-4">
+                <div class="col-auto">
+                    <input type="text" name="roleName" class="form-control" placeholder="EX: MANAGER" required>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-success">Ajouter le rôle</button>
+                </div>
+            </form>
+
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nom technique (Authority)</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="role : ${roles}">
+                        <td th:text="${role.id}">1</td>
+                        <td>
+                            <span class="badge bg-primary" th:text="${role.name}">ROLE_ADMIN</span>
+                        </td>
+                        <td>
+                            <a th:href="@{/admin/settings/roles/delete/{id}(id=${role.id})}" 
+                               class="text-danger" onclick="return confirm('Attention : supprimer un rôle peut bloquer des accès !')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+    </section>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="widget" class="d-flex flex-column h-100">
+    <div class="widget-list-header">
+        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+              th:style="'background:' + ${widget.color} + '22;width:26px;height:26px'">
+            <i th:class="${widget.icon}" th:style="'color:' + ${widget.color} + ';font-size:.7rem'"></i>
+        </span>
+        <span class="fw-semibold small flex-grow-1 text-truncate" th:text="${widget.label}"></span>
+        <a href="/intra/tickets" class="btn btn-xs btn-outline-secondary py-0 px-2"
+           style="font-size:.7rem;white-space:nowrap">Voir tout →</a>
+        <form th:if="${dashboard != null}"
+              th:action="@{/intra/dashboard/{s}/widget/remove(s=${dashboard})}" method="post" class="ms-1">
+            <input type="hidden" name="widgetType" th:value="${widgetKey}">
+            <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1 btn-widget-remove" title="Retirer"
+                    onclick="return confirm('Retirer ce widget ?')">
+                <i class="fas fa-times" style="font-size:.65rem"></i>
+            </button>
+        </form>
+    </div>
+    <div class="widget-list-scroll">
+        <div th:if="${#lists.isEmpty(tickets)}" class="text-center text-muted py-3" style="font-size:.8rem">
+            <i class="fas fa-check-circle text-success me-1"></i>Aucun ticket ouvert
+        </div>
+        <ul th:unless="${#lists.isEmpty(tickets)}" class="list-group list-group-flush">
+            <li th:each="t : ${tickets}" class="list-group-item list-group-item-action px-3 py-2">
+                <a th:href="@{/intra/tickets/{id}(id=${t.id})}"
+                   class="text-decoration-none text-dark d-flex justify-content-between align-items-start">
+                    <div class="overflow-hidden me-2">
+                        <div class="fw-semibold small text-truncate" th:text="${t.title}"></div>
+                        <div class="text-muted" style="font-size:.72rem"
+                             th:text="${t.customer != null ? t.customer.companyName : '—'}"></div>
+                    </div>
+                    <div class="flex-shrink-0 text-end">
+                        <span class="badge rounded-pill"
+                              th:text="${t.status.label}"
+                              th:classappend="${t.status.name() == 'NEW'} ? ' bg-danger' : ' bg-warning text-dark'"></span>
+                        <div class="text-muted mt-1" style="font-size:.7rem"
+                             th:text="${#temporals.format(t.createdAt, 'dd/MM')}"></div>
+                    </div>
+                </a>
+            </li>
+        </ul>
+    </div>
+</div>
+</body>
+</html>

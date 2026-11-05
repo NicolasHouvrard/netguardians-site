@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<!--
+		Projet Maven INDEPENDANT (Task 5, deploiement bleu-vert) — PAS un module enfant du pom.xml
+		racine : version et cycle de build totalement separes. Destine a tourner comme un processus
+		DISTINCT, sur CHAQUE hote (y compris le Maitre), pour piloter Docker/Nginx lors d'un
+		changement de version (Task 6+ pour le pilotage reel ; cette tache ne livre que le scaffold,
+		le point de reveil et le client vers le Maitre).
+	-->
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>4.0.2</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+
+	<groupId>com.logicielpourtous</groupId>
+	<artifactId>agent</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>agent</name>
+	<description>Agent de deploiement bleu-vert (processus local independant de l'appli principale)</description>
+
+	<properties>
+		<java.version>25</java.version>
+	</properties>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
+		<!--
+			Jackson 2 "classique" (com.fasterxml.jackson.*) explicite, meme patron que le pom.xml
+			racine : spring-boot-starter-web/spring-boot-starter-jackson en Spring Boot 4.0 apporte
+			par defaut le NOUVEAU Jackson 3 (tools.jackson.*), pas com.fasterxml.jackson.databind.
+			(De)serialisation explicite via ObjectMapper (voir MaitreClient), meme discipline que
+			LicenceClient/RestSyncClient de l'appli principale — on reste sur l'API classique pour
+			rester coherent avec le reste du projet.
+		-->
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

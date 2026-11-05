@@ -1,0 +1,8 @@
+spring.datasource.url=${DATABASE_URL}
+spring.datasource.username=${DATABASE_USERNAME}
+spring.datasource.password=${DATABASE_PASSWORD}
+
+spring.thymeleaf.cache=true
+spring.devtools.restart.enabled=false
+
+app.jwt.secret=CHANGEME-votre-cle-jwt-longue-et-aleatoire-min-32-chars

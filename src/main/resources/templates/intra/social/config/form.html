@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Configuration réseau social</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/intra/social/config" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h4 class="mb-0">
+            <i class="fas fa-share-nodes me-2 text-primary"></i>
+            <span th:text="${config != null and config.id != null ? 'Modifier la configuration' : 'Nouveau réseau social'}"></span>
+        </h4>
+    </div>
+
+    <div class="card border-0 shadow-sm" style="max-width:640px">
+        <div class="card-body p-4">
+
+            <!-- Nouveau réseau -->
+            <form th:if="${config == null or config.id == null}"
+                  method="post" action="/intra/social/config">
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Réseau <span class="text-danger">*</span></label>
+                    <select name="networkType" class="form-select" required id="networkTypeSelect">
+                        <option value="">— Choisir —</option>
+                        <option th:each="t : ${networkTypes}"
+                                th:value="${t.name()}"
+                                th:text="${t.label}">
+                        </option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Nom <span class="text-danger">*</span></label>
+                    <input type="text" name="name" class="form-control" required
+                           placeholder="ex : Page Facebook Entreprise">
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col">
+                        <label class="form-label fw-semibold">Client ID</label>
+                        <input type="text" name="clientId" class="form-control font-monospace"
+                               placeholder="Laisser vide pour configurer plus tard">
+                    </div>
+                    <div class="col">
+                        <label class="form-label fw-semibold">Client Secret</label>
+                        <input type="password" name="clientSecret" class="form-control font-monospace"
+                               placeholder="Laisser vide pour configurer plus tard">
+                    </div>
+                </div>
+
+                <div class="mb-3" id="pageIdGroup">
+                    <label class="form-label fw-semibold">Page ID / Business Account ID</label>
+                    <input type="text" name="pageId" class="form-control font-monospace"
+                           placeholder="Facebook Page ID ou Instagram Business Account ID">
+                    <div class="form-text">Requis pour Facebook et Instagram</div>
+                </div>
+
+                <div class="mb-4" id="handleGroup">
+                    <label class="form-label fw-semibold">Handle (compte)</label>
+                    <input type="text" name="accountHandle" class="form-control"
+                           placeholder="@NomDuCompte">
+                    <div class="form-text">Optionnel — pour référence interne</div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>Enregistrer
+                    </button>
+                    <a href="/intra/social/config" class="btn btn-outline-secondary">Annuler</a>
+                </div>
+            </form>
+
+            <!-- Modifier réseau existant -->
+            <form th:if="${config != null and config.id != null}"
+                  th:action="@{/intra/social/config/{id}(id=${config.id})}"
+                  method="post">
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Réseau</label>
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i th:class="${config.networkType.icon}"></i>
+                        </span>
+                        <input type="text" class="form-control" readonly
+                               th:value="${config.networkType.label}">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Nom <span class="text-danger">*</span></label>
+                    <input type="text" name="name" class="form-control" required
+                           th:value="${config.name}">
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col">
+                        <label class="form-label fw-semibold">Client ID</label>
+                        <input type="text" name="clientId" class="form-control font-monospace"
+                               th:value="${config.clientId}"
+                               placeholder="Laisser vide pour ne pas modifier">
+                    </div>
+                    <div class="col">
+                        <label class="form-label fw-semibold">Client Secret</label>
+                        <input type="password" name="clientSecret" class="form-control font-monospace"
+                               placeholder="Laisser vide pour ne pas modifier">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Page ID / Business Account ID</label>
+                    <input type="text" name="pageId" class="form-control font-monospace"
+                           th:value="${config.pageId}">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Handle</label>
+                    <input type="text" name="accountHandle" class="form-control"
+                           th:value="${config.accountHandle}">
+                </div>
+
+                <div class="mb-4 form-check">
+                    <input type="checkbox" name="active" value="true" class="form-check-input"
+                           id="activeCheck" th:checked="${config.active}">
+                    <label class="form-check-label" for="activeCheck">Actif</label>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>Enregistrer
+                    </button>
+                    <a href="/intra/social/config" class="btn btn-outline-secondary">Annuler</a>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{espace-layout}">
+<head><title>Mon profil</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <h4 class="mb-0"><i class="fas fa-user-circle me-2 text-primary"></i>Mon profil</h4>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0">Informations personnelles</h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/espace/profile}" method="post">
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Email</label>
+                            <input type="email" class="form-control" th:value="${editUser.email}" disabled>
+                            <div class="form-text">L'email ne peut pas être modifié ici.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Nom complet <span class="text-danger">*</span></label>
+                            <input type="text" name="fullName" class="form-control" required
+                                   th:value="${editUser.fullName}">
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold small">
+                                Nouveau mot de passe
+                                <span class="text-muted">(laisser vide pour ne pas changer)</span>
+                            </label>
+                            <input type="password" name="password" class="form-control"
+                                   autocomplete="new-password" placeholder="••••••••">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Enregistrer
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

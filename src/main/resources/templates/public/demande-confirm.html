@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head><title>Demande envoyée</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="row justify-content-center">
+        <div class="col-lg-6 col-md-8 text-center">
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4 p-md-5">
+
+                    <div class="mb-4">
+                        <span class="display-4 text-success"><i class="fas fa-check-circle"></i></span>
+                    </div>
+
+                    <h3 class="mb-2">Demande envoyée !</h3>
+
+                    <p class="text-muted mb-1">
+                        Votre demande a bien été enregistrée
+                        <span th:if="${ticketId != null}">
+                            sous le numéro <strong class="text-dark" th:text="'#' + ${ticketId}"></strong>
+                        </span>.
+                    </p>
+                    <p class="text-muted mb-4">Notre équipe vous répondra dans les plus brefs délais.</p>
+
+                    <!-- CTA prospect → inscription -->
+                    <div th:if="${isNewProspect}" class="alert alert-primary text-start mb-4">
+                        <h6 class="fw-semibold mb-1"><i class="fas fa-user-plus me-1"></i>Créez votre espace client</h6>
+                        <p class="small mb-2">
+                            Accédez à vos demandes, factures et abonnements depuis votre espace personnel.
+                            <span th:if="${visitorEmail != null}">
+                                Votre compte sera créé avec l'adresse
+                                <strong th:text="${visitorEmail}"></strong>.
+                            </span>
+                        </p>
+                        <a th:href="${visitorEmail != null ? '/register?email=' + #strings.replace(visitorEmail,'@','%40') : '/register'}"
+                           class="btn btn-primary btn-sm">
+                            <i class="fas fa-arrow-right me-1"></i>Créer mon espace client
+                        </a>
+                    </div>
+
+                    <a href="/" class="btn btn-outline-secondary">
+                        <i class="fas fa-home me-1"></i>Retour à l'accueil
+                    </a>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

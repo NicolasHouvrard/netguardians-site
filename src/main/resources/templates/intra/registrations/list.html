@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Demandes d'inscription</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-user-clock me-2 text-warning"></i>Demandes d'inscription ESN</h4>
+            <div class="text-muted small mt-1">Abonnements en attente de traitement</div>
+        </div>
+        <span th:if="${pending > 0}" class="badge text-bg-warning fs-6 px-3">
+            <span th:text="${pending}"></span> en attente
+        </span>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Identifiants temporaires générés à l'approbation -->
+    <div th:if="${createdEmail}" class="alert alert-warning border-warning shadow-sm mb-4">
+        <div class="d-flex align-items-start gap-3">
+            <i class="fas fa-key fa-lg text-warning mt-1"></i>
+            <div>
+                <div class="fw-bold mb-2">Identifiants temporaires générés — à communiquer au client</div>
+                <div class="d-flex gap-4 flex-wrap">
+                    <div>
+                        <span class="text-muted small">Email</span><br>
+                        <code class="fw-bold" th:text="${createdEmail}"></code>
+                    </div>
+                    <div>
+                        <span class="text-muted small">Mot de passe provisoire</span><br>
+                        <code class="fw-bold fs-5" th:text="${createdPassword}"></code>
+                    </div>
+                </div>
+                <div class="text-muted small mt-2">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    Ces informations ne s'afficheront plus après fermeture de cette page.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compte rattaché à un client existant -->
+    <div th:if="${linkedCompany}" class="alert alert-info alert-dismissible fade show">
+        <i class="fas fa-link me-2"></i>
+        Rattaché au client existant : <strong th:text="${linkedCompany}"></strong>.
+        <span th:if="${createdEmail == null}"> Un compte portail existe déjà pour cet email.</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(requests)}" class="text-center py-5 text-muted">
+                <i class="fas fa-inbox fa-2x mb-3 d-block"></i>Aucune demande.
+            </div>
+            <div class="table-responsive" th:unless="${#lists.isEmpty(requests)}">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Société</th>
+                        <th>Contact</th>
+                        <th>Email</th>
+                        <th>Téléphone</th>
+                        <th>Abonnement</th>
+                        <th>Date</th>
+                        <th>Statut</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="r : ${requests}">
+                        <td class="fw-semibold" th:text="${r.companyName}"></td>
+                        <td th:text="${r.contactName}"></td>
+                        <td>
+                            <a th:href="'mailto:' + ${r.email}" th:text="${r.email}"
+                               class="text-decoration-none small"></a>
+                        </td>
+                        <td class="small text-muted" th:text="${r.phone ?: '—'}"></td>
+                        <td>
+                            <span th:if="${r.plan != null}"
+                                  class="badge"
+                                  th:classappend="${r.plan.badgeCss}"
+                                  th:text="${r.plan.label}"></span>
+                            <span th:if="${r.plan == null}" class="text-muted small">—</span>
+                        </td>
+                        <td class="small text-muted"
+                            th:text="${#temporals.format(r.requestedAt,'dd/MM/yyyy HH:mm')}"></td>
+                        <td>
+                            <span class="badge"
+                                  th:classappend="${r.status.badgeCss}"
+                                  th:text="${r.status.label}"></span>
+                        </td>
+                        <td>
+                            <div th:if="${r.status.name() == 'PENDING'}" class="d-flex gap-2">
+                                <button class="btn btn-sm btn-success"
+                                        th:data-id="${r.id}"
+                                        th:data-company="${r.companyName}"
+                                        onclick="openApprove(this)">
+                                    <i class="fas fa-check me-1"></i>Approuver
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger"
+                                        th:data-id="${r.id}"
+                                        onclick="openReject(this)">
+                                    <i class="fas fa-times me-1"></i>Refuser
+                                </button>
+                            </div>
+                            <div th:if="${r.adminNotes != null}" class="small text-muted mt-1 fst-italic"
+                                 th:text="${r.adminNotes}"></div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal approuver -->
+    <div class="modal fade" id="modalApprove" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="approveForm" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title text-success"><i class="fas fa-check-circle me-2"></i>Approuver la demande</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Vous approuvez la demande de <strong id="approveCompany"></strong>.</p>
+                        <p class="text-muted small">Après approbation, créez manuellement le compte ESN depuis l'intranet ou contactez le demandeur pour finaliser son accès.</p>
+                        <div>
+                            <label class="form-label small fw-semibold">Note interne (optionnel)</label>
+                            <textarea name="adminNotes" class="form-control form-control-sm" rows="2"
+                                      placeholder="Ex: Compte créé, accès envoyé par email…"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <i class="fas fa-check me-1"></i>Confirmer l'approbation
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal refuser -->
+    <div class="modal fade" id="modalReject" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="rejectForm" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title text-danger"><i class="fas fa-times-circle me-2"></i>Refuser la demande</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div>
+                            <label class="form-label small fw-semibold">Motif du refus (optionnel)</label>
+                            <textarea name="adminNotes" class="form-control form-control-sm" rows="3"
+                                      placeholder="Ex: Zone non couverte, plan incompatible…"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-danger btn-sm">
+                            <i class="fas fa-times me-1"></i>Confirmer le refus
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script>
+function openApprove(btn) {
+    var id = btn.getAttribute('data-id');
+    document.getElementById('approveForm').action = '/intra/registrations/' + id + '/approve';
+    document.getElementById('approveCompany').textContent = btn.getAttribute('data-company');
+    new bootstrap.Modal(document.getElementById('modalApprove')).show();
+}
+function openReject(btn) {
+    var id = btn.getAttribute('data-id');
+    document.getElementById('rejectForm').action = '/intra/registrations/' + id + '/reject';
+    new bootstrap.Modal(document.getElementById('modalReject')).show();
+}
+</script>
+</th:block>
+</body>
+</html>

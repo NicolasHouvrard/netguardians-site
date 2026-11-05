@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Taux de TVA</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <h4 class="mb-0"><i class="fas fa-percent me-2 text-primary"></i>Taux de TVA</h4>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0">Taux actifs</h6>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Taux</th>
+                            <th>Libellé</th>
+                            <th>Zone fiscale</th>
+                            <th class="text-center">Par défaut</th>
+                            <th></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="vr : ${vatRates}">
+                            <td class="fw-bold" th:text="${#numbers.formatDecimal(vr.rate, 1, 2) + ' %'}"></td>
+                            <td th:text="${vr.name}"></td>
+                            <td>
+                                <span class="badge"
+                                      th:classappend="${vr.zone.name() == 'FRANCE' ? 'text-bg-primary' : vr.zone.name() == 'EU' ? 'text-bg-warning' : 'text-bg-secondary'}"
+                                      th:text="${vr.zone.label}"></span>
+                            </td>
+                            <td class="text-center">
+                                <i th:if="${vr.default}" class="fas fa-check text-success"></i>
+                            </td>
+                            <td class="text-end">
+                                <button class="btn btn-xs btn-outline-secondary py-0 px-2"
+                                        th:attr="data-id=${vr.id},data-name=${vr.name},data-rate=${vr.rate},data-zone=${vr.zone.name()},data-default=${vr.default}"
+                                        onclick="openEdit(this)">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <form th:action="@{/intra/vat-rates/{id}/delete(id=${vr.id})}" method="post" class="d-inline"
+                                      onsubmit="return confirm('Désactiver ce taux ?')">
+                                    <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-2">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-plus me-1 text-primary"></i>Nouveau taux</h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/intra/vat-rates}" method="post">
+                        <div class="mb-2">
+                            <label class="form-label small">Libellé <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control form-control-sm" required placeholder="ex : Taux normal">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Taux (%) <span class="text-danger">*</span></label>
+                            <input type="number" name="rate" class="form-control form-control-sm" step="0.01" min="0" max="100" required placeholder="20.00">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Zone fiscale</label>
+                            <select name="zone" class="form-select form-select-sm">
+                                <th:block th:each="z : ${zones}">
+                                    <option th:value="${z.name()}" th:text="${z.label}"></option>
+                                </th:block>
+                            </select>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" name="isDefault" id="newDefault" class="form-check-input" value="true">
+                            <label class="form-check-label small" for="newDefault">Taux par défaut pour cette zone</label>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="fas fa-plus me-1"></i>Créer
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal édition -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <form id="editForm" method="post">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h6 class="modal-title">Modifier le taux</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-2">
+                            <label class="form-label small">Libellé</label>
+                            <input type="text" name="name" id="editName" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Taux (%)</label>
+                            <input type="number" name="rate" id="editRate" class="form-control form-control-sm" step="0.01" min="0" max="100" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Zone fiscale</label>
+                            <select name="zone" id="editZone" class="form-select form-select-sm">
+                                <th:block th:each="z : ${zones}">
+                                    <option th:value="${z.name()}" th:text="${z.label}"></option>
+                                </th:block>
+                            </select>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" name="isDefault" id="editDefault" class="form-check-input" value="true">
+                            <label class="form-check-label small" for="editDefault">Taux par défaut pour cette zone</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary btn-sm">Enregistrer</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script>
+function openEdit(btn) {
+    document.getElementById('editName').value  = btn.dataset.name;
+    document.getElementById('editRate').value  = btn.dataset.rate;
+    document.getElementById('editZone').value  = btn.dataset.zone;
+    document.getElementById('editDefault').checked = btn.dataset.default === 'true';
+    document.getElementById('editForm').action = '/intra/vat-rates/' + btn.dataset.id + '/update';
+    new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+</script>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="panel">
+
+    <!-- ── Pas de conversation active ── -->
+    <div th:if="${conv == null}" style="height:100%;display:flex;flex-direction:column">
+        <div class="bg-primary text-white p-3 d-flex align-items-center gap-2" style="flex-shrink:0">
+            <span class="rounded-circle bg-white text-primary d-flex align-items-center justify-content-center" style="width:34px;height:34px">
+                <i class="fas fa-headset" style="font-size:0.9rem"></i>
+            </span>
+            <div>
+                <div class="fw-semibold" style="font-size:0.9rem">Discutez avec nous</div>
+                <small class="opacity-75" style="font-size:0.72rem">Un conseiller vous répondra en direct</small>
+            </div>
+        </div>
+        <div class="p-4 flex-grow-1 d-flex flex-column justify-content-center">
+            <div class="text-center mb-4">
+                <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary bg-opacity-10" style="width:56px;height:56px">
+                    <i class="fas fa-comments fa-lg text-primary"></i>
+                </span>
+            </div>
+            <p class="text-muted text-center mb-4 small">Laissez votre email pour démarrer une conversation avec notre équipe.</p>
+            <form onsubmit="submitWidgetForm(event)">
+                <div class="mb-2">
+                    <input type="text" name="name" class="form-control form-control-sm" placeholder="Votre prénom (optionnel)">
+                </div>
+                <div class="mb-3">
+                    <input type="email" name="email" class="form-control form-control-sm" required placeholder="votre@email.com">
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm w-100">
+                    <i class="fas fa-comments me-1"></i>Démarrer la conversation
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ── Conversation active ── -->
+    <div th:if="${conv != null}" style="height:100%;display:flex;flex-direction:column">
+        <input type="hidden" id="widget-conv-id" th:value="${conv.id}">
+        <input type="hidden" id="widget-conv-status" th:value="${conv.status.name()}">
+
+        <!-- Header -->
+        <div class="bg-primary text-white p-2 d-flex align-items-center gap-2" style="flex-shrink:0">
+            <span class="rounded-circle bg-white text-primary d-flex align-items-center justify-content-center" style="width:30px;height:30px">
+                <i class="fas fa-headset" style="font-size:0.8rem"></i>
+            </span>
+            <div class="flex-grow-1">
+                <div class="fw-semibold" style="font-size:0.85rem">Support en ligne</div>
+                <small class="opacity-75" style="font-size:0.7rem" th:text="${conv.status.label}"></small>
+            </div>
+            <a th:href="@{/chat(convId=${conv.id})}" class="btn btn-sm btn-outline-light py-0 px-2" style="font-size:0.72rem" title="Ouvrir en pleine page">
+                <i class="fas fa-expand-alt"></i>
+            </a>
+        </div>
+
+        <!-- Zone messages -->
+        <div id="widget-msg-area" class="flex-grow-1 overflow-auto p-2" style="background:#f8fafc">
+            <div th:each="m : ${messages}"
+                 th:class="${m.senderType.name() == 'VISITOR'} ? 'd-flex justify-content-end mb-2' : 'd-flex justify-content-start mb-2'">
+                <div class="d-flex flex-column"
+                     th:style="${m.senderType.name() == 'VISITOR'} ? 'align-items:flex-end;max-width:85%' : 'align-items:flex-start;max-width:85%'">
+                    <small class="text-muted mb-1" style="font-size:0.65rem" th:text="${m.senderName}"></small>
+                    <div class="px-2 py-1 rounded-3"
+                         style="font-size:0.82rem;word-break:break-word"
+                         th:style="${m.senderType.name() == 'VISITOR'} ? 'background:#3b82f6;color:white;font-size:0.82rem;word-break:break-word' : (${m.senderType.name() == 'BOT' or m.senderType.name() == 'AI'} ? 'background:#f1f5f9;border:1px solid #e2e8f0;font-size:0.82rem;word-break:break-word' : 'background:#dcfce7;font-size:0.82rem;word-break:break-word')"
+                         th:utext="${#strings.replace(#strings.escapeXml(m.content), '&#10;', '&lt;br&gt;')}">
+                    </div>
+                </div>
+            </div>
+            <div id="widget-typing" class="d-none text-muted fst-italic ps-1" style="font-size:0.72rem"></div>
+        </div>
+
+        <!-- Boutons bot (si en attente) -->
+        <div id="widget-bot-choices"
+             th:if="${conv.status.name() == 'PENDING'}"
+             class="px-2 pb-1 pt-1 d-flex gap-1 flex-wrap border-top" style="flex-shrink:0;background:#f8f9fa">
+            <span class="text-muted small w-100 mb-1" style="font-size:0.72rem">Choisissez votre besoin :</span>
+            <button class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:0.75rem" onclick="sendWidgetBotChoice('SUPPORT')">
+                <i class="fas fa-wrench me-1"></i>Support
+            </button>
+            <button class="btn btn-outline-success btn-sm py-0 px-2" style="font-size:0.75rem" onclick="sendWidgetBotChoice('COMMERCIAL')">
+                <i class="fas fa-handshake me-1"></i>Commercial
+            </button>
+            <button class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:0.75rem" onclick="sendWidgetBotChoice('AUTRE')">
+                <i class="fas fa-question me-1"></i>Autre
+            </button>
+        </div>
+
+        <!-- Zone de saisie -->
+        <div class="border-top p-2" style="flex-shrink:0">
+            <div th:if="${conv.status.name() == 'CLOSED'}" class="text-center text-muted small py-2">
+                <i class="fas fa-lock me-1"></i>Conversation terminée
+            </div>
+            <div th:if="${conv.status.name() != 'CLOSED'}" class="input-group input-group-sm">
+                <textarea id="widget-input" class="form-control" rows="2"
+                          style="resize:none;font-size:0.82rem"
+                          placeholder="Votre message..."
+                          onkeydown="widgetHandleEnter(event)"></textarea>
+                <button class="btn btn-primary" onclick="sendWidgetMessage()">
+                    <i class="fas fa-paper-plane" style="font-size:0.8rem"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+</th:block>
+</body>
+</html>

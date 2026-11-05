@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head></head>
+<body>
+<div th:fragment="header-connected" class="d-flex align-items-center gap-2">
+
+    <!-- Accès direct Console Admin (ADMIN uniquement) -->
+    <a sec:authorize="hasRole('ADMIN')"
+       href="/admin/console"
+       class="btn btn-sm btn-outline-warning"
+       title="Console Admin">
+        <i class="fas fa-cogs me-1"></i>Admin
+    </a>
+
+    <!-- Application Angular (ADMIN + rôles ESN) -->
+    <a sec:authorize="hasRole('ADMIN') or principal.hasEsnRole()"
+       href="/app/"
+       class="btn btn-sm btn-outline-light"
+       title="Application intranet">
+        <i class="fas fa-th-large me-1"></i>Application
+    </a>
+
+    <!-- Espace ESN (tout rôle de type ESN) -->
+    <a sec:authorize="principal.hasEsnRole()"
+       href="/intra"
+       class="btn btn-sm btn-outline-info"
+       title="Mon Espace ESN">
+        <i class="fas fa-building me-1"></i>Espace ESN
+    </a>
+
+    <!-- Mon Espace (tous les utilisateurs connectés) -->
+    <a href="/espace"
+       class="btn btn-sm btn-outline-primary"
+       title="Mon Espace">
+        <i class="fas fa-th-large me-1"></i>Mon Espace
+    </a>
+
+    <!-- Dropdown utilisateur -->
+    <div class="dropdown">
+        <button class="btn btn-sm btn-dark dropdown-toggle d-flex align-items-center gap-2"
+                type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-user-circle"></i>
+            <span th:text="${#authentication.principal.fullName}">Utilisateur</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow">
+
+            <li>
+                <span class="dropdown-item-text text-muted small py-1">
+                    <sec:authentication property="principal.username"/>
+                </span>
+            </li>
+
+            <li sec:authorize="hasAnyRole('ADMIN','USER')"><hr class="dropdown-divider my-1"></li>
+
+            <li sec:authorize="hasRole('ADMIN')">
+                <a class="dropdown-item" href="/admin/console">
+                    <i class="fas fa-cogs me-2 text-warning"></i>Console Admin
+                </a>
+            </li>
+            <li sec:authorize="principal.hasEsnRole()">
+                <a class="dropdown-item" href="/intra">
+                    <i class="fas fa-building me-2 text-info"></i>Espace ESN
+                </a>
+            </li>
+            <li><hr class="dropdown-divider my-1"></li>
+            <li>
+                <a class="dropdown-item" href="/espace">
+                    <i class="fas fa-th-large me-2 text-primary"></i>Mon Espace
+                </a>
+            </li>
+            <li>
+                <a class="dropdown-item" href="/mon-compte">
+                    <i class="fas fa-user-cog me-2 text-secondary"></i>Mon compte
+                </a>
+            </li>
+
+            <li><hr class="dropdown-divider my-1"></li>
+            <li>
+                <form th:action="@{/logout}" method="post">
+                    <button type="submit" class="dropdown-item text-danger">
+                        <i class="fas fa-sign-out-alt me-2"></i>Déconnexion
+                    </button>
+                </form>
+            </li>
+        </ul>
+    </div>
+
+</div>
+</body>
+</html>

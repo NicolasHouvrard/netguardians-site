@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Lots d'écritures OD</title></head>
+<body>
+<div layout:fragment="content">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-1 fw-bold"><i class="fas fa-layer-group me-2 text-primary"></i>Lots d'écritures internes</h4>
+            <div class="text-muted small mt-1">Opérations diverses (OD), amortissements, provisions, paie…</div>
+        </div>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNewBatch">
+            <i class="fas fa-plus me-1"></i>Nouveau lot
+        </button>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-circle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div th:if="${#lists.isEmpty(summaries)}" class="text-center py-5 text-muted">
+        <i class="fas fa-layer-group fa-3x mb-3 d-block opacity-25"></i>
+        Aucun lot d'écritures. Créez votre premier lot OD.
+    </div>
+
+    <div class="card border-0 shadow-sm" th:unless="${#lists.isEmpty(summaries)}">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                <tr>
+                    <th>Lot</th>
+                    <th>Date</th>
+                    <th>Journal</th>
+                    <th class="text-center">Écritures</th>
+                    <th class="text-center">Statut</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="s : ${summaries}">
+                    <td>
+                        <a th:href="@{/intra/accounting/batches/{id}(id=${s.batch.id})}"
+                           class="fw-semibold text-decoration-none" th:text="${s.batch.name}"></a>
+                        <div class="text-muted small" th:if="${s.batch.description != null}"
+                             th:text="${s.batch.description}"></div>
+                    </td>
+                    <td class="small text-nowrap"
+                        th:text="${#temporals.format(s.batch.batchDate, 'dd/MM/yyyy')}"></td>
+                    <td><span class="badge text-bg-secondary font-monospace" th:text="${s.batch.journalCode}"></span></td>
+                    <td class="text-center fw-semibold" th:text="${s.entryCount}"></td>
+                    <td class="text-center">
+                        <span class="badge"
+                              th:classappend="${s.batch.status == 'POSTED'} ? 'text-bg-success' : 'text-bg-warning text-dark'"
+                              th:text="${s.batch.status == 'POSTED'} ? 'Validé' : 'Brouillon'"></span>
+                    </td>
+                    <td class="text-end">
+                        <a th:href="@{/intra/accounting/batches/{id}(id=${s.batch.id})}"
+                           class="btn btn-sm btn-outline-primary py-0 px-2">
+                            <i class="fas fa-pen-to-square me-1"></i>Ouvrir
+                        </a>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal nouveau lot -->
+    <div class="modal fade" id="modalNewBatch" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form action="/intra/accounting/batches/save" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i>Nouveau lot d'écritures</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Libellé du lot <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" required
+                                   placeholder="Ex : OD Paie Mai 2026, Amortissements T1…">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Description</label>
+                            <textarea name="description" class="form-control" rows="2"
+                                      placeholder="Notes optionnelles"></textarea>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Date des écritures <span class="text-danger">*</span></label>
+                                <input type="date" name="batchDate" class="form-control" required
+                                       th:value="${#temporals.format(#temporals.createToday(), 'yyyy-MM-dd')}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Journal</label>
+                                <select name="journalCode" class="form-select">
+                                    <th:block th:each="j : ${journals}">
+                                        <option th:value="${j.code}"
+                                                th:text="${j.code + ' — ' + j.label}"
+                                                th:selected="${j.code == 'OD'}"></option>
+                                    </th:block>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-arrow-right me-1"></i>Créer et saisir
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

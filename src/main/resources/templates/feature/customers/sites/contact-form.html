@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+<head>
+    <title th:text="${contact.id == null ? 'Nouveau contact' : 'Modifier contact'}"></title>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container-fluid">
+
+        <div class="d-sm-flex align-items-center justify-content-between mb-4">
+            <div>
+                <h1 class="h3 mb-0 text-gray-800"
+                    th:text="${contact.id == null ? 'Nouveau contact' : 'Modifier le contact'}"></h1>
+                <small class="text-muted">
+                    <span th:text="${customer.companyName}"></span>
+                    &nbsp;·&nbsp;
+                    <span th:text="${site.name}" class="text-primary"></span>
+                </small>
+            </div>
+            <a th:href="@{/intra/customers/{cid}/sites/{sid}/contacts(cid=${customer.id},sid=${site.id})}"
+               class="btn btn-secondary btn-sm shadow-sm">
+                <i class="fas fa-arrow-left fa-sm"></i> Retour aux contacts
+            </a>
+        </div>
+
+        <div class="card shadow mb-4">
+            <div class="card-body">
+                <form th:action="@{/intra/customers/{cid}/sites/{sid}/contacts/save(cid=${customer.id},sid=${site.id})}"
+                      th:object="${contact}" method="post">
+                    <input type="hidden" th:field="*{id}" />
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Prénom *</label>
+                            <input type="text" th:field="*{firstName}" class="form-control" placeholder="Jean" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Nom *</label>
+                            <input type="text" th:field="*{lastName}" class="form-control" placeholder="Dupont" required>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Email</label>
+                            <input type="email" th:field="*{email}" class="form-control" placeholder="jean.dupont@email.com">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Téléphone</label>
+                            <input type="text" th:field="*{phone}" class="form-control" placeholder="06 00 00 00 00">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Poste / Fonction</label>
+                            <input type="text" th:field="*{position}" class="form-control" placeholder="Responsable Achats">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Site rattaché</label>
+                            <select name="selectedSiteId" class="form-select">
+                                <option value="">-- Aucun site --</option>
+                                <option th:each="s : ${customerSites}"
+                                        th:value="${s.id}"
+                                        th:text="${s.name}"
+                                        th:selected="${contact.site != null and contact.site.id == s.id}">
+                                </option>
+                            </select>
+                            <div class="form-text text-muted">Changer de site déplacera ce contact.</div>
+                        </div>
+                    </div>
+
+                    <hr>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="esnAccess" id="esnAccess" value="true">
+                            <label class="form-check-label fw-bold" for="esnAccess">
+                                <i class="fas fa-building me-1 text-primary"></i>Accès ESN (intranet)
+                            </label>
+                            <div class="form-text">Ajoute <code>ROLE_USER</code> en plus de <code>ROLE_CLIENT</code> — permet l'accès à l'espace interne.</div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-success px-4">
+                            <i class="fas fa-save me-2"></i> Enregistrer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+</div>
+</body>
+</html>

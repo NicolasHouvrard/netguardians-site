@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Nouveau ticket</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/intra/tickets" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0"><i class="fas fa-plus me-2 text-primary"></i>Nouveau ticket</h4>
+    </div>
+
+    <form method="post" action="/intra/tickets/create" enctype="multipart/form-data" id="createForm">
+    <div class="row g-4">
+
+        <!-- Colonne principale -->
+        <div class="col-lg-8">
+
+            <!-- Fiche -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h5 class="fw-bold mb-0">Informations</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Objet <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control" required autofocus>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-sm-4">
+                            <div class="text-muted small">Statut</div>
+                            <span class="badge text-bg-primary fs-6">Nouveau</span>
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label small fw-semibold">Priorité</label>
+                            <select name="priority" class="form-select form-select-sm">
+                                <option th:each="p : ${priorities}"
+                                        th:value="${p.name()}"
+                                        th:text="${p.displayValue}"
+                                        th:selected="${p.name() == 'MEDIUM'}"></option>
+                            </select>
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label small fw-semibold">Type</label>
+                            <select name="type" class="form-select form-select-sm">
+                                <option value="">— Non défini —</option>
+                                <option th:each="t : ${requestTypes}"
+                                        th:value="${t.name()}"
+                                        th:text="${t.label}"></option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Description</label>
+                        <textarea name="description" class="form-control" rows="6"
+                                  placeholder="Décrivez le problème ou la demande..."></textarea>
+                    </div>
+
+                    <div class="mb-1">
+                        <label class="form-label fw-semibold">Pièce jointe <span class="text-muted fw-normal">(optionnel)</span></label>
+                        <input type="file" name="file" class="form-control"
+                               accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip">
+                        <div class="form-text">Image, PDF, document — max 10 Mo</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Colonne latérale -->
+        <div class="col-lg-4">
+
+            <!-- Client / Contact / Site -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-user-edit me-2 text-secondary"></i>Client</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold">Client</label>
+                        <select name="customerId" id="createCustomer" class="form-select form-select-sm"
+                                onchange="reloadCreateSelects(this)">
+                            <option value="">— Choisir un client —</option>
+                            <option th:each="c : ${customers}"
+                                    th:value="${c.id}"
+                                    th:text="${c.companyName}"
+                                    th:selected="${preCustomerId != null and preCustomerId == c.id}"></option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold">Site</label>
+                        <select name="siteId" id="createSiteSelect" class="form-select form-select-sm">
+                            <option value="">— Tous les sites —</option>
+                        </select>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label small fw-semibold">Contact</label>
+                        <select name="contactId" id="createContactSelect" class="form-select form-select-sm">
+                            <option value="">— Aucun contact —</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Technicien -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-user-check me-2 text-success"></i>Technicien</h6>
+                </div>
+                <div class="card-body">
+                    <select name="assignedToId" class="form-select form-select-sm">
+                        <option value="">— Non affecté —</option>
+                        <option th:each="u : ${technicians}"
+                                th:value="${u.id}"
+                                th:text="${u.fullName}"></option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Équipe -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-people-group me-2 text-primary"></i>Équipe</h6>
+                </div>
+                <div class="card-body">
+                    <select name="teamId" class="form-select form-select-sm">
+                        <option value="">— Aucune équipe —</option>
+                        <option th:each="t : ${teams}"
+                                th:value="${t.id}"
+                                th:text="${t.name}"></option>
+                    </select>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">
+                <i class="fas fa-save me-1"></i>Créer le ticket
+            </button>
+
+        </div>
+    </div>
+    </form>
+
+</div>
+<th:block layout:fragment="script">
+<script>
+window.reloadCreateSelects = function(sel) {
+    var cid = sel.value;
+    if (!cid) {
+        document.getElementById('createSiteSelect').innerHTML    = '<option value="">— Tous les sites —</option>';
+        document.getElementById('createContactSelect').innerHTML  = '<option value="">— Aucun contact —</option>';
+        return;
+    }
+    htmx.ajax('GET', '/intra/tickets/create/site-options?customerId='    + cid, {target: '#createSiteSelect',    swap: 'innerHTML'});
+    htmx.ajax('GET', '/intra/tickets/create/contact-options?customerId=' + cid, {target: '#createContactSelect', swap: 'innerHTML'});
+};
+
+// Si un client est présélectionné, charger ses sites/contacts au démarrage
+(function() {
+    var sel = document.getElementById('createCustomer');
+    if (sel && sel.value) reloadCreateSelects(sel);
+})();
+</script>
+</th:block>
+</body>
+</html>

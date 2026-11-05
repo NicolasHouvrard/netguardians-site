@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Chat</title></head>
+<body>
+<div layout:fragment="content">
+<!-- Annule le p-4 du layout pour avoir un chat plein écran -->
+<style>
+.intra-main { padding: 0 !important; overflow: hidden; }
+.chat-sidebar-item:hover { background: #f1f5f9; }
+.chat-sidebar-item.active { background: #3b82f6 !important; color: white !important; }
+.chat-sidebar-item.active small,
+.chat-sidebar-item.active .text-muted { color: rgba(255,255,255,.75) !important; }
+</style>
+
+<div class="d-flex" style="height:calc(100vh - 98px)">
+
+    <!-- ═══════════════════ SIDEBAR GAUCHE ═══════════════════ -->
+    <div class="d-flex flex-column border-end bg-white" style="width:280px;min-width:280px">
+
+        <!-- En-tête sidebar -->
+        <div class="px-3 py-2 border-bottom d-flex align-items-center justify-content-between"
+             style="background:#0f172a">
+            <span class="text-white fw-semibold small">
+                <i class="fas fa-comments me-2" style="color:#6366f1"></i>Messagerie
+            </span>
+            <span id="sidebarBadge" class="badge bg-danger d-none">!</span>
+        </div>
+
+        <!-- Liste conversations -->
+        <div class="flex-grow-1 overflow-auto py-1">
+
+            <!-- EN ATTENTE -->
+            <div th:if="${!pending.isEmpty()}">
+                <div class="px-3 pt-2 pb-1 text-muted" style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">
+                    En attente
+                    <span class="badge text-bg-warning ms-1" style="font-size:.6rem" th:text="${pending.size()}"></span>
+                </div>
+                <a th:each="conv : ${pending}"
+                   th:href="'/intra/chat/' + ${conv.id}"
+                   class="d-flex align-items-center gap-2 px-3 py-2 text-decoration-none text-dark chat-sidebar-item"
+                   th:classappend="${activeConvId != null and activeConvId == conv.id} ? ' active' : ''">
+                    <!-- Avatar + indicateur online -->
+                    <div class="position-relative flex-shrink-0">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
+                             style="width:36px;height:36px;font-size:.8rem;background:#f59e0b"
+                             th:text="${conv.visitorName != null ? #strings.substring(conv.visitorName,0,1).toUpperCase() : #strings.substring(conv.visitorEmail,0,1).toUpperCase()}">V</div>
+                        <span th:if="${onlineIds != null and onlineIds.contains(conv.id)}"
+                              class="position-absolute bottom-0 end-0 rounded-circle border border-white"
+                              style="width:10px;height:10px;background:#22c55e"></span>
+                    </div>
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="fw-semibold text-truncate" style="font-size:.82rem"
+                             th:text="${conv.visitorName != null ? conv.visitorName : conv.visitorEmail}"></div>
+                        <small class="text-muted text-truncate d-block" style="font-size:.73rem"
+                               th:text="${conv.lastMessageAt != null ? #temporals.format(conv.lastMessageAt,'HH:mm') : '—'}"></small>
+                    </div>
+                    <span th:if="${unreadCounts[conv.id] != null and unreadCounts[conv.id] > 0}"
+                          class="badge bg-danger rounded-pill flex-shrink-0"
+                          style="font-size:.65rem" th:text="${unreadCounts[conv.id]}"></span>
+                </a>
+            </div>
+
+            <!-- EN COURS -->
+            <div th:if="${!open.isEmpty()}">
+                <div class="px-3 pt-2 pb-1 text-muted" style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">
+                    En cours
+                    <span class="badge text-bg-success ms-1" style="font-size:.6rem" th:text="${open.size()}"></span>
+                </div>
+                <a th:each="conv : ${open}"
+                   th:href="'/intra/chat/' + ${conv.id}"
+                   class="d-flex align-items-center gap-2 px-3 py-2 text-decoration-none text-dark chat-sidebar-item"
+                   th:classappend="${activeConvId != null and activeConvId == conv.id} ? ' active' : ''">
+                    <div class="position-relative flex-shrink-0">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
+                             style="width:36px;height:36px;font-size:.8rem;background:#3b82f6"
+                             th:text="${conv.visitorName != null ? #strings.substring(conv.visitorName,0,1).toUpperCase() : #strings.substring(conv.visitorEmail,0,1).toUpperCase()}">V</div>
+                        <span th:if="${onlineIds != null and onlineIds.contains(conv.id)}"
+                              class="position-absolute bottom-0 end-0 rounded-circle border border-white"
+                              style="width:10px;height:10px;background:#22c55e"></span>
+                    </div>
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="fw-semibold text-truncate" style="font-size:.82rem"
+                             th:text="${conv.visitorName != null ? conv.visitorName : conv.visitorEmail}"></div>
+                        <small class="d-block text-truncate" style="font-size:.73rem"
+                               th:text="${conv.assignedUserId != null and userNames[conv.assignedUserId] != null ? userNames[conv.assignedUserId] : '—'}"></small>
+                    </div>
+                    <span th:if="${unreadCounts[conv.id] != null and unreadCounts[conv.id] > 0}"
+                          class="badge bg-danger rounded-pill flex-shrink-0"
+                          style="font-size:.65rem" th:text="${unreadCounts[conv.id]}"></span>
+                </a>
+            </div>
+
+            <!-- TERMINÉES (collapsibles) -->
+            <div th:if="${!closed.isEmpty()}">
+                <div class="px-3 pt-2 pb-1 text-muted d-flex align-items-center justify-content-between"
+                     style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;cursor:pointer"
+                     data-bs-toggle="collapse" data-bs-target="#closedList">
+                    Terminées
+                    <span class="text-muted" style="font-size:.6rem" th:text="${closed.size()}"></span>
+                </div>
+                <div id="closedList" class="collapse">
+                    <a th:each="conv : ${closed}"
+                       th:href="'/intra/chat/' + ${conv.id}"
+                       class="d-flex align-items-center gap-2 px-3 py-2 text-decoration-none text-muted chat-sidebar-item"
+                       th:classappend="${activeConvId != null and activeConvId == conv.id} ? ' active' : ''">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
+                             style="width:32px;height:32px;font-size:.75rem;background:#94a3b8"
+                             th:text="${conv.visitorName != null ? #strings.substring(conv.visitorName,0,1).toUpperCase() : #strings.substring(conv.visitorEmail,0,1).toUpperCase()}">V</div>
+                        <div class="flex-grow-1 min-w-0">
+                            <div class="text-truncate" style="font-size:.8rem"
+                                 th:text="${conv.visitorName != null ? conv.visitorName : conv.visitorEmail}"></div>
+                            <small style="font-size:.7rem"
+                                   th:text="${conv.closedAt != null ? #temporals.format(conv.closedAt,'dd/MM HH:mm') : ''}"></small>
+                        </div>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Vide -->
+            <div th:if="${pending.isEmpty() and open.isEmpty() and closed.isEmpty()}"
+                 class="text-center text-muted py-5 px-3">
+                <i class="fas fa-comments fa-2x mb-2 d-block opacity-25"></i>
+                <small>Aucune conversation</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════ PANNEAU DROIT ═══════════════════ -->
+    <div class="flex-grow-1 d-flex flex-column overflow-hidden" style="background:#f8fafc">
+
+        <!-- Pas de conversation sélectionnée -->
+        <div th:if="${conv == null}"
+             class="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-muted">
+            <i class="fas fa-comments fa-4x mb-4 opacity-20"></i>
+            <p class="fw-semibold mb-1">Sélectionnez une conversation</p>
+            <small class="opacity-75">
+                <span th:text="${(pending.size() + open.size()) + ' conversation(s) en attente ou en cours'}"></span>
+            </small>
+        </div>
+
+        <!-- Conversation sélectionnée -->
+        <div th:if="${conv != null}" class="d-flex flex-column h-100">
+
+            <!-- En-tête conversation -->
+            <div class="bg-white border-bottom px-4 py-2 d-flex align-items-center gap-3">
+                <div class="position-relative">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
+                         style="width:40px;height:40px;font-size:.9rem;background:#3b82f6"
+                         th:text="${conv.visitorName != null ? #strings.substring(conv.visitorName,0,1).toUpperCase() : #strings.substring(conv.visitorEmail,0,1).toUpperCase()}">V</div>
+                    <span th:if="${onlineIds != null and onlineIds.contains(conv.id)}"
+                          class="position-absolute bottom-0 end-0 rounded-circle border border-white"
+                          style="width:11px;height:11px;background:#22c55e"></span>
+                </div>
+                <div>
+                    <div class="fw-semibold" th:text="${conv.visitorName != null ? conv.visitorName : conv.visitorEmail}"></div>
+                    <small class="text-muted" th:text="${conv.visitorEmail}"></small>
+                </div>
+                <span class="badge ms-1" th:classappend="${conv.status.badgeCss}" th:text="${conv.status.label}"></span>
+
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    <div th:if="${conv.videoRoomId != null}">
+                        <a th:href="'https://meet.jit.si/' + ${conv.videoRoomId}" target="_blank"
+                           class="btn btn-sm btn-outline-info">
+                            <i class="fas fa-video me-1"></i>Rejoindre visio
+                        </a>
+                    </div>
+                    <div th:if="${conv.status.name() != 'CLOSED'}" class="d-flex gap-2 flex-wrap">
+                        <form th:action="'/intra/chat/' + ${conv.id} + '/video'" method="post">
+                            <button class="btn btn-sm btn-outline-secondary" type="submit"
+                                    th:if="${conv.videoRoomId == null}">
+                                <i class="fas fa-video me-1"></i>Visio
+                            </button>
+                        </form>
+                        <button class="btn btn-sm btn-outline-secondary"
+                                style="border-color:#7c3aed;color:#7c3aed"
+                                onclick="suggestAI()">
+                            <i class="fas fa-wand-magic-sparkles me-1"></i>IA
+                        </button>
+                        <!-- Actions rapides -->
+                        <button class="btn btn-sm btn-outline-secondary"
+                                data-bs-toggle="offcanvas" data-bs-target="#ocDemande" title="Créer une demande">
+                            <i class="fas fa-ticket me-1"></i>Demande
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary"
+                                data-bs-toggle="offcanvas" data-bs-target="#ocRdv" title="Créer un rendez-vous">
+                            <i class="fas fa-calendar-plus me-1"></i>RDV
+                        </button>
+                        <a th:href="'/intra/invoices/new' + (${linkedCustomer != null} ? '?customerId=' + ${linkedCustomer.id} : '')"
+                           target="_blank"
+                           class="btn btn-sm btn-outline-secondary" title="Créer un devis">
+                            <i class="fas fa-file-invoice me-1"></i>Devis
+                        </a>
+                        <!-- Pop-out nouvelle fenêtre -->
+                        <a th:href="'/intra/chat/' + ${conv.id}" target="_blank"
+                           class="btn btn-sm btn-outline-secondary" title="Ouvrir dans un nouvel onglet">
+                            <i class="fas fa-external-link-alt"></i>
+                        </a>
+                        <button class="btn btn-sm btn-outline-danger"
+                                data-bs-toggle="modal" data-bs-target="#closeModal">
+                            <i class="fas fa-times me-1"></i>Fermer
+                        </button>
+                    </div>
+                    <div th:if="${conv.status.name() == 'CLOSED'}">
+                        <button class="btn btn-sm btn-outline-secondary"
+                                data-bs-toggle="modal" data-bs-target="#transcriptModal">
+                            <i class="fas fa-envelope me-1"></i>Transcription
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <div id="messageArea" class="flex-grow-1 overflow-auto p-3">
+                <div th:each="m : ${messages}"
+                     th:class="${m.senderType.name() == 'USER'} ? 'd-flex justify-content-end mb-2' : 'd-flex justify-content-start mb-2'">
+                    <div class="d-flex flex-column"
+                         th:style="${m.senderType.name() == 'USER'} ? 'align-items:flex-end;max-width:70%' : 'align-items:flex-start;max-width:70%'">
+                        <small class="text-muted mb-1" th:text="${m.senderName}"></small>
+                        <div class="px-3 py-2 rounded-3 shadow-sm"
+                             th:style="${m.senderType.name() == 'USER'} ? 'background:#3b82f6;color:white' :
+                                        (${m.senderType.name() == 'BOT' or m.senderType.name() == 'AI'} ?
+                                        'background:#f1f5f9;border:1px solid #e2e8f0' : 'background:#dcfce7')"
+                             th:utext="${#strings.replace(#strings.escapeXml(m.content), '&#10;', '&lt;br&gt;')}"></div>
+                        <small class="text-muted mt-1" th:text="${#temporals.format(m.createdAt,'HH:mm')}"></small>
+                    </div>
+                </div>
+                <div id="typingIndicator" class="d-none text-muted small fst-italic ps-2"></div>
+            </div>
+
+            <!-- Résumé IA -->
+            <div th:if="${conv.aiSummary != null}" class="mx-3 mb-2 p-2 rounded small"
+                 style="background:#f5f3ff;border-left:3px solid #7c3aed">
+                <strong style="color:#7c3aed"><i class="fas fa-robot me-1"></i>Résumé IA</strong>
+                <p class="mb-0 mt-1 text-muted small"
+                   th:utext="${#strings.replace(#strings.escapeXml(conv.aiSummary), '&#10;', '&lt;br&gt;')}"></p>
+            </div>
+
+            <!-- Zone de saisie -->
+            <div class="bg-white border-top p-3" th:if="${conv.status.name() != 'CLOSED'}">
+                <textarea id="msgInput" class="form-control mb-2" rows="2"
+                          placeholder="Répondre..." style="resize:none"
+                          onkeydown="handleEnter(event)"></textarea>
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted fst-italic" id="typingStatus"></small>
+                    <button class="btn btn-primary btn-sm px-4" onclick="sendMessage()">
+                        <i class="fas fa-paper-plane me-1"></i>Envoyer
+                    </button>
+                </div>
+            </div>
+            <div th:if="${conv.status.name() == 'CLOSED'}"
+                 class="bg-white border-top p-2 text-center text-muted small">
+                Conversation terminée —
+                <form th:action="'/intra/chat/' + ${conv.id} + '/transcript'" method="post" class="d-inline ms-1">
+                    <input type="hidden" name="email" th:value="${conv.visitorEmail}">
+                    <button class="btn btn-link btn-sm p-0 small">Envoyer la transcription</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Offcanvas : Créer une demande ─────────────────────────────────────── -->
+<div th:if="${conv != null}" class="offcanvas offcanvas-end" tabindex="-1" id="ocDemande" style="width:420px">
+    <div class="offcanvas-header border-bottom py-2">
+        <h6 class="offcanvas-title mb-0"><i class="fas fa-ticket me-2 text-primary"></i>Nouvelle demande</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body">
+        <div th:if="${linkedCustomer != null}" class="alert alert-info py-2 small mb-3">
+            <i class="fas fa-link me-1"></i>Lié à
+            <strong th:text="${linkedCustomer.companyName}"></strong>
+        </div>
+        <form id="formDemande" onsubmit="submitQuickDemande(event)">
+            <input type="hidden" name="customerId" th:if="${linkedCustomer != null}" th:value="${linkedCustomer.id}">
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Objet <span class="text-danger">*</span></label>
+                <input type="text" name="title" class="form-control" required
+                       th:placeholder="${conv.visitorName != null ? conv.visitorName + ' — ' : ''}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Description</label>
+                <textarea name="description" class="form-control" rows="4"
+                          placeholder="Détails de la demande…"></textarea>
+            </div>
+            <div id="demandeResult" class="d-none alert py-2 small"></div>
+            <div class="d-flex gap-2 justify-content-end">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="offcanvas">Annuler</button>
+                <button type="submit" class="btn btn-sm btn-primary" id="btnDemande">
+                    <i class="fas fa-plus me-1"></i>Créer la demande
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ── Offcanvas : Créer un RDV ──────────────────────────────────────────── -->
+<div th:if="${conv != null}" class="offcanvas offcanvas-end" tabindex="-1" id="ocRdv" style="width:420px">
+    <div class="offcanvas-header border-bottom py-2">
+        <h6 class="offcanvas-title mb-0"><i class="fas fa-calendar-plus me-2 text-primary"></i>Nouveau rendez-vous</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body">
+        <div th:if="${linkedCustomer != null}" class="alert alert-info py-2 small mb-3">
+            <i class="fas fa-link me-1"></i>Lié à
+            <strong th:text="${linkedCustomer.companyName}"></strong>
+        </div>
+        <form id="formRdv" onsubmit="submitQuickRdv(event)">
+            <input type="hidden" name="customerId" th:if="${linkedCustomer != null}" th:value="${linkedCustomer.id}">
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Objet <span class="text-danger">*</span></label>
+                <input type="text" name="title" class="form-control" required
+                       th:placeholder="${conv.visitorName != null ? 'RDV avec ' + conv.visitorName : 'RDV'}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Date et heure <span class="text-danger">*</span></label>
+                <input type="datetime-local" name="startAt" class="form-control" required>
+            </div>
+            <div id="rdvResult" class="d-none alert py-2 small"></div>
+            <div class="d-flex gap-2 justify-content-end">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="offcanvas">Annuler</button>
+                <button type="submit" class="btn btn-sm btn-primary" id="btnRdv">
+                    <i class="fas fa-plus me-1"></i>Créer le RDV
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal fermer -->
+<div th:if="${conv != null}" class="modal fade" id="closeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title">Fermer la conversation</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form th:action="'/intra/chat/' + ${conv.id} + '/close'" method="post">
+                <div class="modal-body">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="sendTranscript"
+                               value="true" id="transcriptCheck">
+                        <label class="form-check-label small" for="transcriptCheck">
+                            Envoyer la transcription à
+                            <span class="fw-semibold" th:text="${conv.visitorEmail}"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-sm btn-danger">Fermer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal transcript -->
+<div th:if="${conv != null}" class="modal fade" id="transcriptModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title">Envoyer la transcription</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form th:action="'/intra/chat/' + ${conv.id} + '/transcript'" method="post">
+                <div class="modal-body">
+                    <input type="email" name="email" class="form-control form-control-sm"
+                           th:value="${conv.visitorEmail}" required>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Envoyer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+</div>
+
+<!-- WebSocket (seulement si conv ouverte) -->
+<th:block layout:fragment="script">
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+<script th:inline="javascript">
+const CONV_ID   = /*[[${conv?.id}]]*/ null;
+const IS_CLOSED = /*[[${conv?.status?.name() == 'CLOSED'}]]*/ true;
+const Stomp = window.Stomp || window.StompJs?.Stomp;
+let stompClient = null;
+
+(function connectInbox() {
+    const socket = new SockJS('/ws');
+    stompClient = Stomp.over(socket);
+    stompClient.debug = () => {};
+    stompClient.connect({}, () => {
+        // Écouter les nouvelles conversations/messages dans l'inbox
+        stompClient.subscribe('/topic/chat/inbox', () => {
+            document.getElementById('sidebarBadge')?.classList.remove('d-none');
+            setTimeout(() => location.reload(), 1500);
+        });
+        // Écouter les messages de la conversation active
+        if (CONV_ID && !IS_CLOSED) {
+            stompClient.subscribe('/topic/chat/' + CONV_ID, onMessage);
+            stompClient.subscribe('/topic/chat/typing/' + CONV_ID, onTyping);
+        }
+    });
+})();
+
+function onMessage(frame) {
+    const m = JSON.parse(frame.body);
+    appendMessage(m);
+}
+
+function appendMessage(m) {
+    const area = document.getElementById('messageArea');
+    if (!area) return;
+    const isAgent = m.senderType === 'USER';
+    const isBot   = m.senderType === 'BOT' || m.senderType === 'AI';
+    const bg = isAgent ? 'background:#3b82f6;color:white'
+             : isBot   ? 'background:#f1f5f9;border:1px solid #e2e8f0'
+             :            'background:#dcfce7';
+    const div = document.createElement('div');
+    div.className = 'd-flex mb-2 ' + (isAgent ? 'justify-content-end' : 'justify-content-start');
+    div.innerHTML = `<div class="d-flex flex-column" style="${isAgent ? 'align-items:flex-end' : 'align-items:flex-start'};max-width:70%">
+        <small class="text-muted mb-1">${m.senderName || ''}</small>
+        <div class="px-3 py-2 rounded-3 shadow-sm" style="${bg}">${(m.content || '').replace(/\n/g,'<br>')}</div>
+        <small class="text-muted mt-1">${new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</small>
+    </div>`;
+    area.insertBefore(div, document.getElementById('typingIndicator'));
+    area.scrollTop = area.scrollHeight;
+}
+
+let typingTimer;
+function onTyping(frame) {
+    const p = JSON.parse(frame.body);
+    const el = document.getElementById('typingIndicator');
+    if (!el) return;
+    el.textContent = (p.senderName || 'Visiteur') + ' est en train d\'écrire...';
+    el.classList.remove('d-none');
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => el.classList.add('d-none'), 3000);
+}
+
+function sendMessage() {
+    const input = document.getElementById('msgInput');
+    if (!input) return;
+    const content = input.value.trim();
+    if (!content || !stompClient || !CONV_ID) return;
+    stompClient.send('/app/chat/' + CONV_ID + '/send', {}, JSON.stringify({ content }));
+    input.value = '';
+}
+
+function handleEnter(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    else if (stompClient && CONV_ID) {
+        stompClient.send('/app/chat/' + CONV_ID + '/typing', {}, JSON.stringify({ senderName: 'Agent', typing: true }));
+    }
+}
+
+function suggestAI() {
+    if (!CONV_ID) return;
+    fetch('/intra/chat/' + CONV_ID + '/ai-suggest', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            const input = document.getElementById('msgInput');
+            if (input) { input.value = data.suggestion || ''; input.focus(); }
+        })
+        .catch(() => alert('Erreur IA'));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const area = document.getElementById('messageArea');
+    if (area) area.scrollTop = area.scrollHeight;
+});
+
+async function submitQuickDemande(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnDemande');
+    const res = document.getElementById('demandeResult');
+    btn.disabled = true;
+    const data = new URLSearchParams(new FormData(document.getElementById('formDemande')));
+    try {
+        const r = await fetch('/intra/chat/quick/ticket', { method: 'POST', body: data });
+        const json = await r.json();
+        res.className = 'alert alert-success py-2 small';
+        res.innerHTML = '<i class="fas fa-check me-1"></i>Demande créée : <a href="/intra/tickets/' + json.id + '" target="_blank">' + json.title + '</a>';
+        res.classList.remove('d-none');
+        document.getElementById('formDemande').reset();
+    } catch {
+        res.className = 'alert alert-danger py-2 small';
+        res.textContent = 'Erreur lors de la création.';
+        res.classList.remove('d-none');
+    }
+    btn.disabled = false;
+}
+
+async function submitQuickRdv(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnRdv');
+    const res = document.getElementById('rdvResult');
+    btn.disabled = true;
+    const data = new URLSearchParams(new FormData(document.getElementById('formRdv')));
+    try {
+        const r = await fetch('/intra/chat/quick/rdv', { method: 'POST', body: data });
+        const json = await r.json();
+        res.className = 'alert alert-success py-2 small';
+        res.innerHTML = '<i class="fas fa-check me-1"></i>RDV créé : <a href="/intra/appointments" target="_blank">' + json.title + '</a>';
+        res.classList.remove('d-none');
+        document.getElementById('formRdv').reset();
+    } catch {
+        res.className = 'alert alert-danger py-2 small';
+        res.textContent = 'Erreur lors de la création.';
+        res.classList.remove('d-none');
+    }
+    btn.disabled = false;
+}
+</script>
+</th:block>
+</body>
+</html>

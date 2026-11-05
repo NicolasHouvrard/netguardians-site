@@ -1,0 +1,16 @@
+# Copie ce fichier en application-local.properties (jamais commité, cf. .gitignore)
+# et renseigne tes propres valeurs locales.
+
+server.error.include-message=always
+server.error.include-exception=true
+server.error.include-stacktrace=on_param
+
+spring.datasource.url=jdbc:postgresql://localhost:5432/site_db
+spring.datasource.username=CHANGEME
+spring.datasource.password=CHANGEME
+
+# Google Document AI — clé de service (fichier hors Git)
+google.document-ai.project-id=CHANGEME
+google.document-ai.processor-id=CHANGEME
+google.document-ai.location=eu
+google.document-ai.credentials-path=secrets/CHANGEME.json

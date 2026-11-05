@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Dashboard Marketing</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div th:replace="~{intra/nav :: dashboard-subnav(categoryName='Marketing')}"></div>
+
+    <div class="pt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-0 fw-bold">
+                    <i class="fas fa-bullhorn me-2" style="color:#6366f1"></i>Dashboard Marketing
+                </h1>
+                <small class="text-muted">Campagnes, blog et acquisition</small>
+            </div>
+            <div class="text-muted small"
+                 th:text="${#temporals.format(#temporals.createNow(), 'EEEE d MMMM yyyy', new java.util.Locale('fr'))}"></div>
+        </div>
+
+        <!-- Raccourcis modules -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <a href="/intra/campaigns" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                    <div class="card-body text-center py-4">
+                        <i class="fas fa-envelope-open-text fa-2x mb-2" style="color:#6366f1"></i>
+                        <div class="fw-semibold">Campagnes email</div>
+                        <small class="text-muted">Créer et envoyer des campagnes</small>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="/intra/blog" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                    <div class="card-body text-center py-4">
+                        <i class="fas fa-newspaper fa-2x mb-2" style="color:#10b981"></i>
+                        <div class="fw-semibold">Blog</div>
+                        <small class="text-muted">Articles et actualités</small>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="/intra/registrations" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                    <div class="card-body text-center py-4">
+                        <i class="fas fa-user-plus fa-2x mb-2" style="color:#f59e0b"></i>
+                        <div class="fw-semibold">Inscriptions</div>
+                        <small class="text-muted">Demandes de souscription</small>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Modules configurés DB -->
+        <div th:if="${intraSections != null}"
+             class="card border-0 shadow-sm">
+            <div class="card-header bg-white fw-semibold">
+                <i class="fas fa-th-large me-2 text-primary"></i>Tous les modules Marketing
+            </div>
+            <div class="card-body">
+                <th:block th:each="section : ${intraSections}">
+                    <th:block th:if="${#strings.equalsIgnoreCase(section.category, 'Marketing')}">
+                        <div class="row g-2">
+                            <div th:each="m : ${section.modules}" class="col-6 col-md-3">
+                                <a th:href="${m.url}"
+                                   class="d-flex align-items-center gap-2 p-2 rounded border text-decoration-none text-dark hover-shadow">
+                                    <i th:class="${m.icon}" th:style="'color:' + ${m.color} + ';width:20px'"></i>
+                                    <span class="small fw-medium" th:text="${m.title}"></span>
+                                </a>
+                            </div>
+                        </div>
+                    </th:block>
+                </th:block>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

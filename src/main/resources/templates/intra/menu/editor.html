@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head>
+    <title>Éditeur de menu</title>
+    <style>
+        .menu-parent-group { border-bottom: 2px solid #e2e8f0; }
+        .menu-parent-group:last-child { border-bottom: none; }
+        .parent-row { background: #fff; }
+        .child-row  { background: #f8fafc; padding-left: 2.75rem !important; }
+        .drag-handle { cursor: grab; color: #94a3b8; }
+        .drag-handle:active { cursor: grabbing; }
+        .sortable-ghost { opacity: .4; background: #e0e7ff !important; }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-bars me-2 text-primary"></i>Éditeur de menu</h4>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- ── Left: Menu tree ──────────────────────────────────────────────── -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold d-flex align-items-center justify-content-between">
+                    <span><i class="fas fa-list-ul me-2 text-primary"></i>Menu principal</span>
+                    <button class="btn btn-sm btn-success" onclick="saveOrder()">
+                        <i class="fas fa-save me-1"></i>Sauvegarder l'ordre
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div id="topLevelList">
+                        <div th:if="${menuItems.isEmpty()}" class="text-center text-muted py-4">
+                            <i class="fas fa-bars fa-2x mb-2 d-block opacity-25"></i>
+                            Aucun élément de menu. Ajoutez-en un depuis le formulaire.
+                        </div>
+
+                        <!-- Parent group: parent row + its children -->
+                        <div th:each="item : ${menuItems}"
+                             class="menu-parent-group"
+                             th:data-item-id="${item.id}">
+
+                            <!-- Parent row -->
+                            <div class="parent-row d-flex align-items-center px-3 py-2">
+                                <span class="drag-handle me-3 fs-6"><i class="fas fa-grip-vertical"></i></span>
+                                <div class="flex-grow-1 min-width-0">
+                                    <div class="fw-semibold small" th:text="${item.label}">Label</div>
+                                    <div class="small text-muted text-truncate" th:text="${item.resolvedUrl}">/url</div>
+                                </div>
+                                <div class="ms-2 d-flex align-items-center gap-1 flex-shrink-0">
+                                    <span th:if="${not item.children.isEmpty()}"
+                                          class="badge bg-info-subtle text-info"
+                                          th:text="${#lists.size(item.children)} + ' sous-menu(s)'">sous</span>
+                                    <span th:if="${item.active}" class="badge bg-success-subtle text-success">Actif</span>
+                                    <span th:unless="${item.active}" class="badge bg-secondary-subtle text-secondary">Inactif</span>
+                                    <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2"
+                                            th:data-id="${item.id}"
+                                            th:data-label="${item.label}"
+                                            th:data-url="${item.url}"
+                                            th:data-active="${item.active}"
+                                            data-parent-id=""
+                                            onclick="editItem(this)">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <form th:action="'/intra/menu/items/' + ${item.id} + '/delete'" method="post"
+                                          onsubmit="return confirm('Supprimer cet élément et ses sous-menus ?')">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- Children rows -->
+                            <div th:each="child : ${item.children}"
+                                 class="child-row d-flex align-items-center px-3 py-2 border-top">
+                                <span class="text-muted me-3" style="font-size:.8rem">
+                                    <i class="fas fa-level-up-alt fa-rotate-90"></i>
+                                </span>
+                                <div class="flex-grow-1 min-width-0">
+                                    <div class="small" th:text="${child.label}">Label</div>
+                                    <div class="small text-muted text-truncate" th:text="${child.resolvedUrl}">/url</div>
+                                </div>
+                                <div class="ms-2 d-flex align-items-center gap-1 flex-shrink-0">
+                                    <span th:if="${child.active}" class="badge bg-success-subtle text-success">Actif</span>
+                                    <span th:unless="${child.active}" class="badge bg-secondary-subtle text-secondary">Inactif</span>
+                                    <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2"
+                                            th:data-id="${child.id}"
+                                            th:data-label="${child.label}"
+                                            th:data-url="${child.url}"
+                                            th:data-active="${child.active}"
+                                            th:data-parent-id="${item.id}"
+                                            onclick="editItem(this)">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <form th:action="'/intra/menu/items/' + ${child.id} + '/delete'" method="post"
+                                          onsubmit="return confirm('Supprimer ce sous-menu ?')">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Hidden form for top-level order save -->
+                    <form id="orderForm" method="post" action="/intra/menu/save-order">
+                        <input type="hidden" id="orderJson" name="orderJson" value="[]">
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Right: Add item form ──────────────────────────────────────────── -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="fas fa-plus me-2 text-success"></i>Ajouter un élément
+                </div>
+                <div class="card-body">
+                    <form method="post" action="/intra/menu/items">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Label *</label>
+                            <input type="text" name="label" class="form-control" required placeholder="Ex: À propos">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">URL externe</label>
+                            <input type="text" name="url" class="form-control" placeholder="https://… ou /chemin">
+                            <div class="form-text">Prioritaire sur la page liée</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Ou lier à une page</label>
+                            <select name="pageId" class="form-select">
+                                <option value="">-- Aucune --</option>
+                                <option th:each="p : ${pages}" th:value="${p.id}"
+                                        th:text="${p.title} + (${p.published} ? '' : ' (brouillon)')">Page</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Sous-menu de</label>
+                            <select name="parentId" class="form-select">
+                                <option value="">-- Aucun (premier niveau) --</option>
+                                <option th:each="p : ${menuItems}" th:value="${p.id}" th:text="${p.label}">Parent</option>
+                            </select>
+                            <div class="form-text">Laissez vide pour un élément de premier niveau</div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label fw-semibold small">Position</label>
+                                <select name="position" class="form-select">
+                                    <option value="MAIN">Menu principal</option>
+                                    <option value="FOOTER">Pied de page</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-semibold small">Ouverture</label>
+                                <select name="target" class="form-select">
+                                    <option value="_self">Même fenêtre</option>
+                                    <option value="_blank">Nouvelle fenêtre</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-success btn-sm w-100">
+                            <i class="fas fa-plus me-1"></i>Ajouter
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ═══ Modal: Éditer un élément ════════════════════════════════════════ -->
+    <div class="modal fade" id="modalEditItem" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit me-2 text-primary"></i>Modifier l'élément</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="editItemForm" method="post">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Label</label>
+                            <input type="text" name="label" id="editItemLabel" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">URL</label>
+                            <input type="text" name="url" id="editItemUrl" class="form-control"
+                                   placeholder="/chemin ou https://…">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Sous-menu de</label>
+                            <select name="parentId" id="editItemParentId" class="form-select">
+                                <option value="">-- Aucun (premier niveau) --</option>
+                                <option th:each="p : ${menuItems}" th:value="${p.id}" th:text="${p.label}">Parent</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Ordre d'affichage</label>
+                            <input type="number" name="sortOrder" id="editItemOrder" class="form-control" value="0">
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" name="active" id="editItemActive" class="form-check-input"
+                                   value="true">
+                            <label class="form-check-label small" for="editItemActive">Actif</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-check me-1"></i>Enregistrer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<th:block layout:fragment="script">
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script th:inline="none">
+const topLevelList = document.getElementById('topLevelList');
+if (topLevelList) {
+    Sortable.create(topLevelList, {
+        handle: '.drag-handle',
+        animation: 150,
+        ghostClass: 'sortable-ghost'
+    });
+}
+
+function saveOrder() {
+    const groups = topLevelList.querySelectorAll(':scope > .menu-parent-group');
+    const ids = Array.from(groups).map(g => parseInt(g.dataset.itemId));
+    document.getElementById('orderJson').value = JSON.stringify(ids);
+    document.getElementById('orderForm').submit();
+}
+
+function editItem(btn) {
+    const id       = btn.dataset.id;
+    const label    = btn.dataset.label    || '';
+    const url      = btn.dataset.url      || '';
+    const active   = btn.dataset.active   === 'true';
+    const parentId = btn.dataset.parentId || '';
+    document.getElementById('editItemForm').action    = '/intra/menu/items/' + id + '/update';
+    document.getElementById('editItemLabel').value    = label;
+    document.getElementById('editItemUrl').value      = url;
+    document.getElementById('editItemActive').checked = active;
+    document.getElementById('editItemParentId').value = parentId;
+    new bootstrap.Modal(document.getElementById('modalEditItem')).show();
+}
+</script>
+</th:block>
+</body>
+</html>

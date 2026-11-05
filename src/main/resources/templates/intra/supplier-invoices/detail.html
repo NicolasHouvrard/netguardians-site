@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Facture fournisseur</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="/intra/supplier-invoices" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h5 class="mb-0 ms-1">
+            <i class="fas fa-file-import me-2 text-warning"></i>
+            <span th:text="${invoice.invoiceNumber != null ? invoice.invoiceNumber : 'Facture #' + invoice.id}"></span>
+        </h5>
+        <span class="badge ms-1"
+              th:classappend="${invoice.status.badgeCss}"
+              th:text="${invoice.status.label}"></span>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-triangle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Actions -->
+    <div class="d-flex gap-2 mb-4 flex-wrap">
+        <form th:if="${invoice.status.name() == 'DRAFT'}"
+              th:action="@{/intra/supplier-invoices/{id}/validate(id=${invoice.id})}" method="post"
+              class="d-inline">
+            <button type="submit" class="btn btn-warning">
+                <i class="fas fa-check me-1"></i>Valider (→ À payer)
+            </button>
+        </form>
+        <form th:if="${invoice.status.name() == 'TO_PAY'}"
+              th:action="@{/intra/supplier-invoices/{id}/pay(id=${invoice.id})}" method="post"
+              class="d-inline">
+            <button type="submit" class="btn btn-success">
+                <i class="fas fa-euro-sign me-1"></i>Marquer payée
+            </button>
+        </form>
+        <form th:if="${invoice.status.name() == 'DRAFT' or invoice.status.name() == 'TO_PAY'}"
+              th:action="@{/intra/supplier-invoices/{id}/cancel(id=${invoice.id})}" method="post"
+              class="d-inline"
+              onsubmit="return confirm('Annuler cette facture fournisseur ?')">
+            <button type="submit" class="btn btn-outline-danger btn-sm">
+                <i class="fas fa-times me-1"></i>Annuler
+            </button>
+        </form>
+        <a th:if="${invoice.filePath != null}"
+           th:href="@{/uploads/{path}(path=${invoice.filePath})}"
+           target="_blank" class="btn btn-outline-secondary btn-sm ms-auto">
+            <i class="fas fa-paperclip me-1"></i>
+            <span th:text="${invoice.originalFilename != null ? invoice.originalFilename : 'Pièce jointe'}"></span>
+        </a>
+    </div>
+
+    <!-- Transaction Qonto liée -->
+    <div th:if="${linkedQontoTx != null}" class="card border-0 shadow-sm mb-4" style="border-left: 4px solid #0E6FFF !important;">
+        <div class="card-body d-flex align-items-center gap-3 py-2">
+            <i class="fas fa-landmark fa-lg" style="color:#0E6FFF;"></i>
+            <div class="flex-grow-1 small">
+                <span class="fw-semibold">Transaction Qonto rapprochée — </span>
+                <span th:text="${linkedQontoTx.label}"></span>
+                <span class="text-muted ms-2"
+                      th:text="${linkedQontoTx.settledAt != null ? #temporals.format(linkedQontoTx.settledAt, 'dd/MM/yyyy') : ''}"></span>
+                <span class="fw-bold ms-2"
+                      th:classappend="${linkedQontoTx.side == 'credit'} ? 'text-success' : 'text-danger'"
+                      th:text="${#numbers.formatDecimal(linkedQontoTx.amount, 1, 'COMMA', 2, 'POINT') + ' ' + linkedQontoTx.currency}"></span>
+                <span th:if="${linkedQontoTx.reconciled}" class="badge text-bg-success ms-2">
+                    <i class="fas fa-check-double me-1"></i>Rapprochée
+                </span>
+            </div>
+            <a th:href="@{/intra/accounting/qonto/transactions/{id}(id=${linkedQontoTx.id})}"
+               class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-external-link-alt me-1"></i>Voir
+            </a>
+        </div>
+    </div>
+
+    <!-- Rapprochement Qonto — candidates -->
+    <div th:if="${qontoCandidates != null and not #lists.isEmpty(qontoCandidates)}"
+         class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0">
+                <i class="fas fa-landmark me-2" style="color:#0E6FFF;"></i>Rapprocher avec une transaction Qonto
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 small">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Libellé</th>
+                        <th class="text-end">Montant</th>
+                        <th class="text-end">Écart</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="tx : ${qontoCandidates}">
+                        <td class="text-nowrap"
+                            th:text="${tx.settledAt != null ? #temporals.format(tx.settledAt, 'dd/MM/yyyy') : '—'}"></td>
+                        <td th:text="${tx.label != null ? tx.label : '—'}"></td>
+                        <td class="text-end fw-semibold text-danger text-nowrap"
+                            th:text="${#numbers.formatDecimal(tx.amount, 1, 'COMMA', 2, 'POINT') + ' ' + tx.currency}"></td>
+                        <td class="text-end text-nowrap">
+                            <span th:with="ecart=${tx.amount != null and invoice.totalTTC != null ? tx.amount.subtract(invoice.totalTTC).abs() : null}">
+                                <span th:if="${ecart != null}"
+                                      th:classappend="${ecart.compareTo(T(java.math.BigDecimal).ONE) <= 0} ? 'text-success fw-semibold' : 'text-muted'"
+                                      th:text="${#numbers.formatDecimal(ecart, 1, 'COMMA', 2, 'POINT') + ' €'}"></span>
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <form th:action="@{/intra/supplier-invoices/{id}/reconcile/qonto/{txId}(id=${invoice.id},txId=${tx.id})}"
+                                  method="post"
+                                  onsubmit="return confirm('Rapprocher avec cette transaction et passer la facture en Payée ?')">
+                                <button type="submit" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-check-double me-1"></i>Rapprocher
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Informations facture -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-info-circle me-2 text-warning"></i>Informations</h6>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0 small">
+                        <dt class="col-sm-5 text-muted">Fournisseur</dt>
+                        <dd class="col-sm-7 fw-semibold" th:text="${invoice.vendorName != null ? invoice.vendorName : '—'}"></dd>
+
+                        <dt class="col-sm-5 text-muted">N° de facture</dt>
+                        <dd class="col-sm-7 font-monospace" th:text="${invoice.invoiceNumber != null ? invoice.invoiceNumber : '—'}"></dd>
+
+                        <dt class="col-sm-5 text-muted">Date facture</dt>
+                        <dd class="col-sm-7" th:text="${invoice.invoiceDate != null ? #temporals.format(invoice.invoiceDate, 'dd/MM/yyyy') : '—'}"></dd>
+
+                        <dt class="col-sm-5 text-muted">Date d'échéance</dt>
+                        <dd class="col-sm-7"
+                            th:classappend="${invoice.status.name() == 'TO_PAY' and invoice.dueDate != null and invoice.dueDate.isBefore(T(java.time.LocalDate).now())} ? 'text-danger fw-semibold' : ''"
+                            th:text="${invoice.dueDate != null ? #temporals.format(invoice.dueDate, 'dd/MM/yyyy') : '—'}"></dd>
+
+                        <dt class="col-sm-5 text-muted">Devise</dt>
+                        <dd class="col-sm-7" th:text="${invoice.currency}"></dd>
+
+                        <dt class="col-sm-5 text-muted">Compte de charge</dt>
+                        <dd class="col-sm-7 font-monospace" th:text="${invoice.chargeAccountNumber != null ? invoice.chargeAccountNumber : '604000 (défaut)'}"></dd>
+
+                        <dt class="col-sm-5 text-muted">Enregistrée le</dt>
+                        <dd class="col-sm-7 text-muted" th:text="${#temporals.format(invoice.createdAt, 'dd/MM/yyyy HH:mm')}"></dd>
+                    </dl>
+                    <div th:if="${invoice.notes != null}" class="mt-3 pt-3 border-top">
+                        <div class="text-muted small mb-1">Notes</div>
+                        <div class="small" th:text="${invoice.notes}"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Montants -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-euro-sign me-2 text-warning"></i>Montants</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm align-middle mb-0">
+                        <tr>
+                            <th class="text-muted fw-normal border-0">Total HT</th>
+                            <td class="text-end fw-semibold border-0"
+                                th:text="${invoice.totalHT != null ? #numbers.formatDecimal(invoice.totalHT, 1, 'COMMA', 2, 'POINT') + ' €' : '—'}"></td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted fw-normal">TVA</th>
+                            <td class="text-end"
+                                th:text="${invoice.totalTVA != null ? #numbers.formatDecimal(invoice.totalTVA, 1, 'COMMA', 2, 'POINT') + ' €' : '—'}"></td>
+                        </tr>
+                        <tr class="table-light">
+                            <th>Total TTC</th>
+                            <td class="text-end fw-bold fs-5"
+                                th:text="${invoice.totalTTC != null ? #numbers.formatDecimal(invoice.totalTTC, 1, 'COMMA', 2, 'POINT') + ' €' : '—'}"></td>
+                        </tr>
+                    </table>
+
+                    <!-- Sélection compte charge si DRAFT -->
+                    <form th:if="${invoice.status.name() == 'DRAFT' and accounts != null}"
+                          th:action="@{/intra/supplier-invoices/{id}/validate(id=${invoice.id})}"
+                          method="post" class="mt-4 pt-3 border-top">
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Compte de charge (pour validation)</label>
+                            <select name="chargeAccountNumber" class="form-select form-select-sm">
+                                <option value="">— 604000 par défaut —</option>
+                                <option th:each="acc : ${accounts}"
+                                        th:if="${acc.number.startsWith('6')}"
+                                        th:value="${acc.number}"
+                                        th:text="${acc.number + ' — ' + acc.label}"
+                                        th:selected="${acc.number == invoice.chargeAccountNumber}"></option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-warning btn-sm w-100">
+                            <i class="fas fa-check me-1"></i>Valider et générer l'écriture AC
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Écriture comptable (AC) -->
+    <div th:if="${acEntry != null}" class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+            <h6 class="fw-bold mb-0">
+                <i class="fas fa-book-open me-2 text-primary"></i>Écriture d'achat
+                <span class="badge text-bg-secondary ms-2 font-monospace" th:text="${acEntry.reference}"></span>
+            </h6>
+            <a th:href="@{/intra/accounting/entries/{id}(id=${acEntry.id})}"
+               class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-external-link-alt me-1"></i>Voir dans le journal
+            </a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Compte</th>
+                        <th>Libellé</th>
+                        <th class="text-end">Débit</th>
+                        <th class="text-end">Crédit</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="line : ${acEntry.lines}">
+                        <td class="font-monospace small" th:text="${line.account.number}"></td>
+                        <td class="small" th:text="${line.label}"></td>
+                        <td class="text-end text-nowrap">
+                            <span th:if="${line.debit != null and line.debit > 0}"
+                                  th:text="${#numbers.formatDecimal(line.debit, 1, 'COMMA', 2, 'POINT')}"></span>
+                            <span th:unless="${line.debit != null and line.debit > 0}" class="text-muted">—</span>
+                        </td>
+                        <td class="text-end text-nowrap">
+                            <span th:if="${line.credit != null and line.credit > 0}"
+                                  th:text="${#numbers.formatDecimal(line.credit, 1, 'COMMA', 2, 'POINT')}"></span>
+                            <span th:unless="${line.credit != null and line.credit > 0}" class="text-muted">—</span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Écriture de règlement (BQ) -->
+    <div th:if="${bqEntry != null}" class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+            <h6 class="fw-bold mb-0">
+                <i class="fas fa-university me-2 text-success"></i>Écriture de règlement
+                <span class="badge text-bg-secondary ms-2 font-monospace" th:text="${bqEntry.reference}"></span>
+            </h6>
+            <a th:href="@{/intra/accounting/entries/{id}(id=${bqEntry.id})}"
+               class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-external-link-alt me-1"></i>Voir dans le journal
+            </a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Compte</th>
+                        <th>Libellé</th>
+                        <th class="text-end">Débit</th>
+                        <th class="text-end">Crédit</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="line : ${bqEntry.lines}">
+                        <td class="font-monospace small" th:text="${line.account.number}"></td>
+                        <td class="small" th:text="${line.label}"></td>
+                        <td class="text-end text-nowrap">
+                            <span th:if="${line.debit != null and line.debit > 0}"
+                                  th:text="${#numbers.formatDecimal(line.debit, 1, 'COMMA', 2, 'POINT')}"></span>
+                            <span th:unless="${line.debit != null and line.debit > 0}" class="text-muted">—</span>
+                        </td>
+                        <td class="text-end text-nowrap">
+                            <span th:if="${line.credit != null and line.credit > 0}"
+                                  th:text="${#numbers.formatDecimal(line.credit, 1, 'COMMA', 2, 'POINT')}"></span>
+                            <span th:unless="${line.credit != null and line.credit > 0}" class="text-muted">—</span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

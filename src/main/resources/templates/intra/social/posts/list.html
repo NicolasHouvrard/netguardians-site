@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Publications réseaux sociaux</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-bullhorn me-2 text-primary"></i>Publications réseaux sociaux</h4>
+        <div class="d-flex gap-2">
+            <a href="/intra/social/config" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-gear me-1"></i>Configurer les réseaux
+            </a>
+            <a href="/intra/social/posts/new" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus me-1"></i>Nouvelle publication
+            </a>
+        </div>
+    </div>
+
+    <!-- Flash messages -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm text-center">
+                <div class="card-body py-3">
+                    <div class="fs-3 fw-bold text-secondary" th:text="${drafts}">0</div>
+                    <div class="small text-muted">Brouillons</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm text-center">
+                <div class="card-body py-3">
+                    <div class="fs-3 fw-bold text-info" th:text="${scheduled}">0</div>
+                    <div class="small text-muted">Planifiés</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm text-center">
+                <div class="card-body py-3">
+                    <div class="fs-3 fw-bold text-success" th:text="${published}">0</div>
+                    <div class="small text-muted">Publiés</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm text-center">
+                <div class="card-body py-3">
+                    <div class="fs-3 fw-bold text-danger" th:text="${failed}">0</div>
+                    <div class="small text-muted">Échecs</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div th:if="${posts == null or posts.isEmpty()}" class="text-center py-5">
+                <i class="fas fa-bullhorn fa-3x text-muted mb-3"></i>
+                <p class="text-muted mb-3">Aucune publication pour le moment.</p>
+                <a href="/intra/social/posts/new" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>Créer une publication
+                </a>
+            </div>
+
+            <table th:if="${posts != null and !posts.isEmpty()}"
+                   class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Titre</th>
+                        <th>Statut</th>
+                        <th>Planifié le</th>
+                        <th>Publié le</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="post : ${posts}">
+                        <td>
+                            <a th:href="@{/intra/social/posts/{id}(id=${post.id})}"
+                               class="fw-semibold text-decoration-none text-dark"
+                               th:text="${post.title}"></a>
+                            <div class="small text-muted text-truncate" style="max-width:300px"
+                                 th:text="${post.content}"></div>
+                        </td>
+                        <td>
+                            <span class="badge"
+                                  th:classappend="${post.status.badgeCss}"
+                                  th:text="${post.status.label}"></span>
+                        </td>
+                        <td>
+                            <span th:if="${post.scheduledAt != null}"
+                                  th:text="${#temporals.format(post.scheduledAt, 'dd/MM/yyyy HH:mm')}"></span>
+                            <span th:unless="${post.scheduledAt != null}" class="text-muted">—</span>
+                        </td>
+                        <td>
+                            <span th:if="${post.publishedAt != null}"
+                                  th:text="${#temporals.format(post.publishedAt, 'dd/MM/yyyy HH:mm')}"></span>
+                            <span th:unless="${post.publishedAt != null}" class="text-muted">—</span>
+                        </td>
+                        <td class="text-end">
+                            <a th:href="@{/intra/social/posts/{id}(id=${post.id})}"
+                               class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

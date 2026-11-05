@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<ul th:fragment="sections" class="navbar-nav flex-wrap gap-1">
+    <li th:each="section : ${espaceSections != null ? espaceSections : T(java.util.Collections).emptyList()}"
+        class="nav-item dropdown">
+
+        <a class="nav-link dropdown-toggle"
+           href="#"
+           role="button"
+           data-bs-toggle="dropdown"
+           aria-expanded="false"
+           th:text="${section.category}">
+        </a>
+
+        <ul class="dropdown-menu" th:if="${section.modules != null}">
+            <li th:each="modu : ${section.modules}">
+                <a class="dropdown-item"
+                   th:href="${modu.url}"
+                   th:classappend="${currentUri != null and currentUri.startsWith(modu.url) ? ' active' : ''}">
+                    <i th:class="${modu.icon} + ' me-2'"></i>
+                    <span th:text="${modu.title}"></span>
+                </a>
+            </li>
+        </ul>
+    </li>
+</ul>
+</body>
+</html>

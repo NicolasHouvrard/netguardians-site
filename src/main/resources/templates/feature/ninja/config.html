@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+<head><title>Configuration NinjaOne</title></head>
+<body>
+<div layout:fragment="content">
+<div class="container-fluid">
+
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-shield-alt me-2 text-warning"></i>Intégration NinjaOne RMM
+        </h1>
+        <span th:if="${config.enabled}" class="badge text-bg-success fs-6">
+            <i class="fas fa-circle me-1"></i>Activé
+        </span>
+        <span th:unless="${config.enabled}" class="badge text-bg-secondary fs-6">
+            <i class="fas fa-circle me-1"></i>Désactivé
+        </span>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div th:if="${config.lastError}" class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        Dernière erreur de connexion : <code th:text="${config.lastError}"></code>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Paramètres de connexion OAuth2</h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/admin/ninja/config/save}" th:object="${config}" method="post">
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">URL de l'instance NinjaOne</label>
+                            <input type="url" th:field="*{instanceUrl}" class="form-control"
+                                   placeholder="https://eu.ninjarmm.com" required>
+                            <div class="form-text">
+                                Régions : <code>eu.ninjarmm.com</code> · <code>app.ninjarmm.com</code> · <code>oc.ninjarmm.com</code>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Client ID</label>
+                            <input type="text" th:field="*{clientId}" class="form-control font-monospace"
+                                   placeholder="Votre client_id NinjaOne"
+                                   autocomplete="off">
+                            <div class="form-text">Stocké chiffré en base (AES-256).</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Client Secret</label>
+                            <div class="input-group">
+                                <input type="password" th:field="*{clientSecret}" class="form-control font-monospace"
+                                       placeholder="Laisser vide pour conserver l'existant"
+                                       autocomplete="new-password"
+                                       id="secretInput">
+                                <button type="button" class="btn btn-outline-secondary"
+                                        onclick="toggleSecret()">
+                                    <i class="fas fa-eye" id="secretEye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">Stocké chiffré en base. Laisser vide = ne pas modifier.</div>
+                        </div>
+
+                        <div class="mb-3 d-flex align-items-center gap-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" th:field="*{enabled}" id="ninjaEnabled">
+                                <label class="form-check-label fw-bold" for="ninjaEnabled">Activer l'intégration</label>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save me-1"></i>Enregistrer
+                            </button>
+                            <a href="/admin/ninja/test" class="btn btn-outline-primary">
+                                <i class="fas fa-plug me-1"></i>Tester la connexion
+                            </a>
+                            <a href="/admin/ninja/sync" class="btn btn-outline-warning">
+                                <i class="fas fa-sync me-1"></i>Synchroniser maintenant
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Informations</h6>
+                </div>
+                <div class="card-body">
+                    <p class="small">
+                        <strong>Prochaines étapes après configuration :</strong>
+                    </p>
+                    <ul class="small">
+                        <li>Lier chaque client à son <strong>organisation NinjaOne</strong> (fiche client)</li>
+                        <li>Synchroniser les appareils → alimenter les abonnements <code>PER_DEVICE</code></li>
+                        <li>Générer les <strong>liens d'installation</strong> par organisation</li>
+                        <li>Afficher l'état des appareils dans le <strong>portail client</strong></li>
+                    </ul>
+                    <hr>
+                    <p class="small mb-1">
+                        <strong>Comment créer les credentials NinjaOne :</strong>
+                    </p>
+                    <ol class="small">
+                        <li>Connectez-vous à NinjaOne → Administration</li>
+                        <li>Apps &amp; API → API → <em>Add application</em></li>
+                        <li>Type : <strong>Client Credentials</strong></li>
+                        <li>Scopes : <code>monitoring</code>, <code>management</code>, <code>control</code></li>
+                        <li>Copiez le <code>client_id</code> et <code>client_secret</code></li>
+                    </ol>
+                    <div th:if="${config.lastSyncAt}" class="text-muted small mt-2">
+                        <i class="fas fa-sync me-1"></i>
+                        Dernière synchro : <span th:text="${#temporals.format(config.lastSyncAt, 'dd/MM/yyyy HH:mm')}"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+<th:block layout:fragment="script">
+<script>
+function toggleSecret() {
+    const input = document.getElementById('secretInput');
+    const eye = document.getElementById('secretEye');
+    if (input.type === 'password') {
+        input.type = 'text';
+        eye.classList.replace('fa-eye', 'fa-eye-slash');
+    } else {
+        input.type = 'password';
+        eye.classList.replace('fa-eye-slash', 'fa-eye');
+    }
+}
+</script>
+</th:block>
+</body>
+</html>

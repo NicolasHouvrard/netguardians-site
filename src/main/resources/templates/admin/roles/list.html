@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" 
+        xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">  
+      
+ <head>
+    <title>Les Roles</title>
+</head> 
+<body>
+    <section th:fragment="list">
+          <div class="container-fluid mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>gestion des roles</h2>
+                <a class="btn btn-primary" hx-get="/admin/roles/add
+                "
+    hx-target="#parent-div"
+   >+ Ajouter un role</a>
+            </div>
+         </div>
+
+<div id="parent-div" class="pb-1  w-auto"   ></div>
+
+    </section>
+ 
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title>Rendez-vous confirmé</title>
+</head>
+<body>
+<div layout:fragment="content">
+<div style="max-width:560px;margin:0 auto;" class="py-4">
+
+    <div class="text-center mb-4">
+        <div class="mb-3">
+            <span style="font-size:3.5rem;">&#10003;</span>
+        </div>
+        <h2 class="fw-bold">Rendez-vous confirmé !</h2>
+        <p class="text-muted">Votre demande a bien été enregistrée. Vous recevrez une confirmation.</p>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+
+            <h5 class="fw-bold mb-3" th:text="${appointment.title}"></h5>
+
+            <ul class="list-unstyled mb-0">
+                <li class="mb-2">
+                    <i class="fas fa-calendar me-2 text-primary"></i>
+                    <span class="fw-semibold">Date : </span>
+                    <span th:text="${#temporals.format(appointment.startAt, 'EEEE d MMMM yyyy', #locale)}"></span>
+                </li>
+                <li class="mb-2">
+                    <i class="fas fa-clock me-2 text-primary"></i>
+                    <span class="fw-semibold">Heure : </span>
+                    <span th:text="${#temporals.format(appointment.startAt, 'HH:mm')}"></span>
+                    <span th:if="${appointment.endAt != null}">
+                        → <span th:text="${#temporals.format(appointment.endAt, 'HH:mm')}"></span>
+                    </span>
+                </li>
+                <li class="mb-2" th:if="${appointment.assignedTo != null}">
+                    <i class="fas fa-user me-2 text-primary"></i>
+                    <span class="fw-semibold">Conseiller : </span>
+                    <span th:text="${appointment.assignedTo.fullName}"></span>
+                </li>
+                <li class="mb-2" th:if="${appointment.type != null}">
+                    <i class="fas fa-tag me-2 text-primary"></i>
+                    <span class="fw-semibold">Type : </span>
+                    <span th:text="${appointment.type.label}"></span>
+                </li>
+                <li th:if="${appointment.meetLink != null and !#strings.isEmpty(appointment.meetLink)}">
+                    <i class="fas fa-video me-2 text-success"></i>
+                    <span class="fw-semibold">Lien Google Meet : </span>
+                    <a th:href="${appointment.meetLink}" th:text="${appointment.meetLink}"
+                       target="_blank" rel="noopener"></a>
+                </li>
+            </ul>
+
+        </div>
+    </div>
+
+    <div class="text-center mt-4 d-flex flex-wrap gap-2 justify-content-center">
+        <a th:href="'/booking/' + ${config.slug}" class="btn btn-outline-primary">
+            <i class="fas fa-calendar-plus me-1"></i>Prendre un autre rendez-vous
+        </a>
+        <a th:if="${appointment.cancellationToken != null}"
+           th:href="'/booking/cancel/' + ${appointment.cancellationToken}"
+           class="btn btn-outline-danger">
+            <i class="fas fa-times-circle me-1"></i>Annuler ce rendez-vous
+        </a>
+        <a href="/" class="btn btn-outline-secondary">
+            <i class="fas fa-home me-1"></i>Accueil
+        </a>
+    </div>
+
+</div>
+</div>
+</body>
+</html>

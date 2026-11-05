@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="form">
+    <form th:hx-post="@{/intra/customers/{cid}/sites/save(cid=${customerId})}"
+          hx-target="#sites-list"
+          hx-swap="outerHTML"
+          hx-on::after-request="bootstrap.Modal.getInstance(document.getElementById('siteModal')).hide()">
+
+        <div class="mb-3">
+            <label class="form-label">Nom du site *</label>
+            <input type="text" class="form-control" name="name" 
+                   th:value="${site.name}" required/>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Adresse</label>
+            <input type="text" class="form-control" name="address" 
+                   th:value="${site.address}"/>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <label class="form-label">Code postal</label>
+                <input type="text" class="form-control" name="zipCode" 
+                       th:value="${site.zipCode}"/>
+            </div>
+            <div class="col-md-8 mb-3">
+                <label class="form-label">Ville</label>
+                <input type="text" class="form-control" name="city" 
+                       th:value="${site.city}"/>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Pays</label>
+            <input type="text" class="form-control" name="country" 
+                   th:value="${site.country}"/>
+        </div>
+        <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" name="active" 
+                   th:checked="${site.active}"/>
+            <label class="form-check-label">Site actif</label>
+        </div>
+
+        <input type="hidden" name="id" th:value="${site.id}"/>
+
+        <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-secondary" 
+                    data-bs-dismiss="modal">Annuler</button>
+            <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+    </form>
+</div>
+</body>
+</html>

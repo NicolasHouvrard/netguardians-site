@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+<head><title>Catégories d'abonnement</title></head>
+<body>
+<div layout:fragment="content">
+<div class="container-fluid">
+
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Catégories d'abonnement</h1>
+        <a href="/admin/subscription-plans" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour aux formules
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row">
+
+        <!-- ══ LISTE ══════════════════════════════════════════════════════════ -->
+        <div class="col-lg-7">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Catégories existantes</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(categories)}" class="text-center py-5 text-muted">
+                        Aucune catégorie. Créez la première.
+                    </div>
+                    <div th:each="cat : ${categories}"
+                         class="d-flex align-items-center px-3 py-2 border-bottom"
+                         th:classappend="${!cat.active ? ' opacity-50' : ''}">
+                        <div class="me-3 text-center" style="width:32px">
+                            <i th:class="${cat.icon}"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="fw-semibold" th:text="${cat.label}"></div>
+                            <div class="small text-muted d-flex gap-2 align-items-center mt-1">
+                                <span class="badge" th:classappend="${cat.badgeCss}" th:text="${cat.badgeCss}"></span>
+                                <span>ordre : <span th:text="${cat.sortOrder}"></span></span>
+                                <span th:unless="${cat.active}" class="text-danger">Inactif</span>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-1 ms-2">
+                            <a th:href="@{/admin/subscription-categories/edit/{id}(id=${cat.id})}"
+                               class="btn btn-sm btn-outline-secondary" title="Modifier">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a th:href="@{/admin/subscription-categories/delete/{id}(id=${cat.id})}"
+                               class="btn btn-sm btn-outline-danger"
+                               onclick="return confirm('Supprimer cette catégorie ?')"
+                               title="Supprimer">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ FORMULAIRE ═════════════════════════════════════════════════════ -->
+        <div class="col-lg-5">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary"
+                        th:text="${category.id != null ? 'Modifier la catégorie' : 'Nouvelle catégorie'}"></h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/admin/subscription-categories/save}" th:object="${category}" method="post">
+                        <input type="hidden" th:field="*{id}" />
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Libellé *</label>
+                            <input type="text" th:field="*{label}" class="form-control"
+                                   placeholder="ex : Support / Tickets" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Icône FontAwesome</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i th:class="${category.icon != null ? category.icon : 'fas fa-box'}"></i>
+                                </span>
+                                <input type="text" th:field="*{icon}" class="form-control"
+                                       placeholder="fas fa-headset">
+                            </div>
+                            <div class="form-text">
+                                Voir <a href="https://fontawesome.com/icons" target="_blank">fontawesome.com/icons</a>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Couleur du badge</label>
+                            <select th:field="*{badgeCss}" class="form-select">
+                                <option value="text-bg-primary">Bleu (primary)</option>
+                                <option value="text-bg-secondary">Gris (secondary)</option>
+                                <option value="text-bg-success">Vert (success)</option>
+                                <option value="text-bg-danger">Rouge (danger)</option>
+                                <option value="text-bg-warning">Orange (warning)</option>
+                                <option value="text-bg-info">Cyan (info)</option>
+                                <option value="text-bg-dark">Noir (dark)</option>
+                                <option value="text-bg-light">Blanc (light)</option>
+                            </select>
+                            <div class="mt-1">
+                                <span class="badge" th:classappend="${category.badgeCss}" th:text="${category.label ?: 'Aperçu'}"></span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Ordre d'affichage</label>
+                            <input type="number" th:field="*{sortOrder}" class="form-control" min="0">
+                        </div>
+
+                        <div class="mb-3 d-flex align-items-center gap-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" th:field="*{active}" id="catActive">
+                                <label class="form-check-label" for="catActive">Active</label>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save me-1"></i>
+                                <span th:text="${category.id != null ? 'Enregistrer' : 'Créer'}"></span>
+                            </button>
+                            <a th:if="${category.id != null}" href="/admin/subscription-categories"
+                               class="btn btn-secondary">Annuler</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Règles de routage des tickets</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <a href="/intra/tickets" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <h4 class="mb-0">
+                <i class="fas fa-filter me-2 text-primary"></i>Règles de routage des tickets
+            </h4>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalReapply">
+                <i class="fas fa-rotate-right me-1"></i>Réappliquer
+            </button>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNewRule">
+                <i class="fas fa-plus me-1"></i>Nouvelle règle
+            </button>
+        </div>
+    </div>
+
+    <div class="alert alert-info border-0 shadow-sm mb-4 small">
+        <i class="fas fa-circle-info me-2"></i>
+        Les règles sont évaluées <strong>dans l'ordre</strong> à chaque nouveau ticket (email ou manuel).
+        Dès qu'une règle correspond, les actions sont appliquées.
+        Si <em>« Arrêter après cette règle »</em> est coché, les suivantes sont ignorées.
+    </div>
+
+    <!-- Flash messages -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Liste des règles -->
+    <div th:if="${rules == null or rules.isEmpty()}" class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5 text-muted">
+            <i class="fas fa-filter fa-3x mb-3 d-block"></i>
+            Aucune règle configurée. Les tickets sont affectés manuellement.
+        </div>
+    </div>
+
+    <div th:if="${rules != null and !rules.isEmpty()}" class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:50px" class="ps-3 text-center text-muted small">#</th>
+                        <th>Règle</th>
+                        <th>Condition</th>
+                        <th>Actions appliquées</th>
+                        <th class="text-center">Arrêt</th>
+                        <th class="text-center">Actif</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="rule : ${rules}"
+                        th:classappend="${!rule.active} ? 'table-secondary opacity-75' : ''">
+
+                        <!-- Ordre -->
+                        <td class="ps-3 text-center">
+                            <form th:action="@{/intra/tickets/routing/{id}/order(id=${rule.id})}" method="post"
+                                  class="d-flex align-items-center gap-1 justify-content-center">
+                                <input type="number" name="sortOrder" class="form-control form-control-sm text-center"
+                                       th:value="${rule.sortOrder}" style="width:55px" min="0">
+                                <button type="submit" class="btn btn-xs btn-outline-secondary py-0 px-1"
+                                        title="Appliquer">
+                                    <i class="fas fa-check" style="font-size:.65rem"></i>
+                                </button>
+                            </form>
+                        </td>
+
+                        <!-- Nom -->
+                        <td>
+                            <div class="fw-semibold" th:text="${rule.name}"></div>
+                        </td>
+
+                        <!-- Condition -->
+                        <td class="small">
+                            <span class="badge text-bg-light border me-1"
+                                  th:text="${rule.matchField.label}"></span>
+                            <span class="text-muted" th:text="${rule.matchType.label}"></span>
+                            <code class="ms-1" th:text="${rule.matchValue}"></code>
+                        </td>
+
+                        <!-- Actions appliquées -->
+                        <td class="small">
+                            <div th:if="${rule.assignTeamId != null}" class="text-nowrap">
+                                <i class="fas fa-people-group text-primary me-1"></i>
+                                <span th:each="t : ${teams}" th:if="${t.id == rule.assignTeamId}"
+                                      th:text="${t.name}"></span>
+                            </div>
+                            <div th:if="${rule.assignUserId != null}" class="text-nowrap">
+                                <i class="fas fa-user-check text-success me-1"></i>
+                                <span th:each="u : ${technicians}" th:if="${u.id == rule.assignUserId}"
+                                      th:text="${u.fullName}"></span>
+                            </div>
+                            <div th:if="${rule.setStatus != null}" class="text-nowrap">
+                                <i class="fas fa-circle-dot text-warning me-1"></i>
+                                Statut → <span th:text="${rule.setStatus.label}"></span>
+                            </div>
+                            <div th:if="${rule.setPriority != null}" class="text-nowrap">
+                                <i class="fas fa-flag me-1"></i>
+                                Priorité → <span th:text="${rule.setPriority.displayValue}"></span>
+                            </div>
+                            <span th:if="${rule.assignTeamId == null and rule.assignUserId == null and rule.setStatus == null and rule.setPriority == null}"
+                                  class="text-muted fst-italic">Aucune action</span>
+                        </td>
+
+                        <!-- Stop on match -->
+                        <td class="text-center">
+                            <i th:if="${rule.stopOnMatch}" class="fas fa-circle-stop text-danger" title="Arrêt après cette règle"></i>
+                            <i th:unless="${rule.stopOnMatch}" class="fas fa-arrow-down text-muted" title="Continue vers la suivante"></i>
+                        </td>
+
+                        <!-- Actif -->
+                        <td class="text-center">
+                            <form th:action="@{/intra/tickets/routing/{id}/toggle(id=${rule.id})}" method="post">
+                                <button type="submit"
+                                        th:class="${rule.active} ? 'btn btn-xs btn-success py-0 px-2' : 'btn btn-xs btn-outline-secondary py-0 px-2'">
+                                    <i th:class="${rule.active} ? 'fas fa-check' : 'fas fa-pause'"
+                                       style="font-size:.7rem"></i>
+                                </button>
+                            </form>
+                        </td>
+
+                        <!-- Supprimer -->
+                        <td>
+                            <form th:action="@{/intra/tickets/routing/{id}/delete(id=${rule.id})}" method="post"
+                                  onsubmit="return confirm('Supprimer cette règle ?')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger py-0">
+                                    <i class="fas fa-trash" style="font-size:.75rem"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal réapplication des règles -->
+    <div class="modal fade" id="modalReapply" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post" action="/intra/tickets/routing/reapply">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">
+                            <i class="fas fa-rotate-right me-2 text-warning"></i>Réappliquer les règles
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted small mb-3">
+                            Les règles actives seront évaluées sur les tickets existants.
+                            Seuls les champs non encore remplis (équipe, technicien) seront modifiés.
+                        </p>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Périmètre</label>
+                            <select name="scope" class="form-select">
+                                <option value="open">Tickets ouverts (Nouveau + En cours)</option>
+                                <option value="new">Tickets Nouveau uniquement</option>
+                                <option value="all">Tous les tickets</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-warning">
+                            <i class="fas fa-rotate-right me-1"></i>Lancer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal nouvelle règle -->
+    <div class="modal fade" id="modalNewRule" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form method="post" action="/intra/tickets/routing">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">
+                            <i class="fas fa-filter me-2 text-primary"></i>Nouvelle règle de routage
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+
+                            <div class="col-sm-8">
+                                <label class="form-label fw-semibold">Nom de la règle <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control" required
+                                       placeholder="ex : Ignorer notifications Google">
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label fw-semibold">Ordre d'évaluation</label>
+                                <input type="number" name="sortOrder" class="form-control" value="10" min="0">
+                                <div class="form-text">Plus petit = évalué en premier</div>
+                            </div>
+
+                            <div class="col-12"><hr class="my-1"><p class="fw-semibold mb-2 small text-uppercase text-muted">Condition</p></div>
+
+                            <div class="col-sm-4">
+                                <label class="form-label fw-semibold">Champ <span class="text-danger">*</span></label>
+                                <select name="matchField" class="form-select" required>
+                                    <option th:each="f : ${matchFields}"
+                                            th:value="${f.name()}"
+                                            th:text="${f.label}"></option>
+                                </select>
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label fw-semibold">Opérateur <span class="text-danger">*</span></label>
+                                <select name="matchType" class="form-select" required>
+                                    <option th:each="t : ${matchTypes}"
+                                            th:value="${t.name()}"
+                                            th:text="${t.label}"></option>
+                                </select>
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label fw-semibold">Valeur <span class="text-danger">*</span></label>
+                                <input type="text" name="matchValue" class="form-control" required
+                                       placeholder="noreply, @google.com, …">
+                            </div>
+
+                            <div class="col-12"><hr class="my-1"><p class="fw-semibold mb-2 small text-uppercase text-muted">Actions à appliquer</p></div>
+
+                            <div class="col-sm-6">
+                                <label class="form-label fw-semibold">Affecter à l'équipe</label>
+                                <select name="assignTeamId" class="form-select">
+                                    <option value="">— Aucune —</option>
+                                    <option th:each="t : ${teams}"
+                                            th:value="${t.id}"
+                                            th:text="${t.name}"></option>
+                                </select>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label fw-semibold">Affecter au technicien</label>
+                                <select name="assignUserId" class="form-select">
+                                    <option value="">— Aucun —</option>
+                                    <option th:each="u : ${technicians}"
+                                            th:value="${u.id}"
+                                            th:text="${u.fullName}"></option>
+                                </select>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label fw-semibold">Changer le statut</label>
+                                <select name="setStatus" class="form-select">
+                                    <option value="">— Ne pas changer —</option>
+                                    <option th:each="s : ${statuses}"
+                                            th:value="${s.name()}"
+                                            th:text="${s.label}"></option>
+                                </select>
+                                <div class="form-text">Ex : Annulé pour ignorer les spams</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label fw-semibold">Changer la priorité</label>
+                                <select name="setPriority" class="form-select">
+                                    <option value="">— Ne pas changer —</option>
+                                    <option th:each="p : ${priorities}"
+                                            th:value="${p.name()}"
+                                            th:text="${p.displayValue}"></option>
+                                </select>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input type="checkbox" name="stopOnMatch" value="true"
+                                           class="form-check-input" id="stopOnMatch" checked>
+                                    <label class="form-check-label fw-semibold" for="stopOnMatch">
+                                        Arrêter après cette règle (ne pas évaluer les suivantes)
+                                    </label>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Créer la règle
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

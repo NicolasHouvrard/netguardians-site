@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{boutique-layout}">
+<body>
+<div layout:fragment="content">
+
+    <!-- ── Formulaire de filtres (englobe tous les contrôles) ──────────────────── -->
+    <form method="get" action="/boutique" id="filterForm">
+        <input type="hidden" name="page" id="pageInput" value="0">
+
+        <!-- En-tête + barre de recherche -->
+        <div class="mb-4">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <h1 class="h3 mb-0 fw-bold" th:text="${shopName}">Catalogue</h1>
+                <span class="badge text-bg-secondary"
+                      th:text="${productPage.totalElements} + ' produit(s)'"></span>
+            </div>
+            <div class="input-group input-group-lg shadow-sm">
+                <span class="input-group-text bg-white border-end-0">
+                    <i class="fas fa-search text-muted"></i>
+                </span>
+                <input type="text" name="q" class="form-control border-start-0 ps-0"
+                       placeholder="Rechercher un produit, une marque, une catégorie…"
+                       th:value="${q}" autocomplete="off">
+                <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                    Rechercher
+                </button>
+                <a href="/boutique" class="btn btn-outline-secondary"
+                   th:if="${hasFilters}" title="Effacer tous les filtres">
+                    <i class="fas fa-times"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Panneau filtres -->
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body py-3">
+
+                <!-- Ligne principale des filtres -->
+                <div class="d-flex align-items-center flex-wrap gap-3">
+
+                    <!-- Bouton Marque -->
+                    <div th:if="${!#lists.isEmpty(brands)}">
+                        <button type="button"
+                                class="btn btn-sm"
+                                th:classappend="${!currentBrands.isEmpty() ? 'btn-primary' : 'btn-outline-secondary border'}"
+                                data-bs-toggle="collapse" data-bs-target="#collapseMarque"
+                                aria-expanded="false">
+                            <i class="fas fa-tag me-1"></i>Marque
+                            <span th:if="${!currentBrands.isEmpty()}"
+                                  class="badge bg-white text-primary ms-1"
+                                  th:text="${currentBrands.size()}"></span>
+                            <i class="fas fa-chevron-down ms-1" style="font-size:.65rem"></i>
+                        </button>
+                    </div>
+
+                    <!-- Bouton Catégorie -->
+                    <div th:if="${!#lists.isEmpty(categories)}">
+                        <button type="button"
+                                class="btn btn-sm"
+                                th:classappend="${!currentCategories.isEmpty() ? 'btn-primary' : 'btn-outline-secondary border'}"
+                                data-bs-toggle="collapse" data-bs-target="#collapseCategorie"
+                                aria-expanded="false">
+                            <i class="fas fa-layer-group me-1"></i>Catégorie
+                            <span th:if="${!currentCategories.isEmpty()}"
+                                  class="badge bg-white text-primary ms-1"
+                                  th:text="${currentCategories.size()}"></span>
+                            <i class="fas fa-chevron-down ms-1" style="font-size:.65rem"></i>
+                        </button>
+                    </div>
+
+                    <div class="vr opacity-25 d-none d-sm-block"></div>
+
+                    <!-- Prix HT -->
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="small text-muted fw-semibold text-nowrap">Prix HT :</span>
+                        <input type="number" name="priceMin" class="form-control form-control-sm"
+                               style="width:88px" placeholder="Min €"
+                               th:value="${priceMin}" min="0" step="1">
+                        <span class="text-muted small">—</span>
+                        <input type="number" name="priceMax" class="form-control form-control-sm"
+                               style="width:88px" placeholder="Max €"
+                               th:value="${priceMax}" min="0" step="1">
+                    </div>
+
+                    <div class="vr opacity-25 d-none d-sm-block"></div>
+
+                    <!-- Disponibilité -->
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="small text-muted fw-semibold text-nowrap">Dispo :</span>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="stock" value=""
+                                   id="stockTous" th:checked="${stockFilter == ''}">
+                            <label class="btn btn-outline-secondary" for="stockTous">Tous</label>
+
+                            <input type="radio" class="btn-check" name="stock" value="dispo"
+                                   id="stockDispo" th:checked="${stockFilter == 'dispo'}">
+                            <label class="btn btn-outline-success" for="stockDispo">
+                                <i class="fas fa-check-circle me-1"></i>Disponible
+                            </label>
+
+                            <input type="radio" class="btn-check" name="stock" value="stock"
+                                   id="stockStock" th:checked="${stockFilter == 'stock'}">
+                            <label class="btn btn-outline-primary" for="stockStock">
+                                <i class="fas fa-boxes me-1"></i>En stock
+                            </label>
+
+                            <input type="radio" class="btn-check" name="stock" value="rupture"
+                                   id="stockRupture" th:checked="${stockFilter == 'rupture'}">
+                            <label class="btn btn-outline-danger" for="stockRupture">
+                                <i class="fas fa-times-circle me-1"></i>Rupture
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Bouton appliquer (surtout utile pour le prix) -->
+                    <button type="submit" class="btn btn-sm btn-primary ms-auto">
+                        <i class="fas fa-filter me-1"></i>Appliquer
+                    </button>
+
+                </div>
+
+                <!-- Collapse Marque (multi-sélection) -->
+                <div class="collapse" id="collapseMarque"
+                     th:classappend="${!currentBrands.isEmpty() ? 'show' : ''}">
+                    <div class="border-top mt-3 pt-3">
+                        <p class="small text-uppercase text-muted fw-semibold mb-2 ls-1">Marque</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            <div th:each="b,i : ${brands}">
+                                <input type="checkbox" class="btn-check filter-auto-submit"
+                                       name="brand" th:value="${b}"
+                                       th:id="'brand-' + ${i.index}"
+                                       th:checked="${currentBrands.contains(b)}">
+                                <label class="btn btn-sm btn-outline-primary rounded-pill"
+                                       th:for="'brand-' + ${i.index}"
+                                       th:text="${b}"></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Collapse Catégorie (multi-sélection) -->
+                <div class="collapse" id="collapseCategorie"
+                     th:classappend="${!currentCategories.isEmpty() ? 'show' : ''}">
+                    <div class="border-top mt-3 pt-3">
+                        <p class="small text-uppercase text-muted fw-semibold mb-2">Catégorie</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            <div th:each="cat,i : ${categories}">
+                                <input type="checkbox" class="btn-check filter-auto-submit"
+                                       name="category" th:value="${cat}"
+                                       th:id="'cat-' + ${i.index}"
+                                       th:checked="${currentCategories.contains(cat)}">
+                                <label class="btn btn-sm btn-outline-info rounded-pill"
+                                       th:for="'cat-' + ${i.index}"
+                                       th:text="${cat}"></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </form>
+    <!-- fin du formulaire -->
+
+    <!-- ── Filtres actifs (badges) ─────────────────────────────────────────────── -->
+    <div th:if="${hasFilters}" class="d-flex flex-wrap gap-2 align-items-center mb-4">
+        <small class="text-muted me-1">Filtres actifs :</small>
+
+        <span th:if="${q != ''}" class="badge text-bg-dark rounded-pill px-3">
+            <i class="fas fa-search me-1"></i><span th:text="${q}"></span>
+        </span>
+
+        <span th:each="b : ${currentBrands}" class="badge text-bg-primary rounded-pill px-3">
+            <i class="fas fa-tag me-1"></i><span th:text="${b}"></span>
+        </span>
+
+        <span th:each="cat : ${currentCategories}" class="badge rounded-pill px-3"
+              style="background:#0dcaf0;color:#000">
+            <i class="fas fa-layer-group me-1"></i><span th:text="${cat}"></span>
+        </span>
+
+        <span th:if="${priceMin != null}" class="badge text-bg-secondary rounded-pill px-3">
+            à partir de <span th:text="${priceMin}"></span> € HT
+        </span>
+        <span th:if="${priceMax != null}" class="badge text-bg-secondary rounded-pill px-3">
+            jusqu'à <span th:text="${priceMax}"></span> € HT
+        </span>
+
+        <span th:if="${stockFilter == 'dispo'}" class="badge text-bg-success rounded-pill px-3">
+            <i class="fas fa-check-circle me-1"></i>Disponible
+        </span>
+        <span th:if="${stockFilter == 'stock'}" class="badge text-bg-primary rounded-pill px-3">
+            <i class="fas fa-boxes me-1"></i>En stock
+        </span>
+        <span th:if="${stockFilter == 'rupture'}" class="badge text-bg-danger rounded-pill px-3">
+            <i class="fas fa-times-circle me-1"></i>Rupture
+        </span>
+
+        <a href="/boutique" class="btn btn-sm btn-outline-secondary py-0 ms-1">
+            <i class="fas fa-times me-1"></i>Tout effacer
+        </a>
+    </div>
+
+    <!-- ── Aucun résultat ──────────────────────────────────────────────────────── -->
+    <div th:if="${#lists.isEmpty(products)}" class="text-center py-5 text-muted">
+        <i class="fas fa-box-open fa-3x mb-3 d-block opacity-50"></i>
+        <p class="mb-2 fs-5">Aucun produit ne correspond à votre recherche.</p>
+        <a href="/boutique" class="btn btn-outline-secondary mt-1">
+            <i class="fas fa-times me-1"></i>Effacer les filtres
+        </a>
+    </div>
+
+    <!-- ── Grille produits ─────────────────────────────────────────────────────── -->
+    <div class="row g-3">
+        <div class="col-sm-6 col-md-4 col-lg-3" th:each="sp : ${products}">
+            <a th:href="@{/boutique/{slug}(slug=${sp.slug})}" class="text-decoration-none">
+                <div class="card h-100 shadow-sm border-0 product-card">
+
+                    <!-- Image -->
+                    <div th:if="${sp.featuredImagePath}" class="overflow-hidden" style="height:180px;border-radius:.375rem .375rem 0 0">
+                        <img th:src="@{/uploads/{p}(p=${sp.featuredImagePath})}" alt=""
+                             class="w-100 h-100" style="object-fit:cover">
+                    </div>
+                    <div th:unless="${sp.featuredImagePath}"
+                         class="d-flex align-items-center justify-content-center bg-light text-muted"
+                         style="height:180px;border-radius:.375rem .375rem 0 0">
+                        <i class="fas fa-image fa-3x opacity-25"></i>
+                    </div>
+
+                    <div class="card-body d-flex flex-column p-3">
+                        <!-- Marque -->
+                        <div th:if="${sp.brand != null}" class="text-uppercase text-muted mb-1"
+                             style="font-size:.68rem;letter-spacing:.04em" th:text="${sp.brand}"></div>
+                        <!-- Titre -->
+                        <h5 class="card-title fs-6 fw-semibold text-dark mb-auto" th:text="${sp.displayTitle}">Produit</h5>
+                        <!-- Prix -->
+                        <div class="mt-3">
+                            <span class="fs-5 fw-bold text-primary"
+                                  th:text="${#numbers.formatDecimal(sp.priceTTC, 1, 'COMMA', 2, 'POINT')} + ' €'">0,00 €</span>
+                            <small class="text-muted ms-1">TTC</small>
+                        </div>
+                        <!-- Badge stock -->
+                        <div class="mt-1 min-height-badge">
+                            <span th:if="${sp.stockEnabled and sp.stock == 0}"
+                                  class="badge bg-secondary" style="font-size:.68rem">Rupture de stock</span>
+                            <span th:if="${sp.stockEnabled and sp.stock > 0 and sp.stock <= 5}"
+                                  class="badge bg-warning text-dark" style="font-size:.68rem">
+                                Plus que <span th:text="${sp.stock}"></span> en stock
+                            </span>
+                            <span th:if="${sp.stockEnabled and sp.stock > 5}"
+                                  class="badge bg-success" style="font-size:.68rem">En stock</span>
+                        </div>
+                    </div>
+
+                    <div class="card-footer bg-transparent border-0 pb-3 pt-0 px-3">
+                        <span class="btn btn-primary btn-sm w-100">
+                            <i class="fas fa-eye me-1"></i>Voir le produit
+                        </span>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- ── Pagination ─────────────────────────────────────────────────────────── -->
+    <div th:if="${productPage.totalPages > 1}"
+         class="d-flex align-items-center justify-content-between mt-5"
+         th:with="cur=${productPage.number}, tot=${productPage.totalPages},
+                  wStart=${cur > 2 ? cur - 2 : 0},
+                  wEnd=${cur + 2 < tot - 1 ? cur + 2 : tot - 1}">
+        <small class="text-muted">
+            Page <span th:text="${cur + 1}"></span> / <span th:text="${tot}"></span>
+            &nbsp;·&nbsp; <span th:text="${productPage.totalElements}"></span> produits
+        </small>
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item" th:classappend="${productPage.first ? 'disabled' : ''}">
+                    <button type="button" class="page-link" th:data-page="${cur - 1}" onclick="goPage(this)">‹</button>
+                </li>
+
+                <th:block th:if="${wStart > 0}">
+                    <li class="page-item">
+                        <button type="button" class="page-link" data-page="0" onclick="goPage(this)">1</button>
+                    </li>
+                    <li class="page-item disabled" th:if="${wStart > 1}"><span class="page-link">…</span></li>
+                </th:block>
+
+                <li th:each="i : ${#numbers.sequence(wStart, wEnd)}"
+                    class="page-item" th:classappend="${i == cur ? 'active' : ''}">
+                    <button type="button" class="page-link" th:data-page="${i}"
+                            onclick="goPage(this)" th:text="${i + 1}"></button>
+                </li>
+
+                <th:block th:if="${wEnd < tot - 1}">
+                    <li class="page-item disabled" th:if="${wEnd < tot - 2}"><span class="page-link">…</span></li>
+                    <li class="page-item">
+                        <button type="button" class="page-link" th:data-page="${tot - 1}"
+                                onclick="goPage(this)" th:text="${tot}"></button>
+                    </li>
+                </th:block>
+
+                <li class="page-item" th:classappend="${productPage.last ? 'disabled' : ''}">
+                    <button type="button" class="page-link" th:data-page="${cur + 1}" onclick="goPage(this)">›</button>
+                </li>
+            </ul>
+        </nav>
+    </div>
+
+    <!-- ── Styles ─────────────────────────────────────────────────────────────── -->
+    <style>
+        .product-card { transition: transform .15s, box-shadow .15s; }
+        .product-card:hover { transform: translateY(-4px); box-shadow: 0 .6rem 1.8rem rgba(0,0,0,.13) !important; }
+        .btn-check + label { cursor: pointer; }
+    </style>
+
+    <!-- ── Scripts ────────────────────────────────────────────────────────────── -->
+    <script>
+        // Pagination : met à jour la page et soumet le formulaire
+        function goPage(btn) {
+            document.getElementById('pageInput').value = btn.dataset.page;
+            document.getElementById('filterForm').submit();
+        }
+
+        // Auto-submit sur changement de disponibilité (radios) et marque/catégorie (checkboxes)
+        document.querySelectorAll('.filter-auto-submit, input[type="radio"][name="stock"]').forEach(function (el) {
+            el.addEventListener('change', function () {
+                document.getElementById('pageInput').value = '0';
+                document.getElementById('filterForm').submit();
+            });
+        });
+
+        // Ouvrir automatiquement le collapse si une sélection existe au chargement
+        (function () {
+            var hasMarque    = /*[[${!currentBrands.isEmpty()}]]*/ false;
+            var hasCategorie = /*[[${!currentCategories.isEmpty()}]]*/ false;
+            if (hasMarque)    new bootstrap.Collapse(document.getElementById('collapseMarque'),    {toggle: false}).show();
+            if (hasCategorie) new bootstrap.Collapse(document.getElementById('collapseCategorie'), {toggle: false}).show();
+        })();
+    </script>
+
+</div>
+</body>
+</html>

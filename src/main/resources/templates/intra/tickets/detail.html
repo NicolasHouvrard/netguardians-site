@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Ticket</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/intra/tickets" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0">
+            <i class="fas fa-ticket me-2 text-warning"></i>
+            Demande <span class="text-muted" th:text="'#' + ${request.id}"></span>
+        </h4>
+        <a th:if="${request.customer != null}"
+           th:href="@{/intra/customers/{cid}/requests/edit/{id}(cid=${request.customer.id},id=${request.id})}"
+           class="btn btn-sm btn-outline-secondary ms-auto">
+            <i class="fas fa-edit me-1"></i>Vue admin
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- Colonne principale -->
+        <div class="col-lg-8">
+
+            <!-- Fiche ticket -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <h5 class="fw-bold mb-0" th:text="${request.title}"></h5>
+                    <span th:switch="${request.status.name()}">
+                        <span th:case="'NEW'"         class="badge text-bg-primary fs-6">Nouveau</span>
+                        <span th:case="'IN_PROGRESS'" class="badge text-bg-warning fs-6">En cours</span>
+                        <span th:case="'COMPLETED'"   class="badge text-bg-success fs-6">Terminé</span>
+                        <span th:case="'CANCELLED'"   class="badge text-bg-secondary fs-6">Annulé</span>
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 mb-3">
+                        <div class="col-sm-4">
+                            <div class="text-muted small">Client</div>
+                            <a th:if="${request.customer != null}"
+                               th:href="@{/intra/customers/{id}(id=${request.customer.id})}"
+                               class="fw-semibold text-decoration-none"
+                               th:text="${request.customer.companyName}"></a>
+                            <span th:if="${request.customer == null and request.senderEmail == null}"
+                                  class="text-muted fst-italic small">—</span>
+                            <div th:if="${request.customer == null and request.senderEmail != null}">
+                                <span class="small font-monospace text-muted" th:text="${request.senderEmail}"></span>
+                                <div class="mt-1">
+                                    <a th:href="@{/intra/customers/new(email=${request.senderEmail},ticketId=${request.id})}"
+                                       class="btn btn-xs btn-outline-primary py-0 px-2 small">
+                                        <i class="fas fa-user-plus me-1" style="font-size:.7rem"></i>Créer le client
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-muted small" th:text="${request.sentAt != null ? 'Envoyé le' : 'Ouvert le'}"></div>
+                            <div class="fw-semibold"
+                                 th:text="${#temporals.format(request.sentAt != null ? request.sentAt : request.createdAt, 'dd/MM/yyyy HH:mm')}"></div>
+                        </div>
+                        <div class="col-sm-4" th:if="${request.type != null}">
+                            <div class="text-muted small">Type</div>
+                            <div class="fw-semibold" th:text="${request.type.label}"></div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-muted small">Priorité</div>
+                            <span class="badge" th:classappend="${request.priority.colorClass}"
+                                  th:text="${request.priority.displayValue}"></span>
+                        </div>
+                        <div class="col-sm-4" th:if="${request.contact != null}">
+                            <div class="text-muted small">Contact</div>
+                            <div class="fw-semibold" th:text="${request.contact.firstName + ' ' + request.contact.lastName}"></div>
+                            <div class="small text-muted" th:if="${request.contact.email != null}" th:text="${request.contact.email}"></div>
+                            <div class="small text-muted" th:if="${request.contact.phone != null}" th:text="${request.contact.phone}"></div>
+                        </div>
+                        <div class="col-sm-4" th:if="${request.site != null}">
+                            <div class="text-muted small">Site</div>
+                            <div class="fw-semibold" th:text="${request.site.name}"></div>
+                        </div>
+                        <div class="col-sm-4" th:if="${request.createdBy != null}">
+                            <div class="text-muted small">Créé par</div>
+                            <div class="fw-semibold" th:text="${request.createdBy.fullName}"></div>
+                            <div class="small text-muted" th:text="${request.createdBy.email}"></div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-muted small">Technicien affecté</div>
+                            <div th:if="${request.assignedTo != null}"
+                                 class="fw-semibold" th:text="${request.assignedTo.fullName}"></div>
+                            <!--/* Assignation recue par synchronisation (serveur secondaire) : texte du maitre */-->
+                            <div th:if="${request.assignedTo == null and request.syncAssignedToName != null}"
+                                 class="fw-semibold" th:text="${request.syncAssignedToName}"></div>
+                            <div th:if="${request.assignedTo == null and request.syncAssignedToName == null}"
+                                 class="text-muted fst-italic small">Non affecté</div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-muted small">Équipe</div>
+                            <div th:if="${request.assignedTeam != null}"
+                                 class="fw-semibold" th:text="${request.assignedTeam.name}"></div>
+                            <div th:if="${request.assignedTeam == null and request.syncAssignedTeamName != null}"
+                                 class="fw-semibold" th:text="${request.syncAssignedTeamName}"></div>
+                            <div th:if="${request.assignedTeam == null and request.syncAssignedTeamName == null}"
+                                 class="text-muted fst-italic small">Aucune équipe</div>
+                        </div>
+                        <div class="col-sm-4" th:if="${request.estimatedMinutes != null}">
+                            <div class="text-muted small">Estimé / Saisi</div>
+                            <div class="fw-semibold">
+                                <span th:text="${request.formattedEstimated}"></span>
+                                <span class="text-muted"> / </span>
+                                <span th:text="${request.formattedSpent}"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div th:if="${request.description}" class="mt-2">
+                        <div class="text-muted small mb-1">Description</div>
+                        <div class="border rounded p-3 bg-light" style="white-space:pre-wrap"
+                             th:text="${request.description}"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Saisie de temps -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-wrench me-2 text-info"></i>Saisir une intervention</h6>
+                    <span th:if="${request.formattedSpent != '—'}"
+                          class="badge text-bg-light border small">
+                        Total : <span class="fw-bold text-info" th:text="${request.formattedSpent}"></span>
+                    </span>
+                </div>
+                <div class="card-body">
+                    <form id="addEntryForm" th:action="@{/intra/tickets/{id}/time-entry(id=${request.id})}" method="post">
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label small">Date</label>
+                                <input type="date" id="addDate" name="date" class="form-control form-control-sm"
+                                       th:value="${#temporals.format(#temporals.createNow(), 'yyyy-MM-dd')}" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small">Heure début</label>
+                                <input type="time" id="addStartTime" name="startTimeStr" class="form-control form-control-sm">
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label small">Durée — h</label>
+                                <input type="number" id="addHours" name="durationHours" class="form-control form-control-sm"
+                                       min="0" max="24" value="0">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small">Durée — min</label>
+                                <input type="number" id="addMins" name="durationMins" class="form-control form-control-sm"
+                                       min="0" max="59" value="0">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small">Description</label>
+                            <textarea name="description" class="form-control form-control-sm" rows="2"
+                                      placeholder="Ex: Diagnostic, Installation..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-info btn-sm w-100 text-white">
+                            <i class="fas fa-plus me-1"></i>Enregistrer l'intervention
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Chronologie unifiée -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-stream me-2 text-primary"></i>Chronologie</h6>
+                </div>
+                <div class="card-body">
+                    <!-- Formulaire commentaire en premier -->
+                    <form th:action="@{/intra/tickets/{id}/comment(id=${request.id})}" method="post" class="mb-4">
+                        <div class="mb-2">
+                            <textarea name="content" class="form-control form-control-sm" rows="3" required
+                                      placeholder="Votre commentaire..."></textarea>
+                        </div>
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="isPrivate" id="isPrivate" value="true">
+                                <label class="form-check-label small" for="isPrivate">
+                                    <i class="fas fa-lock me-1 text-warning"></i>Commentaire privé (non visible du client)
+                                </label>
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-primary ms-auto">
+                                <i class="fas fa-paper-plane me-1"></i>Envoyer
+                            </button>
+                        </div>
+                    </form>
+                    <hr class="mt-0 mb-3">
+
+                    <div th:if="${#lists.isEmpty(timeline)}" class="text-muted small py-2">
+                        Aucune activité pour le moment.
+                    </div>
+
+                    <th:block th:each="event : ${timeline}">
+
+                        <!-- Commentaire -->
+                        <div th:if="${event.type == 'comment'}" class="mb-3">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center"
+                                     th:classappend="${event.comment.isPublic()} ? 'bg-primary bg-opacity-10' : 'bg-warning bg-opacity-10'"
+                                     style="width:32px;height:32px;flex-shrink:0">
+                                    <i th:class="${event.comment.isPublic()} ? 'fas fa-user text-primary small' : 'fas fa-lock text-warning small'"></i>
+                                </div>
+                                <span class="fw-semibold small" th:text="${event.comment.author != null ? event.comment.author.fullName : (event.comment.sourceEmail != null ? event.comment.sourceEmail : 'Synchronisation')}"></span>
+                                <span class="text-muted small" th:text="${#temporals.format(event.comment.createdAt,'dd/MM/yyyy HH:mm')}"></span>
+                                <span th:if="${not event.comment.isPublic()}" class="badge text-bg-warning ms-1" style="font-size:.6rem">Privé</span>
+                            </div>
+                            <div class="ms-4 ps-2 border-start border-2"
+                                 th:classappend="${event.comment.isPublic()} ? 'border-primary-subtle' : 'border-warning-subtle'">
+                                <div class="small" style="white-space:pre-wrap" th:text="${event.comment.content}"></div>
+                            </div>
+                        </div>
+
+                        <!-- Intervention / saisie de temps -->
+                        <div th:if="${event.type == 'timeentry'}" class="mb-3">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <div class="rounded-circle bg-info bg-opacity-10 d-flex align-items-center justify-content-center"
+                                     style="width:32px;height:32px;flex-shrink:0">
+                                    <i class="fas fa-wrench text-info small"></i>
+                                </div>
+                                <span class="fw-semibold small" th:text="${event.timeEntry.author.fullName}"></span>
+                                <span class="text-muted small">
+                                    <span th:text="${#temporals.format(event.timeEntry.date,'dd/MM/yyyy')}"></span>
+                                    <span th:if="${event.timeEntry.startTime != null}"
+                                          th:text="${' à ' + #temporals.format(event.timeEntry.startTime,'HH:mm')}"></span>
+                                </span>
+                                <span class="badge text-bg-light border fw-normal ms-1">
+                                    <i class="fas fa-clock me-1 text-info"></i>
+                                    <span th:text="${event.timeEntry.formattedDuration}"></span>
+                                </span>
+                                <!-- Boutons modifier / supprimer -->
+                                <div class="ms-auto d-flex gap-1">
+                                    <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1"
+                                            data-bs-toggle="modal" data-bs-target="#editEntryModal"
+                                            th:attr="data-entry-id=${event.timeEntry.id},
+                                                     data-date=${#temporals.format(event.timeEntry.date,'yyyy-MM-dd')},
+                                                     data-start-time=${event.timeEntry.startTime != null ? #temporals.format(event.timeEntry.startTime,'HH:mm') : ''},
+                                                     data-hours=${event.timeEntry.durationMinutes != null ? event.timeEntry.durationMinutes / 60 : 0},
+                                                     data-mins=${event.timeEntry.durationMinutes != null ? event.timeEntry.durationMinutes % 60 : 0},
+                                                     data-description=${event.timeEntry.description != null ? event.timeEntry.description : ''}">
+                                        <i class="fas fa-pencil-alt" style="font-size:.65rem"></i>
+                                    </button>
+                                    <form th:action="@{/intra/tickets/{id}/time-entry/{eid}/delete(id=${request.id},eid=${event.timeEntry.id})}"
+                                          method="post" class="d-inline"
+                                          onsubmit="return confirm('Supprimer cette intervention ?')">
+                                        <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1">
+                                            <i class="fas fa-trash" style="font-size:.65rem"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="ms-4 ps-2 border-start border-2 border-info-subtle"
+                                 th:if="${event.timeEntry.description != null and not #strings.isEmpty(event.timeEntry.description)}">
+                                <div class="small text-muted" style="white-space:pre-wrap" th:text="${event.timeEntry.description}"></div>
+                            </div>
+                        </div>
+
+                    </th:block>
+
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Colonne latérale -->
+        <div class="col-lg-4">
+
+            <!-- Type de demande -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-tags me-2 text-secondary"></i>Type de demande</h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/intra/tickets/{id}/type(id=${request.id})}" method="post">
+                        <div class="mb-2">
+                            <select name="type" class="form-select form-select-sm">
+                                <option value="">— Aucun type —</option>
+                                <option th:each="rt : ${requestTypes}"
+                                        th:value="${rt.name()}"
+                                        th:text="${rt.label}"
+                                        th:selected="${request.type != null and request.type == rt}">
+                                </option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-secondary btn-sm w-100">
+                            <i class="fas fa-save me-1"></i>Changer le type
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Changer le statut / Clôturer -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-sliders-h me-2"></i>Statut</h6>
+                </div>
+                <div class="card-body d-flex flex-column gap-2">
+                    <form th:action="@{/intra/tickets/{id}/status(id=${request.id})}" method="post"
+                          th:each="s : ${statuses != null ? statuses : T(java.util.Collections).emptyList()}"
+                          th:if="${s.name() != request.status.name()}">
+                        <input type="hidden" name="status" th:value="${s.name()}">
+                        <button type="submit" class="btn btn-sm w-100 text-start"
+                                th:classappend="${s.name() == 'COMPLETED'  ? 'btn-success'   :
+                                                  s.name() == 'IN_PROGRESS'? 'btn-warning'   :
+                                                  s.name() == 'CANCELLED'  ? 'btn-secondary' : 'btn-primary'}">
+                            <i class="fas me-1"
+                               th:classappend="${s.name() == 'COMPLETED'   ? 'fa-check-circle' :
+                                                 s.name() == 'IN_PROGRESS' ? 'fa-spinner'      :
+                                                 s.name() == 'CANCELLED'   ? 'fa-ban'          : 'fa-circle'}"></i>
+                            <span th:text="${s.name() == 'NEW'         ? 'Remettre en Nouveau'  :
+                                             s.name() == 'IN_PROGRESS' ? 'Passer En cours'      :
+                                             s.name() == 'COMPLETED'   ? 'Clôturer la demande'  :
+                                                                          'Annuler'}"></span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Affecter à un technicien -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-user-check me-2 text-success"></i>Technicien</h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/intra/tickets/{id}/assign-user(id=${request.id})}" method="post">
+                        <div class="mb-2">
+                            <select name="assignedToId" class="form-select form-select-sm">
+                                <option value="">— Non affecté —</option>
+                                <option th:each="u : ${internalUsers}"
+                                        th:value="${u.id}"
+                                        th:text="${u.fullName}"
+                                        th:selected="${request.assignedTo != null and request.assignedTo.id == u.id}">
+                                </option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-success btn-sm w-100">
+                            <i class="fas fa-user-check me-1"></i>Affecter
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Affecter à une équipe -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-people-group me-2 text-primary"></i>Équipe</h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/intra/tickets/{id}/assign-team(id=${request.id})}" method="post">
+                        <div class="mb-2">
+                            <select name="teamId" class="form-select form-select-sm">
+                                <option value="">— Aucune équipe —</option>
+                                <option th:each="t : ${teamsForType != null and !teamsForType.isEmpty() ? teamsForType : allTeams}"
+                                        th:value="${t.id}"
+                                        th:text="${t.name}"
+                                        th:selected="${request.assignedTeam != null and request.assignedTeam.id == t.id}">
+                                </option>
+                            </select>
+                            <div th:if="${teamsForType != null and !teamsForType.isEmpty() and allTeams != null and teamsForType.size() < allTeams.size()}"
+                                 class="small text-muted mt-1">
+                                <i class="fas fa-filter me-1"></i>Équipes filtrées par type de demande
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="fas fa-people-group me-1"></i>Affecter à l'équipe
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Documents liés -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-paperclip me-2 text-warning"></i>Documents</h6>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Interventions sur site -->
+                    <div th:if="${ticketInterventions != null and not #lists.isEmpty(ticketInterventions)}" class="px-3 pt-3">
+                        <div class="text-muted small fw-semibold mb-1">
+                            <i class="fas fa-wrench me-1 text-warning"></i>Interventions sur site
+                        </div>
+                        <div th:each="inv : ${ticketInterventions}"
+                             class="d-flex align-items-center justify-content-between py-1 border-bottom">
+                            <a th:href="@{/intra/interventions/{id}(id=${inv.id})}"
+                               class="text-decoration-none fw-semibold small"
+                               th:text="${inv.reference ?: inv.title}"></a>
+                            <span class="badge" th:classappend="${inv.status.badgeCss}" th:text="${inv.status.label}"></span>
+                        </div>
+                    </div>
+                    <!-- Devis / Commandes -->
+                    <div th:if="${ticketOrders != null and not #lists.isEmpty(ticketOrders)}" class="px-3 pt-3">
+                        <div class="text-muted small fw-semibold mb-1">
+                            <i class="fas fa-file-signature me-1 text-success"></i>Devis / Commandes
+                        </div>
+                        <div th:each="o : ${ticketOrders}" class="d-flex align-items-center justify-content-between py-1 border-bottom">
+                            <a th:href="@{/intra/orders/{id}(id=${o.id})}" class="text-decoration-none fw-semibold small"
+                               th:text="${o.orderNumber}"></a>
+                            <span class="badge" th:classappend="${o.status.badgeCss}" th:text="${o.status.label}"></span>
+                        </div>
+                    </div>
+                    <!-- Factures -->
+                    <div th:if="${ticketInvoices != null and not #lists.isEmpty(ticketInvoices)}" class="px-3 pt-3">
+                        <div class="text-muted small fw-semibold mb-1">
+                            <i class="fas fa-file-invoice me-1 text-primary"></i>Factures
+                        </div>
+                        <div th:each="inv : ${ticketInvoices}" class="d-flex align-items-center justify-content-between py-1 border-bottom">
+                            <a th:href="@{/intra/invoices/{id}(id=${inv.id})}" class="text-decoration-none fw-semibold small"
+                               th:text="${inv.invoiceNumber}"></a>
+                            <span class="badge" th:classappend="${inv.status.badgeCss}" th:text="${inv.status.label}"></span>
+                        </div>
+                    </div>
+                    <div th:if="${(ticketInterventions == null or #lists.isEmpty(ticketInterventions)) and (ticketOrders == null or #lists.isEmpty(ticketOrders)) and (ticketInvoices == null or #lists.isEmpty(ticketInvoices))}"
+                         class="text-muted small fst-italic px-3 py-2">Aucun document lié.</div>
+                    <div class="d-flex flex-wrap gap-2 p-3">
+                        <button type="button"
+                                class="btn btn-outline-warning btn-sm flex-fill"
+                                data-bs-toggle="modal" data-bs-target="#modalNewIntervention">
+                            <i class="fas fa-wrench me-1"></i>Intervention
+                        </button>
+                        <a th:href="@{/intra/orders/new(ticketId=${request.id})}"
+                           class="btn btn-outline-success btn-sm flex-fill">
+                            <i class="fas fa-plus me-1"></i>Devis
+                        </a>
+                        <a th:href="@{/intra/invoices/new(ticketId=${request.id})}"
+                           class="btn btn-outline-primary btn-sm flex-fill">
+                            <i class="fas fa-plus me-1"></i>Facture
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Nouvelle intervention sur site -->
+            <div class="modal fade" id="modalNewIntervention" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <form th:action="@{/intra/tickets/{id}/intervention(id=${request.id})}" method="post">
+                            <div class="modal-header">
+                                <h5 class="modal-title fw-bold">
+                                    <i class="fas fa-wrench me-2 text-warning"></i>Créer une intervention sur site
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div th:if="${request.customer != null}"
+                                     class="alert alert-light border mb-3 py-2 px-3 d-flex align-items-center gap-2">
+                                    <i class="fas fa-building text-muted"></i>
+                                    <span class="small">Client : <strong th:text="${request.customer.companyName}"></strong></span>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-sm-8">
+                                        <label class="form-label small fw-semibold">Titre <span class="text-danger">*</span></label>
+                                        <input type="text" name="title" class="form-control form-control-sm"
+                                               th:value="${request.title}" required>
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <label class="form-label small fw-semibold">Type</label>
+                                        <select name="type" class="form-select form-select-sm">
+                                            <option th:each="t : ${interventionTypes}"
+                                                    th:value="${t}" th:text="${t.label}"
+                                                    th:selected="${t.name() == 'ONSITE'}"></option>
+                                        </select>
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <label class="form-label small fw-semibold">Date</label>
+                                        <input type="date" name="date" class="form-control form-control-sm">
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <label class="form-label small fw-semibold">Heure de début souhaitée</label>
+                                        <input type="time" name="startTime" class="form-control form-control-sm">
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <label class="form-label small fw-semibold">Durée est. (min)</label>
+                                        <input type="number" name="durationMinutes" class="form-control form-control-sm"
+                                               min="0" placeholder="60">
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <label class="form-label small fw-semibold">Ville</label>
+                                        <input type="text" name="city" class="form-control form-control-sm"
+                                               th:value="${request.site != null ? request.site.city : ''}">
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label small fw-semibold">Adresse</label>
+                                        <input type="text" name="address" class="form-control form-control-sm"
+                                               th:value="${request.site != null ? request.site.address : ''}">
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <label class="form-label small fw-semibold">Facturation</label>
+                                        <select name="billingType" class="form-select form-select-sm">
+                                            <option th:each="b : ${billingTypes}"
+                                                    th:value="${b}" th:text="${b.label}"></option>
+                                        </select>
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <label class="form-label small fw-semibold">Taux horaire (€/h)</label>
+                                        <input type="number" name="hourlyRateClient" class="form-control form-control-sm"
+                                               step="0.01" min="0" placeholder="0.00">
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <label class="form-label small fw-semibold">Forfait (€)</label>
+                                        <input type="number" name="fixedAmountClient" class="form-control form-control-sm"
+                                               step="0.01" min="0" placeholder="0.00">
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label small fw-semibold">Description</label>
+                                        <textarea name="description" class="form-control form-control-sm" rows="3"
+                                                  th:text="${request.description}"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                                <button type="submit" class="btn btn-warning btn-sm">
+                                    <i class="fas fa-wrench me-1"></i>Créer l'intervention
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pièces jointes -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-paperclip me-2 text-info"></i>Pièces jointes</h6>
+                    <span class="badge text-bg-light border"
+                          th:text="${ticketAttachments != null ? ticketAttachments.size() : 0}">0</span>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Liste des fichiers -->
+                    <div th:if="${ticketAttachments != null and not #lists.isEmpty(ticketAttachments)}">
+                        <div th:each="att : ${ticketAttachments}"
+                             class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+                            <i class="fas flex-shrink-0"
+                               th:classappend="${att.image ? 'fa-image text-success' : (att.contentType != null and #strings.contains(att.contentType,'pdf')) ? 'fa-file-pdf text-danger' : 'fa-file text-muted'}"></i>
+                            <div class="flex-grow-1 overflow-hidden">
+                                <a th:href="${att.filename}" target="_blank"
+                                   class="text-decoration-none small fw-semibold text-truncate d-block"
+                                   th:text="${att.originalName}">fichier</a>
+                                <div class="text-muted" style="font-size:.7rem">
+                                    <span th:text="${att.displaySize}"></span>
+                                    <span th:if="${att.uploadedBy != null}"
+                                          th:text="${' — ' + att.uploadedBy.fullName}"></span>
+                                </div>
+                            </div>
+                            <form th:action="@{/intra/tickets/{id}/attachments/{aid}/delete(id=${request.id},aid=${att.id})}"
+                                  method="post" class="flex-shrink-0"
+                                  onsubmit="return confirm('Supprimer ce fichier ?')">
+                                <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1">
+                                    <i class="fas fa-trash" style="font-size:.65rem"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    <div th:if="${ticketAttachments == null or #lists.isEmpty(ticketAttachments)}"
+                         class="text-muted small fst-italic px-3 py-2">Aucune pièce jointe.</div>
+                    <!-- Formulaire upload -->
+                    <form th:action="@{/intra/tickets/{id}/attachments(id=${request.id})}"
+                          method="post" enctype="multipart/form-data"
+                          class="px-3 py-2 border-top">
+                        <div class="input-group input-group-sm">
+                            <input type="file" name="file" class="form-control form-control-sm" required>
+                            <button type="submit" class="btn btn-info btn-sm text-white">
+                                <i class="fas fa-upload me-1"></i>Ajouter
+                            </button>
+                        </div>
+                        <div class="text-muted mt-1" style="font-size:.7rem">Max 10 Mo</div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Réassigner le ticket -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-user-edit me-2 text-secondary"></i>Réassigner</h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/intra/tickets/{id}/assign(id=${request.id})}" method="post">
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Client</label>
+                            <select name="customerId" id="assignCustomer" class="form-select form-select-sm"
+                                    onchange="reloadAssignSelects(this)">
+                                <option value="">— Choisir un client —</option>
+                                <option th:each="c : ${allCustomers}"
+                                        th:value="${c.id}"
+                                        th:text="${c.companyName}"
+                                        th:selected="${request.customer != null and request.customer.id == c.id}">
+                                </option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Site</label>
+                            <select name="siteId" id="assignSiteSelect" class="form-select form-select-sm">
+                                <option value="">— Tous les sites —</option>
+                                <option th:each="s : ${customerSites}"
+                                        th:value="${s.id}"
+                                        th:text="${s.name}"
+                                        th:selected="${request.site != null and request.site.id == s.id}">
+                                </option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Contact</label>
+                            <select name="contactId" id="assignContactSelect" class="form-select form-select-sm">
+                                <option value="">— Aucun contact —</option>
+                                <option th:each="c : ${contacts}"
+                                        th:value="${c.id}"
+                                        th:text="${c.firstName + ' ' + c.lastName + (c.site != null ? ' (' + c.site.name + ')' : '')}"
+                                        th:selected="${request.contact != null and request.contact.id == c.id}">
+                                </option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-secondary btn-sm w-100">
+                            <i class="fas fa-check me-1"></i>Réassigner
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modal édition intervention -->
+    <div class="modal fade" id="editEntryModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h6 class="modal-title fw-bold"><i class="fas fa-pencil-alt me-2 text-info"></i>Modifier l'intervention</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="editEntryForm" th:action="@{/intra/tickets/{id}/time-entry/update(id=${request.id})}" method="post">
+                    <div class="modal-body">
+                        <input type="hidden" id="editEntryId" name="entryId">
+                        <div class="mb-2">
+                            <label class="form-label small">Date</label>
+                            <input type="date" id="editDate" name="date" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Heure début</label>
+                            <input type="time" id="editStartTime" name="startTimeStr" class="form-control form-control-sm">
+                        </div>
+                        <div class="d-flex gap-2 mb-2">
+                            <div class="flex-fill">
+                                <label class="form-label small">Durée — h</label>
+                                <input type="number" id="editHours" name="durationHours" class="form-control form-control-sm"
+                                       min="0" max="24" value="0">
+                            </div>
+                            <div class="flex-fill">
+                                <label class="form-label small">Durée — min</label>
+                                <input type="number" id="editMins" name="durationMins" class="form-control form-control-sm"
+                                       min="0" max="59" value="0">
+                            </div>
+                        </div>
+                        <div class="mb-1">
+                            <label class="form-label small">Description</label>
+                            <textarea id="editDescription" name="description" class="form-control form-control-sm" rows="3"
+                                      placeholder="Ex: Diagnostic, Installation..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-info btn-sm text-white">
+                            <i class="fas fa-save me-1"></i>Enregistrer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script th:inline="javascript">
+    (function () {
+        // ── Heure actuelle par défaut dans le formulaire d'ajout ─────────────
+        function nowHHMM() {
+            var d = new Date();
+            return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+        }
+        var addStartTime = document.getElementById('addStartTime');
+        if (addStartTime) addStartTime.value = nowHHMM();
+
+        // ── Auto-calcul durée si heures=0 et minutes=0 à la soumission ──────
+        function autoDuration(startTimeInput, hoursInput, minsInput) {
+            var h = parseInt(hoursInput.value) || 0;
+            var m = parseInt(minsInput.value) || 0;
+            if (h === 0 && m === 0 && startTimeInput.value) {
+                var parts = startTimeInput.value.split(':');
+                var start = new Date();
+                start.setHours(parseInt(parts[0]), parseInt(parts[1]), 0, 0);
+                var now = new Date();
+                var diffMin = Math.round((now - start) / 60000);
+                if (diffMin > 0) {
+                    hoursInput.value = Math.floor(diffMin / 60);
+                    minsInput.value  = diffMin % 60;
+                } else {
+                    alert('L\'heure de début est dans le futur ou identique à maintenant. Veuillez saisir une durée.');
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        var addForm = document.getElementById('addEntryForm');
+        if (addForm) {
+            addForm.addEventListener('submit', function (e) {
+                if (!autoDuration(
+                    document.getElementById('addStartTime'),
+                    document.getElementById('addHours'),
+                    document.getElementById('addMins')
+                )) e.preventDefault();
+            });
+        }
+
+        // ── Pré-remplissage du modal d'édition ───────────────────────────────
+        var editModal = document.getElementById('editEntryModal');
+        if (editModal) {
+            editModal.addEventListener('show.bs.modal', function (e) {
+                var btn = e.relatedTarget;
+                document.getElementById('editEntryId').value    = btn.dataset.entryId   || '';
+                document.getElementById('editDate').value       = btn.dataset.date       || '';
+                document.getElementById('editStartTime').value  = btn.dataset.startTime  || '';
+                document.getElementById('editHours').value      = btn.dataset.hours      || 0;
+                document.getElementById('editMins').value       = btn.dataset.mins       || 0;
+                document.getElementById('editDescription').value = btn.dataset.description || '';
+            });
+        }
+
+        // ── Réassignation : reload selects via HTMX ──────────────────────────
+        var tid = /*[[${request.id}]]*/ 0;
+        window.reloadAssignSelects = function (sel) {
+            var cid = sel.value;
+            if (!cid) {
+                document.getElementById('assignSiteSelect').innerHTML    = '<option value="">— Tous les sites —</option>';
+                document.getElementById('assignContactSelect').innerHTML  = '<option value="">— Aucun contact —</option>';
+                return;
+            }
+            htmx.ajax('GET', '/intra/tickets/' + tid + '/site-options?customerId='   + cid, {target: '#assignSiteSelect',   swap: 'innerHTML'});
+            htmx.ajax('GET', '/intra/tickets/' + tid + '/contact-options?customerId=' + cid, {target: '#assignContactSelect', swap: 'innerHTML'});
+        };
+    })();
+    </script>
+</div>
+</body>
+</html>

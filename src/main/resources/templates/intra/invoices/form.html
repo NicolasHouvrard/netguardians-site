@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Nouvelle facture</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a th:href="${ticket != null ? '/intra/tickets/' + ticket.id : '/intra/invoices'}"
+           class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0"><i class="fas fa-file-invoice me-2 text-primary"></i>Nouvelle facture</h4>
+    </div>
+
+    <div th:if="${ticket != null}" class="alert alert-info d-flex align-items-center gap-2 mb-4">
+        <i class="fas fa-ticket"></i>
+        <span>Liée au ticket <strong th:text="'#' + ${ticket.id} + ' – ' + ${ticket.title}"></strong></span>
+    </div>
+
+    <div class="card border-0 shadow-sm" style="max-width:640px">
+        <div class="card-body">
+            <form th:action="@{/intra/invoices}" method="post">
+                <input type="hidden" name="ticketId" th:if="${ticket != null}" th:value="${ticket.id}">
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Client <span class="text-danger">*</span></label>
+                    <select name="customerId" class="form-select" required>
+                        <option value="">— Choisir un client —</option>
+                        <option th:each="c : ${customers}"
+                                th:value="${c.id}"
+                                th:text="${c.companyName}"
+                                th:selected="${ticket != null and ticket.customer != null and ticket.customer.id == c.id}">
+                        </option>
+                    </select>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-6">
+                        <label class="form-label fw-semibold">Date de facturation</label>
+                        <input type="date" name="invoiceDate" class="form-control"
+                               th:value="${#temporals.format(#temporals.createToday(), 'yyyy-MM-dd')}">
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label fw-semibold">Date d'échéance</label>
+                        <input type="date" name="dueDate" class="form-control">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Taux TVA (%)</label>
+                    <input type="number" name="taxRate" class="form-control" step="0.01" value="20.00">
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-semibold">Notes</label>
+                    <textarea name="notes" class="form-control" rows="3" placeholder="Conditions, mentions légales..."></textarea>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>Créer la facture
+                    </button>
+                    <a th:href="${ticket != null ? '/intra/tickets/' + ticket.id : '/intra/invoices'}"
+                       class="btn btn-outline-secondary">Annuler</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

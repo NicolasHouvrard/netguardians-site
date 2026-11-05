@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Place de marché</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-store me-2 text-info"></i>Place de marché</h4>
+            <div class="text-muted small mt-1">Interventions publiées en attente d'une ESN partenaire</div>
+        </div>
+        <a href="/intra/interventions" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-wrench me-1"></i>Toutes les interventions
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div th:if="${#lists.isEmpty(published)}" class="text-center py-5 text-muted">
+        <i class="fas fa-store fa-3x mb-3 d-block text-info opacity-25"></i>
+        <div class="fw-semibold">Aucune intervention publiée sur la place de marché.</div>
+        <div class="small mt-1">Publiez une intervention depuis sa fiche pour qu'elle apparaisse ici.</div>
+    </div>
+
+    <div class="row g-4" th:unless="${#lists.isEmpty(published)}">
+        <div class="col-lg-6" th:each="i : ${published}">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="badge text-bg-info me-1">
+                            <i class="fas fa-store me-1"></i>Marketplace
+                        </span>
+                        <span class="badge text-bg-secondary" th:text="${i.type.label}"></span>
+                    </div>
+                    <span class="text-muted small"
+                          th:text="${i.date != null ? #temporals.format(i.date,'dd/MM/yyyy') : '—'}"></span>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+                        <div>
+                            <div class="fw-bold" th:text="${i.reference}"></div>
+                            <div class="fw-semibold" th:text="${i.title}"></div>
+                        </div>
+                        <a th:href="@{/intra/interventions/{id}(id=${i.id})}"
+                           class="btn btn-outline-info btn-sm text-nowrap">
+                            <i class="fas fa-arrow-right me-1"></i>Gérer
+                        </a>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-3 mb-3 text-muted small">
+                        <span th:if="${i.customer != null}">
+                            <i class="fas fa-building me-1"></i><span th:text="${i.customer.companyName}"></span>
+                        </span>
+                        <span th:if="${i.city != null}">
+                            <i class="fas fa-map-marker-alt me-1"></i><span th:text="${i.city}"></span>
+                        </span>
+                        <span th:if="${i.durationMinutes != null and i.durationMinutes > 0}">
+                            <i class="fas fa-clock me-1"></i><span th:text="${i.formattedDuration}"></span>
+                        </span>
+                        <span th:if="${i.hourlyRateClient != null}">
+                            <i class="fas fa-euro-sign me-1"></i>
+                            <span th:text="${#numbers.formatDecimal(i.hourlyRateClient, 1, 2) + ' €/h client'}"></span>
+                        </span>
+                    </div>
+
+                    <div th:if="${i.description != null and not #strings.isEmpty(i.description)}"
+                         class="small text-muted mb-3"
+                         style="overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical"
+                         th:text="${i.description}"></div>
+
+                    <!-- Candidatures -->
+                    <div class="border-top pt-2">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span class="small fw-semibold text-muted">
+                                <i class="fas fa-users me-1"></i>
+                                <span th:text="${#lists.size(i.applications)}"></span> candidature(s)
+                            </span>
+                            <button class="btn btn-xs btn-info py-0 px-2"
+                                    th:data-iid="${i.id}"
+                                    onclick="openApply(this)"
+                                    th:if="${not #lists.isEmpty(esns)}">
+                                <i class="fas fa-plus me-1" style="font-size:.7rem"></i>Ajouter candidature
+                            </button>
+                        </div>
+
+                        <div th:if="${not #lists.isEmpty(i.applications)}"
+                             class="mt-2">
+                            <div th:each="app : ${i.applications}"
+                                 class="d-flex align-items-center justify-content-between py-1 border-bottom">
+                                <div class="small fw-semibold" th:text="${app.partnerEsn.companyName}"></div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span th:if="${app.proposedRate != null}" class="small text-muted"
+                                          th:text="${#numbers.formatDecimal(app.proposedRate, 1, 2) + ' €/h'}"></span>
+                                    <span class="badge"
+                                          th:classappend="${app.status.name() == 'ACCEPTED' ? 'text-bg-success' :
+                                                            app.status.name() == 'REJECTED' ? 'text-bg-danger' : 'text-bg-secondary'}"
+                                          th:text="${app.status.label}"></span>
+                                    <div th:if="${app.status.name() == 'PENDING'}" class="d-flex gap-1">
+                                        <form th:action="@{/intra/interventions/{id}/applications/{aid}/accept(id=${i.id},aid=${app.id})}"
+                                              method="post">
+                                            <button type="submit" class="btn btn-xs btn-success py-0 px-1"
+                                                    title="Accepter">
+                                                <i class="fas fa-check" style="font-size:.6rem"></i>
+                                            </button>
+                                        </form>
+                                        <form th:action="@{/intra/interventions/{id}/applications/{aid}/reject(id=${i.id},aid=${app.id})}"
+                                              method="post">
+                                            <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1"
+                                                    title="Refuser">
+                                                <i class="fas fa-times" style="font-size:.6rem"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal ajouter candidature depuis marketplace -->
+    <div class="modal fade" id="modalApply" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="applyForm" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-store me-2"></i>Ajouter une candidature ESN</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">ESN partenaire <span class="text-danger">*</span></label>
+                            <select name="esnId" class="form-select form-select-sm" required>
+                                <option value="">— Choisir —</option>
+                                <option th:each="esn : ${esns}" th:value="${esn.id}"
+                                        th:text="${esn.companyName}"></option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Taux proposé (€/h)</label>
+                            <input type="number" name="proposedRate" class="form-control form-control-sm"
+                                   step="0.01" min="0" placeholder="0.00">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Message</label>
+                            <textarea name="message" class="form-control form-control-sm" rows="3"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-info btn-sm">Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script>
+function openApply(btn) {
+    var iid = btn.dataset.iid;
+    document.getElementById('applyForm').action = '/intra/interventions/' + iid + '/applications';
+    new bootstrap.Modal(document.getElementById('modalApply')).show();
+}
+</script>
+</th:block>
+</body>
+</html>

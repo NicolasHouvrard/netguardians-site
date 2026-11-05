@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head><title>Soumettre une demande</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="row justify-content-center">
+        <div class="col-lg-7 col-md-9">
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4 p-md-5">
+                    <h3 class="mb-1"><i class="fas fa-headset me-2 text-primary"></i>Soumettre une demande</h3>
+                    <p class="text-muted mb-4">Notre équipe vous répondra dans les plus brefs délais.</p>
+
+                    <form method="post" action="/public/demande">
+
+                        <!-- Coordonnées — masquées si connecté -->
+                        <div th:unless="${loggedUser != null}">
+                            <div class="row g-3 mb-3">
+                                <div class="col-sm-6">
+                                    <label class="form-label fw-semibold">Prénom</label>
+                                    <input type="text" name="firstName" class="form-control"
+                                           th:value="${contact?.firstName}"
+                                           placeholder="Jean">
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label fw-semibold">Nom</label>
+                                    <input type="text" name="lastName" class="form-control"
+                                           th:value="${contact?.lastName}"
+                                           placeholder="Dupont">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Adresse e-mail <span class="text-danger">*</span></label>
+                                <input type="email" name="email" class="form-control" required
+                                       th:value="${contact?.email}"
+                                       placeholder="jean.dupont@exemple.fr">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Société</label>
+                                <input type="text" name="company" class="form-control"
+                                       placeholder="Votre entreprise (optionnel)">
+                            </div>
+                        </div>
+
+                        <!-- Bandeau connecté -->
+                        <div th:if="${loggedUser != null}" class="alert alert-info d-flex align-items-center gap-2 mb-3">
+                            <i class="fas fa-user-circle fa-lg"></i>
+                            <span>Connecté en tant que <strong th:text="${loggedUser.username}"></strong></span>
+                        </div>
+
+                        <!-- Sujet + message -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Sujet <span class="text-danger">*</span></label>
+                            <input type="text" name="subject" class="form-control" required
+                                   placeholder="Décrivez votre problème en quelques mots">
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Message <span class="text-danger">*</span></label>
+                            <textarea name="message" class="form-control" rows="6" required
+                                      placeholder="Décrivez votre demande en détail…"></textarea>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-paper-plane me-2"></i>Envoyer ma demande
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

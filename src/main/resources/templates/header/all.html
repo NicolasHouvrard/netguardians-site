@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head></head>
+<body>
+    <nav th:fragment="navbar" class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/"
+               th:classappend="${currentUri == '/'} ? 'active text-warning fw-bold' : ''"
+               th:text="${siteSettings?.siteName} ?: 'Mon Site'">Mon Site</a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <th:block th:each="item : ${mainMenuItems}">
+
+                        <!-- Dropdown if the item has children -->
+                        <li th:if="${not item.children.isEmpty()}" class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown"
+                               th:text="${item.label}">Menu</a>
+                            <ul class="dropdown-menu">
+                                <li th:each="child : ${item.children}" th:if="${child.active}">
+                                    <a class="dropdown-item"
+                                       th:href="${child.resolvedUrl}"
+                                       th:target="${child.target}"
+                                       th:text="${child.label}">Lien</a>
+                                </li>
+                            </ul>
+                        </li>
+
+                        <!-- Direct link -->
+                        <li th:if="${item.children.isEmpty()}" class="nav-item">
+                            <a class="nav-link"
+                               th:href="${item.resolvedUrl}"
+                               th:target="${item.target}"
+                               th:classappend="${#strings.startsWith(currentUri, item.resolvedUrl) and item.resolvedUrl != '#'} ? 'active' : ''"
+                               th:text="${item.label}">Lien</a>
+                        </li>
+
+                    </th:block>
+                </ul>
+
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/boutique}"
+                           th:classappend="${#strings.startsWith(currentUri,'/boutique')} ? 'active' : ''">
+                            <i class="fas fa-shop me-1"></i>Boutique
+                        </a>
+                    </li>
+                    <li sec:authorize="isAuthenticated()" th:insert="~{header/connected :: header-connected}"></li>
+                    <li sec:authorize="not isAuthenticated()" th:insert="~{header/public :: header-public}"></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+</body>
+</html>

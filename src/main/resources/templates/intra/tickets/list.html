@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Demandes &amp; Incidents</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-ticket me-2 text-warning"></i>Demandes &amp; Incidents</h4>
+        <div class="d-flex gap-2">
+            <a href="/intra/tickets/routing" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-filter me-1"></i>Règles de routage
+            </a>
+            <a href="/intra/tickets/create" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus me-1"></i>Nouveau ticket
+            </a>
+        </div>
+    </div>
+
+    <!-- Filtres -->
+    <form method="get" action="/intra/tickets" class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-sm-3">
+                    <label class="form-label small fw-semibold">Client</label>
+                    <select name="customerId" class="form-select form-select-sm">
+                        <option value="">Tous les clients</option>
+                        <option th:each="c : ${customers != null ? customers : T(java.util.Collections).emptyList()}"
+                                th:value="${c.id}"
+                                th:text="${c.companyName}"
+                                th:selected="${selectedCustomerId != null and selectedCustomerId == c.id}">
+                        </option>
+                    </select>
+                </div>
+                <div class="col-sm-2">
+                    <label class="form-label small fw-semibold">Statut</label>
+                    <select name="statusFilter" class="form-select form-select-sm">
+                        <option value="">Tous</option>
+                        <option value="open"         th:selected="${statusFilter == 'open'}">Ouverts</option>
+                        <option value="NEW"           th:selected="${statusFilter == 'NEW'}">Nouveaux</option>
+                        <option value="IN_PROGRESS"   th:selected="${statusFilter == 'IN_PROGRESS'}">En cours</option>
+                        <option value="COMPLETED"     th:selected="${statusFilter == 'COMPLETED'}">Terminés</option>
+                        <option value="CANCELLED"     th:selected="${statusFilter == 'CANCELLED'}">Annulés</option>
+                    </select>
+                </div>
+                <div class="col-sm-2">
+                    <label class="form-label small fw-semibold">Priorité</label>
+                    <select name="priorityFilter" class="form-select form-select-sm">
+                        <option value="">Toutes</option>
+                        <option th:each="p : ${priorities != null ? priorities : T(java.util.Collections).emptyList()}"
+                                th:value="${p.name()}"
+                                th:text="${p.displayValue}"
+                                th:selected="${priorityFilter == p.name()}">
+                        </option>
+                    </select>
+                </div>
+                <div class="col-sm-2">
+                    <label class="form-label small fw-semibold">Affecté à</label>
+                    <select name="assignedToFilter" class="form-select form-select-sm">
+                        <option value="">Tous</option>
+                        <option value="unassigned" th:selected="${assignedToFilter == 'unassigned'}">— Non affecté —</option>
+                        <option th:each="u : ${technicians != null ? technicians : T(java.util.Collections).emptyList()}"
+                                th:value="${u.id}"
+                                th:text="${u.fullName}"
+                                th:selected="${assignedToFilter != null and assignedToFilter == u.id.toString()}">
+                        </option>
+                    </select>
+                </div>
+                <div class="col-sm-2">
+                    <label class="form-label small fw-semibold">Équipe</label>
+                    <select name="teamFilter" class="form-select form-select-sm">
+                        <option value="">Toutes</option>
+                        <option value="unassigned" th:selected="${teamFilter == 'unassigned'}">— Sans équipe —</option>
+                        <option th:each="t : ${teams != null ? teams : T(java.util.Collections).emptyList()}"
+                                th:value="${t.id}"
+                                th:text="${t.name}"
+                                th:selected="${teamFilter != null and teamFilter == t.id.toString()}">
+                        </option>
+                    </select>
+                </div>
+                <div class="col-sm-1">
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                        <i class="fas fa-filter"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Barre d'actions groupées (masquée par défaut) -->
+    <div id="bulkBar" class="d-none mb-3">
+        <form method="post" action="/intra/tickets/bulk" id="bulkForm">
+            <div class="card border-warning shadow-sm">
+                <div class="card-body py-2 d-flex align-items-center gap-3 flex-wrap">
+                    <span class="fw-semibold text-warning">
+                        <i class="fas fa-check-square me-1"></i>
+                        <span id="bulkCount">0</span> ticket(s) sélectionné(s)
+                    </span>
+                    <div id="bulkHiddenIds"></div>
+                    <div class="ms-auto d-flex gap-2 flex-wrap">
+                        <button type="submit" name="action" value="cancel"
+                                class="btn btn-sm btn-outline-warning"
+                                onclick="return confirm('Annuler les tickets sélectionnés ?')">
+                            <i class="fas fa-ban me-1"></i>Annuler
+                        </button>
+                        <button type="submit" name="action" value="close"
+                                class="btn btn-sm btn-outline-success"
+                                onclick="return confirm('Clôturer les tickets sélectionnés ?')">
+                            <i class="fas fa-check-circle me-1"></i>Clôturer
+                        </button>
+                        <button type="submit" name="action" value="delete"
+                                class="btn btn-sm btn-danger"
+                                onclick="return confirm('Supprimer définitivement les tickets sélectionnés ? Cette action est irréversible.')">
+                            <i class="fas fa-trash me-1"></i>Supprimer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tableau -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center gap-2">
+            <span class="fw-semibold">
+                <span th:text="${totalCount}">0</span> ticket(s)
+                <span th:if="${totalPages > 1}" class="text-muted fw-normal small">
+                    — page <span th:text="${currentPage + 1}"></span>/<span th:text="${totalPages}"></span>
+                </span>
+            </span>
+        </div>
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(requests)}" class="text-center py-5 text-muted">
+                <i class="fas fa-inbox fa-2x mb-3 d-block"></i>
+                Aucun ticket pour ces filtres.
+            </div>
+            <div class="table-responsive" th:if="${not #lists.isEmpty(requests)}">
+                <table class="table table-hover align-middle mb-0" id="ticketsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3" style="width:40px">
+                                <input type="checkbox" id="selectAll" class="form-check-input">
+                            </th>
+                            <th>#</th>
+                            <th>Client</th>
+                            <th>Demandeur</th>
+                            <th>Titre</th>
+                            <th>Type</th>
+                            <th>Priorité</th>
+                            <th>Statut</th>
+                            <th>Affecté à</th>
+                            <th>Équipe</th>
+                            <th>Date</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="r : ${requests != null ? requests : T(java.util.Collections).emptyList()}"
+                            class="ticket-row">
+                            <td class="ps-3">
+                                <input type="checkbox" class="form-check-input ticket-cb"
+                                       th:value="${r.id}" th:data-id="${r.id}">
+                            </td>
+                            <td class="text-muted small" th:text="${r.id}"></td>
+                            <td>
+                                <a th:if="${r.customer != null}"
+                                   th:href="@{/intra/customers/{id}(id=${r.customer.id})}"
+                                   class="text-decoration-none fw-semibold"
+                                   th:text="${r.customer.companyName}"></a>
+                                <span th:unless="${r.customer != null}" class="text-muted fst-italic small">—</span>
+                            </td>
+                            <td>
+                                <span th:if="${r.contact != null}" class="fw-semibold small"
+                                      th:text="${r.contact.firstName + ' ' + r.contact.lastName}"></span>
+                                <span th:if="${r.contact == null and r.createdBy != null}" class="small"
+                                      th:text="${r.createdBy.fullName}"></span>
+                                <span th:if="${r.contact == null and r.createdBy == null and r.senderEmail != null}"
+                                      class="small text-muted font-monospace"
+                                      th:text="${r.senderEmail}"></span>
+                                <span th:if="${r.contact == null and r.createdBy == null and r.senderEmail == null}"
+                                      class="small text-muted">—</span>
+                            </td>
+                            <td th:text="${r.title}"></td>
+                            <td>
+                                <span th:if="${r.type != null}" class="small text-muted"
+                                      th:text="${r.type.label}"></span>
+                            </td>
+                            <td>
+                                <span class="badge" th:classappend="${r.priority.colorClass}"
+                                      th:text="${r.priority.displayValue}"></span>
+                            </td>
+                            <td>
+                                <span class="badge"
+                                      th:classappend="${r.status.name() == 'NEW'         ? 'text-bg-primary'   :
+                                                       r.status.name() == 'IN_PROGRESS' ? 'text-bg-warning'   :
+                                                       r.status.name() == 'COMPLETED'   ? 'text-bg-success'   :
+                                                                                           'text-bg-secondary'}"
+                                      th:text="${r.status.name() == 'NEW'         ? 'Nouveau'   :
+                                                 r.status.name() == 'IN_PROGRESS' ? 'En cours'  :
+                                                 r.status.name() == 'COMPLETED'   ? 'Terminé'   : 'Annulé'}">
+                                </span>
+                            </td>
+                            <td>
+                                <span th:if="${r.assignedTo != null}" class="small fw-semibold"
+                                      th:text="${r.assignedTo.fullName}"></span>
+                                <span th:if="${r.assignedTo == null}" class="small text-muted fst-italic">—</span>
+                            </td>
+                            <td>
+                                <span th:if="${r.assignedTeam != null}" class="small fw-semibold"
+                                      th:text="${r.assignedTeam.name}"></span>
+                                <span th:if="${r.assignedTeam == null}" class="small text-muted fst-italic">—</span>
+                            </td>
+                            <td class="text-muted small"
+                                th:text="${#temporals.format(r.sentAt != null ? r.sentAt : r.createdAt, 'dd/MM/yyyy HH:mm')}"></td>
+                            <td>
+                                <a th:href="@{/intra/tickets/{id}(id=${r.id})}"
+                                   class="btn btn-sm btn-outline-secondary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    <div th:if="${totalPages > 1}" class="d-flex justify-content-center align-items-center gap-1 mt-3">
+        <!-- Précédent -->
+        <a th:if="${currentPage > 0}"
+           th:href="@{/intra/tickets(page=${currentPage - 1},
+                       customerId=${selectedCustomerId},
+                       statusFilter=${statusFilter},
+                       priorityFilter=${priorityFilter},
+                       assignedToFilter=${assignedToFilter},
+                       teamFilter=${teamFilter})}"
+           class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-chevron-left"></i>
+        </a>
+        <span th:unless="${currentPage > 0}" class="btn btn-sm btn-outline-secondary disabled">
+            <i class="fas fa-chevron-left"></i>
+        </span>
+
+        <!-- Numéros de pages -->
+        <th:block th:each="p : ${#numbers.sequence(0, totalPages - 1)}">
+            <a th:if="${p != currentPage}"
+               th:href="@{/intra/tickets(page=${p},
+                           customerId=${selectedCustomerId},
+                           statusFilter=${statusFilter},
+                           priorityFilter=${priorityFilter},
+                           assignedToFilter=${assignedToFilter},
+                           teamFilter=${teamFilter})}"
+               class="btn btn-sm btn-outline-secondary"
+               th:text="${p + 1}"></a>
+            <span th:if="${p == currentPage}"
+                  class="btn btn-sm btn-primary disabled"
+                  th:text="${p + 1}"></span>
+        </th:block>
+
+        <!-- Suivant -->
+        <a th:if="${currentPage < totalPages - 1}"
+           th:href="@{/intra/tickets(page=${currentPage + 1},
+                       customerId=${selectedCustomerId},
+                       statusFilter=${statusFilter},
+                       priorityFilter=${priorityFilter},
+                       assignedToFilter=${assignedToFilter},
+                       teamFilter=${teamFilter})}"
+           class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-chevron-right"></i>
+        </a>
+        <span th:unless="${currentPage < totalPages - 1}" class="btn btn-sm btn-outline-secondary disabled">
+            <i class="fas fa-chevron-right"></i>
+        </span>
+    </div>
+
+    <script>
+    (function () {
+        var selectAll  = document.getElementById('selectAll');
+        var bulkBar    = document.getElementById('bulkBar');
+        var bulkCount  = document.getElementById('bulkCount');
+        var bulkIds    = document.getElementById('bulkHiddenIds');
+
+        function getChecked() {
+            return Array.from(document.querySelectorAll('.ticket-cb:checked'));
+        }
+
+        function updateBar() {
+            var checked = getChecked();
+            bulkCount.textContent = checked.length;
+            bulkBar.classList.toggle('d-none', checked.length === 0);
+
+            // Reconstruire les inputs hidden
+            bulkIds.innerHTML = '';
+            checked.forEach(function (cb) {
+                var inp = document.createElement('input');
+                inp.type  = 'hidden';
+                inp.name  = 'ids';
+                inp.value = cb.dataset.id;
+                bulkIds.appendChild(inp);
+            });
+        }
+
+        document.querySelectorAll('.ticket-cb').forEach(function (cb) {
+            cb.addEventListener('change', function () {
+                updateBar();
+                // Mise à jour de "select all" selon l'état réel
+                var all  = document.querySelectorAll('.ticket-cb');
+                var chk  = getChecked();
+                selectAll.indeterminate = chk.length > 0 && chk.length < all.length;
+                selectAll.checked       = chk.length === all.length;
+            });
+        });
+
+        if (selectAll) {
+            selectAll.addEventListener('change', function () {
+                document.querySelectorAll('.ticket-cb').forEach(function (cb) {
+                    cb.checked = selectAll.checked;
+                });
+                updateBar();
+            });
+        }
+    })();
+    </script>
+
+</div>
+</body>
+</html>

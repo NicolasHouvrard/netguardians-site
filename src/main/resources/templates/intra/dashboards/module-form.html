@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Module</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div th:replace="~{intra/nav :: dashboard-subnav(categoryName='Configuration')}"></div>
+
+    <!-- Datalist URLs -->
+    <datalist id="urlList">
+        <option th:each="route : ${availableRoutes}" th:value="${route}"></option>
+    </datalist>
+
+    <div class="pt-4" style="max-width:1100px">
+
+        <div class="d-flex align-items-center gap-3 mb-4">
+            <a href="/intra/dashboard/categories" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Retour aux catégories
+            </a>
+            <h1 class="h4 mb-0 fw-bold">
+                <span th:if="${adminModule.id == null}">Nouveau module</span>
+                <span th:if="${adminModule.id != null}">Modifier — <span th:text="${adminModule.title}"></span></span>
+            </h1>
+        </div>
+
+        <form method="post" th:action="@{/intra/dashboard/categories/module/save}">
+            <input type="hidden" name="id" th:value="${adminModule.id}">
+
+            <div class="row g-3">
+
+                <!-- ══ Ligne 1 : Informations + Rôles ══════════════════════════ -->
+
+                <!-- Informations -->
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-white fw-semibold">
+                            <i class="fas fa-info-circle me-2 text-primary"></i>Informations
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="mTitle" class="form-label fw-semibold">Titre <span class="text-danger">*</span></label>
+                                <input type="text" id="mTitle" name="title" class="form-control"
+                                       th:value="${adminModule.title}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="urlInput" class="form-label fw-semibold">URL <span class="text-danger">*</span></label>
+                                <input type="text" name="url" id="urlInput" class="form-control"
+                                       th:value="${adminModule.url}"
+                                       placeholder="/intra/..."
+                                       list="urlList"
+                                       required>
+                                <div class="form-text">Tapez <code>/intra</code> pour filtrer les routes disponibles</div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label for="mCategory" class="form-label fw-semibold">Catégorie</label>
+                                    <select id="mCategory" name="category" class="form-select form-select-sm">
+                                        <option value="" th:selected="${adminModule.category == null or #strings.isEmpty(adminModule.category)}">-- Aucune --</option>
+                                        <option th:each="cat : ${dashboardCategories}"
+                                                th:value="${cat}" th:text="${cat}"
+                                                th:selected="${cat == adminModule.category}"></option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label for="mAudience" class="form-label fw-semibold">Audience</label>
+                                    <select id="mAudience" name="audience" class="form-select form-select-sm">
+                                        <option value="ESN"    th:selected="${adminModule.audience == 'ESN' or adminModule.audience == null}">ESN (interne)</option>
+                                        <option value="CLIENT" th:selected="${adminModule.audience == 'CLIENT'}">CLIENT (portail)</option>
+                                        <option value="ALL"    th:selected="${adminModule.audience == 'ALL'}">Tous</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label for="mDisplayOrder" class="form-label fw-semibold">Ordre</label>
+                                    <input type="number" id="mDisplayOrder" name="displayOrder" class="form-control form-control-sm"
+                                           th:value="${adminModule.displayOrder ?: 10}" min="0">
+                                </div>
+                                <div class="col-6 d-flex align-items-end pb-1">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="mActive"
+                                               name="active" value="true" th:checked="${adminModule.active}">
+                                        <label class="form-check-label" for="mActive">Actif</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rôles requis -->
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-user-shield me-2 text-primary"></i>Rôles requis</span>
+                            <span class="badge bg-secondary fw-normal" style="font-size:.7rem">Aucun = tous les connectés</span>
+                        </div>
+                        <div class="card-body">
+
+                            <!-- Rôles ESN -->
+                            <div th:if="${#lists.size(allRoles.?[type == 'ESN' or type == null]) > 0}">
+                                <div class="text-muted small fw-semibold text-uppercase mb-2"
+                                     style="letter-spacing:.05em;font-size:.7rem">
+                                    <i class="fas fa-building me-1"></i>ESN — Interne
+                                </div>
+                                <div class="row g-1 mb-3">
+                                    <div th:each="role : ${allRoles}"
+                                         th:if="${role.type == 'ESN' or role.type == null}"
+                                         class="col-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox"
+                                                   name="rolesRequired"
+                                                   th:id="'role_' + ${role.name}"
+                                                   th:value="${role.name}"
+                                                   th:checked="${adminModule.roleRequired != null
+                                                       and #strings.contains(adminModule.roleRequired, role.name)}">
+                                            <label class="form-check-label small"
+                                                   th:for="'role_' + ${role.name}"
+                                                   th:text="${role.label}"></label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Rôles CLIENT -->
+                            <div th:if="${#lists.size(allRoles.?[type == 'CLIENT']) > 0}">
+                                <div class="text-muted small fw-semibold text-uppercase mb-2"
+                                     style="letter-spacing:.05em;font-size:.7rem">
+                                    <i class="fas fa-user me-1"></i>CLIENT — Portail
+                                </div>
+                                <div class="row g-1">
+                                    <div th:each="role : ${allRoles}"
+                                         th:if="${role.type == 'CLIENT'}"
+                                         class="col-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox"
+                                                   name="rolesRequired"
+                                                   th:id="'role_' + ${role.name}"
+                                                   th:value="${role.name}"
+                                                   th:checked="${adminModule.roleRequired != null
+                                                       and #strings.contains(adminModule.roleRequired, role.name)}">
+                                            <label class="form-check-label small"
+                                                   th:for="'role_' + ${role.name}"
+                                                   th:text="${role.label}"></label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ══ Ligne 2 : Apparence + Combinaisons rapides ══════════════ -->
+
+                <!-- Apparence : prévisualisation + pastilles couleur -->
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-white fw-semibold">
+                            <i class="fas fa-palette me-2 text-primary"></i>Apparence
+                        </div>
+                        <div class="card-body">
+                            <!-- Prévisualisation -->
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <div id="iconPreview" class="rounded d-flex align-items-center justify-content-center flex-shrink-0"
+                                     th:style="'width:52px;height:52px;background:' + (${adminModule.color} ?: '#0d6efd')">
+                                    <i id="iconPreviewI"
+                                       th:class="${adminModule.icon ?: 'fas fa-cube'} + ' text-white'"
+                                       style="font-size:1.3rem"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <label for="mIcon" class="form-label fw-semibold mb-1" style="font-size:.8rem">Classe FA</label>
+                                    <input type="text" id="mIcon" name="icon" class="form-control form-control-sm"
+                                           th:value="${adminModule.icon ?: 'fas fa-cube'}"
+                                           placeholder="fas fa-cube"
+                                           oninput="updatePreview()">
+                                    <input type="hidden" id="mColor" name="color"
+                                           th:value="${adminModule.color ?: '#0d6efd'}">
+                                </div>
+                            </div>
+                            <!-- Pastilles couleur -->
+                            <p class="form-label fw-semibold mb-2" style="font-size:.8rem">Couleur</p>
+                            <div class="d-flex flex-wrap gap-2" id="colorSwatches">
+                                <!-- rempli par JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Combinaisons rapides -->
+                <div class="col-md-8">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-white fw-semibold">
+                            <i class="fas fa-magic me-2 text-primary"></i>Combinaisons rapides
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="row g-0" id="colorCombos" style="max-height:220px;overflow-y:auto">
+                                <!-- rempli par JS en 2 colonnes -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ══ Ligne 3 : Sélecteur d'icônes pleine largeur ════════════ -->
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white fw-semibold">
+                            <i class="fas fa-icons me-2 text-primary"></i>Choisir une icône
+                        </div>
+                        <div class="card-body p-0">
+                            <ul class="nav nav-tabs px-3 pt-2" id="iconTabs"></ul>
+                            <div class="tab-content p-3" id="iconTabContent"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /row -->
+
+            <div class="d-flex gap-2 mt-4">
+                <button type="submit" class="btn btn-primary px-4">
+                    <i class="fas fa-save me-2"></i>Enregistrer
+                </button>
+                <a href="/intra/dashboard/categories" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Retour aux catégories
+                </a>
+            </div>
+
+        </form>
+    </div>
+
+</div>
+
+<th:block layout:fragment="script">
+<script>
+var COLORS = [
+    { label: 'Bleu',       hex: '#0d6efd' }, { label: 'Indigo',  hex: '#6366f1' },
+    { label: 'Violet',     hex: '#6f42c1' }, { label: 'Rose',    hex: '#e83e8c' },
+    { label: 'Rouge',      hex: '#dc3545' }, { label: 'Orange',  hex: '#fd7e14' },
+    { label: 'Jaune',      hex: '#ffc107' }, { label: 'Vert',    hex: '#198754' },
+    { label: 'Cyan',       hex: '#0dcaf0' }, { label: 'Teal',    hex: '#20c997' },
+    { label: 'Gris foncé', hex: '#343a40' }, { label: 'Ardoise', hex: '#0f172a' },
+    { label: 'Gris',       hex: '#6c757d' }, { label: 'Bleu nuit',hex: '#17a2b8' },
+    { label: 'Corail',     hex: '#f06543' }, { label: 'Prune',   hex: '#3a0ca3' },
+];
+
+var COMBOS = [
+    { label: 'Clients',          icon: 'fas fa-building',            color: '#0d6efd' },
+    { label: 'Tickets / SAV',    icon: 'fas fa-headset',             color: '#6f42c1' },
+    { label: 'Factures',         icon: 'fas fa-file-invoice',        color: '#198754' },
+    { label: 'Commandes',        icon: 'fas fa-box',                 color: '#fd7e14' },
+    { label: 'Appareils',        icon: 'fas fa-laptop',              color: '#0dcaf0' },
+    { label: 'Stock',            icon: 'fas fa-boxes',               color: '#ffc107' },
+    { label: 'Comptabilité',     icon: 'fas fa-coins',               color: '#20c997' },
+    { label: 'Interventions',    icon: 'fas fa-tools',               color: '#dc3545' },
+    { label: 'Utilisateurs',     icon: 'fas fa-users',               color: '#6366f1' },
+    { label: 'Dashboard',        icon: 'fas fa-chart-line',          color: '#0f172a' },
+    { label: 'Réseau',           icon: 'fas fa-network-wired',       color: '#17a2b8' },
+    { label: 'Sécurité',         icon: 'fas fa-shield-alt',          color: '#343a40' },
+    { label: 'Serveurs',         icon: 'fas fa-server',              color: '#495057' },
+    { label: 'Planning',         icon: 'fas fa-calendar-alt',        color: '#e83e8c' },
+    { label: 'Commercial',       icon: 'fas fa-handshake',           color: '#28a745' },
+    { label: 'Abonnements',      icon: 'fas fa-bookmark',            color: '#007bff' },
+    { label: 'Devis',            icon: 'fas fa-file-invoice-dollar', color: '#fd7e14' },
+    { label: 'Blog',             icon: 'fas fa-rss',                 color: '#e44d26' },
+    { label: 'Campagnes',        icon: 'fas fa-paper-plane',         color: '#00b4d8' },
+    { label: 'Fournisseurs',     icon: 'fas fa-truck',               color: '#6c757d' },
+    { label: 'Paramètres',       icon: 'fas fa-cog',                 color: '#adb5bd' },
+    { label: 'Boutique',         icon: 'fas fa-store',               color: '#f06543' },
+    { label: 'ESN partenaires',  icon: 'fas fa-sitemap',             color: '#3a0ca3' },
+    { label: 'Documents',        icon: 'fas fa-file-alt',            color: '#4cc9f0' },
+];
+
+var ICON_GROUPS = [
+    { label: 'Matériel', icons: [
+        ['fas fa-desktop','PC fixe'],['fas fa-laptop','Laptop'],['fas fa-print','Imprimante'],
+        ['fas fa-mobile-alt','Mobile'],['fas fa-keyboard','Clavier'],['fas fa-computer-mouse','Souris'],
+        ['fas fa-server','Serveur'],['fas fa-plug','Prise'],['fas fa-hard-drive','Disque dur'],
+        ['fas fa-tv','Écran'],['fas fa-camera','Caméra'],['fas fa-battery-full','Batterie'],
+        ['fas fa-microchip','CPU'],['fas fa-memory','RAM'],['fas fa-hdd','Stockage'],
+    ]},
+    { label: 'Réseau & Sécu', icons: [
+        ['fas fa-network-wired','Réseau'],['fas fa-wifi','Wi-Fi'],['fas fa-sitemap','Topologie'],
+        ['fas fa-globe','Internet'],['fas fa-cloud','Cloud'],['fas fa-shield-alt','Sécurité'],
+        ['fas fa-lock','Accès'],['fas fa-key','Clé'],['fas fa-broadcast-tower','Routeur'],
+        ['fas fa-link','Lien'],['fas fa-ethernet','Ethernet'],['fas fa-fire-alt','Firewall'],
+    ]},
+    { label: 'Support', icons: [
+        ['fas fa-wrench','Maintenance'],['fas fa-tools','Outils'],['fas fa-stethoscope','Diagnostic'],
+        ['fas fa-ticket-alt','Ticket'],['fas fa-clipboard-list','Checklist'],['fas fa-cogs','Config'],
+        ['fas fa-sync-alt','Synchro'],['fas fa-bug','Incident'],['fas fa-headset','Helpdesk'],
+        ['fas fa-stopwatch','Temps'],['fas fa-exclamation-triangle','Alerte'],['fas fa-history','Historique'],
+    ]},
+    { label: 'Personnes', icons: [
+        ['fas fa-user','Utilisateur'],['fas fa-users','Équipe'],['fas fa-user-tie','Commercial'],
+        ['fas fa-user-shield','Admin'],['fas fa-id-card','Profil'],['fas fa-address-book','Contacts'],
+        ['fas fa-phone','Téléphone'],['fas fa-envelope','Email'],['fas fa-handshake','Client'],
+        ['fas fa-user-cog','Paramètres user'],
+    ]},
+    { label: 'Finance', icons: [
+        ['fas fa-file-invoice','Facture'],['fas fa-coins','Finance'],['fas fa-credit-card','Paiement'],
+        ['fas fa-receipt','Reçu'],['fas fa-calculator','Calcul'],['fas fa-percentage','TVA'],
+        ['fas fa-euro-sign','Euro'],['fas fa-file-invoice-dollar','Devis'],['fas fa-balance-scale','Bilan'],
+        ['fas fa-landmark','Banque'],
+    ]},
+    { label: 'Gestion', icons: [
+        ['fas fa-chart-bar','Stats'],['fas fa-chart-line','Courbe'],['fas fa-chart-pie','Camembert'],
+        ['fas fa-calendar-alt','Agenda'],['fas fa-clock','Horaire'],['fas fa-tasks','Tâches'],
+        ['fas fa-list','Liste'],['fas fa-folder-open','Dossier'],['fas fa-tachometer-alt','Dashboard'],
+        ['fas fa-flag','Objectif'],
+    ]},
+    { label: 'Stock & Logistique', icons: [
+        ['fas fa-boxes','Stock'],['fas fa-box','Commande'],['fas fa-warehouse','Entrepôt'],
+        ['fas fa-barcode','Code-barres'],['fas fa-qrcode','QR code'],['fas fa-truck','Livraison'],
+        ['fas fa-recycle','Recyclage'],['fas fa-archive','Archivage'],['fas fa-tags','Étiquettes'],
+        ['fas fa-shopping-cart','Achats'],
+    ]},
+    { label: 'Divers', icons: [
+        ['fas fa-home','Accueil'],['fas fa-star','Favori'],['fas fa-bell','Notif'],
+        ['fas fa-cog','Réglage'],['fas fa-puzzle-piece','Module'],['fas fa-cube','Cube'],
+        ['fas fa-store','Boutique'],['fas fa-file-alt','Document'],['fas fa-image','Image'],
+        ['fas fa-rss','Blog'],['fas fa-paper-plane','Campagne'],['fas fa-lightbulb','Idée'],
+        ['fas fa-building','Entreprise'],['fas fa-briefcase','Affaires'],
+    ]},
+];
+
+function currentIcon()  { return document.getElementById('mIcon').value  || 'fas fa-cube'; }
+function currentColor() { return document.getElementById('mColor').value || '#0d6efd'; }
+
+function updatePreview() {
+    document.getElementById('iconPreview').style.background = currentColor();
+    document.getElementById('iconPreviewI').className = currentIcon() + ' text-white';
+}
+
+/* ── Pastilles couleur ─────────────────────────────────────────────────── */
+function renderSwatches() {
+    var cur = currentColor();
+    var html = '';
+    COLORS.forEach(function (c) {
+        var ring = c.hex === cur ? 'outline:3px solid #333;outline-offset:2px;' : '';
+        html += '<button type="button" title="' + c.label + '" onclick="selectColor(\'' + c.hex + '\')"'
+              + ' style="width:30px;height:30px;background:' + c.hex + ';border:none;border-radius:5px;cursor:pointer;' + ring + '">'
+              + '</button>';
+    });
+    document.getElementById('colorSwatches').innerHTML = html;
+}
+
+function selectColor(hex) {
+    document.getElementById('mColor').value = hex;
+    updatePreview();
+    renderSwatches();
+    renderCombos();
+}
+
+/* ── Combinaisons rapides (2 colonnes) ─────────────────────────────────── */
+function renderCombos() {
+    var icon  = currentIcon();
+    var color = currentColor();
+    var html  = '';
+    COMBOS.forEach(function (c) {
+        var active = (c.icon === icon && c.color === color) ? 'bg-light fw-semibold' : '';
+        html += '<div class="col-6">'
+              + '<button type="button" onclick="selectCombo(\'' + c.icon + '\',\'' + c.color + '\')"'
+              + ' class="d-flex align-items-center gap-2 w-100 border-0 border-bottom px-3 py-2 text-start ' + active + '"'
+              + ' style="background:transparent;cursor:pointer">'
+              + '<span class="rounded d-flex align-items-center justify-content-center flex-shrink-0"'
+              + '      style="width:28px;height:28px;background:' + c.color + '">'
+              + '<i class="' + c.icon + ' text-white" style="font-size:.7rem"></i></span>'
+              + '<span class="small">' + c.label + '</span>'
+              + '</button>'
+              + '</div>';
+    });
+    document.getElementById('colorCombos').innerHTML = html;
+}
+
+function selectCombo(icon, color) {
+    document.getElementById('mIcon').value  = icon;
+    document.getElementById('mColor').value = color;
+    updatePreview();
+    renderSwatches();
+    renderCombos();
+    highlightIcon(icon);
+}
+
+/* ── Onglets icônes ────────────────────────────────────────────────────── */
+function renderIconTabs() {
+    var tabsHtml = '', contentHtml = '';
+    ICON_GROUPS.forEach(function (g, idx) {
+        var id     = 'igtab' + idx;
+        var active = idx === 0 ? ' active' : '';
+        var show   = idx === 0 ? ' show active' : '';
+        tabsHtml += '<li class="nav-item"><button class="nav-link' + active
+                  + '" data-bs-toggle="tab" data-bs-target="#' + id + '" style="font-size:.82rem">'
+                  + g.label + '</button></li>';
+        contentHtml += '<div class="tab-pane fade' + show + '" id="' + id + '"><div class="row g-1">';
+        g.icons.forEach(function (ic) {
+            var cls = ic[0], lbl = ic[1];
+            contentHtml += '<div class="col-6 col-sm-4 col-md-3 col-lg-2">'
+                + '<button type="button" onclick="selectIcon(\'' + cls + '\')"'
+                + ' id="icon_' + cls.replace(/ /g,'_') + '"'
+                + ' class="icon-btn btn btn-sm btn-light w-100 d-flex align-items-center gap-2 text-start border"'
+                + ' style="font-size:.8rem;padding:.3rem .5rem">'
+                + '<i class="' + cls + '" style="width:14px;text-align:center;flex-shrink:0"></i>'
+                + '<span class="text-truncate">' + lbl + '</span></button></div>';
+        });
+        contentHtml += '</div></div>';
+    });
+    document.getElementById('iconTabs').innerHTML       = tabsHtml;
+    document.getElementById('iconTabContent').innerHTML = contentHtml;
+}
+
+function selectIcon(cls) {
+    document.getElementById('mIcon').value = cls;
+    updatePreview();
+    highlightIcon(cls);
+    renderCombos();
+}
+
+function highlightIcon(cls) {
+    document.querySelectorAll('.icon-btn').forEach(function (b) {
+        b.classList.remove('btn-primary', 'text-white');
+        b.classList.add('btn-light');
+    });
+    var btn = document.getElementById('icon_' + cls.replace(/ /g,'_'));
+    if (btn) {
+        btn.classList.remove('btn-light');
+        btn.classList.add('btn-primary', 'text-white');
+        var pane = btn.closest('.tab-pane');
+        if (pane) {
+            var trigger = document.querySelector('[data-bs-target="#' + pane.id + '"]');
+            if (trigger) new bootstrap.Tab(trigger).show();
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    renderSwatches();
+    renderCombos();
+    renderIconTabs();
+    highlightIcon(currentIcon());
+});
+</script>
+</th:block>
+
+</body>
+</html>

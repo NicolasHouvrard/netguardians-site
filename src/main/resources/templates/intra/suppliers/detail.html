@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title th:text="${supplier.companyName}">Fournisseur</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+        <a href="/intra/suppliers" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Fournisseurs
+        </a>
+        <div class="flex-grow-1">
+            <h4 class="mb-1" th:text="${supplier.companyName}"></h4>
+            <div class="d-flex gap-2 flex-wrap">
+                <span th:if="${supplier.supplierApiType != null}" class="badge"
+                      th:classappend="${supplier.supplierApiType.name() == 'NONE'        ? 'text-bg-secondary' :
+                                       supplier.supplierApiType.name() == 'INGRAM_MICRO' ? 'text-bg-primary'   :
+                                       supplier.supplierApiType.name() == 'TECHDATA'     ? 'text-bg-info'      : 'text-bg-warning'}"
+                      th:text="${supplier.supplierApiType.label}"></span>
+                <span class="badge"
+                      th:classappend="${supplier.active ? 'text-bg-success' : 'text-bg-secondary'}"
+                      th:text="${supplier.active ? 'Actif' : 'Inactif'}"></span>
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <a th:href="@{/intra/suppliers/{id}/settings(id=${supplier.id})}"
+               class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-cog me-1"></i>Paramètres
+            </a>
+            <form th:if="${supplier.supplierApiType != null and supplier.supplierApiType.name() != 'NONE'}"
+                  th:action="@{/intra/suppliers/{id}/sync(id=${supplier.id})}" method="post">
+                <button type="submit" class="btn btn-sm btn-info text-white">
+                    <i class="fas fa-sync me-1"></i>Synchroniser
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${infoMessage}" class="alert alert-info alert-dismissible fade show">
+        <i class="fas fa-info-circle me-2"></i><span th:text="${infoMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-triangle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${syncMessage}" class="alert alert-info alert-dismissible fade show">
+        <i class="fas fa-sync me-2"></i>
+        <strong>Synchronisation terminée :</strong>
+        <span th:text="${syncMessage}"></span>
+        <span th:if="${syncCreated != null}"> — Créés : <strong th:text="${syncCreated}"></strong></span>
+        <span th:if="${syncUpdated != null}"> | Mis à jour : <strong th:text="${syncUpdated}"></strong></span>
+        <span th:if="${syncErrors != null and syncErrors > 0}" class="text-danger"> | Erreurs : <strong th:text="${syncErrors}"></strong></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- Colonne principale -->
+        <div class="col-lg-8">
+
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-box me-2 text-success"></i>Catalogue fournisseur</h6>
+                    <span class="badge text-bg-secondary" th:text="${productPage.totalElements}"></span>
+                </div>
+                <!-- Filtre + taille de page + règle de prix -->
+                <div class="px-3 py-2 border-bottom bg-light">
+                    <form th:action="@{/intra/suppliers/{id}(id=${supplier.id})}" method="get"
+                          class="d-flex gap-2 align-items-center flex-wrap">
+                        <input type="hidden" name="page" value="0">
+                        <div class="input-group input-group-sm" style="min-width:200px;max-width:380px">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" name="search" class="form-control"
+                                   placeholder="Nom, réf. Ingram, marque…"
+                                   th:value="${search}">
+                            <button type="submit" class="btn btn-outline-secondary">Filtrer</button>
+                            <a th:if="${search != ''}"
+                               th:href="@{/intra/suppliers/{id}(id=${supplier.id},size=${currentSize})}"
+                               class="btn btn-outline-secondary" title="Effacer le filtre">×</a>
+                        </div>
+                        <select name="size" class="form-select form-select-sm" style="width:auto"
+                                onchange="this.form.submit()">
+                            <option value="10"  th:selected="${currentSize == 10}">10 / page</option>
+                            <option value="20"  th:selected="${currentSize == 20}">20 / page</option>
+                            <option value="50"  th:selected="${currentSize == 50}">50 / page</option>
+                            <option value="100" th:selected="${currentSize == 100}">100 / page</option>
+                        </select>
+                    </form>
+                    <!-- Règle de prix -->
+                    <div class="d-flex align-items-center gap-2 mt-2" th:if="${!#lists.isEmpty(pricingRules)}">
+                        <i class="fas fa-percent text-muted" style="font-size:.8rem"></i>
+                        <label class="small text-muted text-nowrap mb-0">Règle de prix :</label>
+                        <select id="globalRuleSelect" class="form-select form-select-sm" style="width:auto">
+                            <option value="">— Sans règle (prix à définir) —</option>
+                            <option th:each="r : ${pricingRules}"
+                                    th:value="${r.id}"
+                                    th:text="${r.name + ' (' + r.summary + ')'}"
+                                    th:selected="${defaultRule != null and r.id == defaultRule.id}"></option>
+                        </select>
+                        <a th:href="@{/intra/shop/pricing-rules}" target="_blank"
+                           class="btn btn-sm btn-outline-secondary" title="Gérer les règles">
+                            <i class="fas fa-cog"></i>
+                        </a>
+                    </div>
+                    <!-- Barre d'actions en masse (masquée par défaut) -->
+                    <div id="bulkActionBar" class="d-none mt-2 p-2 bg-primary text-white rounded d-flex align-items-center gap-3">
+                        <span id="bulkCount" class="small fw-semibold">0 sélectionné(s)</span>
+                        <button type="button" id="bulkPublishBtn" class="btn btn-sm btn-light">
+                            <i class="fas fa-store me-1"></i>Publier la sélection en boutique
+                        </button>
+                        <button type="button" id="bulkClearBtn" class="btn btn-sm btn-outline-light">
+                            Tout déselectionner
+                        </button>
+                    </div>
+                    <!-- Formulaire bulk (soumis par JS) -->
+                    <form id="bulkPublishForm"
+                          th:action="@{/intra/suppliers/{id}/products/publish-bulk(id=${supplier.id})}"
+                          method="post" style="display:none">
+                        <input type="hidden" name="page"   id="bulkPage"   th:value="${productPage.number}">
+                        <input type="hidden" name="size"   id="bulkSize"   th:value="${currentSize}">
+                        <input type="hidden" name="search" id="bulkSearch" th:value="${search}">
+                        <input type="hidden" name="ruleId" id="bulkRuleId" value="">
+                    </form>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(supplierProducts)}" class="text-center py-5 text-muted">
+                        <i class="fas fa-box fa-2x mb-3 d-block"></i>
+                        <span th:text="${search != '' ? 'Aucun résultat pour « ' + search + ' »' : 'Aucun produit associé.'}"></span>
+                    </div>
+                    <div class="table-responsive" th:unless="${#lists.isEmpty(supplierProducts)}">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th class="ps-3" style="width:36px">
+                                    <input type="checkbox" id="selectAll" class="form-check-input"
+                                           title="Tout sélectionner / désélectionner">
+                                </th>
+                                <th style="width:48px"></th>
+                                <th>Produit</th>
+                                <th>Réf. Ingram</th>
+                                <th>Réf. fabricant</th>
+                                <th>Marque</th>
+                                <th>P.A. HT</th>
+                                <th>Stock</th>
+                                <th>Synchro</th>
+                                <th></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="sp : ${supplierProducts}">
+                                <td class="ps-3">
+                                    <input type="checkbox" class="form-check-input row-check"
+                                           th:value="${sp.id}">
+                                </td>
+                                <td>
+                                    <div class="rounded bg-light d-flex align-items-center justify-content-center"
+                                         style="width:32px;height:32px">
+                                        <i class="fas fa-box text-muted" style="font-size:.75rem"></i>
+                                    </div>
+                                </td>
+                                <td>
+                                    <a th:href="@{/intra/products/{id}(id=${sp.product.id})}"
+                                       class="fw-semibold text-decoration-none text-dark"
+                                       th:text="${sp.product.name}"></a>
+                                    <div th:if="${sp.upcCode != null}" class="text-muted font-monospace" style="font-size:.7rem"
+                                         th:text="'UPC: ' + ${sp.upcCode}"></div>
+                                </td>
+                                <td class="text-muted small font-monospace" th:text="${sp.supplierReference ?: '—'}"></td>
+                                <td class="text-muted small font-monospace" th:text="${sp.vendorPartNumber ?: '—'}"></td>
+                                <td class="small" th:text="${sp.vendorName ?: '—'}"></td>
+                                <td>
+                                    <form th:action="@{/intra/suppliers/{id}/products/{spId}/update-pa(id=${supplier.id},spId=${sp.id})}"
+                                          method="post" class="d-flex align-items-center gap-1" style="min-width:110px">
+                                        <input type="hidden" name="page"   th:value="${productPage.number}">
+                                        <input type="hidden" name="size"   th:value="${currentSize}">
+                                        <input type="hidden" name="search" th:value="${search}">
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" name="purchasePrice" step="0.01" min="0"
+                                                   class="form-control form-control-sm font-monospace"
+                                                   style="width:80px"
+                                                   th:value="${sp.purchasePrice}"
+                                                   placeholder="PA HT">
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                                    title="Enregistrer le PA">
+                                                <i class="fas fa-save" style="font-size:.7rem"></i>
+                                            </button>
+                                        </div>
+                                    </form>
+                                </td>
+                                <td>
+                                    <span th:if="${sp.stockQuantity != null}" class="badge"
+                                          th:classappend="${sp.stockQuantity > 0 ? 'text-bg-success' : 'text-bg-danger'}"
+                                          th:text="${sp.stockQuantity}"></span>
+                                    <span th:unless="${sp.stockQuantity != null}" class="text-muted small">—</span>
+                                </td>
+                                <td class="text-muted small"
+                                    th:text="${sp.lastSyncAt != null ? #temporals.format(sp.lastSyncAt,'dd/MM HH:mm') : '—'}"></td>
+                                <td class="pe-3">
+                                    <div class="d-flex gap-1">
+                                        <form class="individual-publish-form"
+                                              th:action="@{/intra/suppliers/{id}/products/{spId}/publish-to-shop(id=${supplier.id},spId=${sp.id})}"
+                                              method="post">
+                                            <input type="hidden" name="page"   th:value="${productPage.number}">
+                                            <input type="hidden" name="size"   th:value="${currentSize}">
+                                            <input type="hidden" name="search" th:value="${search}">
+                                            <input type="hidden" name="ruleId" class="individual-rule-id" value="">
+                                            <button type="submit" class="btn btn-sm btn-outline-success"
+                                                    title="Publier en boutique">
+                                                <i class="fas fa-store"></i>
+                                            </button>
+                                        </form>
+                                        <form th:action="@{/intra/suppliers/{id}/products/{spId}/delete(id=${supplier.id},spId=${sp.id})}"
+                                              method="post"
+                                              onsubmit="return confirm('Retirer ce produit ?')">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Pagination -->
+                    <div th:if="${productPage.totalPages > 1}"
+                         class="d-flex align-items-center justify-content-between px-3 py-2 border-top bg-light"
+                         th:with="cur=${productPage.number}, tot=${productPage.totalPages},
+                                  wStart=${cur > 2 ? cur - 2 : 0},
+                                  wEnd=${cur + 2 < tot - 1 ? cur + 2 : tot - 1}">
+                        <small class="text-muted"
+                               th:text="${productPage.number * currentSize + 1} + '–' +
+                                        ${productPage.number * currentSize + #lists.size(supplierProducts)} +
+                                        ' sur ' + ${productPage.totalElements}"></small>
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0">
+                                <li class="page-item" th:classappend="${productPage.first ? 'disabled' : ''}">
+                                    <a class="page-link"
+                                       th:href="@{/intra/suppliers/{id}(id=${supplier.id},page=${cur - 1},size=${currentSize},search=${search != '' ? search : null})}">‹</a>
+                                </li>
+                                <!-- Première page si hors fenêtre -->
+                                <th:block th:if="${wStart > 0}">
+                                    <li class="page-item">
+                                        <a class="page-link"
+                                           th:href="@{/intra/suppliers/{id}(id=${supplier.id},page=0,size=${currentSize},search=${search != '' ? search : null})}">1</a>
+                                    </li>
+                                    <li class="page-item disabled" th:if="${wStart > 1}"><span class="page-link">…</span></li>
+                                </th:block>
+                                <!-- Fenêtre de pages -->
+                                <li th:each="i : ${#numbers.sequence(wStart, wEnd)}"
+                                    class="page-item" th:classappend="${i == cur ? 'active' : ''}">
+                                    <a class="page-link"
+                                       th:href="@{/intra/suppliers/{id}(id=${supplier.id},page=${i},size=${currentSize},search=${search != '' ? search : null})}"
+                                       th:text="${i + 1}"></a>
+                                </li>
+                                <!-- Dernière page si hors fenêtre -->
+                                <th:block th:if="${wEnd < tot - 1}">
+                                    <li class="page-item disabled" th:if="${wEnd < tot - 2}"><span class="page-link">…</span></li>
+                                    <li class="page-item">
+                                        <a class="page-link"
+                                           th:href="@{/intra/suppliers/{id}(id=${supplier.id},page=${tot - 1},size=${currentSize},search=${search != '' ? search : null})}"
+                                           th:text="${tot}"></a>
+                                    </li>
+                                </th:block>
+                                <li class="page-item" th:classappend="${productPage.last ? 'disabled' : ''}">
+                                    <a class="page-link"
+                                       th:href="@{/intra/suppliers/{id}(id=${supplier.id},page=${cur + 1},size=${currentSize},search=${search != '' ? search : null})}">›</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-top pt-3">
+                    <h6 class="small fw-semibold mb-3 text-muted">Ajouter un produit manuellement</h6>
+                    <form th:action="@{/intra/suppliers/{id}/products(id=${supplier.id})}" method="post">
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <select name="productId" class="form-select form-select-sm" required>
+                                    <option value="">— Produit —</option>
+                                    <option th:each="p : ${allProducts}"
+                                            th:value="${p.id}" th:text="${p.name}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="text" name="supplierReference" class="form-control form-control-sm"
+                                       placeholder="Réf. fourn.">
+                            </div>
+                            <div class="col-md-2">
+                                <input type="text" name="supplierName" class="form-control form-control-sm"
+                                       placeholder="Nom catalogue">
+                            </div>
+                            <div class="col-md-2">
+                                <div class="input-group input-group-sm">
+                                    <input type="number" name="purchasePrice" class="form-control"
+                                           step="0.01" min="0" placeholder="P.A. HT" required>
+                                    <span class="input-group-text">€</span>
+                                </div>
+                            </div>
+                            <div class="col-md-1">
+                                <input type="number" name="stockQuantity" class="form-control form-control-sm"
+                                       placeholder="Stock" min="0">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-sm btn-success w-100">
+                                    <i class="fas fa-plus me-1"></i>Ajouter
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Colonne latérale -->
+        <div class="col-lg-4">
+
+            <!-- Infos -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-info-circle me-2 text-secondary"></i>Informations</h6>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0 small">
+                        <dt class="col-5 text-muted">Email</dt>
+                        <dd class="col-7 mb-2" th:text="${supplier.email ?: '—'}"></dd>
+                        <dt class="col-5 text-muted">Téléphone</dt>
+                        <dd class="col-7 mb-2" th:text="${supplier.phone ?: '—'}"></dd>
+                        <dt class="col-5 text-muted">Site web</dt>
+                        <dd class="col-7 mb-2">
+                            <a th:if="${supplier.website != null}" th:href="${supplier.website}"
+                               target="_blank" class="text-decoration-none small"
+                               th:text="${supplier.website}"></a>
+                            <span th:unless="${supplier.website != null}">—</span>
+                        </dd>
+                        <dt class="col-5 text-muted">Adresse</dt>
+                        <dd class="col-7 mb-0" th:text="${supplier.address ?: '—'}"></dd>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- API sync -->
+            <div th:if="${supplier.supplierApiType != null and supplier.supplierApiType.name() != 'NONE'}"
+                 class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-sync me-2 text-info"></i>Synchronisation API</h6>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-3 small">
+                        <dt class="col-6 text-muted">API</dt>
+                        <dd class="col-6 mb-2" th:text="${supplier.supplierApiType.label}"></dd>
+                        <dt class="col-6 text-muted">N° client</dt>
+                        <dd class="col-6 mb-2 font-monospace" th:text="${supplier.supplierCustomerNumber ?: '—'}"></dd>
+                        <dt class="col-6 text-muted">Pays</dt>
+                        <dd class="col-6 mb-2" th:text="${supplier.supplierCountryCode ?: 'FR'}"></dd>
+                        <dt class="col-6 text-muted">Dernière synchro</dt>
+                        <dd class="col-6 mb-0"
+                            th:text="${supplier.supplierLastSyncAt != null ? #temporals.format(supplier.supplierLastSyncAt,'dd/MM/yyyy HH:mm') : 'Jamais'}"></dd>
+                    </dl>
+
+                    <!-- Sync rapide -->
+                    <form th:action="@{/intra/suppliers/{id}/sync(id=${supplier.id})}" method="post" class="mb-3">
+                        <button type="submit" class="btn btn-sm btn-info text-white w-100">
+                            <i class="fas fa-sync me-1"></i>Sync complète (défaut)
+                        </button>
+                    </form>
+
+                    <!-- Sync avancée Ingram -->
+                    <div th:if="${supplier.supplierApiType.name() == 'INGRAM_MICRO'}">
+                        <hr class="my-2">
+                        <p class="small fw-semibold text-muted mb-2">Sync filtrée Ingram Micro</p>
+                        <form th:action="@{/intra/suppliers/{id}/sync/ingram(id=${supplier.id})}" method="post">
+                            <div class="mb-2">
+                                <label class="form-label small">Marque / Fabricant</label>
+                                <input type="text" name="vendor" class="form-control form-control-sm"
+                                       placeholder="ex : Microsoft, HP, Lenovo…">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Mot-clé produit</label>
+                                <input type="text" name="keyword" class="form-control form-control-sm"
+                                       placeholder="ex : switch, laptop, antivirus…">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small">Pages max <span class="text-muted">(100 prod./page)</span></label>
+                                <input type="number" name="maxPages" class="form-control form-control-sm"
+                                       value="10" min="1" max="500">
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-primary w-100">
+                                <i class="fas fa-filter me-1"></i>Sync filtrée
+                            </button>
+                        </form>
+
+                        <hr class="my-2">
+                        <p class="small fw-semibold text-muted mb-1">
+                            <i class="fas fa-infinity me-1"></i>Catalogue complet (arrière-plan)
+                        </p>
+                        <p class="text-muted mb-2" style="font-size:.72rem">
+                            Importe toutes les références sans limite de pages.
+                            Filtres optionnels — laisser vide pour tout importer.
+                        </p>
+                        <form th:action="@{/intra/suppliers/{id}/sync/ingram/full(id=${supplier.id})}"
+                              method="post">
+                            <div class="mb-2">
+                                <label class="form-label small">Marques <span class="text-muted">(séparées par virgule)</span></label>
+                                <input type="text" name="vendors" class="form-control form-control-sm"
+                                       placeholder="ex : HP, Lenovo, Dell, Cisco…"
+                                       th:value="${syncState != null ? syncState.filterVendors : ''}">
+                                <div class="form-text" style="font-size:.68rem">Ingram filtre par OR — HP, Lenovo = HP ou Lenovo</div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Catégorie Ingram</label>
+                                <input type="text" name="category" class="form-control form-control-sm"
+                                       placeholder="ex : Computers, Networking, Storage…"
+                                       th:value="${syncState != null ? syncState.filterCategory : ''}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small">Mot-clé</label>
+                                <input type="text" name="keyword" class="form-control form-control-sm"
+                                       placeholder="ex : switch, SSD, antivirus…"
+                                       th:value="${syncState != null ? syncState.filterKeyword : ''}">
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-warning w-100"
+                                    th:disabled="${syncState != null and syncState.status.name() == 'RUNNING'}"
+                                    onclick="return confirm('Lancer la synchronisation complète du catalogue Ingram ? Cela peut prendre plusieurs heures.')">
+                                <i class="fas fa-cloud-download-alt me-1"></i>
+                                <span th:text="${syncState != null and syncState.status.name() == 'RUNNING'
+                                    ? 'Sync en cours…'
+                                    : 'Lancer le catalogue complet'}"></span>
+                            </button>
+                        </form>
+
+                        <hr class="my-2">
+                        <p class="small fw-semibold text-muted mb-1">
+                            <i class="fas fa-tag me-1"></i>Mise à jour prix &amp; stock
+                        </p>
+                        <p class="text-muted mb-2" style="font-size:.72rem">
+                            Rafraîchit uniquement les prix d'achat et le stock des produits déjà importés —
+                            sans reimporter le catalogue.
+                        </p>
+                        <form th:action="@{/intra/suppliers/{id}/sync/prices(id=${supplier.id})}" method="post">
+                            <button type="submit" class="btn btn-sm btn-success w-100"
+                                    th:disabled="${syncState != null and syncState.status.name() == 'RUNNING'}">
+                                <i class="fas fa-coins me-1"></i>
+                                <span th:text="${syncState != null and syncState.status.name() == 'RUNNING'
+                                    ? 'Sync en cours…'
+                                    : 'Mettre à jour prix/stock'}"></span>
+                            </button>
+                        </form>
+
+                        <!-- Zone de progression HTMX -->
+                        <div class="mt-2" th:replace="~{intra/suppliers/ingram-sync-status :: status}"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script>
+// ── Cases à cocher + actions en masse ─────────────────────────────────────
+(function() {
+    const selectAll     = document.getElementById('selectAll');
+    const bulkBar       = document.getElementById('bulkActionBar');
+    const bulkCount     = document.getElementById('bulkCount');
+    const bulkPublishBtn = document.getElementById('bulkPublishBtn');
+    const bulkClearBtn  = document.getElementById('bulkClearBtn');
+    const bulkForm      = document.getElementById('bulkPublishForm');
+    const ruleSelect    = document.getElementById('globalRuleSelect');
+
+    function getChecked() {
+        return [...document.querySelectorAll('.row-check:checked')];
+    }
+
+    function updateBar() {
+        const checked = getChecked();
+        if (checked.length > 0) {
+            bulkCount.textContent = checked.length + ' sélectionné(s)';
+            bulkBar.classList.remove('d-none');
+            bulkBar.classList.add('d-flex');
+        } else {
+            bulkBar.classList.add('d-none');
+            bulkBar.classList.remove('d-flex');
+        }
+        if (selectAll) {
+            const all = document.querySelectorAll('.row-check');
+            selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+            selectAll.checked = checked.length === all.length && all.length > 0;
+        }
+    }
+
+    // Sync ruleId vers tous les formulaires individuels
+    function syncRuleId() {
+        const ruleId = ruleSelect ? ruleSelect.value : '';
+        document.querySelectorAll('.individual-rule-id').forEach(el => el.value = ruleId);
+        if (document.getElementById('bulkRuleId')) document.getElementById('bulkRuleId').value = ruleId;
+    }
+
+    document.querySelectorAll('.row-check').forEach(cb => cb.addEventListener('change', updateBar));
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            document.querySelectorAll('.row-check').forEach(cb => cb.checked = this.checked);
+            updateBar();
+        });
+    }
+
+    if (ruleSelect) ruleSelect.addEventListener('change', syncRuleId);
+
+    if (bulkClearBtn) {
+        bulkClearBtn.addEventListener('click', function() {
+            document.querySelectorAll('.row-check').forEach(cb => cb.checked = false);
+            if (selectAll) selectAll.checked = false;
+            updateBar();
+        });
+    }
+
+    if (bulkPublishBtn && bulkForm) {
+        bulkPublishBtn.addEventListener('click', function() {
+            const checked = getChecked();
+            if (checked.length === 0) return;
+            // Supprimer les anciens spIds
+            bulkForm.querySelectorAll('input[name="spIds"]').forEach(el => el.remove());
+            // Ajouter les spIds sélectionnés
+            checked.forEach(cb => {
+                const inp = document.createElement('input');
+                inp.type = 'hidden'; inp.name = 'spIds'; inp.value = cb.value;
+                bulkForm.appendChild(inp);
+            });
+            document.getElementById('bulkRuleId').value = ruleSelect ? ruleSelect.value : '';
+            bulkForm.submit();
+        });
+    }
+
+    // Initialiser ruleId au chargement
+    syncRuleId();
+    updateBar();
+})();
+
+</script>
+</th:block>
+</body>
+</html>

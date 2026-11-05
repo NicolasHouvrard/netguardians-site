@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head>
+    <title>Configuration réservation</title>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-0 fw-bold">
+                <i class="fas fa-calendar-plus me-2 text-primary"></i>
+                <span th:text="${config.id == null} ? 'Nouvelle configuration' : 'Modifier la configuration'"></span>
+            </h4>
+        </div>
+        <a href="/intra/booking" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body">
+            <form th:action="${config.id == null} ? '/intra/booking' : '/intra/booking/' + ${config.id} + '/update'"
+                  method="post">
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Titre <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control"
+                               th:value="${config.title}" required
+                               oninput="suggestSlug(this.value)">
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Slug (URL publique) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text text-muted">/booking/</span>
+                            <input type="text" name="slug" id="slugInput" class="form-control"
+                                   th:value="${config.slug}" required
+                                   pattern="[a-z0-9][a-z0-9\-]*"
+                                   placeholder="ex: support-technique">
+                        </div>
+                        <div class="form-text">Lettres minuscules, chiffres et tirets uniquement.</div>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Description</label>
+                        <textarea name="description" class="form-control" rows="2"
+                                  th:text="${config.description}"></textarea>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Équipe assignée</label>
+                        <select name="teamId" class="form-select">
+                            <option value="">— Aucune équipe —</option>
+                            <option th:each="team : ${teams}"
+                                    th:value="${team.id}"
+                                    th:text="${team.name}"
+                                    th:selected="${config.team != null and config.team.id == team.id}"></option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Type de rendez-vous</label>
+                        <select name="appointmentType" class="form-select">
+                            <option th:each="type : ${appointmentTypes}"
+                                    th:value="${type}"
+                                    th:text="${type.label}"
+                                    th:selected="${config.appointmentType == type}"></option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Durée du RDV (minutes)</label>
+                        <input type="number" name="durationMinutes" class="form-control"
+                               th:value="${config.durationMinutes}" min="5" max="480" step="5" required>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Buffer entre RDV (minutes)</label>
+                        <input type="number" name="bufferMinutes" class="form-control"
+                               th:value="${config.bufferMinutes}" min="0" max="120" step="5">
+                        <div class="form-text">Délai ajouté après chaque créneau.</div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Délai max de réservation (jours)</label>
+                        <input type="number" name="advanceDaysMax" class="form-control"
+                               th:value="${config.advanceDaysMax}" min="1" max="365" required>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Heure d'ouverture</label>
+                        <input type="time" name="openFrom" class="form-control"
+                               th:value="${config.openFrom}">
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Heure de fermeture</label>
+                        <input type="time" name="openTo" class="form-control"
+                               th:value="${config.openTo}">
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label fw-semibold d-block">Jours ouverts</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <div th:each="day : ${daysOfWeek}" class="form-check form-check-inline me-3">
+                                <input class="form-check-input" type="checkbox"
+                                       name="openDays"
+                                       th:id="'day_' + ${day}"
+                                       th:value="${day}"
+                                       th:checked="${config.openDays != null and config.openDays.contains(day)}">
+                                <label class="form-check-label" th:for="'day_' + ${day}"
+                                       th:text="${#strings.substring(day.name(),0,1) + #strings.toLowerCase(#strings.substring(day.name(),1))}"></label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="d-flex gap-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="withMeet" id="withMeet"
+                                       value="true" th:checked="${config.withMeet}">
+                                <label class="form-check-label" for="withMeet">
+                                    <i class="fas fa-video text-success me-1"></i>Créer un Google Meet automatiquement
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="active" id="active"
+                                       value="true" th:checked="${config.active or config.id == null}">
+                                <label class="form-check-label" for="active">Widget actif (visible publiquement)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <hr class="my-4">
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>Enregistrer
+                    </button>
+                    <a href="/intra/booking" class="btn btn-outline-secondary">Annuler</a>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let slugEdited = /*[[${config.id != null}]]*/ false;
+
+        function suggestSlug(title) {
+            if (slugEdited) return;
+            const slug = title.toLowerCase()
+                .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-|-$/g, '');
+            document.getElementById('slugInput').value = slug;
+        }
+
+        document.getElementById('slugInput').addEventListener('input', () => {
+            slugEdited = true;
+        });
+    </script>
+</div>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title th:text="${product != null ? 'Modifier ' + product.name : 'Nouveau produit'}">Produit</title></head>
+<body>
+<div layout:fragment="content">
+
+    <!-- Header -->
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/intra/products" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0 flex-grow-1">
+            <i class="fas fa-box me-2 text-success"></i>
+            <span th:text="${product != null ? 'Modifier : ' + product.name : 'Nouveau produit'}"></span>
+        </h4>
+    </div>
+
+    <form th:action="${product != null ? '/intra/products/' + product.id + '/update' : '/intra/products'}"
+          method="post" enctype="multipart/form-data">
+
+        <div class="row g-4">
+
+            <!-- Main column -->
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-0 pt-3 pb-2">
+                        <h6 class="fw-bold mb-0"><i class="fas fa-info-circle me-2 text-success"></i>Informations générales</h6>
+                    </div>
+                    <div class="card-body">
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Nom <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control"
+                                   th:value="${product?.name}" required placeholder="Nom du produit ou service">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Description</label>
+                            <textarea name="description" class="form-control" rows="3"
+                                      placeholder="Description détaillée..."
+                                      th:text="${product?.description}"></textarea>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">SKU / Code interne</label>
+                                <input type="text" name="sku" class="form-control"
+                                       th:value="${product?.sku}" placeholder="REF-001">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Référence</label>
+                                <input type="text" name="reference" class="form-control"
+                                       th:value="${product?.reference}" placeholder="Référence fabricant">
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Type <span class="text-danger">*</span></label>
+                                <select name="type" class="form-select" required>
+                                    <option th:each="t : ${productTypes}"
+                                            th:value="${t.name()}"
+                                            th:text="${t.label}"
+                                            th:selected="${product != null and product.type == t}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Mode de tarification</label>
+                                <select name="pricingMode" class="form-select">
+                                    <option th:each="m : ${pricingModes}"
+                                            th:value="${m.name()}"
+                                            th:text="${m.label}"
+                                            th:selected="${product != null and product.pricingMode == m}"></option>
+                                </select>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Photo -->
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0 pt-3 pb-2">
+                        <h6 class="fw-bold mb-0"><i class="fas fa-image me-2 text-success"></i>Photo</h6>
+                    </div>
+                    <div class="card-body">
+                        <div th:if="${product != null and product.photoPath != null}" class="mb-3">
+                            <img th:src="${product.photoPath}" class="img-fluid rounded mb-2"
+                                 style="max-height:160px;object-fit:cover" alt="Photo actuelle">
+                            <div class="text-muted small">Photo actuelle. Uploader une nouvelle image pour la remplacer.</div>
+                        </div>
+                        <label class="form-label fw-semibold small">
+                            <span th:text="${product?.photoPath != null ? 'Nouvelle photo (optionnel)' : 'Photo (optionnel)'}"></span>
+                        </label>
+                        <input type="file" name="photo" class="form-control" accept="image/*">
+                        <div class="form-text">Formats acceptés : JPG, PNG, GIF, WebP.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-0 pt-3 pb-2">
+                        <h6 class="fw-bold mb-0"><i class="fas fa-euro-sign me-2 text-success"></i>Tarif</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Prix HT <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="number" name="priceHT" class="form-control" step="0.01" min="0"
+                                       th:value="${product?.priceHT}" placeholder="0.00" required>
+                                <span class="input-group-text">€</span>
+                            </div>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label fw-semibold small">Taux TVA (%)</label>
+                            <div class="input-group">
+                                <input type="number" name="taxRate" class="form-control" step="0.01" min="0"
+                                       th:value="${product?.taxRate ?: '20.00'}" placeholder="20.00">
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-0 pt-3 pb-2">
+                        <h6 class="fw-bold mb-0"><i class="fas fa-tag me-2 text-success"></i>Catégorie</h6>
+                    </div>
+                    <div class="card-body">
+                        <select name="categoryId" class="form-select">
+                            <option value="">— Aucune catégorie —</option>
+                            <th:block th:each="root : ${rootCategories}">
+                                <option th:value="${root.id}"
+                                        th:text="${root.name}"
+                                        th:selected="${product != null and product.category != null and product.category.id == root.id}"></option>
+                                <option th:each="child : ${root.children}"
+                                        th:value="${child.id}"
+                                        th:text="|  ↳ ${child.name}|"
+                                        th:selected="${product != null and product.category != null and product.category.id == child.id}"></option>
+                            </th:block>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="form-check">
+                            <input type="checkbox" name="active" value="true" class="form-check-input" id="chkActive"
+                                   th:checked="${product == null or product.active}">
+                            <label class="form-check-label fw-semibold" for="chkActive">Produit actif</label>
+                        </div>
+                        <div class="form-text">Un produit inactif n'apparaît pas dans les sélections client.</div>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>
+                        <span th:text="${product != null ? 'Enregistrer les modifications' : 'Créer le produit'}"></span>
+                    </button>
+                    <a href="/intra/products" class="btn btn-outline-secondary">Annuler</a>
+                </div>
+            </div>
+
+        </div>
+    </form>
+
+</div>
+</body>
+</html>

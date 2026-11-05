@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+<head><title>Console</title></head>
+<body>
+<div layout:fragment="content">
+<div class="container-fluid">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-cogs me-2 text-warning"></i>Console d'administration</h4>
+            <div class="text-muted small mt-1">Paramétrage de la plateforme</div>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3">
+                        <i class="fas fa-building text-primary fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${totalCustomers}">0</div>
+                        <div class="text-muted small">Clients</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-info bg-opacity-10 p-3">
+                        <i class="fas fa-users text-info fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${totalUsers}">0</div>
+                        <div class="text-muted small">Utilisateurs</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3">
+                        <i class="fas fa-ticket text-warning fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${openTickets}">0</div>
+                        <div class="text-muted small">Tickets ouverts</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                        <i class="fas fa-th-large text-success fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${totalModules}">0</div>
+                        <div class="text-muted small">Modules actifs</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sections -->
+    <div class="row g-4">
+
+        <!-- Site -->
+        <div class="col-md-6 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-1">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-globe me-2 text-primary"></i>Site</h6>
+                </div>
+                <div class="card-body pt-2">
+                    <a href="/admin/pages" class="d-flex align-items-center gap-3 p-2 rounded text-decoration-none text-dark adm-tile mb-2">
+                        <div class="rounded bg-primary bg-opacity-10 p-2">
+                            <i class="fas fa-file-alt text-primary"></i>
+                        </div>
+                        <div>
+                            <div class="fw-semibold small">Pages &amp; Menus</div>
+                            <div class="text-muted" style="font-size:.75rem">Structure et contenu du site public</div>
+                        </div>
+                        <i class="fas fa-chevron-right ms-auto text-muted small"></i>
+                    </a>
+                    <a href="/admin/settings/modules" class="d-flex align-items-center gap-3 p-2 rounded text-decoration-none text-dark adm-tile">
+                        <div class="rounded bg-success bg-opacity-10 p-2">
+                            <i class="fas fa-th-large text-success"></i>
+                        </div>
+                        <div>
+                            <div class="fw-semibold small">Modules dashboard</div>
+                            <div class="text-muted" style="font-size:.75rem">Tuiles et raccourcis du tableau de bord</div>
+                        </div>
+                        <i class="fas fa-chevron-right ms-auto text-muted small"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Utilisateurs & Rôles -->
+        <div class="col-md-6 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-1">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-users me-2 text-info"></i>Utilisateurs &amp; Roles</h6>
+                </div>
+                <div class="card-body pt-2">
+                    <a href="/admin/users/" class="d-flex align-items-center gap-3 p-2 rounded text-decoration-none text-dark adm-tile mb-2">
+                        <div class="rounded bg-info bg-opacity-10 p-2">
+                            <i class="fas fa-users text-info"></i>
+                        </div>
+                        <div>
+                            <div class="fw-semibold small">Utilisateurs</div>
+                            <div class="text-muted" style="font-size:.75rem">Comptes et attribution des roles</div>
+                        </div>
+                        <i class="fas fa-chevron-right ms-auto text-muted small"></i>
+                    </a>
+                    <a href="/admin/settings/roles" class="d-flex align-items-center gap-3 p-2 rounded text-decoration-none text-dark adm-tile">
+                        <div class="rounded bg-warning bg-opacity-10 p-2">
+                            <i class="fas fa-key text-warning"></i>
+                        </div>
+                        <div>
+                            <div class="fw-semibold small">Roles</div>
+                            <div class="text-muted" style="font-size:.75rem">Definition des roles de la plateforme</div>
+                        </div>
+                        <i class="fas fa-chevron-right ms-auto text-muted small"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Intégrations -->
+        <div class="col-md-6 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-1">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-plug me-2 text-warning"></i>Intégrations</h6>
+                </div>
+                <div class="card-body pt-2">
+                    <a href="/admin/ninja/config" class="d-flex align-items-center gap-3 p-2 rounded text-decoration-none text-dark adm-tile">
+                        <div class="rounded p-2" th:classappend="${ninjaEnabled} ? 'bg-success bg-opacity-10' : 'bg-secondary bg-opacity-10'">
+                            <i class="fas fa-shield-alt" th:classappend="${ninjaEnabled} ? 'text-success' : 'text-secondary'"></i>
+                        </div>
+                        <div>
+                            <div class="fw-semibold small">NinjaOne RMM</div>
+                            <div class="text-muted" style="font-size:.75rem">
+                                <span th:if="${ninjaEnabled}"  class="text-success">Actif</span>
+                                <span th:if="${not ninjaEnabled}" class="text-secondary">Non configure</span>
+                                — Gestion du parc informatique
+                            </div>
+                        </div>
+                        <i class="fas fa-chevron-right ms-auto text-muted small"></i>
+                    </a>
+                    <div class="d-flex align-items-center gap-3 p-2 rounded text-muted adm-tile mt-2" style="cursor:default">
+                        <div class="rounded bg-secondary bg-opacity-10 p-2">
+                            <i class="fas fa-credit-card text-secondary"></i>
+                        </div>
+                        <div>
+                            <div class="fw-semibold small text-muted">Stripe</div>
+                            <div style="font-size:.75rem">Facturation — a venir</div>
+                        </div>
+                        <span class="badge text-bg-secondary ms-auto" style="font-size:.6rem">Bientot</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Abonnements -->
+        <div class="col-md-6 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-1">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-box-open me-2 text-success"></i>Abonnements</h6>
+                </div>
+                <div class="card-body pt-2">
+                    <a href="/admin/subscription-plans" class="d-flex align-items-center gap-3 p-2 rounded text-decoration-none text-dark adm-tile mb-2">
+                        <div class="rounded bg-success bg-opacity-10 p-2">
+                            <i class="fas fa-box-open text-success"></i>
+                        </div>
+                        <div>
+                            <div class="fw-semibold small">Formules d'abonnement</div>
+                            <div class="text-muted" style="font-size:.75rem">Catalogue des offres commerciales</div>
+                        </div>
+                        <i class="fas fa-chevron-right ms-auto text-muted small"></i>
+                    </a>
+                    <a href="/admin/subscription-categories" class="d-flex align-items-center gap-3 p-2 rounded text-decoration-none text-dark adm-tile">
+                        <div class="rounded bg-primary bg-opacity-10 p-2">
+                            <i class="fas fa-tags text-primary"></i>
+                        </div>
+                        <div>
+                            <div class="fw-semibold small">Categories</div>
+                            <div class="text-muted" style="font-size:.75rem">Classification des abonnements</div>
+                        </div>
+                        <i class="fas fa-chevron-right ms-auto text-muted small"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Exploitation -->
+        <div class="col-md-6 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 pb-1">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-server me-2 text-secondary"></i>Exploitation</h6>
+                </div>
+                <div class="card-body pt-2">
+                    <a href="/intra/dashboard" class="d-flex align-items-center gap-3 p-2 rounded text-decoration-none text-dark adm-tile mb-2">
+                        <div class="rounded bg-secondary bg-opacity-10 p-2">
+                            <i class="fas fa-server text-secondary"></i>
+                        </div>
+                        <div>
+                            <div class="fw-semibold small">Console ESN</div>
+                            <div class="text-muted" style="font-size:.75rem">Tickets, appareils, contrats tous clients</div>
+                        </div>
+                        <i class="fas fa-chevron-right ms-auto text-muted small"></i>
+                    </a>
+                    <a href="/customers" class="d-flex align-items-center gap-3 p-2 rounded text-decoration-none text-dark adm-tile">
+                        <div class="rounded bg-primary bg-opacity-10 p-2">
+                            <i class="fas fa-building text-primary"></i>
+                        </div>
+                        <div>
+                            <div class="fw-semibold small">Fiches clients</div>
+                            <div class="text-muted" style="font-size:.75rem">Gestion complete des dossiers clients</div>
+                        </div>
+                        <i class="fas fa-chevron-right ms-auto text-muted small"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <style>
+    .adm-tile { transition: background .12s; }
+    .adm-tile:hover { background: rgba(0,0,0,.04) !important; }
+    </style>
+
+</div>
+</div>
+</body>
+</html>

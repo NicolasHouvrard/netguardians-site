@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head>
+    <title th:text="${customer.id == null ? 'Nouveau Client' : 'Modifier Client'}"></title>
+</head>
+<body>
+<div layout:fragment="content">
+    <div>
+
+        <div class="d-flex align-items-center justify-content-between mb-4">
+            <h4 class="fw-bold mb-0">
+                <i class="fas fa-building me-2 text-primary"></i>
+                <span th:text="${customer.id == null ? 'Nouveau client' : 'Modifier le client'}"></span>
+            </h4>
+            <a th:href="@{/intra/customers}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>Retour à la liste
+            </a>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-0 pt-3">
+                <ul class="nav nav-tabs card-header-tabs" id="customerTabs" role="tablist">
+
+                    <li class="nav-item">
+                        <a class="nav-link active" id="fiche-tab" data-bs-toggle="tab" href="#fiche" role="tab">
+                            <h6 class="m-0 fw-semibold">Informations générales</h6>
+                        </a>
+                    </li>
+
+                    <li class="nav-item" th:if="${customer.id != null}">
+                        <a class="nav-link d-flex align-items-center" id="sites-tab" data-bs-toggle="tab" href="#sites-pane" role="tab">
+                            <h6 class="m-0 fw-semibold">Sites</h6>
+                            <span th:if="${not #lists.isEmpty(customer.sites)}"
+                                  class="badge rounded-pill text-bg-secondary ms-2"
+                                  th:text="${#lists.size(customer.sites)}">0</span>
+                        </a>
+                    </li>
+
+                    <li class="nav-item" th:if="${customer.id != null}">
+                        <a class="nav-link d-flex align-items-center" id="contacts-tab" data-bs-toggle="tab" href="#contacts-pane" role="tab">
+                            <h6 class="m-0 fw-semibold">Contacts</h6>
+                            <span th:if="${not #lists.isEmpty(customer.contacts)}"
+                                  class="badge rounded-pill text-bg-secondary ms-2"
+                                  th:text="${#lists.size(customer.contacts)}">0</span>
+                        </a>
+                    </li>
+
+                    <li class="nav-item" th:if="${customer.id != null}">
+                        <a class="nav-link d-flex align-items-center" id="demandes-tab" data-bs-toggle="tab" href="#demandes-pane" role="tab">
+                            <h6 class="m-0 fw-semibold">Demandes</h6>
+                            <span th:if="${not #lists.isEmpty(customer.requests)}"
+                                  class="badge rounded-pill text-bg-secondary ms-2"
+                                  th:text="${#lists.size(customer.requests)}">0</span>
+                        </a>
+                    </li>
+
+                    <li class="nav-item" th:if="${customer.id != null}">
+                        <a class="nav-link d-flex align-items-center" id="abonnements-tab" data-bs-toggle="tab" href="#abonnements-pane" role="tab">
+                            <h6 class="m-0 fw-semibold">Abonnements</h6>
+                            <span th:if="${not #lists.isEmpty(customer.subscriptions)}"
+                                  class="badge rounded-pill text-bg-primary ms-2"
+                                  th:text="${#lists.size(customer.subscriptions)}">0</span>
+                        </a>
+                    </li>
+
+                    <li class="nav-item" th:if="${customer.id != null}">
+                        <a class="nav-link d-flex align-items-center" id="portal-tab" data-bs-toggle="tab" href="#portal-pane" role="tab">
+                            <h6 class="m-0 fw-semibold">Accès portail</h6>
+                            <span th:if="${portalUsers != null and not #lists.isEmpty(portalUsers)}"
+                                  class="badge rounded-pill text-bg-info ms-2"
+                                  th:text="${#lists.size(portalUsers)}">0</span>
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="card-body">
+                <div class="tab-content" id="customerTabsContent">
+
+                    <!-- Onglet : Informations générales -->
+                    <div class="tab-pane fade show active" id="fiche" role="tabpanel">
+                        <form th:action="@{/intra/customers/save}" th:object="${customer}" method="post">
+                            <input type="hidden" th:field="*{id}" />
+
+                            <div class="row">
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label fw-semibold">Nom de l'entreprise *</label>
+                                    <input type="text" th:field="*{companyName}"
+                                           th:class="${customer.id != null} ? 'form-control-plaintext border-bottom editable-field' : 'form-control'"
+                                           th:readonly="${customer.id != null}"
+                                           th:ondblclick="${customer.id != null} ? 'unlockInput(this)' : null"
+                                           th:onblur="${customer.id != null} ? 'lockInput(this)' : null"
+                                           th:classappend="${#fields.hasErrors('companyName')} ? ' is-invalid'" />
+                                    <div class="invalid-feedback" th:if="${#fields.hasErrors('companyName')}" th:errors="*{companyName}"></div>
+                                    <div th:if="${customer.id != null}" class="form-text text-muted small">Double-cliquez pour modifier</div>
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Nom du contact principal</label>
+                                    <input type="text" th:field="*{contactName}"
+                                           th:class="${customer.id != null} ? 'form-control-plaintext border-bottom editable-field' : 'form-control'"
+                                           th:readonly="${customer.id != null}"
+                                           th:ondblclick="${customer.id != null} ? 'unlockInput(this)' : null"
+                                           th:onblur="${customer.id != null} ? 'lockInput(this)' : null" />
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" th:field="*{email}"
+                                           th:class="${customer.id != null} ? 'form-control-plaintext border-bottom editable-field' : 'form-control'"
+                                           th:readonly="${customer.id != null}"
+                                           th:ondblclick="${customer.id != null} ? 'unlockInput(this)' : null"
+                                           th:onblur="${customer.id != null} ? 'lockInput(this)' : null"
+                                           th:classappend="${#fields.hasErrors('email')} ? ' is-invalid'" />
+                                    <div class="invalid-feedback" th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></div>
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Téléphone</label>
+                                    <input type="text" th:field="*{phone}"
+                                           th:class="${customer.id != null} ? 'form-control-plaintext border-bottom editable-field' : 'form-control'"
+                                           th:readonly="${customer.id != null}"
+                                           th:ondblclick="${customer.id != null} ? 'unlockInput(this)' : null"
+                                           th:onblur="${customer.id != null} ? 'lockInput(this)' : null" />
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Statut</label>
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" th:field="*{active}" id="activeSwitch">
+                                        <label class="form-check-label" for="activeSwitch">Client actif</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label">Adresse</label>
+                                    <textarea th:field="*{address}"
+                                              th:class="${customer.id != null} ? 'form-control-plaintext border-bottom editable-field' : 'form-control'"
+                                              th:readonly="${customer.id != null}"
+                                              th:ondblclick="${customer.id != null} ? 'unlockInput(this)' : null"
+                                              th:onblur="${customer.id != null} ? 'lockInput(this)' : null"
+                                              rows="3"></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Section NinjaOne (visible uniquement si intégration active) -->
+                            <div th:if="${ninjaOrgs != null}" class="mt-3 mb-3">
+                                <hr>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="fas fa-shield-alt text-warning"></i>
+                                    <span class="fw-bold">Liaison NinjaOne RMM</span>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Organisation NinjaOne</label>
+                                        <select th:field="*{ninjaOrganizationId}" class="form-select">
+                                            <option value="">— Non lié —</option>
+                                            <option th:each="org : ${ninjaOrgs}"
+                                                    th:value="${org.id}"
+                                                    th:text="${org.name}"
+                                                    th:selected="${customer.ninjaOrganizationId != null and customer.ninjaOrganizationId == org.id}">
+                                            </option>
+                                        </select>
+                                        <div class="form-text">
+                                            Lie ce client à une organisation NinjaOne pour synchroniser les appareils.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <hr>
+                            <div class="text-end">
+                                <button type="submit" class="btn btn-success px-4">
+                                    <i class="fas fa-save me-1"></i>Enregistrer
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Onglet : Sites -->
+                    <div th:if="${customer.id != null}" class="tab-pane fade" id="sites-pane" role="tabpanel">
+                        <div class="d-flex justify-content-end mb-3">
+                            <button type="button" class="btn btn-primary btn-sm"
+                                    th:hx-get="@{/intra/customers/{id}/sites/new(id=${customer.id})}"
+                                    hx-target="#site-modal-body"
+                                    hx-swap="innerHTML"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#siteModal">
+                                <i class="fas fa-plus fa-sm me-1"></i> Ajouter un site
+                            </button>
+                        </div>
+
+                        <div th:replace="~{feature/customers/sites/_fragments :: sites-list}"></div>
+                    </div>
+
+                    <!-- Onglet : Contacts -->
+                    <div th:if="${customer.id != null}" class="tab-pane fade" id="contacts-pane" role="tabpanel">
+                        <div th:replace="~{/feature/contacts/list::list-contact}"></div>
+                    </div>
+
+                    <!-- Onglet : Demandes -->
+                    <div th:if="${customer.id != null}" class="tab-pane fade" id="demandes-pane" role="tabpanel">
+                        <div th:replace="~{feature/requests/list :: list-requests}"></div>
+                    </div>
+
+                    <!-- Onglet : Abonnements -->
+                    <div th:if="${customer.id != null}" class="tab-pane fade" id="abonnements-pane" role="tabpanel">
+
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="m-0 font-weight-bold text-primary">
+                                Abonnements (<span th:text="${#lists.size(customer.subscriptions)}">0</span>)
+                            </h6>
+                            <button type="button" class="btn btn-primary btn-sm shadow-sm"
+                                    th:hx-get="@{/intra/customers/{id}/subscriptions/new(id=${customer.id})}"
+                                    hx-target="#subscription-modal-body"
+                                    hx-swap="innerHTML"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#subscriptionModal">
+                                <i class="fas fa-plus fa-sm me-1"></i> Nouvel abonnement
+                            </button>
+                        </div>
+
+                        <div th:replace="~{feature/customers/subscriptions/_fragments :: subscriptions-list}"></div>
+
+                    </div>
+
+                    <!-- Onglet : Accès portail -->
+                    <div th:if="${customer.id != null}" class="tab-pane fade" id="portal-pane" role="tabpanel">
+
+                        <!-- Messages flash -->
+                        <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+                            <span th:text="${successMessage}"></span>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <span th:text="${errorMessage}"></span>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+
+                        <!-- Liste des utilisateurs portail existants -->
+                        <div class="mb-4">
+                            <h6 class="fw-bold text-muted mb-3">
+                                <i class="fas fa-users me-1"></i>Comptes portail existants
+                            </h6>
+                            <div th:if="${portalUsers == null or #lists.isEmpty(portalUsers)}"
+                                 class="text-muted small fst-italic">Aucun accès portail configuré.</div>
+                            <div th:each="pu : ${portalUsers}"
+                                 class="d-flex align-items-center justify-content-between py-2 border-bottom">
+                                <div>
+                                    <i class="fas fa-user-circle text-info me-2"></i>
+                                    <span th:text="${pu.fullName}"></span>
+                                    <span class="text-muted ms-2 small" th:text="${pu.email}"></span>
+                                </div>
+                                <a th:href="@{/intra/customers/{cid}/portal-user/{uid}/delete(cid=${customer.id},uid=${pu.id})}"
+                                   class="btn btn-outline-danger btn-sm"
+                                   onclick="return confirm('Supprimer cet accès portail ?')">
+                                    <i class="fas fa-trash fa-xs"></i>
+                                </a>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Formulaire création / liaison -->
+                        <h6 class="fw-bold text-muted mb-3">
+                            <i class="fas fa-user-plus me-1"></i>Créer ou lier un accès portail
+                        </h6>
+                        <div class="alert alert-info py-2 px-3 small mb-3">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Si l'email correspond à un compte existant (ex : votre compte admin), il sera simplement <strong>lié</strong> à ce client — aucun nouveau compte ne sera créé.
+                        </div>
+                        <form th:action="@{/intra/customers/{id}/portal-user(id=${customer.id})}" method="post">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">Nom complet <span class="text-muted">(nouveau compte)</span></label>
+                                    <input type="text" name="fullName" class="form-control" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" name="email" class="form-control" required />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Mot de passe <span class="text-muted">(nouveau)</span></label>
+                                    <input type="password" name="password" class="form-control" minlength="6" placeholder="Laisser vide si liaison" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Rôle</label>
+                                    <select name="role" class="form-select">
+                                        <option value="CLIENT">Utilisateur — accès standard</option>
+                                        <option value="GESTIONNAIRE">Gestionnaire — accès étendu</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-1 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ══ MODALES (hors card pour éviter tout conflit de z-index) ══════════ -->
+
+    <!-- Modale site -->
+    <div class="modal fade" id="siteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Site</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="site-modal-body"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale abonnement -->
+    <div class="modal fade" id="subscriptionModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-file-invoice-dollar me-2"></i>Abonnement
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="subscription-modal-body">
+                    <div class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function unlockInput(el) {
+        el.removeAttribute('readonly');
+        el.classList.remove('form-control-plaintext');
+        el.classList.add('form-control');
+        el.focus();
+    }
+    function lockInput(el) {
+        el.setAttribute('readonly', true);
+        el.classList.remove('form-control');
+        el.classList.add('form-control-plaintext');
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const hash = window.location.hash;
+        if (hash) {
+            const triggerEl = document.querySelector('a[href="' + hash + '"]');
+            if (triggerEl) {
+                new bootstrap.Tab(triggerEl).show();
+            }
+        }
+        document.querySelectorAll('a[data-bs-toggle="tab"]').forEach(link => {
+            link.addEventListener('shown.bs.tab', function (e) {
+                window.location.hash = e.target.getAttribute('href');
+            });
+        });
+        document.body.addEventListener("closeSubscriptionModal", function() {
+            const el = document.getElementById('subscriptionModal');
+            if (!el) return;
+            const m = bootstrap.Modal.getInstance(el) || bootstrap.Modal.getOrCreateInstance(el);
+            m.hide();
+            // Nettoyage immédiat en cas de backdrop fantôme
+            setTimeout(function() {
+                document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+            }, 350);
+        });
+    });
+    </script>
+</div>
+</body>
+</html>

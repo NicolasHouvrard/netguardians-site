@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Nouveau prospect</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/intra/prospects" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0"><i class="fas fa-users-line me-2 text-indigo"></i>Nouveau prospect</h4>
+    </div>
+
+    <div class="card border-0 shadow-sm" style="max-width:700px">
+        <div class="card-body">
+            <form action="/intra/prospects" method="post">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Nom de l'entreprise <span class="text-danger">*</span></label>
+                        <input type="text" name="companyName" class="form-control" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Contact principal</label>
+                        <input type="text" name="contactName" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Email</label>
+                        <input type="email" name="email" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Téléphone</label>
+                        <input type="tel" name="phone" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Source</label>
+                        <select name="prospectSource" class="form-select">
+                            <option value="">— Sélectionner —</option>
+                            <option th:each="s : ${sources}" th:value="${s.name()}" th:text="${s.label}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Équipe commerciale</label>
+                        <select name="teamId" id="teamSelectNew" class="form-select"
+                                hx-get="/intra/prospects/team-members"
+                                hx-trigger="change"
+                                hx-target="#commercialSelectNew"
+                                hx-include="[name='teamId']">
+                            <option value="">— Toutes les équipes —</option>
+                            <option th:each="t : ${teams}" th:value="${t.id}" th:text="${t.name}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Commercial assigné</label>
+                        <select name="assignedCommercialId" id="commercialSelectNew" class="form-select">
+                            <option value="">— Aucun —</option>
+                            <option th:each="u : ${commercials}"
+                                    th:value="${u.id}"
+                                    th:text="${u.fullName}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Valeur estimée (€)</label>
+                        <input type="number" name="estimatedValue" class="form-control" step="100" min="0">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Date de clôture prévue</label>
+                        <input type="date" name="expectedCloseDate" class="form-control">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Notes</label>
+                        <textarea name="prospectNotes" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Créer le prospect
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

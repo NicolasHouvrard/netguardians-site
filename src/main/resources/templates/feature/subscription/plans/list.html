@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+<head><title>Catalogue des formules d'abonnement</title></head>
+<body>
+<div layout:fragment="content">
+<div class="container-fluid">
+
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Catalogue des formules d'abonnement</h1>
+        <a href="/admin/subscription-categories" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-tags me-1"></i>Gérer les catégories
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row">
+
+        <!-- ══ LISTE DES FORMULES ═══════════════════════════════════════════ -->
+        <div class="col-lg-7">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Formules existantes</h6>
+                    
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(plans)}" class="text-center py-5 text-muted">
+                        Aucune formule définie. Créez la première.
+                    </div>
+
+                    <div th:if="${plans == null or #lists.isEmpty(plans)}" class="text-center py-5 text-muted">
+                    Aucune formule définie. Créez la première.
+                    </div>
+
+                    <div th:if="${plans != null and not #lists.isEmpty(plans)}">
+                        <!-- Groupement par catégorie -->
+                        <div th:each="cat : ${categories}">
+                            <div class="category-group">
+                                <div class="px-3 py-2 bg-light border-bottom d-flex align-items-center gap-2">
+                                <i th:class="${cat.icon} + ' fa-sm text-secondary'"></i>
+                                <span class="fw-bold small text-uppercase text-muted" th:text="${cat.label}"></span>
+                            </div>
+                            <th:block th:each="p : ${plans}">
+                                <div th:if="${p.category == cat}" 
+                                     class="d-flex align-items-center px-3 py-2 border-bottom"
+                                     th:classappend="${!p.active ? 'opacity-50' : ''}">
+
+                                <div class="flex-grow-1">
+                                        <div class="fw-semibold" th:text="${p.name}">Nom du plan</div>
+                                        <div class="small text-muted d-flex gap-3 flex-wrap mt-1">
+                                            <span>
+                                                <span class="badge" 
+                                                      th:classappend="${cat.badgeCss}" 
+                                                      th:text="${p.billingModel.label}"></span>
+                                            </span>
+                                            <span th:if="${p.defaultPricePerPeriod != null}">
+                                                <i class="fas fa-euro-sign me-1"></i>
+                                                <span th:text="${#numbers.formatDecimal(p.defaultPricePerPeriod,1,'COMMA',2,'POINT')} + ' €'"></span>
+                                            </span>
+                                            <span th:if="${p.ninjaOneIntegration}" class="badge text-bg-warning"><i class="fas fa-shield-alt me-1"></i>NinjaOne</span>
+                                            <span th:if="${!p.active}" class="text-danger small fw-bold text-uppercase">Inactif</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex gap-1 ms-2">
+                                        <a th:href="@{/admin/subscription-plans/edit/{id}(id=${p.id})}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-edit"></i></a>
+                                        <a th:href="@{/admin/subscription-plans/delete/{id}(id=${p.id})}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Supprimer ?')"><i class="fas fa-trash"></i></a>
+                                    </div>
+                                </div>
+
+                            </th:block>
+                           
+                            
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+        <!-- ══ FORMULAIRE ═══════════════════════════════════════════════════ -->
+        <div class="col-lg-5">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary"
+                        th:text="${plan.id != null ? 'Modifier la formule' : 'Nouvelle formule'}"></h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/admin/subscription-plans/save}" th:object="${plan}" method="post">
+                        <input type="hidden" th:field="*{id}" />
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Nom *</label>
+                            <input type="text" th:field="*{name}" class="form-control"
+                                   placeholder="ex : Forfait Support Bronze" required>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Catégorie *</label>
+                                <select name="categoryId" class="form-select" required>
+                                    <option value="">— Choisir —</option>
+                                    <option th:each="cat : ${categories}"
+                                            th:value="${cat.id}"
+                                            th:text="${cat.label}"
+                                            th:selected="${plan.category != null and plan.category.id == cat.id}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Modèle de facturation *</label>
+                                <select name="billingModel" class="form-select" required
+                                        hx-get="/admin/subscription-plans/billing-fields"
+                                        hx-include="this"
+                                        hx-target="#plan-billing-fields"
+                                        hx-swap="innerHTML"
+                                        hx-trigger="change">
+                                    <option th:each="bm : ${billingModels}"
+                                            th:value="${bm.name()}"
+                                            th:text="${bm.label}"
+                                            th:selected="${plan.billingModel != null and plan.billingModel.name() == bm.name()}"></option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Champs de facturation (rechargés par HTMX) -->
+                        <div id="plan-billing-fields" class="mb-3">
+                            <div th:replace="~{feature/subscription/plans/_billing-fields :: billing-fields}"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Description</label>
+                            <textarea th:field="*{description}" class="form-control" rows="2"
+                                      placeholder="Détails de la formule…"></textarea>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Ordre d'affichage</label>
+                                <input type="number" th:field="*{sortOrder}" class="form-control form-control-sm" min="0">
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <div class="form-check form-switch ms-1">
+                                    <input class="form-check-input" type="checkbox" th:field="*{active}" id="planActive">
+                                    <label class="form-check-label" for="planActive">Active</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <div class="form-check form-switch ms-1">
+                                    <input class="form-check-input" type="checkbox" th:field="*{publicPlan}" id="planPublic">
+                                    <label class="form-check-label" for="planPublic">Publique</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <div class="form-check form-switch ms-1">
+                                    <input class="form-check-input" type="checkbox" th:field="*{ninjaOneIntegration}" id="planNinja">
+                                    <label class="form-check-label" for="planNinja">
+                                        <i class="fas fa-shield-alt text-warning me-1"></i>NinjaOne
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save me-1"></i>
+                                <span th:text="${plan.id != null ? 'Enregistrer' : 'Créer la formule'}"></span>
+                            </button>
+                            <a th:if="${plan.id != null}" th:href="@{/admin/subscription-plans}"
+                               class="btn btn-secondary">Annuler</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+</div>
+</body>
+</html>

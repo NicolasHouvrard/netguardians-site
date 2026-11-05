@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head>
+    <title>Rendez-vous</title>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+    <style>
+        #calendarView { display:none }
+        .fc .fc-toolbar-title { font-size:1rem; font-weight:600; }
+        .fc .fc-button { font-size:.8rem; }
+        .fc-event { cursor:pointer; border-radius:.25rem; }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-calendar-check me-2 text-info"></i>Rendez-vous</h4>
+            <div class="text-muted small mt-1">Gestion des plannings et des RDV clients</div>
+        </div>
+        <div class="d-flex gap-2">
+            <!-- Toggle vue liste / calendrier -->
+            <div class="btn-group btn-group-sm">
+                <button id="btnViewList" class="btn btn-info" onclick="showView('list')">
+                    <i class="fas fa-list me-1"></i>Liste
+                </button>
+                <button id="btnViewCal" class="btn btn-outline-info" onclick="showView('calendar')">
+                    <i class="fas fa-calendar me-1"></i>Calendrier
+                </button>
+            </div>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAddAppt">
+                <i class="fas fa-plus me-1"></i>Nouveau RDV
+            </button>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-info bg-opacity-10 p-3">
+                        <i class="fas fa-clock text-info fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${scheduled}">0</div>
+                        <div class="text-muted small">Planifiés</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                        <i class="fas fa-check-circle text-success fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${confirmed}">0</div>
+                        <div class="text-muted small">Confirmés</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3" th:if="${not #lists.isEmpty(calendarAccounts)}">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3">
+                        <i class="fas fa-sync text-primary fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-6 fw-bold">
+                            <span th:each="acc,s : ${calendarAccounts}">
+                                <i th:class="${acc.authType.name() == 'GOOGLE_OAUTH2'} ? 'fab fa-google text-danger' : 'fab fa-microsoft text-primary'"></i>
+                                <span th:text="${acc.name}" class="small"></span><span th:unless="${s.last}">, </span>
+                            </span>
+                        </div>
+                        <div class="text-muted small">Agenda(s) connecté(s)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Vue Liste ──────────────────────────────────────────────────────── -->
+    <div id="listView">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0 pt-3 pb-2">
+                <h6 class="fw-bold mb-0"><i class="fas fa-list me-2 text-info"></i>Liste des rendez-vous</h6>
+            </div>
+            <div class="card-body p-0">
+                <div th:if="${#lists.isEmpty(appointments)}" class="text-center py-5 text-muted">
+                    <i class="fas fa-calendar fa-2x mb-3 d-block"></i>Aucun rendez-vous.
+                </div>
+                <div class="table-responsive" th:unless="${#lists.isEmpty(appointments)}">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Titre</th>
+                            <th>Client</th>
+                            <th>Type</th>
+                            <th>Début</th>
+                            <th>Fin</th>
+                            <th>Statut</th>
+                            <th>Agenda</th>
+                            <th></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="a : ${appointments}">
+                            <td class="fw-semibold" th:text="${a.title}"></td>
+                            <td>
+                                <a th:if="${a.customer != null}"
+                                   th:href="@{/intra/customers/{id}(id=${a.customer.id})}"
+                                   th:text="${a.customer.companyName}"
+                                   class="text-decoration-none small"></a>
+                                <span th:unless="${a.customer != null}" class="text-muted">—</span>
+                            </td>
+                            <td>
+                                <span class="badge text-bg-secondary small"
+                                      th:text="${a.type.label}"></span>
+                            </td>
+                            <td class="small" th:text="${#temporals.format(a.startAt, 'dd/MM/yyyy HH:mm')}"></td>
+                            <td class="small text-muted"
+                                th:text="${a.endAt != null ? #temporals.format(a.endAt, 'HH:mm') : '—'}"></td>
+                            <td>
+                                <span class="badge"
+                                      th:classappend="${a.status.name() == 'SCHEDULED'  ? 'text-bg-info'     :
+                                                       a.status.name() == 'CONFIRMED'   ? 'text-bg-success'  :
+                                                       a.status.name() == 'COMPLETED'   ? 'text-bg-secondary':
+                                                                                           'text-bg-danger'}"
+                                      th:text="${a.status.label}"></span>
+                            </td>
+                            <td>
+                                <span th:if="${a.calendarEventId != null}"
+                                      class="badge text-bg-light border"
+                                      title="Synchronisé avec le calendrier">
+                                    <i class="fas fa-calendar-check text-primary"></i>
+                                </span>
+                                <span th:unless="${a.calendarEventId != null}"
+                                      class="text-muted small">—</span>
+                            </td>
+                            <td>
+                                <form th:action="@{/intra/appointments/{id}/status(id=${a.id})}" method="post" class="d-flex gap-1">
+                                    <select name="status" class="form-select form-select-sm" style="width:auto">
+                                        <option th:each="s : ${T(com.logicielpourtous.site.features.appointment.Appointment.AppointmentStatus).values()}"
+                                                th:value="${s.name()}" th:text="${s.label}" th:selected="${s.name() == a.status.name()}"></option>
+                                    </select>
+                                    <button class="btn btn-sm btn-outline-secondary">OK</button>
+                                </form>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Vue Calendrier FullCalendar ────────────────────────────────────── -->
+    <div id="calendarView">
+
+        <!-- Barre de filtres équipes / membres -->
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body py-2 px-3">
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                    <span class="text-muted small fw-semibold"><i class="fas fa-filter me-1"></i>Vue :</span>
+                    <select id="teamFilter" class="form-select form-select-sm" style="width:auto; min-width:160px">
+                        <option value="">Toutes les équipes</option>
+                        <option th:each="t : ${teams}" th:value="${t.id}" th:text="${t.name}"></option>
+                    </select>
+                    <div id="memberChips" class="d-flex flex-wrap gap-1">
+                        <button type="button" class="btn btn-xs btn-info active" id="btnAll"
+                                style="font-size:.75rem;padding:.2rem .55rem" onclick="filterAll()">
+                            Tous
+                        </button>
+                        <button type="button" class="btn btn-xs btn-outline-warning" id="btnUnassigned"
+                                style="font-size:.75rem;padding:.2rem .55rem" onclick="filterUnassignedOnly()">
+                            <i class="fas fa-user-slash me-1"></i>Non assigné
+                        </button>
+                        <button th:each="u : ${teamMembers}" type="button"
+                                class="btn btn-xs btn-outline-secondary member-chip"
+                                style="font-size:.75rem;padding:.2rem .55rem"
+                                th:data-userid="${u.id}"
+                                th:text="${u.fullName}"></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-3">
+                <div id="fc"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Modal Nouveau RDV ──────────────────────────────────────────────── -->
+    <div class="modal fade" id="modalAddAppt" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form action="/intra/appointments" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-calendar-plus me-2"></i>Nouveau rendez-vous</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Titre <span class="text-danger">*</span></label>
+                                <input type="text" name="title" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Début <span class="text-danger">*</span></label>
+                                <input type="datetime-local" name="startAt" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Fin</label>
+                                <input type="datetime-local" name="endAt" class="form-control">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Type <span class="text-danger">*</span></label>
+                                <select name="type" class="form-select" required>
+                                    <option th:each="t : ${T(com.logicielpourtous.site.features.appointment.Appointment.AppointmentType).values()}"
+                                            th:value="${t.name()}" th:text="${t.label}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Client</label>
+                                <select name="customerId" class="form-select" id="apptCustomer">
+                                    <option value="">— Aucun —</option>
+                                    <option th:each="c : ${customers}" th:value="${c.id}" th:text="${c.companyName}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Affecter à</label>
+                                <select name="assignedToId" class="form-select">
+                                    <option value="">— Moi-même —</option>
+                                    <option th:each="u : ${teamMembers}" th:value="${u.id}" th:text="${u.fullName}"
+                                            th:selected="${u.id == currentUserId}"></option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Notes</label>
+                                <textarea name="notes" class="form-control" rows="2"></textarea>
+                            </div>
+
+                            <!-- Google Meet (RDV commerciaux) -->
+                            <div class="col-12" id="meetSection" style="display:none">
+                                <div class="border rounded p-3 bg-light">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="withMeet" id="chkMeet" value="true">
+                                        <label class="form-check-label fw-semibold" for="chkMeet">
+                                            <i class="fas fa-video me-1 text-success"></i>Créer un Google Meet
+                                        </label>
+                                    </div>
+                                    <div id="meetEmailRow" class="mt-2" style="display:none">
+                                        <label class="form-label small fw-semibold">Email du client à inviter</label>
+                                        <input type="email" name="attendeeEmail" class="form-control form-control-sm"
+                                               placeholder="contact@client.fr">
+                                        <div class="form-text">Le client recevra une invitation Google Meet.</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="alert alert-light border small mb-0 py-2">
+                                    <i class="fas fa-calendar-check me-1 text-primary"></i>
+                                    Synchronisation automatique avec l'agenda de l'utilisateur assigné.
+                                    <a th:if="${#lists.isEmpty(calendarAccounts)}" href="/mon-compte?tab=agenda" class="ms-1">Connecter mon agenda →</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-calendar-plus me-1"></i>Créer le RDV
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Modal détail / édition RDV ──────────────────────────────────────── -->
+    <div class="modal fade" id="modalApptDetail" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold" id="detailTitle">—</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="editApptForm" action="" method="post">
+                    <div class="modal-body pt-2">
+                        <div class="d-flex gap-2 mb-3 flex-wrap" id="detailBadges"></div>
+
+                        <!-- Champs éditables (RDV locaux uniquement) -->
+                        <div id="editSection" style="display:none">
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label small fw-semibold mb-1">Début <span class="text-danger">*</span></label>
+                                    <input type="datetime-local" name="startAt" id="editStartAt" class="form-control form-control-sm" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small fw-semibold mb-1">Fin</label>
+                                    <input type="datetime-local" name="endAt" id="editEndAt" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small fw-semibold mb-1">Statut</label>
+                                    <select name="status" id="editStatus" class="form-select form-select-sm">
+                                        <option th:each="s : ${T(com.logicielpourtous.site.features.appointment.Appointment.AppointmentStatus).values()}"
+                                                th:value="${s.name()}" th:text="${s.label}"></option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Infos lecture seule -->
+                        <dl class="row mb-0 small">
+                            <dt class="col-4 text-muted" id="labelCustomer">Client</dt>
+                            <dd class="col-8 mb-1" id="detailCustomer">—</dd>
+                            <dt class="col-4 text-muted" id="labelCustomerContact" style="display:none">Contact</dt>
+                            <dd class="col-8 mb-1" id="detailCustomerContact" style="display:none"></dd>
+                            <dt class="col-4 text-muted">Assigné à</dt>
+                            <dd class="col-8 mb-1" id="detailAssigned">—</dd>
+                            <dt class="col-4 text-muted" id="labelNotes" style="display:none">Notes</dt>
+                            <dd class="col-8 mb-1" id="detailNotes" style="white-space:pre-wrap"></dd>
+                        </dl>
+                    </div>
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                        <a id="detailIntLink" href="#" class="btn btn-sm btn-outline-warning" style="display:none">
+                            <i class="fas fa-tools me-1"></i>Voir l'intervention
+                        </a>
+                        <button type="submit" id="detailSaveBtn" class="btn btn-sm btn-primary" style="display:none">
+                            <i class="fas fa-save me-1"></i>Sauvegarder
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash -->
+    <div th:if="${successMessage}" class="position-fixed bottom-0 end-0 p-3" style="z-index:9999">
+        <div class="toast show text-bg-success shadow">
+            <div class="toast-body"><i class="fas fa-check me-2"></i><span th:text="${successMessage}"></span></div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>
+
+<th:block layout:fragment="script">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+<script th:inline="javascript">
+/* Map teamId → [userId, ...] injectée par Thymeleaf */
+var teamsData = /*[[${teamsData}]]*/ {};
+</script>
+<script>
+// Masque le champ client pour les RDV privés
+document.addEventListener('DOMContentLoaded', function() {
+    var typeSelect = document.querySelector('#modalAddAppt select[name="type"]');
+    if (typeSelect) {
+        typeSelect.addEventListener('change', function() {
+            var isPrivate   = this.value === 'PRIVATE';
+            var isCommercial = this.value === 'ONSITE' || this.value === 'REMOTE';
+            document.getElementById('apptCustomer').closest('.col-md-6').style.display = isPrivate ? 'none' : '';
+            document.getElementById('meetSection').style.display = isCommercial ? '' : 'none';
+        });
+    }
+    var chkMeet = document.getElementById('chkMeet');
+    if (chkMeet) {
+        chkMeet.addEventListener('change', function() {
+            document.getElementById('meetEmailRow').style.display = this.checked ? '' : 'none';
+        });
+    }
+
+    // Filtre par équipe
+    document.getElementById('teamFilter').addEventListener('change', function() {
+        var teamId = this.value;
+        selectedUserIds.clear();
+        filterUnassigned = false;
+        if (teamId && teamsData[teamId]) {
+            teamsData[teamId].forEach(function(uid) { selectedUserIds.add(uid); });
+        }
+        document.querySelectorAll('.member-chip').forEach(function(b) {
+            var active = selectedUserIds.has(parseInt(b.dataset.userid));
+            b.classList.toggle('active',                active);
+            b.classList.toggle('btn-secondary',         active);
+            b.classList.toggle('btn-outline-secondary', !active);
+        });
+        document.getElementById('btnAll').classList.toggle('active', selectedUserIds.size === 0);
+        document.getElementById('btnUnassigned').classList.remove('active', 'btn-warning');
+        document.getElementById('btnUnassigned').classList.add('btn-outline-warning');
+        if (calendarInstance) calendarInstance.refetchEvents();
+    });
+
+    // Filtre par membre (chips)
+    document.getElementById('memberChips').addEventListener('click', function(e) {
+        var btn = e.target.closest('.member-chip');
+        if (!btn) return;
+        filterUnassigned = false;
+        document.getElementById('btnUnassigned').classList.remove('active', 'btn-warning');
+        document.getElementById('btnUnassigned').classList.add('btn-outline-warning');
+        var uid = parseInt(btn.dataset.userid);
+        if (selectedUserIds.has(uid)) {
+            selectedUserIds.delete(uid);
+            btn.classList.remove('active', 'btn-secondary');
+            btn.classList.add('btn-outline-secondary');
+        } else {
+            selectedUserIds.add(uid);
+            btn.classList.add('active', 'btn-secondary');
+            btn.classList.remove('btn-outline-secondary');
+        }
+        document.getElementById('btnAll').classList.toggle('active', selectedUserIds.size === 0);
+        document.getElementById('teamFilter').value = '';
+        if (calendarInstance) calendarInstance.refetchEvents();
+    });
+});
+
+var calendarInstance  = null;
+var selectedUserIds   = new Set(); // vide = tous
+var filterUnassigned  = false;
+
+/** Construit les paramètres de filtre pour les event sources */
+function filterParam() {
+    if (filterUnassigned) return '&unassigned=true';
+    if (selectedUserIds.size === 0) return '';
+    return '&' + Array.from(selectedUserIds).map(function(id) { return 'userIds=' + id; }).join('&');
+}
+
+function filterAll() {
+    selectedUserIds.clear();
+    filterUnassigned = false;
+    document.querySelectorAll('.member-chip').forEach(function(b) {
+        b.classList.remove('active', 'btn-secondary');
+        b.classList.add('btn-outline-secondary');
+    });
+    document.getElementById('btnAll').classList.add('active');
+    document.getElementById('btnUnassigned').classList.remove('active', 'btn-warning');
+    document.getElementById('btnUnassigned').classList.add('btn-outline-warning');
+    document.getElementById('teamFilter').value = '';
+    if (calendarInstance) calendarInstance.refetchEvents();
+}
+
+function filterUnassignedOnly() {
+    selectedUserIds.clear();
+    filterUnassigned = true;
+    document.querySelectorAll('.member-chip').forEach(function(b) {
+        b.classList.remove('active', 'btn-secondary');
+        b.classList.add('btn-outline-secondary');
+    });
+    document.getElementById('btnAll').classList.remove('active');
+    document.getElementById('btnUnassigned').classList.add('active', 'btn-warning');
+    document.getElementById('btnUnassigned').classList.remove('btn-outline-warning');
+    document.getElementById('teamFilter').value = '';
+    if (calendarInstance) calendarInstance.refetchEvents();
+}
+
+function formatDt(dt) {
+    var d  = String(dt.getDate()).padStart(2,'0');
+    var mo = String(dt.getMonth()+1).padStart(2,'0');
+    var y  = dt.getFullYear();
+    var h  = String(dt.getHours()).padStart(2,'0');
+    var mi = String(dt.getMinutes()).padStart(2,'0');
+    return d + '/' + mo + '/' + y + ' ' + h + ':' + mi;
+}
+
+/* "2026-05-26T10:30:00" → "2026-05-26T10:30" pour input datetime-local */
+function toDatetimeLocal(s) {
+    if (!s) return '';
+    return s.length >= 16 ? s.substring(0, 16) : s;
+}
+
+function showView(view) {
+    var isList = view === 'list';
+    document.getElementById('listView').style.display    = isList ? '' : 'none';
+    document.getElementById('calendarView').style.display = isList ? 'none' : 'block';
+    document.getElementById('btnViewList').className = 'btn btn-sm ' + (isList ? 'btn-info' : 'btn-outline-info');
+    document.getElementById('btnViewCal').className  = 'btn btn-sm ' + (isList ? 'btn-outline-info' : 'btn-info');
+
+    if (!isList) {
+        requestAnimationFrame(function() {
+            if (!calendarInstance) {
+                initCalendar();
+            } else {
+                calendarInstance.updateSize();
+            }
+        });
+    }
+}
+
+function initCalendar() {
+    var el = document.getElementById('fc');
+    calendarInstance = new FullCalendar.Calendar(el, {
+        locale: 'fr',
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left:   'prev,next today',
+            center: 'title',
+            right:  'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+        },
+        height: 'auto',
+        eventSources: [
+            {
+                events: function(info, success, failure) {
+                    fetch('/intra/appointments/events?start=' + info.startStr + '&end=' + info.endStr + filterParam())
+                        .then(r => r.json())
+                        .then(success)
+                        .catch(failure);
+                }
+            },
+            {
+                events: function(info, success, failure) {
+                    fetch('/intra/appointments/intervention-events?start=' + encodeURIComponent(info.startStr) + '&end=' + encodeURIComponent(info.endStr) + filterParam())
+                        .then(r => r.json())
+                        .then(success)
+                        .catch(function() { success([]); });
+                },
+                color: '#fd7e14',
+                textColor: '#fff'
+            },
+            {
+                events: function(info, success, failure) {
+                    fetch('/intra/appointments/external-events?start=' + encodeURIComponent(info.startStr) + '&end=' + encodeURIComponent(info.endStr) + filterParam())
+                        .then(r => r.json())
+                        .then(success)
+                        .catch(function() { success([]); });
+                },
+                color: '#adb5bd',
+                textColor: '#fff'
+            }
+        ],
+        eventDidMount: function(info) {
+            if (info.event.extendedProps.synced) {
+                var dot = document.createElement('span');
+                dot.innerHTML = ' 📅';
+                dot.title = 'Synchronisé avec le calendrier';
+                info.el.querySelector('.fc-event-title')?.appendChild(dot);
+            }
+            if (info.event.extendedProps.external) {
+                info.el.title = info.event.extendedProps.calendarName || 'Agenda externe';
+            }
+        },
+        eventClick: function(info) {
+            info.jsEvent.preventDefault();
+            var props = info.event.extendedProps;
+            var id    = info.event.id;
+
+            var modalEl = document.getElementById('modalApptDetail');
+            var intLink = document.getElementById('detailIntLink');
+
+            if (props.type === 'intervention') {
+                // Popup intervention (lecture seule + lien fiche)
+                document.getElementById('detailTitle').textContent    = info.event.title;
+                document.getElementById('detailCustomer').textContent = props.customer   || '—';
+                document.getElementById('detailAssigned').textContent = props.technician || '—';
+                document.getElementById('labelCustomer').style.display  = '';
+                document.getElementById('detailCustomer').style.display = '';
+                document.getElementById('labelCustomerContact').style.display  = 'none';
+                document.getElementById('detailCustomerContact').style.display = 'none';
+                document.getElementById('labelNotes').style.display   = 'none';
+                document.getElementById('detailNotes').style.display  = 'none';
+                document.getElementById('detailNotes').textContent    = '';
+                document.getElementById('editSection').style.display   = 'none';
+                document.getElementById('detailSaveBtn').style.display = 'none';
+                document.getElementById('detailBadges').innerHTML =
+                    '<span class="badge text-bg-warning text-dark">🔧 Intervention</span>'
+                    + (props.status ? ' <span class="badge text-bg-light border ms-1">' + props.status + '</span>' : '');
+                intLink.href = info.event.url;
+                intLink.style.display = '';
+                (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).show();
+                return;
+            }
+
+            if (props.external) {
+                // Popup événement externe (Google / Outlook — lecture seule)
+                document.getElementById('detailTitle').textContent    = info.event.title;
+                document.getElementById('detailCustomer').textContent = '—';
+                document.getElementById('detailAssigned').textContent = props.assignedTo || '—';
+                document.getElementById('labelCustomer').style.display  = 'none';
+                document.getElementById('detailCustomer').style.display = 'none';
+                document.getElementById('labelCustomerContact').style.display  = 'none';
+                document.getElementById('detailCustomerContact').style.display = 'none';
+                document.getElementById('labelNotes').style.display   = 'none';
+                document.getElementById('detailNotes').style.display  = 'none';
+                document.getElementById('detailNotes').textContent    = '';
+                document.getElementById('editSection').style.display   = 'none';
+                document.getElementById('detailSaveBtn').style.display = 'none';
+                document.getElementById('detailBadges').innerHTML =
+                    '<span class="badge text-bg-secondary">' + (props.calendarName || 'Agenda externe') + '</span>';
+                intLink.style.display = 'none';
+                (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).show();
+                return;
+            }
+
+            // RDV local → popup éditable via API
+            fetch('/intra/appointments/' + id + '/json')
+                .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+                .then(function(d) {
+                    document.getElementById('detailTitle').textContent    = d.title || '—';
+                    document.getElementById('detailCustomer').textContent = d.customer   || '—';
+                    document.getElementById('detailAssigned').textContent = d.assignedTo || '—';
+                    var isPrivate = d.type === 'Privé';
+                    document.getElementById('labelCustomer').style.display  = isPrivate ? 'none' : '';
+                    document.getElementById('detailCustomer').style.display = isPrivate ? 'none' : '';
+
+                    // Contact client (email + téléphone)
+                    var hasContact = !isPrivate && (d.customerEmail || d.customerPhone);
+                    document.getElementById('labelCustomerContact').style.display  = hasContact ? '' : 'none';
+                    document.getElementById('detailCustomerContact').style.display = hasContact ? '' : 'none';
+                    if (hasContact) {
+                        var contact = '';
+                        if (d.customerEmail) contact += '<a href="mailto:' + d.customerEmail + '" class="text-decoration-none me-2"><i class="fas fa-envelope me-1 text-muted"></i>' + d.customerEmail + '</a>';
+                        if (d.customerPhone) contact += '<a href="tel:' + d.customerPhone + '" class="text-decoration-none"><i class="fas fa-phone me-1 text-muted"></i>' + d.customerPhone + '</a>';
+                        document.getElementById('detailCustomerContact').innerHTML = contact;
+                    }
+
+                    var notes = d.notes || '';
+                    document.getElementById('detailNotes').textContent   = notes;
+                    document.getElementById('labelNotes').style.display  = notes ? '' : 'none';
+                    document.getElementById('detailNotes').style.display = notes ? '' : 'none';
+
+                    var statusColors = {SCHEDULED:'info', CONFIRMED:'success', COMPLETED:'secondary', CANCELLED:'danger'};
+                    var badges = '<span class="badge text-bg-' + (statusColors[d.statusName] || 'secondary') + '">' + d.status + '</span>';
+                    badges += '<span class="badge text-bg-light border ms-1">' + d.type + '</span>';
+                    if (d.synced)   badges += '<span class="badge text-bg-light border ms-1">📅 Synchronisé</span>';
+                    if (d.meetLink) badges += '<a href="' + d.meetLink + '" target="_blank" class="badge text-bg-success ms-1 text-decoration-none"><i class="fas fa-video me-1"></i>Google Meet</a>';
+                    document.getElementById('detailBadges').innerHTML = badges;
+
+                    // Champs éditables
+                    document.getElementById('editStartAt').value = toDatetimeLocal(d.startAt);
+                    document.getElementById('editEndAt').value   = toDatetimeLocal(d.endAt || '');
+                    document.getElementById('editStatus').value  = d.statusName;
+                    document.getElementById('editSection').style.display  = '';
+                    document.getElementById('detailSaveBtn').style.display = '';
+                    document.getElementById('editApptForm').action = '/intra/appointments/' + id + '/edit';
+
+                    intLink.style.display = 'none';
+                    (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).show();
+                });
+        }
+    });
+    calendarInstance.render();
+}
+</script>
+</th:block>

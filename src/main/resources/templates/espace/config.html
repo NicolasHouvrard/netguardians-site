@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{espace-layout}">
+<head><title>Configurations</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-plug me-2 text-primary"></i>Configurations</h4>
+            <p class="text-muted small mb-0"
+               th:if="${customer != null}" th:text="${customer.companyName}"></p>
+        </div>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAdd">
+            <i class="fas fa-plus me-1"></i>Demander une intégration
+        </button>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${warnMessage}" class="alert alert-warning alert-dismissible fade show">
+        <i class="fas fa-exclamation-triangle me-2"></i><span th:text="${warnMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-circle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="alert alert-info small mb-4">
+        <i class="fas fa-info-circle me-2"></i>
+        Les identifiants et clés API sont configurés par votre ESN. Vous pouvez déclarer une nouvelle intégration et votre ESN se chargera de la paramétrer.
+    </div>
+
+    <!-- Grille des intégrations -->
+    <div th:if="${integrations == null or integrations.isEmpty()}"
+         class="text-center py-5 text-muted">
+        <i class="fas fa-plug fa-2x mb-3 opacity-25"></i>
+        <p>Aucune intégration configurée.</p>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAdd">
+            <i class="fas fa-plus me-1"></i>Demander une première intégration
+        </button>
+    </div>
+
+    <div th:if="${integrations != null and !integrations.isEmpty()}"
+         class="row g-3 mb-4">
+        <div th:each="integ : ${integrations != null ? integrations : T(java.util.Collections).emptyList()}"
+             class="col-md-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-bottom d-flex align-items-center gap-2">
+                    <span class="rounded-circle d-inline-flex align-items-center justify-content-center"
+                          th:style="'background-color:' + ${integ.serviceType.color} + '20; width:32px; height:32px;'">
+                        <i th:class="${integ.serviceType.icon}"
+                           th:style="'color:' + ${integ.serviceType.color}"></i>
+                    </span>
+                    <span class="fw-semibold flex-grow-1" th:text="${integ.label}"></span>
+                    <span th:if="${integ.enabled}"  class="badge text-bg-success small">Actif</span>
+                    <span th:if="${!integ.enabled}" class="badge text-bg-secondary small">En attente</span>
+                </div>
+                <div class="card-body py-2 px-3">
+                    <div class="text-muted small" th:text="${integ.serviceType.label}"></div>
+                    <div th:if="${integ.notes}" class="small mt-1 text-muted fst-italic"
+                         th:text="${integ.notes}"></div>
+                    <div class="text-muted small mt-1"
+                         th:if="${integ.updatedAt != null}">
+                        Mis à jour le <span th:text="${#temporals.format(integ.updatedAt,'dd/MM/yyyy')}"></span>
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-top d-flex gap-2 py-2">
+                    <form th:action="@{/espace/config/{id}/delete(id=${integ.id})}" method="post" class="d-inline ms-auto"
+                          onsubmit="return confirm('Supprimer cette intégration ?')">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal demande d'intégration -->
+    <div class="modal fade" id="modalAdd" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form action="/espace/config" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-plug me-2"></i>Demander une intégration</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted small mb-3">
+                            Indiquez le service souhaité et un label. Votre ESN recevra la demande et configurera les accès.
+                        </p>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Service <span class="text-danger">*</span></label>
+                            <select name="serviceType" class="form-select" required>
+                                <option value="">— Sélectionner —</option>
+                                <option th:each="st : ${serviceTypes != null ? serviceTypes : T(java.util.Collections).emptyList()}"
+                                        th:value="${st.name()}" th:text="${st.label}">
+                                </option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Label personnalisé</label>
+                            <input type="text" name="label" class="form-control"
+                                   placeholder="Laisser vide pour utiliser le nom du service">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Notes / contexte</label>
+                            <textarea name="notes" class="form-control" rows="3"
+                                      placeholder="Précisez vos besoins ou informations utiles pour votre ESN..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Envoyer la demande</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

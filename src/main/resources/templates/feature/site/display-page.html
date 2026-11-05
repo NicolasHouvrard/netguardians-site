@@ -1,0 +1,10 @@
+<div layout:decorate="~{layout}">
+    <div layout:fragment="content" class="container mt-5">
+        <h1 th:text="${page.title}">Titre de la page</h1>
+        <hr>
+        <div class="notion-style">
+    <div th:utext="${renderedContent}"></div>
+</div>
+    </div>
+</div>
+

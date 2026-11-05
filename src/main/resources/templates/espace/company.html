@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{espace-layout}">
+<head><title>Mon entreprise</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <h4 class="mb-0"><i class="fas fa-building me-2 text-primary"></i>Mon entreprise</h4>
+        <span th:if="${customer.active}"     class="badge text-bg-success">Actif</span>
+        <span th:if="${not customer.active}" class="badge text-bg-secondary">Inactif</span>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- Informations générales -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 pt-3 pb-2">
+                    <h6 class="fw-bold mb-0">Informations de contact</h6>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/espace/company}" method="post">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Raison sociale</label>
+                            <input type="text" class="form-control" th:value="${customer.companyName}" disabled>
+                            <div class="form-text">Modifiable uniquement par votre prestataire.</div>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Email</label>
+                                <input type="email" name="email" class="form-control" th:value="${customer.email}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Téléphone</label>
+                                <input type="text" name="phone" class="form-control" th:value="${customer.phone}">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Adresse</label>
+                            <textarea name="address" class="form-control" rows="2" th:text="${customer.address}"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-save me-1"></i>Enregistrer
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sites -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0"><i class="fas fa-map-marker-alt me-2 text-secondary"></i>Sites</h6>
+                    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAddSite">
+                        <i class="fas fa-plus me-1"></i>Ajouter
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(customer.sites)}" class="text-center py-3 text-muted small">
+                        Aucun site enregistré.
+                    </div>
+                    <div th:each="s : ${customer.sites}"
+                         class="d-flex align-items-center px-3 py-2 border-bottom gap-2">
+                        <i class="fas fa-building text-muted small"></i>
+                        <div class="flex-grow-1 small">
+                            <div class="fw-semibold" th:text="${s.name}"></div>
+                            <div class="text-muted" th:if="${s.city}" th:text="${s.zipCode + ' ' + s.city}"></div>
+                        </div>
+                        <form th:action="@{/espace/company/sites/{sid}/delete(sid=${s.id})}" method="post">
+                            <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1"
+                                    onclick="return confirm('Supprimer ce site ?')" title="Supprimer">
+                                <i class="fas fa-times small"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Modal : Ajouter un site -->
+    <div class="modal fade" id="modalAddSite" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form th:action="@{/espace/company/sites}" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-map-marker-alt me-2"></i>Ajouter un site</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Nom du site <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" required placeholder="Ex: Siège social, Entrepôt Nord...">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Adresse</label>
+                            <input type="text" name="address" class="form-control">
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-4">
+                                <label class="form-label fw-semibold small">Code postal</label>
+                                <input type="text" name="zipCode" class="form-control">
+                            </div>
+                            <div class="col-8">
+                                <label class="form-label fw-semibold small">Ville</label>
+                                <input type="text" name="city" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Ajouter</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+
+</div>
+</body>
+</html>

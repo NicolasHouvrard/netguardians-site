@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title th:text="${product.name}">Produit</title></head>
+<body>
+<div layout:fragment="content">
+
+    <!-- Header -->
+    <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+        <a href="/intra/products" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Catalogue
+        </a>
+
+        <img th:if="${product.photoPath != null}"
+             th:src="${product.photoPath}"
+             style="width:80px;height:80px;object-fit:cover" class="rounded shadow-sm" alt="photo">
+        <div th:unless="${product.photoPath != null}"
+             class="rounded bg-success bg-opacity-10 d-flex align-items-center justify-content-center shadow-sm"
+             style="width:80px;height:80px;flex-shrink:0">
+            <i class="fas fa-box text-success fa-2x"></i>
+        </div>
+
+        <div class="flex-grow-1">
+            <h4 class="mb-1" th:text="${product.name}"></h4>
+            <div class="d-flex gap-2 flex-wrap">
+                <span class="badge"
+                      th:classappend="${product.type.name() == 'SERVICE' ? 'text-bg-primary' :
+                                       product.type.name() == 'PHYSICAL' ? 'text-bg-warning' :
+                                       product.type.name() == 'LICENSE' ? 'text-bg-info' : 'text-bg-success'}"
+                      th:text="${product.type.label}"></span>
+                <span class="badge"
+                      th:classappend="${product.active ? 'text-bg-success' : 'text-bg-secondary'}"
+                      th:text="${product.active ? 'Actif' : 'Inactif'}"></span>
+                <span th:if="${product.category != null}" class="badge text-bg-light text-dark border"
+                      th:text="${product.category.name}"></span>
+                <span th:if="${shopProduct != null and shopProduct.published}" class="badge bg-danger">
+                    <i class="fas fa-shop me-1"></i>En boutique
+                </span>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="button"
+                    data-bs-toggle="modal" data-bs-target="#modalEditProduct"
+                    class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-pencil-alt me-1"></i>Modifier
+            </button>
+            <form th:action="@{/intra/products/{id}/toggle(id=${product.id})}" method="post">
+                <button type="submit" class="btn btn-sm btn-outline-secondary"
+                        th:text="${product.active ? 'Désactiver' : 'Activer'}"></button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Flash messages -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-triangle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="productTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-general-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-general"
+                    type="button" role="tab">
+                <i class="fas fa-info-circle me-1"></i>Description générale
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-fournisseurs-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-fournisseurs"
+                    type="button" role="tab">
+                <i class="fas fa-truck me-1"></i>Fournisseurs
+                <span class="badge text-bg-secondary ms-1"
+                      th:text="${#lists.size(supplierProducts)}"></span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-boutique-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-boutique"
+                    type="button" role="tab">
+                <i class="fas fa-shop me-1"></i>Boutique
+                <span th:if="${shopProduct != null and shopProduct.published}"
+                      class="badge bg-success ms-1">Publié</span>
+                <span th:if="${shopProduct != null and !shopProduct.published}"
+                      class="badge bg-secondary ms-1">Masqué</span>
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="productTabsContent">
+
+        <!-- ─── Tab 1 : Description générale ──────────────────────────────────── -->
+        <div class="tab-pane fade show active" id="tab-general" role="tabpanel">
+            <div class="row g-4">
+
+                <!-- Left : Info card -->
+                <div class="col-lg-8">
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white border-0 pt-3 pb-2">
+                            <h6 class="fw-bold mb-0"><i class="fas fa-info-circle me-2 text-success"></i>Informations</h6>
+                        </div>
+                        <div class="card-body">
+                            <dl class="row mb-0 small">
+                                <dt class="col-sm-3 text-muted">Nom</dt>
+                                <dd class="col-sm-9 mb-2 fw-semibold" th:text="${product.name}"></dd>
+
+                                <dt class="col-sm-3 text-muted">SKU</dt>
+                                <dd class="col-sm-9 mb-2" th:text="${product.sku ?: '—'}"></dd>
+
+                                <dt class="col-sm-3 text-muted">Référence</dt>
+                                <dd class="col-sm-9 mb-2" th:text="${product.reference ?: '—'}"></dd>
+
+                                <dt class="col-sm-3 text-muted">Description</dt>
+                                <dd class="col-sm-9 mb-2" th:text="${product.description ?: '—'}"></dd>
+
+                                <dt class="col-sm-3 text-muted">Type</dt>
+                                <dd class="col-sm-9 mb-2" th:text="${product.type.label}"></dd>
+
+                                <dt class="col-sm-3 text-muted">Tarification</dt>
+                                <dd class="col-sm-9 mb-2" th:text="${product.pricingMode.label}"></dd>
+
+                                <dt class="col-sm-3 text-muted">Catégorie</dt>
+                                <dd class="col-sm-9 mb-0"
+                                    th:text="${product.category != null ? product.category.name : '—'}"></dd>
+                            </dl>
+                        </div>
+                    </div>
+
+                    <!-- Image card -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+                            <h6 class="fw-bold mb-0"><i class="fas fa-image me-2 text-success"></i>Image</h6>
+                            <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small"
+                                    data-bs-toggle="modal" data-bs-target="#modalEditProduct">
+                                <i class="fas fa-upload me-1"></i>Changer manuellement
+                            </button>
+                        </div>
+                        <div class="card-body">
+
+                            <!-- Aperçu image actuelle -->
+                            <div class="mb-3 text-center">
+                                <img th:if="${product.photoPath != null}"
+                                     th:src="${product.photoPath}"
+                                     class="img-fluid rounded shadow-sm"
+                                     style="max-height:180px;object-fit:contain"
+                                     alt="Image produit">
+                                <div th:unless="${product.photoPath != null}"
+                                     class="p-4 bg-light rounded text-muted">
+                                    <i class="fas fa-image fa-3x opacity-25 d-block mb-2"></i>
+                                    <span class="small">Aucune image</span>
+                                </div>
+                            </div>
+
+                            <!-- Récupération automatique -->
+                            <form th:action="@{/intra/products/{id}/fetch-image(id=${product.id})}" method="post">
+                                <div class="mb-2">
+                                    <label class="form-label small text-muted mb-1">
+                                        Code recherche
+                                        <span th:if="${bestImageCode != null}"
+                                              class="badge text-bg-secondary ms-1"
+                                              th:text="${bestImageCodeType}"></span>
+                                    </label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+                                        <input type="text" name="ean" class="form-control"
+                                               placeholder="EAN / UPC / Réf. fabricant"
+                                               th:value="${bestImageCode}">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-magic me-1"></i>Récupérer
+                                        </button>
+                                    </div>
+                                    <div class="form-text">
+                                        Pré-rempli depuis les fiches fournisseur. Modifiable manuellement.
+                                        Via UPCitemdb (100 req/jour gratuites).
+                                    </div>
+                                </div>
+                            </form>
+
+                        </div>
+                    </div>
+
+                    <!-- Category card -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white border-0 pt-3 pb-2">
+                            <h6 class="fw-bold mb-0"><i class="fas fa-tag me-2 text-success"></i>Catégorie</h6>
+                        </div>
+                        <div class="card-body">
+                            <form th:action="@{/intra/products/{id}/category(id=${product.id})}" method="post"
+                                  class="row g-2 align-items-center">
+                                <div class="col">
+                                    <select name="categoryId" class="form-select form-select-sm">
+                                        <option value="">— Aucune catégorie —</option>
+                                        <th:block th:each="root : ${rootCategories}">
+                                            <option th:value="${root.id}"
+                                                    th:text="${root.name}"
+                                                    th:selected="${product.category != null and product.category.id == root.id}"></option>
+                                            <option th:each="child : ${root.children}"
+                                                    th:value="${child.id}"
+                                                    th:text="|  ↳ ${child.name}|"
+                                                    th:selected="${product.category != null and product.category.id == child.id}"></option>
+                                        </th:block>
+                                    </select>
+                                </div>
+                                <div class="col-auto">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-save me-1"></i>Enregistrer
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right : Tarification + Danger -->
+                <div class="col-lg-4">
+
+                    <!-- Pricing card -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white border-0 pt-3 pb-2">
+                            <h6 class="fw-bold mb-0"><i class="fas fa-euro-sign me-2 text-success"></i>Tarification</h6>
+                        </div>
+                        <div class="card-body">
+                            <dl class="row mb-3 small">
+                                <dt class="col-6 text-muted">Prix HT</dt>
+                                <dd class="col-6 fw-bold text-end"
+                                    th:text="${#numbers.formatDecimal(product.priceHT, 1, 2)} + ' €'"></dd>
+
+                                <dt class="col-6 text-muted">TVA</dt>
+                                <dd class="col-6 text-end" th:text="${product.taxRate} + ' %'"></dd>
+
+                                <dt class="col-6 text-muted">Prix TTC</dt>
+                                <dd class="col-6 fw-bold text-end text-success"
+                                    th:text="${#numbers.formatDecimal(priceTTC, 1, 2)} + ' €'"></dd>
+                            </dl>
+                            <hr class="my-2">
+                            <form th:action="@{/intra/products/{id}/update(id=${product.id})}" method="post">
+                                <input type="hidden" name="name"        th:value="${product.name}">
+                                <input type="hidden" name="description" th:value="${product.description}">
+                                <input type="hidden" name="sku"         th:value="${product.sku}">
+                                <input type="hidden" name="reference"   th:value="${product.reference}">
+                                <input type="hidden" name="type"        th:value="${product.type.name()}">
+                                <input type="hidden" name="pricingMode" th:value="${product.pricingMode.name()}">
+                                <input type="hidden" name="active"      th:value="${product.active}">
+                                <div class="row g-2 mb-2">
+                                    <div class="col-7">
+                                        <label class="form-label fw-semibold small">Nouveau prix HT</label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" name="priceHT" class="form-control" step="0.01" min="0"
+                                                   th:value="${product.priceHT}">
+                                            <span class="input-group-text">€</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-5">
+                                        <label class="form-label fw-semibold small">TVA (%)</label>
+                                        <input type="number" name="taxRate" class="form-control form-control-sm" step="0.01"
+                                               th:value="${product.taxRate}">
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-primary w-100">
+                                    <i class="fas fa-save me-1"></i>Mettre à jour le tarif
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Danger zone -->
+                    <div class="card border-0 shadow-sm border border-danger-subtle">
+                        <div class="card-header bg-white border-0 pt-3 pb-2">
+                            <h6 class="fw-bold mb-0 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Zone de danger</h6>
+                        </div>
+                        <div class="card-body">
+                            <form th:action="@{/intra/products/{id}/delete(id=${product.id})}" method="post"
+                                  onsubmit="return confirm('Supprimer définitivement ce produit ?')">
+                                <button type="submit" class="btn btn-sm btn-danger w-100">
+                                    <i class="fas fa-trash me-1"></i>Supprimer ce produit
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Tab 2 : Fournisseurs ──────────────────────────────────────────── -->
+        <div class="tab-pane fade" id="tab-fournisseurs" role="tabpanel">
+
+            <!-- Formulaires update-PA hors table (HTML5 form attribute) -->
+            <form th:each="sp : ${supplierProducts}"
+                  th:id="'pa-form-' + ${sp.id}"
+                  th:action="@{/intra/products/{id}/supplier-prices/{spId}/update-pa(id=${product.id},spId=${sp.id})}"
+                  method="post">
+                <input type="hidden" name="ruleId" class="rule-id-input" value="">
+            </form>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <h6 class="fw-bold mb-0">
+                        <i class="fas fa-truck me-2 text-secondary"></i>Prix fournisseurs
+                        <span class="badge text-bg-secondary ms-1" th:text="${#lists.size(supplierProducts)}"></span>
+                    </h6>
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="form-label small mb-0 text-muted">Règle appliquée au PA :</label>
+                        <select id="globalRuleSelect" class="form-select form-select-sm" style="width:200px">
+                            <option value="">— Aucune règle —</option>
+                            <option th:each="r : ${pricingRules}"
+                                    th:value="${r.id}"
+                                    th:text="${r.name}"
+                                    th:selected="${defaultRule != null and defaultRule.id == r.id}"></option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div th:if="${#lists.isEmpty(supplierProducts)}" class="text-center py-4 text-muted small">
+                        <i class="fas fa-truck fa-lg mb-2 d-block"></i>Aucun prix fournisseur.
+                    </div>
+                    <div class="table-responsive" th:unless="${#lists.isEmpty(supplierProducts)}">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Fournisseur</th>
+                                <th>Réf. fournisseur</th>
+                                <th>Réf. fabricant / UPC</th>
+                                <th>Nom catalogue</th>
+                                <th>P.A. HT</th>
+                                <th>Prix de vente HT</th>
+                                <th>Stock</th>
+                                <th>Dernière synchro</th>
+                                <th></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="sp : ${supplierProducts}">
+                                <td class="ps-3 fw-semibold" th:text="${sp.supplier.companyName}"></td>
+                                <td class="text-muted small" th:text="${sp.supplierReference ?: '—'}"></td>
+                                <!-- Réf. fabricant (vendorPartNumber) + UPC -->
+                                <td class="small">
+                                    <div th:if="${sp.vendorPartNumber != null}" class="fw-semibold"
+                                         th:text="${sp.vendorPartNumber}"></div>
+                                    <div th:if="${sp.upcCode != null}"
+                                         class="text-muted" style="font-size:.72rem">
+                                        <i class="fas fa-barcode me-1 opacity-50"></i><span th:text="${sp.upcCode}"></span>
+                                    </div>
+                                    <span th:if="${sp.vendorPartNumber == null and sp.upcCode == null}"
+                                          class="text-muted">—</span>
+                                </td>
+                                <td class="small" th:text="${sp.supplierName ?: '—'}"></td>
+
+                                <!-- PA éditable -->
+                                <td style="width:160px">
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" name="purchasePrice" step="0.01" min="0"
+                                               th:attr="form='pa-form-' + ${sp.id}"
+                                               th:value="${sp.purchasePrice}"
+                                               class="form-control form-control-sm"
+                                               placeholder="0.00">
+                                        <span class="input-group-text">€</span>
+                                    </div>
+                                </td>
+
+                                <!-- Prix de vente calculé (info) -->
+                                <td class="small text-muted">
+                                    <span th:if="${product.priceHT != null}"
+                                          th:text="${#numbers.formatDecimal(product.priceHT, 1, 'COMMA', 2, 'POINT')} + ' €'"></span>
+                                    <span th:unless="${product.priceHT != null}">—</span>
+                                </td>
+
+                                <td>
+                                    <span th:if="${sp.stockQuantity != null}"
+                                          class="badge"
+                                          th:classappend="${sp.stockQuantity > 0 ? 'text-bg-success' : 'text-bg-danger'}"
+                                          th:text="${sp.stockQuantity}"></span>
+                                    <span th:unless="${sp.stockQuantity != null}" class="text-muted small">—</span>
+                                </td>
+                                <td class="text-muted small"
+                                    th:text="${sp.lastSyncAt != null ? #temporals.format(sp.lastSyncAt, 'dd/MM/yyyy HH:mm') : '—'}"></td>
+
+                                <!-- Actions : sauvegarder PA + supprimer -->
+                                <td class="pe-3">
+                                    <div class="d-flex gap-1">
+                                        <button type="submit"
+                                                th:attr="form='pa-form-' + ${sp.id}"
+                                                class="btn btn-sm btn-success" title="Enregistrer le PA">
+                                            <i class="fas fa-save"></i>
+                                        </button>
+                                        <form th:action="@{/intra/products/{id}/supplier-prices/{spId}/delete(id=${product.id},spId=${sp.id})}"
+                                              method="post"
+                                              onsubmit="return confirm('Supprimer ce prix fournisseur ?')">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Supprimer">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-top pt-3">
+                    <h6 class="small fw-semibold mb-3"><i class="fas fa-plus me-1 text-success"></i>Ajouter un prix fournisseur</h6>
+                    <form th:action="@{/intra/products/{id}/supplier-prices(id=${product.id})}" method="post">
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <select name="supplierId" class="form-select form-select-sm" required>
+                                    <option value="">— Fournisseur —</option>
+                                    <option th:each="s : ${suppliers}"
+                                            th:value="${s.id}"
+                                            th:text="${s.companyName}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="text" name="supplierReference" class="form-control form-control-sm"
+                                       placeholder="Réf. fournisseur">
+                            </div>
+                            <div class="col-md-2">
+                                <input type="text" name="supplierName" class="form-control form-control-sm"
+                                       placeholder="Nom catalogue">
+                            </div>
+                            <div class="col-md-2">
+                                <div class="input-group input-group-sm">
+                                    <input type="number" name="purchasePrice" class="form-control" step="0.01" min="0"
+                                           placeholder="P.A. HT" required>
+                                    <span class="input-group-text">€</span>
+                                </div>
+                            </div>
+                            <div class="col-md-1">
+                                <input type="number" name="stockQuantity" class="form-control form-control-sm"
+                                       placeholder="Stock" min="0">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-sm btn-primary w-100">
+                                    <i class="fas fa-plus me-1"></i>Ajouter
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Tab 3 : Boutique ──────────────────────────────────────────────── -->
+        <div class="tab-pane fade" id="tab-boutique" role="tabpanel">
+            <div class="row g-4">
+
+                <!-- Left : settings -->
+                <div class="col-lg-7">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+                            <h6 class="fw-bold mb-0"><i class="fas fa-shop me-2 text-danger"></i>Paramètres boutique</h6>
+                            <span th:if="${shopProduct != null and shopProduct.published}" class="badge bg-success">Publié</span>
+                            <span th:if="${shopProduct != null and !shopProduct.published}" class="badge bg-secondary">Masqué</span>
+                            <span th:if="${shopProduct == null}" class="badge bg-light text-muted border">Non référencé</span>
+                        </div>
+                        <div class="card-body">
+
+                            <!-- Publish toggle -->
+                            <form th:action="@{/intra/products/{id}/shop/publish(id=${product.id})}" method="post" class="mb-3">
+                                <button type="submit" class="btn btn-sm w-100"
+                                        th:class="${shopProduct != null and shopProduct.published}
+                                            ? 'btn btn-sm btn-outline-warning w-100'
+                                            : 'btn btn-sm btn-success w-100'">
+                                    <i class="me-1"
+                                       th:class="${shopProduct != null and shopProduct.published}
+                                           ? 'fas fa-eye-slash me-1' : 'fas fa-eye me-1'"></i>
+                                    <span th:text="${shopProduct == null} ? 'Ajouter à la boutique'
+                                                  : (shopProduct.published ? 'Retirer de la boutique' : 'Publier en boutique')"></span>
+                                </button>
+                            </form>
+
+                            <!-- Shop settings form -->
+                            <form th:if="${shopProduct != null}"
+                                  th:action="@{/intra/products/{id}/shop/update(id=${product.id})}" method="post">
+
+                                <!-- Slug + Titre -->
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">Slug URL</label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text text-muted small">/boutique/</span>
+                                        <input type="text" name="slug" class="form-control form-control-sm"
+                                               th:value="${shopProduct.slug}">
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">Titre boutique</label>
+                                    <input type="text" name="shopTitle" class="form-control form-control-sm"
+                                           th:value="${shopProduct.shopTitle}"
+                                           placeholder="Vide = nom du produit">
+                                </div>
+
+                                <!-- Description boutique -->
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">Description boutique</label>
+                                    <textarea name="shopDescription" rows="4"
+                                              class="form-control form-control-sm"
+                                              th:text="${shopProduct.shopDescription}"
+                                              placeholder="Vide = description du produit"></textarea>
+                                    <div class="form-text">Si vide, la description générale du produit est utilisée.</div>
+                                </div>
+
+                                <!-- Prix HT -->
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">Prix HT boutique</label>
+                                    <p class="text-muted small mb-2">
+                                        Prix actuel du produit :
+                                        <strong th:text="${#numbers.formatDecimal(product.priceHT, 1, 2)} + ' € HT'"></strong>
+                                        — si une règle est sélectionnée, elle prime sur le prix manuel.
+                                    </p>
+                                    <div class="row g-2">
+                                        <div class="col-md-6">
+                                            <label class="form-label x-small text-muted mb-1">Règle de prix</label>
+                                            <select name="ruleId" class="form-select form-select-sm" id="ruleIdSelect">
+                                                <option value="">— Aucune règle —</option>
+                                                <option th:each="r : ${pricingRules}"
+                                                        th:value="${r.id}"
+                                                        th:text="${r.name}"
+                                                        th:selected="${defaultRule != null and defaultRule.id == r.id}"></option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label x-small text-muted mb-1">Prix HT manuel (€)</label>
+                                            <div class="input-group input-group-sm">
+                                                <input type="number" name="priceOverride" step="0.01" min="0"
+                                                       class="form-control form-control-sm"
+                                                       th:value="${shopProduct.priceOverride}"
+                                                       placeholder="Vide = prix produit">
+                                                <span class="input-group-text">€</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div th:if="${shopProduct.priceOverride != null}" class="mt-1">
+                                        <small class="text-muted">
+                                            Prix HT actuel boutique :
+                                            <strong th:text="${#numbers.formatDecimal(shopProduct.priceOverride, 1, 2)} + ' €'"></strong>
+                                            (TTC :
+                                            <strong th:text="${#numbers.formatDecimal(shopProduct.priceTTC, 1, 2)} + ' €'"></strong>)
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <!-- SEO -->
+                                <hr class="my-3">
+                                <div class="mb-2">
+                                    <label class="form-label small fw-semibold">Titre SEO</label>
+                                    <input type="text" name="seoTitle" class="form-control form-control-sm"
+                                           th:value="${shopProduct.seoTitle}">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">Description SEO <small class="text-muted">(160 car.)</small></label>
+                                    <input type="text" name="seoDescription" class="form-control form-control-sm"
+                                           th:value="${shopProduct.seoDescription}" maxlength="160">
+                                </div>
+
+                                <!-- Stock -->
+                                <hr class="my-3">
+                                <div class="d-flex align-items-center gap-3 mb-3">
+                                    <div class="form-check mb-0">
+                                        <input type="checkbox" name="stockEnabled" value="true"
+                                               class="form-check-input" id="chkShopStock"
+                                               th:checked="${shopProduct.stockEnabled}">
+                                        <label class="form-check-label small" for="chkShopStock">Gestion du stock activée</label>
+                                    </div>
+                                    <div class="input-group input-group-sm" style="width:130px">
+                                        <input type="number" name="stock" min="0"
+                                               class="form-control form-control-sm"
+                                               th:value="${shopProduct.stock}"
+                                               placeholder="Qté">
+                                        <span class="input-group-text">unités</span>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
+                                        <i class="fas fa-save me-1"></i>Enregistrer
+                                    </button>
+                                    <a th:if="${shopProduct.published}"
+                                       th:href="@{/boutique/{slug}(slug=${shopProduct.slug})}"
+                                       target="_blank" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </div>
+                            </form>
+
+                            <!-- Not yet in shop -->
+                            <div th:if="${shopProduct == null}" class="text-center py-3 text-muted small">
+                                <i class="fas fa-shop fa-2x mb-2 d-block opacity-25"></i>
+                                Ce produit n'est pas encore référencé en boutique.<br>
+                                Cliquez sur "Ajouter à la boutique" pour commencer.
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right : price history -->
+                <div class="col-lg-5">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white border-0 pt-3 pb-2">
+                            <h6 class="fw-bold mb-0"><i class="fas fa-history me-2 text-secondary"></i>Historique des prix</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div th:if="${#lists.isEmpty(priceHistory)}" class="text-center py-4 text-muted small">
+                                <i class="fas fa-history fa-lg mb-2 d-block opacity-25"></i>Aucune modification de prix enregistrée.
+                            </div>
+                            <div class="table-responsive" th:unless="${#lists.isEmpty(priceHistory)}">
+                                <table class="table table-sm align-middle mb-0">
+                                    <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-3 small">Date</th>
+                                        <th class="small">Avant</th>
+                                        <th class="small">Après</th>
+                                        <th class="small">Source</th>
+                                        <th class="pe-3 small">Par</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr th:each="h : ${priceHistory}">
+                                        <td class="ps-3 text-muted small"
+                                            th:text="${#temporals.format(h.changedAt, 'dd/MM HH:mm')}"></td>
+                                        <td class="small text-muted"
+                                            th:text="${h.oldPrice != null ? #numbers.formatDecimal(h.oldPrice, 1, 2) + ' €' : '—'}"></td>
+                                        <td class="small fw-semibold text-success"
+                                            th:text="${#numbers.formatDecimal(h.newPrice, 1, 2)} + ' €'"></td>
+                                        <td class="small" th:text="${h.source}"></td>
+                                        <td class="pe-3 text-muted small" th:text="${h.changedBy}"></td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div><!-- /tab-content -->
+
+    <!-- Edit modal -->
+    <div class="modal fade" id="modalEditProduct" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form th:action="@{/intra/products/{id}/update(id=${product.id})}" method="post" enctype="multipart/form-data">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-pencil-alt me-2"></i>Modifier le produit</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Nom <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" th:value="${product.name}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Description</label>
+                            <textarea name="description" class="form-control" rows="3" th:text="${product.description}"></textarea>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">SKU</label>
+                                <input type="text" name="sku" class="form-control" th:value="${product.sku}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Référence</label>
+                                <input type="text" name="reference" class="form-control" th:value="${product.reference}">
+                            </div>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold small">Type</label>
+                                <select name="type" class="form-select">
+                                    <option th:each="t : ${productTypes}"
+                                            th:value="${t.name()}"
+                                            th:text="${t.label}"
+                                            th:selected="${product.type == t}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold small">Tarification</label>
+                                <select name="pricingMode" class="form-select">
+                                    <option th:each="m : ${pricingModes}"
+                                            th:value="${m.name()}"
+                                            th:text="${m.label}"
+                                            th:selected="${product.pricingMode == m}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold small">Catégorie</label>
+                                <select name="categoryId" class="form-select">
+                                    <option value="">— Aucune —</option>
+                                    <th:block th:each="root : ${rootCategories}">
+                                        <option th:value="${root.id}"
+                                                th:text="${root.name}"
+                                                th:selected="${product.category != null and product.category.id == root.id}"></option>
+                                        <option th:each="child : ${root.children}"
+                                                th:value="${child.id}"
+                                                th:text="|  ↳ ${child.name}|"
+                                                th:selected="${product.category != null and product.category.id == child.id}"></option>
+                                    </th:block>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Prix HT</label>
+                                <div class="input-group">
+                                    <input type="number" name="priceHT" class="form-control" step="0.01" min="0"
+                                           th:value="${product.priceHT}">
+                                    <span class="input-group-text">€</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Taux TVA (%)</label>
+                                <input type="number" name="taxRate" class="form-control" step="0.01"
+                                       th:value="${product.taxRate}">
+                            </div>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Photo</label>
+                                <input type="file" name="photo" class="form-control" accept="image/*">
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input type="checkbox" name="active" value="true" class="form-check-input"
+                                           id="chkActiveModal" th:checked="${product.active}">
+                                    <label class="form-check-label" for="chkActiveModal">Produit actif</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script th:inline="javascript">
+        // Remember active tab per product across page reloads
+        (function () {
+            var key = 'productTab-' + /*[[${product.id}]]*/ '0';
+            var saved = sessionStorage.getItem(key);
+            if (saved) {
+                var btn = document.querySelector('[data-bs-target="' + saved + '"]');
+                if (btn) new bootstrap.Tab(btn).show();
+            }
+            document.querySelectorAll('[data-bs-toggle="tab"]').forEach(function (btn) {
+                btn.addEventListener('shown.bs.tab', function (e) {
+                    sessionStorage.setItem(key, e.target.getAttribute('data-bs-target'));
+                });
+            });
+        })();
+
+        // Sync global rule selector → hidden ruleId inputs in each pa-form
+        var globalRuleSelect = document.getElementById('globalRuleSelect');
+        if (globalRuleSelect) {
+            function syncRule() {
+                document.querySelectorAll('.rule-id-input').forEach(function (input) {
+                    input.value = globalRuleSelect.value;
+                });
+            }
+            globalRuleSelect.addEventListener('change', syncRule);
+            syncRule();
+        }
+    </script>
+
+</div>
+</body>
+</html>

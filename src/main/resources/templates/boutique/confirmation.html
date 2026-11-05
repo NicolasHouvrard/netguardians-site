@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{boutique-layout}">
+<body>
+<div layout:fragment="content">
+
+    <div class="text-center py-4 mb-4">
+        <!-- PENDING_VALIDATION -->
+        <div th:if="${order.status.name() == 'PENDING_VALIDATION'}" class="text-info mb-2">
+            <i class="fas fa-hourglass-half fa-4x"></i>
+        </div>
+        <!-- PAID -->
+        <div th:if="${order.status.name() == 'PAID'}" class="text-success mb-2">
+            <i class="fas fa-check-circle fa-4x"></i>
+        </div>
+        <!-- Other statuses -->
+        <div th:if="${order.status.name() != 'PENDING_VALIDATION' and order.status.name() != 'PAID'}"
+             class="text-warning mb-2">
+            <i class="fas fa-clock fa-4x"></i>
+        </div>
+
+        <h1 class="h2 fw-bold mt-3"
+            th:text="${order.status.name() == 'PENDING_VALIDATION'} ? 'Demande soumise !' : 'Commande confirmée !'"></h1>
+        <p class="text-muted">Référence : <strong th:text="${order.reference}"></strong></p>
+
+        <span class="badge fs-6 px-3 py-2"
+              th:classappend="'bg-' + ${order.status.badgeCss}"
+              th:text="${order.status.label}"></span>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+
+            <!-- Message spécifique selon statut -->
+            <div th:if="${order.status.name() == 'PENDING_VALIDATION'}"
+                 class="alert alert-info d-flex gap-3 mb-4">
+                <i class="fas fa-circle-info fa-lg mt-1 flex-shrink-0"></i>
+                <div>
+                    <strong>Votre demande a bien été enregistrée.</strong><br>
+                    Un gestionnaire va l'examiner et vous contactera pour finaliser le paiement
+                    selon le mode choisi (<span th:text="${order.paymentMethod?.label}"></span>).
+                </div>
+            </div>
+
+            <div th:if="${order.status.name() == 'PENDING_PAYMENT' or order.status.name() == 'AWAITING_TRANSFER'}"
+                 class="alert alert-warning d-flex gap-3 mb-4">
+                <i class="fas fa-triangle-exclamation fa-lg mt-1 flex-shrink-0"></i>
+                <div>
+                    Votre commande est validée — le paiement est en attente.
+                    <span th:if="${order.paymentMethod?.name() == 'BANK_TRANSFER'}">
+                        Consultez les instructions de virement ci-dessous.
+                    </span>
+                </div>
+            </div>
+
+            <!-- Détail de la commande -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-transparent fw-semibold">Détail de la commande</div>
+                <div class="card-body p-0">
+                    <div th:each="line, stat : ${order.lines}"
+                         th:class="${stat.last} ? 'p-3' : 'p-3 border-bottom'">
+                        <div class="d-flex justify-content-between">
+                            <span th:text="${line.productName + ' × ' + line.quantity}"></span>
+                            <span class="fw-semibold"
+                                  th:text="${#numbers.formatDecimal(line.lineTotalTTC,1,'COMMA',2,'POINT')} + ' €'"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <div class="d-flex justify-content-between text-muted small mb-1">
+                        <span>Total HT</span>
+                        <span th:text="${#numbers.formatDecimal(order.totalHT,1,'COMMA',2,'POINT')} + ' €'"></span>
+                    </div>
+                    <div class="d-flex justify-content-between text-muted small mb-1">
+                        <span>TVA</span>
+                        <span th:text="${#numbers.formatDecimal(order.vatAmount,1,'COMMA',2,'POINT')} + ' €'"></span>
+                    </div>
+                    <div class="d-flex justify-content-between fw-bold fs-5">
+                        <span>Total TTC</span>
+                        <span class="text-primary"
+                              th:text="${#numbers.formatDecimal(order.totalTTC,1,'COMMA',2,'POINT')} + ' €'"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-3 justify-content-center flex-wrap">
+                <a th:if="${order.paymentMethod?.name() == 'BANK_TRANSFER'
+                            and order.status.name() == 'AWAITING_TRANSFER'}"
+                   th:href="@{/boutique/virement/{ref}(ref=${order.reference})}"
+                   class="btn btn-primary">
+                    <i class="fas fa-university me-2"></i>Instructions virement
+                </a>
+                <a th:href="@{/boutique}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Retour à la boutique
+                </a>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

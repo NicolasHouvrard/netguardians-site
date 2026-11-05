@@ -1,0 +1,38 @@
+<div th:fragment="tile(url, icon, title, color, roleRequired)" >
+    <div th:if="${#authorization.expression('hasAuthority(''' + roleRequired + ''')')}">
+    <a class="tile-link p-1 text-decoration-none" 
+         th:href="${url}" 
+      
+         style="display: block; cursor: pointer;">
+        
+        <div class="tile card h-100 shadow-sm border-0 text-white d-flex flex-column align-items-center justify-content-center p-4 "
+                th:style="|background-color: ${color};|" >
+            <div class="mb-3">
+                <i th:class="'fas ' + ${icon} + ' fa-3x'"></i>
+            </div>
+            <div class="fw-bold text-uppercase" style="letter-spacing: 1px; font-size: 0.85rem;" th:text="${title}">
+                TITRE
+            </div>
+        </div>
+    </a>
+</div>
+</div>
+
+
+<div th:fragment="menu-grid" class="container mt-5">
+    <div th:each="entry : ${listeModules}" class="mb-5">
+        <h3 class="text-uppercase fw-bold mb-4 border-bottom pb-2" 
+            th:text="${entry.key}" style="color: #6c757d; font-size: 1.2rem;">
+            NOM DE LA CATEGORIE
+        </h3>
+
+        <div class="row g-4">
+            <div th:each="item : ${entry.value}" class="col-3 col-md-3 col-lg-3">
+                <div th:replace="~{::tile(url=${item.url}, icon=${item.icon}, title=${item.title}, color=${item.color}, roleRequired=${item.roleRequired})}"></div>
+            </div>
+        </div>
+    </div>
+    
+    
+    
+</div>

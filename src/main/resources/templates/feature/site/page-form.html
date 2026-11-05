@@ -1,0 +1,150 @@
+<div layout:decorate="~{admin-layout}">
+    <div layout:fragment="content" class="container mt-4">
+        <h2 th:text="${page.id == null ? 'Créer une page' : 'Modifier la page'}">Titre</h2>
+
+        <form th:action="@{/admin/pages/save}" th:object="${page}" method="post" class="mt-4">
+            <input type="hidden" th:field="*{id}">
+
+            <div class="row">
+                <div class="col-md-8 mb-3">
+                    <label class="form-label">Titre de la page</label>
+                    <input type="text" th:field="*{title}" id="titleField" class="form-control" placeholder="Ex: À propos de nous" required>
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">URL (Slug)</label>
+                    <input type="text" th:field="*{slug}" id="slugField" class="form-control" readonly>
+                    <small class="text-muted">Généré automatiquement</small>
+                </div>
+            </div>
+            <div class="row">
+        <div class="col-md-8 mb-3">
+           <div class="mb-3">
+    <label class="form-label">Menu / Catégorie</label>
+    <select name="categoryId" class="form-select">
+    <option value="0">-- Page Orpheline (Lien direct) --</option>
+    <option th:each="cat : ${allCategories}" 
+            th:value="${cat.id}" 
+            th:text="${cat.name}"
+            th:selected="${page.category != null and page.category.id == cat.id}">
+    </option>
+</select>
+    <div class="form-text">Choisissez le menu dans lequel cette page apparaîtra.</div>
+</div>
+             <div class="form-check mb-3">
+                <input type="checkbox" th:field="*{isPublished}" class="form-check-input" id="isPublished">
+                <label class="form-check-label" for="isPublished">Publier immédiatement</label>
+            </div>
+            <div class="form-check mb-3">
+                <input type="checkbox" th:field="*{isActive}" class="form-check-input" id="isactive">
+                <label class="form-check-label" for="isActive">Dans le  menu</label>
+            </div>
+            <div class="form-check mb-3">
+                <input type="checkbox" th:field="*{isHomePage}" class="form-check-input" id="isHomePage">
+                <label class="form-check-label" for="isHomePage">page d'accueil</label>
+            </div>
+            <div class="form-text">Les pages de même catégorie seront regroupées dans un menu déroulant.</div>
+        </div>
+
+        <div class="col-md-4 mb-3">
+            <label class="form-label">Ordre</label>
+            <input type="number" th:field="*{displayOrder}" class="form-control" placeholder="1">
+        </div>
+    </div>
+          <div class="mb-3">
+                <label class="form-label">Contenu de la page</label>
+                <div id="editorjs" style="min-height: 500px; border: 1px solid #ddd; padding: 20px; background-color: white; cursor: text;"></div>
+                <input type="hidden" th:field="*{content}" id="contentInput">
+           </div>
+
+           
+            <button type="submit" class="btn btn-primary">Enregistrer la page</button>
+        </form>
+        
+    </div>
+</div>
+
+<th:block layout:fragment="script">
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/header@2.8.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/nested-list@1.3.0/dist/nested-list.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@calumk/editorjs-columns@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/image@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.30.5"></script>
+
+    <script>
+        // Fonction pour transformer le titre en slug (ex: "Mon Article" -> "mon-article")
+const slugify = (str) => {
+    return str
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, '') // Supprime les caractères spéciaux
+        .replace(/[\s_-]+/g, '-') // Remplace les espaces et underscores par des tirets
+        .replace(/^-+|-+$/g, ''); // Nettoie les tirets aux extrémités
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    const titleInput = document.getElementById('titleField'); // L'ID de ton champ Titre
+    const slugInput = document.getElementById('slugField');   // L'ID de ton champ Slug
+
+    if (titleInput && slugInput) {
+        titleInput.addEventListener('input', () => {
+            // On ne génère le slug que si l'utilisateur n'en a pas déjà écrit un manuellement
+            // Ou tu peux forcer la mise à jour selon ton besoin
+            slugInput.value = slugify(titleInput.value);
+        });
+    }
+   
+        // --- On vérifie ce qui est réellement dans l'objet global window ---
+        // Le plugin columns s'enregistre souvent sous 'editorjsColumns'
+        const ToolColumns = window.EditorJSColumns || window.editorjsColumns || window.Columns;  
+        const ToolList = window.NestedList; // NestedList est le nouveau standard
+        const ToolHeader = window.Header;
+        const ToolImage = window.ImageTool;
+
+        const imageConfig = {
+        class: window.ImageTool,
+        config: {
+            endpoints: {
+                byFile: '/admin/pages/upload-image', // Ton URL Spring Boot
+            },
+            field: 'image'
+        }
+    };
+       
+
+        const editor = new EditorJS({
+            holder: 'editorjs',
+            tools: {
+        header: { class: ToolHeader, inlineToolbar: true },
+        list: { class: ToolList, inlineToolbar: true },
+        image: imageConfig,
+        columns: {
+            class: ToolColumns,
+            config: {
+                EditorJsLibrary: EditorJS,
+                tools: {
+                    // C'EST ICI QU'IL FAUT RAJOUTER L'IMAGE
+                    header: ToolHeader,
+                    list: ToolList,
+                    image: imageConfig, // Permet d'insérer des images dans les colonnes
+                    paragraph: { inlineToolbar: true }
+                }
+            }
+        }
+    },
+                
+            data: (() => {
+                try {
+                    const val = document.getElementById('contentInput').value;
+                    return (val && val !== "") ? JSON.parse(val) : {};
+                } catch (e) { return {}; }
+            })(),
+            onChange: () => {
+                editor.save().then(output => {
+                    document.getElementById('contentInput').value = JSON.stringify(output);
+                });
+            }
+        });
+    });
+    </script>
+</th:block>

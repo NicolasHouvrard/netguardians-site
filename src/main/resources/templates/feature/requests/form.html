@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+<head>
+    <title>Gestion des demandes</title>
+    <style>
+        .origin-card    { border-left: 4px solid #0d6efd; background: #f8f9ff; }
+        .contact-detail { border-left: 4px solid #198754; background: #f0fff4; }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container-fluid">
+
+        <!--/* Conflit d'edition (RequestController#conflitEdition) : message flash apres redirection */-->
+        <div th:if="${errorMessage}" class="alert alert-warning alert-dismissible fade show" role="alert">
+            <i class="fas fa-triangle-exclamation me-2"></i><span th:text="${errorMessage}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+        </div>
+
+        <form th:action="@{/intra/customers/{cId}/requests/save(cId=${customer.id})}"
+              th:object="${request}" method="post">
+            <input type="hidden" th:field="*{id}" />
+            <!--/* Verrouillage optimiste (@Version sur Syncable) : round-trip obligatoire, sinon l'enregistrement d'une demande existante echoue */-->
+            <input type="hidden" th:field="*{version}" />
+
+            <!-- ══ ORIGINE ════════════════════════════════════════════════ -->
+            <div class="card origin-card shadow-sm mb-4">
+                <div class="card-header py-2 d-flex align-items-center gap-2">
+                    <i class="fas fa-map-pin text-primary"></i>
+                    <span class="fw-bold">Origine de la demande</span>
+                </div>
+                <div class="card-body pb-2">
+                    <div class="row g-3 align-items-start">
+
+                        <!-- CLIENT (lecture seule) -->
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-uppercase text-muted">Client</label>
+                            <div class="d-flex align-items-center gap-2 p-2 bg-white rounded border">
+                                <i class="fas fa-building text-primary"></i>
+                                <span class="fw-bold" th:text="${customer.companyName}"></span>
+                            </div>
+                        </div>
+
+                        <!-- SITE -->
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-uppercase text-muted">Site</label>
+                            <div class="input-group mb-1">
+                                <span class="input-group-text bg-white border-end-0">
+                                    <i class="fas fa-search text-muted small"></i>
+                                </span>
+                                <!--
+                                  Recherche site : sur saisie → recharge les <option> de #siteSelect
+                                  hx-include="this" envoie q=<valeur saisie>
+                                -->
+                                <input type="text" name="q"
+                                       class="form-control form-control-sm border-start-0"
+                                       placeholder="Filtrer les sites…"
+                                       autocomplete="off"
+                                       th:hx-get="@{/intra/customers/{id}/requests/site-options(id=${customer.id})}"
+                                       hx-trigger="input changed delay:250ms"
+                                       hx-target="#siteSelect"
+                                       hx-swap="innerHTML"
+                                       hx-include="this">
+                                <button type="button" class="btn btn-sm btn-outline-primary"
+                                        title="Créer un site"
+                                        th:hx-get="@{/intra/customers/{id}/sites/quick-form(id=${customer.id})}"
+                                        hx-target="#quickSiteModalBody"
+                                        hx-swap="innerHTML"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#quickSiteModal">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            <!--
+                              Select site : sur changement → recharge les <option> de #contactSelect
+                              hx-include="this" envoie siteId=<valeur sélectionnée>
+                              L'OOB dans la réponse vide aussi #contactDetailCard
+                            -->
+                            <select id="siteSelect" name="siteId"
+                                    class="form-select form-select-sm"
+                                    th:hx-get="@{/intra/customers/{id}/requests/contact-options(id=${customer.id})}"
+                                    hx-trigger="change"
+                                    hx-target="#contactSelect"
+                                    hx-swap="innerHTML"
+                                    hx-include="this">
+                                <option value="">— Tous les sites —</option>
+                                <option th:each="s : ${customerSites}"
+                                        th:value="${s.id}"
+                                        th:text="${s.name}"
+                                        th:selected="${request.site != null and request.site.id == s.id
+                                                       or (request.site == null
+                                                           and request.contact != null
+                                                           and request.contact.site != null
+                                                           and request.contact.site.id == s.id)}">
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- CONTACT -->
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-uppercase text-muted">Contact</label>
+                            <div class="input-group mb-1">
+                                <span class="input-group-text bg-white border-end-0">
+                                    <i class="fas fa-search text-muted small"></i>
+                                </span>
+                                <!--
+                                  Recherche contact : sur saisie → recharge les <option> de #contactSelect
+                                  hx-include="this, #siteSelect" envoie q=<saisie> ET siteId=<site courant>
+                                -->
+                                <input type="text" name="q"
+                                       class="form-control form-control-sm border-start-0"
+                                       placeholder="Filtrer les contacts…"
+                                       autocomplete="off"
+                                       th:hx-get="@{/intra/customers/{id}/requests/contact-options(id=${customer.id})}"
+                                       hx-trigger="input changed delay:250ms"
+                                       hx-target="#contactSelect"
+                                       hx-swap="innerHTML"
+                                       hx-include="this, #siteSelect">
+                                <button type="button" class="btn btn-sm btn-outline-primary"
+                                        title="Créer un contact"
+                                        th:hx-get="@{/intra/customers/{id}/contacts/quick-form(id=${customer.id})}"
+                                        hx-target="#quickContactModalBody"
+                                        hx-swap="innerHTML"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#quickContactModal">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            <!--
+                              Select contact : sur changement → remplace #contactDetailCard (outerHTML)
+                              hx-include="this" envoie contactId=<valeur sélectionnée>
+                            -->
+                            <select id="contactSelect" name="contactId"
+                                    class="form-select form-select-sm"
+                                    th:hx-get="@{/intra/customers/{id}/requests/contact-detail(id=${customer.id})}"
+                                    hx-trigger="change"
+                                    hx-target="#contactDetailCard"
+                                    hx-swap="outerHTML"
+                                    hx-include="this">
+                                <option value="">— Sélectionner un contact —</option>
+                                <option th:each="c : ${contacts}"
+                                        th:value="${c.id}"
+                                        th:text="${c.firstName + ' ' + c.lastName
+                                                   + (c.site != null ? ' (' + c.site.name + ')' : '')}"
+                                        th:selected="${request.contact != null and request.contact.id == c.id}">
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Carte de détail : Thymeleaf au chargement, HTMX ensuite -->
+                    <div id="contactDetailCard"
+                         class="contact-detail rounded px-3 py-2 mt-3"
+                         th:classappend="${request.contact == null ? ' d-none' : ''}">
+                        <div th:if="${request.contact != null}" class="row g-2 small align-items-center">
+                            <div class="col-auto fw-bold text-success">
+                                <i class="fas fa-user me-1"></i>
+                                <span th:text="${request.contact.firstName + ' ' + request.contact.lastName}"></span>
+                            </div>
+                            <div class="col-auto text-muted" th:if="${request.contact.position != null}">
+                                <i class="fas fa-briefcase me-1"></i>
+                                <span th:text="${request.contact.position}"></span>
+                            </div>
+                            <div class="col-auto" th:if="${request.contact.email != null}">
+                                <i class="fas fa-envelope text-muted me-1"></i>
+                                <a th:href="'mailto:' + ${request.contact.email}"
+                                   th:text="${request.contact.email}"
+                                   class="text-decoration-none"></a>
+                            </div>
+                            <div class="col-auto" th:if="${request.contact.phone != null}">
+                                <i class="fas fa-phone text-muted me-1"></i>
+                                <a th:href="'tel:' + ${request.contact.phone}"
+                                   th:text="${request.contact.phone}"
+                                   class="text-decoration-none"></a>
+                            </div>
+                            <div class="col-auto text-muted" th:if="${request.contact.site != null}">
+                                <i class="fas fa-building me-1"></i>
+                                <span th:text="${request.contact.site.name}"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══ CORPS ══════════════════════════════════════════════════ -->
+            <div class="mb-3">
+                <label class="form-label fw-bold">Objet de la demande *</label>
+                <input type="text" th:field="*{title}"
+                       class="form-control-plaintext border-bottom"
+                       readonly ondblclick="unlockInput(this)" onblur="lockInput(this)"
+                       placeholder="Ex : Panne serveur, Devis extension..." required>
+            </div>
+
+            <div class="form-group mb-3" ondblclick="unlockRadios(this)">
+                <label class="d-block fw-bold">Type d'opération <span class="text-danger">*</span></label>
+                <div class="row">
+                    <div th:each="t : ${requestTypes}" class="col-md-4 col-sm-6 mb-2">
+                        <div class="custom-control custom-radio h-100">
+                            <input type="radio" th:id="${'type-' + t.name()}" th:field="*{type}"
+                                   th:value="${t}" class="custom-control-input" required>
+                            <label th:for="${'type-' + t.name()}"
+                                   class="custom-control-label btn btn-outline-primary w-100 py-3 shadow-sm h-100 d-flex align-items-center justify-content-center">
+                                <i th:class="'fas ' + ${t.icon} + ' mr-2'"></i>
+                                <span th:text="${t.label}"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label fw-bold">Priorité</label>
+                    <select th:field="*{priority}" class="form-control">
+                        <option th:each="p : ${T(com.logicielpourtous.site.features.request.RequestPriority).values()}"
+                                th:value="${p}" th:text="${p.displayValue}"></option>
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label fw-bold">Statut</label>
+                    <select th:field="*{status}" class="form-control">
+                        <option th:each="s : ${T(com.logicielpourtous.site.features.request.RequestStatus).values()}"
+                                th:value="${s}" th:text="${s}"></option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Description détaillée</label>
+                <textarea th:field="*{description}" class="form-control-plaintext border p-2"
+                          readonly ondblclick="unlockInput(this)" onblur="lockInput(this)" rows="5"></textarea>
+            </div>
+
+            <!-- ══ ABONNEMENT ═══════════════════════════════════════════════ -->
+            <div class="mb-3" th:if="${activeSubscriptions != null and not #lists.isEmpty(activeSubscriptions)}">
+                <label class="form-label fw-bold">Abonnement concerné</label>
+                <select name="subscriptionId" class="form-select form-select-sm" style="max-width:400px">
+                    <option value="">— Aucun abonnement —</option>
+                    <option th:each="sub : ${activeSubscriptions}"
+                            th:value="${sub.id}"
+                            th:text="${sub.name + (sub.billingModel.name() == 'FORFAIT' ? ' (Forfait)' : ' (Horaire)')}"
+                            th:selected="${request.subscription != null and request.subscription.id == sub.id}">
+                    </option>
+                </select>
+            </div>
+
+            <!-- ══ TEMPS ESTIMÉ ══════════════════════════════════════════════ -->
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Temps estimé</label>
+                    <div class="input-group input-group-sm" style="max-width:200px">
+                        <input type="number" name="estimatedHoursInput" min="0"
+                               th:value="${request.estimatedMinutes != null ? request.estimatedMinutes / 60 : 0}"
+                               class="form-control" style="max-width:70px">
+                        <span class="input-group-text">h</span>
+                        <input type="number" name="estimatedMinsInput" min="0" max="59"
+                               th:value="${request.estimatedMinutes != null ? request.estimatedMinutes % 60 : 0}"
+                               class="form-control" style="max-width:70px">
+                        <span class="input-group-text">min</span>
+                    </div>
+                </div>
+                <div class="col-md-4 d-flex align-items-end" th:if="${request.id != null}">
+                    <div class="small text-muted">
+                        <i class="fas fa-clock me-1 text-success"></i>
+                        Temps saisi : <strong th:text="${request.formattedSpent}"></strong>
+                        <span th:if="${request.estimatedMinutes != null and request.estimatedMinutes > 0}">
+                            / <span th:text="${request.formattedEstimated}"></span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <input type="hidden" name="estimatedMinutesComputed" value="0" />
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-success">Enregistrer</button>
+                <button type="button" onclick="history.back()" class="btn btn-secondary px-4">
+                    <i class="fas fa-times fa-sm me-1"></i> Annuler
+                </button>
+            </div>
+        </form>
+
+        <!-- ══ SAISIE DE TEMPS ════════════════════════════════════════════ -->
+        <div id="temps-pane" class="mt-5" th:if="${request.id != null}">
+            <h5><i class="fas fa-stopwatch me-2 text-success"></i>Saisie de temps</h5>
+            <form th:action="@{/intra/customers/{cId}/requests/{id}/add-time-entry(cId=${customer.id},id=${request.id})}"
+                  method="post" class="card card-body bg-light mb-4">
+                <div class="row g-2 align-items-end">
+                    <div class="col-auto">
+                        <label class="form-label small fw-bold">Date</label>
+                        <input type="date" name="date" class="form-control form-control-sm"
+                               th:value="${T(java.time.LocalDate).now()}" required>
+                    </div>
+                    <div class="col-auto">
+                        <label class="form-label small fw-bold">Durée</label>
+                        <div class="input-group input-group-sm">
+                            <input type="number" name="durationHours" min="0" value="0"
+                                   class="form-control" style="max-width:65px">
+                            <span class="input-group-text">h</span>
+                            <input type="number" name="durationMins" min="0" max="59" value="0"
+                                   class="form-control" style="max-width:65px">
+                            <span class="input-group-text">min</span>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <label class="form-label small fw-bold">Description</label>
+                        <input type="text" name="description" class="form-control form-control-sm"
+                               placeholder="Ce qui a été fait…">
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <i class="fas fa-plus me-1"></i>Ajouter
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Barre de progression -->
+            <div th:if="${request.estimatedMinutes != null and request.estimatedMinutes > 0 and request.id != null}"
+                 class="mb-3">
+                <div th:with="pct=${T(java.lang.Math).min(100, request.totalSpentMinutes * 100 / request.estimatedMinutes)}">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="text-muted">Avancement</span>
+                        <span th:text="${request.formattedSpent + ' / ' + request.formattedEstimated}"></span>
+                    </div>
+                    <div class="progress" style="height:10px">
+                        <div class="progress-bar"
+                             th:classappend="${pct >= 100 ? ' bg-danger' : (pct >= 80 ? ' bg-warning' : ' bg-success')}"
+                             role="progressbar"
+                             th:style="'width:' + ${pct} + '%'"
+                             th:text="${pct + '%'}"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Liste des entrées -->
+            <div th:if="${request.timeEntries != null and not #lists.isEmpty(request.timeEntries)}">
+                <table class="table table-sm table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:110px">Date</th>
+                            <th style="width:90px">Durée</th>
+                            <th>Description</th>
+                            <th style="width:130px">Par</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="entry : ${request.timeEntries}">
+                            <td class="text-muted small" th:text="${#temporals.format(entry.date, 'dd/MM/yyyy')}"></td>
+                            <td class="fw-bold text-success small" th:text="${entry.formattedDuration}"></td>
+                            <td class="small" th:text="${entry.description}"></td>
+                            <td class="small text-muted" th:text="${entry.author.email}"></td>
+                        </tr>
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="2" class="fw-bold text-end small">Total :</td>
+                            <td class="fw-bold text-success small" th:text="${request.formattedSpent}"></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <p th:if="${request.timeEntries == null or #lists.isEmpty(request.timeEntries)}"
+               class="text-muted small">Aucune saisie de temps pour le moment.</p>
+        </div>
+
+        <!-- ══ COMMENTAIRES ═══════════════════════════════════════════════ -->
+        <hr class="mt-5">
+        <h5 class="mt-4">Ajouter un commentaire</h5>
+        <form th:if="${request.id != null}"
+              th:action="@{/intra/customers/{cId}/requests/{id}/add-comment(cId=${customer.id},id=${request.id})}"
+              method="post">
+            <div class="mb-3">
+                <textarea class="form-control" name="content" rows="3"
+                          placeholder="Votre commentaire..." required></textarea>
+            </div>
+            <div class="form-check mb-3" sec:authorize="hasRole('ROLE_ADMIN')">
+                <input class="form-check-input" type="checkbox" name="isPublic" id="isPrivateCheckbox">
+                <label class="form-check-label" for="isPrivateCheckbox">
+                    Commentaire privé (visible uniquement par le support)
+                </label>
+            </div>
+            <button type="submit" class="btn btn-primary">Envoyer</button>
+        </form>
+
+        <div th:if="${visibleComments != null}" class="mt-5">
+            <h5>Commentaires</h5>
+            <hr>
+            <p th:if="${#lists.isEmpty(visibleComments)}" class="text-muted">Aucun commentaire pour le moment.</p>
+            <div th:each="comment : ${visibleComments}" class="card mb-3">
+                <div class="card-body">
+                    <p class="card-text" style="white-space: pre-wrap;" th:text="${comment.content}"></p>
+                    <footer class="blockquote-footer small">
+                        Par <strong th:text="${comment.author != null ? comment.author.email : (comment.sourceEmail != null ? comment.sourceEmail : 'Synchronisation')}"></strong>,
+                        le <span th:text="${#temporals.format(comment.createdAt, 'dd/MM/yyyy à HH:mm')}"></span>
+                        <span th:if="${!comment.isPublic}" class="badge bg-warning text-dark ms-2">
+                            <i class="fas fa-lock"></i> Privé
+                        </span>
+                    </footer>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ══ MODALE : Nouveau contact ═══════════════════════════════════════ -->
+    <div class="modal fade" id="quickContactModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Nouveau contact</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="quickContactModalBody">
+                    <div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ MODALE : Nouveau site ══════════════════════════════════════════ -->
+    <div class="modal fade" id="quickSiteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-building me-2"></i>Nouveau site</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="quickSiteModalBody">
+                    <div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

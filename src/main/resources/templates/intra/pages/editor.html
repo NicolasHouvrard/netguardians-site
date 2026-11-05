@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head>
+    <title th:text="${page.title} + ' — Éditeur'">Éditeur de page</title>
+    <style>
+        .editor-wrap { display: flex; gap: 0; min-height: calc(100vh - 180px); }
+        .editor-sidebar { width: 220px; min-width: 220px; background: #fff; border-right: 1px solid #e2e8f0; padding: 1rem .75rem; overflow-y: auto; }
+        .editor-canvas { flex: 1; padding: 1.25rem; overflow-y: auto; background: #f8fafc; }
+        .block-palette-btn { display: flex; align-items: center; gap: .5rem; width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .375rem; padding: .4rem .6rem; font-size: .78rem; cursor: pointer; color: #334155; transition: all .15s; margin-bottom: .3rem; text-align: left; }
+        .block-palette-btn:hover { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+        .block-palette-btn i { width: 16px; text-align: center; }
+        .block-item { background: #fff; border: 1px solid #e2e8f0; border-radius: .5rem; padding: .6rem .75rem; margin-bottom: .5rem; display: flex; align-items: center; gap: .5rem; cursor: default; }
+        .block-item:hover { border-color: #6366f1; box-shadow: 0 1px 4px rgba(99,102,241,.12); }
+        .block-item .drag-handle { cursor: grab; color: #94a3b8; font-size: 1.1rem; padding: 0 .2rem; }
+        .block-item .drag-handle:active { cursor: grabbing; }
+        .block-item .block-info { flex: 1; min-width: 0; }
+        .block-item .block-type-badge { font-size: .68rem; padding: .15rem .4rem; border-radius: .25rem; }
+        .block-item .block-preview { font-size: .78rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+        .sortable-ghost { opacity: .4; background: #e0e7ff; border: 2px dashed #6366f1; }
+        .editor-topbar { background: #fff; border-bottom: 1px solid #e2e8f0; padding: .5rem 1rem; display: flex; align-items: center; gap: .75rem; position: sticky; top: 0; z-index: 100; }
+        .editor-topbar .title-input { font-size: 1.1rem; font-weight: 600; border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: .2rem .3rem; flex: 1; }
+        .editor-topbar .title-input:focus { outline: none; border-bottom-color: #6366f1; }
+        .editor-topbar .slug-input { font-size: .78rem; font-family: monospace; border: 1px solid #e2e8f0; border-radius: .25rem; padding: .2rem .4rem; width: 200px; color: #475569; }
+        #canvas-empty { text-align: center; color: #94a3b8; padding: 3rem 1rem; border: 2px dashed #e2e8f0; border-radius: .75rem; margin-top: 1rem; }
+        .picker-img { border-radius:.375rem; overflow:hidden; border:2px solid #e2e8f0; aspect-ratio:4/3; cursor:pointer; background:#f8fafc; transition:.12s; }
+        .picker-img:hover { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.2); }
+        .picker-img img { width:100%; height:100%; object-fit:cover; display:block; }
+    </style>
+</head>
+<body>
+<div layout:fragment="content" style="padding:0;margin:-1rem">
+
+    <!-- Top bar -->
+    <div class="editor-topbar">
+        <a href="/intra/pages" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Pages
+        </a>
+        <input type="text" id="titleInput" class="title-input"
+               th:value="${page.title}" placeholder="Titre de la page">
+        <span class="text-muted small">/</span>
+        <input type="text" id="slugInput" class="slug-input"
+               th:value="${page.slug}" placeholder="slug-url">
+        <a th:href="'/intra/pages/' + ${page.id} + '/preview'" target="_blank"
+           class="btn btn-sm btn-outline-secondary ms-auto">
+            <i class="fas fa-eye me-1"></i>Prévisualiser
+        </a>
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                data-bs-toggle="modal" data-bs-target="#modalMeta">
+            <i class="fas fa-search me-1"></i>Méta SEO
+        </button>
+        <button type="button" id="btnTogglePublish" class="btn btn-sm"
+                th:classappend="${page.published} ? 'btn-warning' : 'btn-outline-success'"
+                th:text="${page.published} ? 'Dépublier' : 'Publier'">Publier</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="submitEditor()">
+            <i class="fas fa-save me-1"></i>Sauvegarder
+        </button>
+    </div>
+
+    <!-- Hidden form -->
+    <form id="editorForm" method="post" th:action="'/intra/pages/' + ${page.id} + '/save'">
+        <input type="hidden" id="fTitle" name="title" th:value="${page.title}">
+        <input type="hidden" id="fSlug" name="slug" th:value="${page.slug}">
+        <input type="hidden" id="fMetaTitle" name="metaTitle" th:value="${page.metaTitle}">
+        <input type="hidden" id="fMetaDesc" name="metaDescription" th:value="${page.metaDescription}">
+        <input type="hidden" id="fMetaKw" name="metaKeywords" th:value="${page.metaKeywords}">
+        <input type="hidden" id="fMetaOg" name="metaOgImage" th:value="${page.metaOgImage}">
+        <input type="hidden" id="fPublished" name="published" th:value="${page.published}">
+        <input type="hidden" id="fBlocksJson" name="blocksJson" value="[]">
+    </form>
+
+    <div class="editor-wrap">
+        <!-- Sidebar: Block palette -->
+        <div class="editor-sidebar">
+            <div class="fw-semibold small text-uppercase text-muted mb-2" style="letter-spacing:.06em">Blocs</div>
+            <button type="button" class="block-palette-btn" th:each="bt : ${blockTypes}"
+                    th:data-blocktype="${bt.name()}"
+                    th:title="${bt.label}"
+                    onclick="addBlock(this.dataset.blocktype)">
+                <i th:class="${bt.icon}"></i>
+                <span th:text="${bt.label}">Bloc</span>
+            </button>
+
+            <div class="fw-semibold small text-uppercase text-muted mb-2 mt-3" style="letter-spacing:.06em">Widgets</div>
+            <div th:if="${widgets.isEmpty()}" class="small text-muted">Aucun widget disponible</div>
+            <button type="button" class="block-palette-btn" th:each="w : ${widgets}"
+                    th:data-widgetid="${w.id}"
+                    th:data-widgetlabel="${w.label}"
+                    th:title="${w.description}"
+                    onclick="addWidgetBlock(this.dataset.widgetid, this.dataset.widgetlabel)">
+                <i class="fas fa-puzzle-piece"></i>
+                <span th:text="${w.label}">Widget</span>
+            </button>
+        </div>
+
+        <!-- Canvas -->
+        <div class="editor-canvas">
+            <div id="blocksList"></div>
+            <div id="canvas-empty" style="display:none">
+                <i class="fas fa-mouse-pointer fa-2x mb-3 d-block"></i>
+                <strong>Cliquez sur un type de bloc</strong> dans la palette pour commencer à construire votre page.
+            </div>
+            <div class="text-center mt-3">
+                <button type="button" class="btn btn-outline-primary btn-sm"
+                        data-bs-toggle="modal" data-bs-target="#modalPickBlock">
+                    <i class="fas fa-plus me-1"></i>Ajouter un bloc
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Modal: Méta SEO ═══════════════════════════════════════════════ -->
+    <div class="modal fade" id="modalMeta" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-search me-2 text-primary"></i>Métadonnées SEO</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body row g-3">
+                    <div class="col-12">
+                        <label class="form-label fw-semibold small">Titre SEO (meta title)</label>
+                        <input type="text" id="metaTitle" class="form-control"
+                               th:value="${page.metaTitle}" placeholder="Titre affiché dans les moteurs de recherche">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold small">Description SEO</label>
+                        <textarea id="metaDesc" class="form-control" rows="3"
+                                  th:text="${page.metaDescription}"
+                                  placeholder="Description courte (160 caractères max)"></textarea>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold small">Mots-clés</label>
+                        <input type="text" id="metaKw" class="form-control"
+                               th:value="${page.metaKeywords}" placeholder="mot1, mot2, mot3">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold small">Image Open Graph (URL)</label>
+                        <input type="url" id="metaOg" class="form-control"
+                               th:value="${page.metaOgImage}" placeholder="https://...">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="saveMeta()">
+                        <i class="fas fa-check me-1"></i>Valider
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Modal: Choisir un bloc ════════════════════════════════════════ -->
+    <div class="modal fade" id="modalPickBlock" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus-circle me-2 text-primary"></i>Ajouter un bloc</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2">
+                        <div class="col-6 col-md-4 col-lg-3" th:each="bt : ${blockTypes}">
+                            <button type="button" class="btn btn-outline-secondary w-100 py-3"
+                                    th:data-blocktype="${bt.name()}"
+                                    style="font-size:.82rem"
+                                    onclick="addBlock(this.dataset.blocktype); bootstrap.Modal.getInstance(document.getElementById('modalPickBlock')).hide();">
+                                <i th:class="${bt.icon} + ' d-block mb-1 fs-5'"></i>
+                                <span th:text="${bt.label}">Bloc</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Modal: Image Picker (AJAX) ══════════════════════════════════════ -->
+    <div class="modal fade" id="modalImagePicker" tabindex="-1" style="z-index:1070">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h5 class="modal-title small fw-semibold">
+                        <i class="fas fa-images me-2 text-primary"></i>Médiathèque
+                    </h5>
+                    <label for="pickerFileInput" class="btn btn-outline-primary btn-sm ms-auto me-2" style="cursor:pointer">
+                        <i class="fas fa-upload me-1"></i>Uploader
+                    </label>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="pickerGrid" class="row g-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <input type="file" id="pickerFileInput" multiple accept="image/*" class="d-none">
+
+    <!-- ═══ Modal: Éditer un bloc ═════════════════════════════════════════ -->
+    <div class="modal fade" id="modalEditBlock" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editBlockTitle">Éditer le bloc</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="editBlockBody"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="saveBlockEdit()">
+                        <i class="fas fa-check me-1"></i>Valider
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ═══════════════ JAVASCRIPT ═══════════════════════════════════════════ -->
+<th:block layout:fragment="script">
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script th:inline="javascript">
+/*<![CDATA[*/
+
+// ── Block type metadata ──────────────────────────────────────────────────────
+const BLOCK_META = {
+    RICHTEXT:   { label: 'Texte riche',      icon: 'fas fa-paragraph'    },
+    IMAGE:      { label: 'Image',            icon: 'fas fa-image'        },
+    HERO:       { label: 'Bannière hero',    icon: 'fas fa-panorama'     },
+    CTA:        { label: 'Appel à l\'action',icon: 'fas fa-bullhorn'     },
+    COLUMNS:    { label: 'Colonnes',         icon: 'fas fa-columns'      },
+    TEXT_IMAGE: { label: 'Texte + Image',    icon: 'fas fa-table-columns'},
+    IMAGE_TEXT: { label: 'Image + Texte',    icon: 'fas fa-table-columns'},
+    CARDS:      { label: 'Cartes',           icon: 'fas fa-id-card'      },
+    WIDGET:     { label: 'Widget',           icon: 'fas fa-puzzle-piece' },
+    DIVIDER:    { label: 'Séparateur',       icon: 'fas fa-minus'        },
+    SPACER:     { label: 'Espacement',       icon: 'fas fa-arrows-alt-v' },
+    HTML:       { label: 'HTML brut',        icon: 'fas fa-code'         }
+};
+
+// ── Available widgets (generated from server-side model) ────────────────────
+const AVAILABLE_WIDGETS = [];
+
+// ── Blocks state (initialized from server-side data) ────────────────────────
+let blocks = [];
+let editingIdx = -1;
+let blockIdCounter = 0;
+
+// Blocks will be populated by per-block script tags below
+function finishInit() { renderBlockList(); }
+
+// ── Render block list ────────────────────────────────────────────────────────
+function renderBlockList() {
+    const list = document.getElementById('blocksList');
+    const empty = document.getElementById('canvas-empty');
+    list.innerHTML = '';
+
+    if (blocks.length === 0) {
+        empty.style.display = '';
+        return;
+    }
+    empty.style.display = 'none';
+
+    blocks.forEach(function(block, idx) {
+        const meta = BLOCK_META[block.blockType] || { label: block.blockType, icon: 'fas fa-cube' };
+        const preview = blockPreview(block);
+
+        const item = document.createElement('div');
+        item.className = 'block-item';
+        item.dataset.idx = idx;
+        item.innerHTML =
+            '<span class="drag-handle"><i class="fas fa-grip-vertical"></i></span>' +
+            '<div class="block-info">' +
+                '<span class="badge bg-light text-dark block-type-badge me-1"><i class="' + meta.icon + ' me-1"></i>' + meta.label + '</span>' +
+                '<div class="block-preview mt-1">' + (preview || '<em class="text-muted">Vide</em>') + '</div>' +
+            '</div>' +
+            '<div class="d-flex gap-1">' +
+                '<button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" onclick="editBlock(' + idx + ')"><i class="fas fa-edit"></i></button>' +
+                '<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteBlock(' + idx + ')"><i class="fas fa-trash"></i></button>' +
+            '</div>';
+        list.appendChild(item);
+    });
+
+    // Re-init SortableJS
+    if (list._sortable) list._sortable.destroy();
+    list._sortable = Sortable.create(list, {
+        handle: '.drag-handle',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        onEnd: function(evt) {
+            const moved = blocks.splice(evt.oldIndex, 1)[0];
+            blocks.splice(evt.newIndex, 0, moved);
+            renderBlockList();
+        }
+    });
+}
+
+function blockPreview(block) {
+    const c = block.content || {};
+    switch (block.blockType) {
+        case 'RICHTEXT': return strip(c.html || '');
+        case 'IMAGE':    return c.src ? '<img src="' + c.src + '" style="height:24px"> ' + (c.alt || '') : '';
+        case 'HERO':     return c.title || '';
+        case 'CTA':      return c.title || '';
+        case 'COLUMNS':    return strip(c.col1Html || '');
+        case 'TEXT_IMAGE': return strip(c.html || '') || (c.src ? '+ image' : '');
+        case 'IMAGE_TEXT': return (c.src ? 'image + ' : '') + strip(c.html || '');
+        case 'CARDS':    return c.cards ? 'Cartes JSON' : '';
+        case 'WIDGET':   return c.widgetId ? 'Widget: ' + c.widgetId : '';
+        case 'DIVIDER':  return '— ' + (c.style || 'solid');
+        case 'SPACER':   return 'Hauteur: ' + (c.height || '2rem');
+        case 'HTML':     return strip(c.code || '');
+        default: return '';
+    }
+}
+
+function strip(html) {
+    const d = document.createElement('div');
+    d.innerHTML = html;
+    return (d.textContent || d.innerText || '').substring(0, 80);
+}
+
+// ── Add block ────────────────────────────────────────────────────────────────
+function addBlock(blockType) {
+    blocks.push({ _id: ++blockIdCounter, blockType: blockType, content: defaultContent(blockType) });
+    renderBlockList();
+}
+
+function addWidgetBlock(widgetId, widgetLabel) {
+    blocks.push({ _id: ++blockIdCounter, blockType: 'WIDGET', content: { widgetId: widgetId } });
+    renderBlockList();
+}
+
+function defaultContent(blockType) {
+    switch (blockType) {
+        case 'RICHTEXT': return { html: '' };
+        case 'IMAGE':    return { src: '', alt: '', caption: '' };
+        case 'HERO':     return { title: '', subtitle: '', bgType: 'color', bgColor: '#1e40af', bgImage: '', bgOverlay: '0.4', textColor: '#ffffff', ctaText: '', ctaUrl: '', height: '500px' };
+        case 'CTA':      return { title: '', text: '', btnText: '', btnUrl: '', btnStyle: 'primary', bgColor: '#f0f9ff' };
+        case 'COLUMNS':    return { col1Html: '', col2Html: '', col3Html: '' };
+        case 'TEXT_IMAGE': return { html: '', src: '', alt: '', caption: '' };
+        case 'IMAGE_TEXT': return { html: '', src: '', alt: '', caption: '' };
+        case 'CARDS':    return { cards: '[]' };
+        case 'WIDGET':   return { widgetId: '' };
+        case 'DIVIDER':  return { style: 'solid', color: '#dee2e6' };
+        case 'SPACER':   return { height: '2rem' };
+        case 'HTML':     return { code: '' };
+        default:         return {};
+    }
+}
+
+// ── Delete block ─────────────────────────────────────────────────────────────
+function deleteBlock(idx) {
+    if (!confirm('Supprimer ce bloc ?')) return;
+    blocks.splice(idx, 1);
+    renderBlockList();
+}
+
+// ── Edit block ───────────────────────────────────────────────────────────────
+function editBlock(idx) {
+    editingIdx = idx;
+    const block = blocks[idx];
+    const meta = BLOCK_META[block.blockType] || { label: block.blockType };
+    document.getElementById('editBlockTitle').innerHTML =
+        '<i class="fas fa-edit me-2 text-primary"></i>Éditer : ' + meta.label;
+    document.getElementById('editBlockBody').innerHTML = buildEditForm(block);
+    new bootstrap.Modal(document.getElementById('modalEditBlock')).show();
+}
+
+function buildEditForm(block) {
+    const c = block.content || {};
+    switch (block.blockType) {
+        case 'RICHTEXT':
+            return field('html', 'Contenu HTML', 'textarea', c.html || '', { rows: 8, ph: 'Entrez votre contenu HTML ou texte…' });
+
+        case 'IMAGE':
+            return field('src', 'URL de l\'image', 'text', c.src || '', { ph: 'https://…' }) +
+                   field('alt', 'Texte alternatif', 'text', c.alt || '', { ph: 'Description de l\'image' }) +
+                   field('caption', 'Légende', 'text', c.caption || '', { ph: 'Légende optionnelle' });
+
+        case 'HERO': {
+            const bgType = c.bgType || 'color';
+            return field('title', 'Titre principal', 'text', c.title || '', { ph: 'Bienvenue !' }) +
+                   field('subtitle', 'Sous-titre', 'text', c.subtitle || '', { ph: 'Votre sous-titre…' }) +
+                   field('height', 'Hauteur (ex: 500px)', 'text', c.height || '500px', { ph: '400px' }) +
+                   '<input type="hidden" id="ef_bgType" value="' + bgType + '">' +
+                   '<div class="mb-3">' +
+                     '<label class="form-label fw-semibold small">Fond de bannière</label>' +
+                     '<div class="btn-group w-100" role="group">' +
+                       '<button type="button" id="heroBgBtnColor" onclick="setHeroBgType(\'color\')" class="btn btn-sm ' + (bgType !== 'image' ? 'btn-primary' : 'btn-outline-secondary') + '"><i class="fas fa-palette me-1"></i>Couleur</button>' +
+                       '<button type="button" id="heroBgBtnImage" onclick="setHeroBgType(\'image\')" class="btn btn-sm ' + (bgType === 'image' ? 'btn-primary' : 'btn-outline-secondary') + '"><i class="fas fa-image me-1"></i>Image</button>' +
+                     '</div>' +
+                   '</div>' +
+                   '<div id="heroBgColorPanel" style="display:' + (bgType === 'image' ? 'none' : '') + '">' +
+                     field('bgColor', 'Couleur de fond', 'color', c.bgColor || '#1e40af', {}) +
+                   '</div>' +
+                   '<div id="heroBgImagePanel" style="display:' + (bgType === 'image' ? '' : 'none') + '">' +
+                     '<div class="mb-3"><label class="form-label fw-semibold small">Image de fond</label>' +
+                     '<div class="input-group">' +
+                       '<input type="text" id="ef_bgImage" class="form-control" value="' + escAttr(c.bgImage || '') + '" placeholder="/uploads/images/…">' +
+                       '<button type="button" class="btn btn-outline-primary" title="Médiathèque" onclick="openImagePicker(function(url){document.getElementById(\'ef_bgImage\').value=url})">' +
+                         '<i class="fas fa-images"></i></button>' +
+                     '</div></div>' +
+                     field('bgOverlay', 'Filtre sombre (0 = aucun · 0.5 = 50%)', 'text', c.bgOverlay || '0.4', { ph: '0.4' }) +
+                   '</div>' +
+                   field('textColor', 'Couleur du texte', 'color', c.textColor || '#ffffff', {}) +
+                   field('ctaText', 'Texte du bouton CTA', 'text', c.ctaText || '', { ph: 'En savoir plus' }) +
+                   field('ctaUrl', 'URL du bouton CTA', 'text', c.ctaUrl || '', { ph: '/contact' });
+        }
+
+        case 'CTA':
+            return field('title', 'Titre', 'text', c.title || '', { ph: 'Prêt à démarrer ?' }) +
+                   field('text', 'Texte', 'textarea', c.text || '', { rows: 3 }) +
+                   field('btnText', 'Texte du bouton', 'text', c.btnText || '', { ph: 'Contactez-nous' }) +
+                   field('btnUrl', 'URL du bouton', 'text', c.btnUrl || '', { ph: '/contact' }) +
+                   '<div class="mb-3"><label class="form-label fw-semibold small">Style du bouton</label>' +
+                   '<select id="ef_btnStyle" class="form-select">' +
+                   ['primary','secondary','success','warning','danger','info','dark'].map(s =>
+                       '<option value="' + s + '"' + (c.btnStyle === s ? ' selected' : '') + '>' + s + '</option>'
+                   ).join('') + '</select></div>' +
+                   field('bgColor', 'Couleur de fond', 'color', c.bgColor || '#f0f9ff', {});
+
+        case 'COLUMNS':
+            return field('col1Html', 'Colonne 1 (HTML)', 'textarea', c.col1Html || '', { rows: 5 }) +
+                   field('col2Html', 'Colonne 2 (HTML)', 'textarea', c.col2Html || '', { rows: 5 }) +
+                   field('col3Html', 'Colonne 3 (HTML — optionnel)', 'textarea', c.col3Html || '', { rows: 5 });
+
+        case 'TEXT_IMAGE':
+            return '<div class="alert alert-light border small mb-3 py-2">' +
+                   '<i class="fas fa-table-columns me-1 text-primary"></i>' +
+                   '<strong>Texte à gauche · Image à droite</strong></div>' +
+                   field('html', 'Texte enrichi (HTML)', 'textarea', c.html || '', { rows: 7, ph: '<p>Votre contenu…</p>' }) +
+                   '<div class="mb-3"><label class="form-label fw-semibold small">Image</label>' +
+                   '<div class="input-group">' +
+                   '<input type="text" id="ef_src" class="form-control" value="' + escAttr(c.src || '') + '" placeholder="/uploads/images/…">' +
+                   '<button type="button" class="btn btn-outline-primary" onclick="openImagePicker(function(u){document.getElementById(\'ef_src\').value=u})">' +
+                   '<i class="fas fa-images"></i></button></div></div>' +
+                   field('alt', 'Texte alternatif', 'text', c.alt || '', { ph: 'Description de l\'image' }) +
+                   field('caption', 'Légende', 'text', c.caption || '', { ph: 'Légende optionnelle' });
+
+        case 'IMAGE_TEXT':
+            return '<div class="alert alert-light border small mb-3 py-2">' +
+                   '<i class="fas fa-table-columns me-1 text-primary"></i>' +
+                   '<strong>Image à gauche · Texte à droite</strong></div>' +
+                   '<div class="mb-3"><label class="form-label fw-semibold small">Image</label>' +
+                   '<div class="input-group">' +
+                   '<input type="text" id="ef_src" class="form-control" value="' + escAttr(c.src || '') + '" placeholder="/uploads/images/…">' +
+                   '<button type="button" class="btn btn-outline-primary" onclick="openImagePicker(function(u){document.getElementById(\'ef_src\').value=u})">' +
+                   '<i class="fas fa-images"></i></button></div></div>' +
+                   field('alt', 'Texte alternatif', 'text', c.alt || '', { ph: 'Description de l\'image' }) +
+                   field('caption', 'Légende', 'text', c.caption || '', { ph: 'Légende optionnelle' }) +
+                   field('html', 'Texte enrichi (HTML)', 'textarea', c.html || '', { rows: 7, ph: '<p>Votre contenu…</p>' });
+
+        case 'CARDS':
+            return '<p class="small text-muted">Entrez un tableau JSON de cartes. Chaque carte : <code>{"title":"","text":"","icon":"fas fa-star","link":""}</code></p>' +
+                   field('cards', 'Cartes (JSON)', 'textarea', c.cards || '[]', { rows: 8 });
+
+        case 'WIDGET':
+            let sel = '<div class="mb-3"><label class="form-label fw-semibold small">Widget</label><select id="ef_widgetId" class="form-select">' +
+                      '<option value="">-- Choisir un widget --</option>';
+            if (AVAILABLE_WIDGETS && AVAILABLE_WIDGETS.length) {
+                AVAILABLE_WIDGETS.forEach(function(w) {
+                    const wid = w.id || (typeof w === 'string' ? w : '');
+                    const wlbl = w.label || wid;
+                    sel += '<option value="' + wid + '"' + (c.widgetId === wid ? ' selected' : '') + '>' + wlbl + '</option>';
+                });
+            }
+            sel += '</select></div>';
+            return sel;
+
+        case 'DIVIDER':
+            return '<div class="mb-3"><label class="form-label fw-semibold small">Style</label>' +
+                   '<select id="ef_style" class="form-select">' +
+                   ['solid','dashed','dotted'].map(s =>
+                       '<option value="' + s + '"' + (c.style === s ? ' selected' : '') + '>' + s + '</option>'
+                   ).join('') + '</select></div>' +
+                   field('color', 'Couleur', 'color', c.color || '#dee2e6', {});
+
+        case 'SPACER':
+            return '<div class="mb-3"><label class="form-label fw-semibold small">Hauteur</label>' +
+                   '<select id="ef_height" class="form-select">' +
+                   ['1rem','2rem','3rem','4rem','5rem'].map(h =>
+                       '<option value="' + h + '"' + (c.height === h ? ' selected' : '') + '>' + h + '</option>'
+                   ).join('') + '</select></div>';
+
+        case 'HTML':
+            return field('code', 'Code HTML', 'textarea', c.code || '', { rows: 10, ph: '<div>Mon HTML…</div>' });
+
+        default:
+            return '<p class="text-muted">Aucun formulaire disponible pour ce type de bloc.</p>';
+    }
+}
+
+function field(name, label, type, value, opts) {
+    const id = 'ef_' + name;
+    const ph = opts.ph ? ' placeholder="' + opts.ph + '"' : '';
+    const rows = opts.rows || 4;
+    if (type === 'textarea') {
+        return '<div class="mb-3"><label for="' + id + '" class="form-label fw-semibold small">' + label + '</label>' +
+               '<textarea id="' + id + '" class="form-control" rows="' + rows + '"' + ph + '>' + escHtml(value) + '</textarea></div>';
+    }
+    if (type === 'color') {
+        return '<div class="mb-3"><label for="' + id + '" class="form-label fw-semibold small">' + label + '</label>' +
+               '<div class="d-flex gap-2 align-items-center">' +
+               '<input type="color" id="' + id + '" class="form-control form-control-color" value="' + escAttr(value) + '" ' +
+               'oninput="document.getElementById(\'' + id + '_txt\').value=this.value">' +
+               '<input type="text" id="' + id + '_txt" class="form-control form-control-sm" value="' + escAttr(value) + '" style="width:110px" ' +
+               'oninput="document.getElementById(\'' + id + '\').value=this.value">' +
+               '</div></div>';
+    }
+    return '<div class="mb-3"><label for="' + id + '" class="form-label fw-semibold small">' + label + '</label>' +
+           '<input type="' + type + '" id="' + id + '" class="form-control" value="' + escAttr(value) + '"' + ph + '></div>';
+}
+
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escAttr(s) {
+    return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── Save block edit ──────────────────────────────────────────────────────────
+function saveBlockEdit() {
+    if (editingIdx < 0 || editingIdx >= blocks.length) return;
+    const block = blocks[editingIdx];
+    const c = {};
+
+    function val(name) {
+        const el = document.getElementById('ef_' + name);
+        return el ? el.value : '';
+    }
+    function colorVal(name) {
+        const txt = document.getElementById('ef_' + name + '_txt');
+        if (txt) return txt.value;
+        const el = document.getElementById('ef_' + name);
+        return el ? el.value : '';
+    }
+
+    switch (block.blockType) {
+        case 'RICHTEXT': c.html      = val('html');      break;
+        case 'IMAGE':    c.src       = val('src');
+                         c.alt       = val('alt');
+                         c.caption   = val('caption');   break;
+        case 'HERO':     c.title     = val('title');
+                         c.subtitle  = val('subtitle');
+                         c.bgType    = val('bgType') || 'color';
+                         c.bgColor   = colorVal('bgColor');
+                         c.bgImage   = val('bgImage') || '';
+                         c.bgOverlay = val('bgOverlay') || '0.4';
+                         c.textColor = colorVal('textColor');
+                         c.height    = val('height');
+                         c.ctaText   = val('ctaText');
+                         c.ctaUrl    = val('ctaUrl');    break;
+        case 'CTA':      c.title     = val('title');
+                         c.text      = val('text');
+                         c.btnText   = val('btnText');
+                         c.btnUrl    = val('btnUrl');
+                         c.btnStyle  = val('btnStyle');
+                         c.bgColor   = colorVal('bgColor'); break;
+        case 'COLUMNS':    c.col1Html = val('col1Html');
+                           c.col2Html = val('col2Html');
+                           c.col3Html = val('col3Html'); break;
+        case 'TEXT_IMAGE':
+        case 'IMAGE_TEXT': c.html    = val('html');
+                           c.src     = val('src');
+                           c.alt     = val('alt');
+                           c.caption = val('caption');   break;
+        case 'CARDS':    c.cards     = val('cards');     break;
+        case 'WIDGET':   c.widgetId  = val('widgetId'); break;
+        case 'DIVIDER':  c.style     = val('style');
+                         c.color     = colorVal('color'); break;
+        case 'SPACER':   c.height    = val('height');    break;
+        case 'HTML':     c.code      = val('code');      break;
+    }
+
+    blocks[editingIdx].content = c;
+    editingIdx = -1;
+    bootstrap.Modal.getInstance(document.getElementById('modalEditBlock')).hide();
+    renderBlockList();
+}
+
+// ── Meta SEO ─────────────────────────────────────────────────────────────────
+function saveMeta() {
+    document.getElementById('fMetaTitle').value = document.getElementById('metaTitle').value;
+    document.getElementById('fMetaDesc').value  = document.getElementById('metaDesc').value;
+    document.getElementById('fMetaKw').value    = document.getElementById('metaKw').value;
+    document.getElementById('fMetaOg').value    = document.getElementById('metaOg').value;
+    bootstrap.Modal.getInstance(document.getElementById('modalMeta')).hide();
+}
+
+// ── Publish toggle ────────────────────────────────────────────────────────────
+document.getElementById('btnTogglePublish').addEventListener('click', function() {
+    const current = document.getElementById('fPublished').value === 'true';
+    document.getElementById('fPublished').value = !current;
+    this.textContent = current ? 'Publier' : 'Dépublier';
+    this.className = 'btn btn-sm ' + (current ? 'btn-outline-success' : 'btn-warning');
+});
+
+// ── Submit editor ────────────────────────────────────────────────────────────
+function submitEditor() {
+    document.getElementById('fTitle').value = document.getElementById('titleInput').value;
+    document.getElementById('fSlug').value  = document.getElementById('slugInput').value;
+
+    // Sync meta SEO fields unconditionally (modal may not have been used)
+    document.getElementById('fMetaTitle').value = document.getElementById('metaTitle').value;
+    document.getElementById('fMetaDesc').value  = document.getElementById('metaDesc').value;
+    document.getElementById('fMetaKw').value    = document.getElementById('metaKw').value;
+    document.getElementById('fMetaOg').value    = document.getElementById('metaOg').value;
+
+    // Serialize blocks to JSON
+    const payload = blocks.map(function(b) {
+        return { blockType: b.blockType, content: b.content };
+    });
+    document.getElementById('fBlocksJson').value = JSON.stringify(payload);
+    document.getElementById('editorForm').submit();
+}
+
+// ── Hero background type toggle ──────────────────────────────────────────────
+function setHeroBgType(type) {
+    document.getElementById('ef_bgType').value = type;
+    document.getElementById('heroBgColorPanel').style.display = type === 'image' ? 'none' : '';
+    document.getElementById('heroBgImagePanel').style.display = type === 'image' ? '' : 'none';
+    document.getElementById('heroBgBtnColor').className = 'btn btn-sm ' + (type === 'color' ? 'btn-primary' : 'btn-outline-secondary');
+    document.getElementById('heroBgBtnImage').className = 'btn btn-sm ' + (type === 'image' ? 'btn-primary' : 'btn-outline-secondary');
+}
+
+// ── Image picker (AJAX — no iframe, works nested inside another modal) ────────
+let imagePickerCallback = null;
+
+const pickerModal = document.getElementById('modalImagePicker');
+
+// Raise backdrop z-index so it sits above the edit-block modal
+pickerModal.addEventListener('show.bs.modal', function() {
+    loadPickerImages();
+    setTimeout(function() {
+        const bds = document.querySelectorAll('.modal-backdrop');
+        if (bds.length) bds[bds.length - 1].style.zIndex = '1065';
+    }, 0);
+});
+
+document.getElementById('pickerFileInput').addEventListener('change', function() {
+    if (!this.files.length) return;
+    const fd = new FormData();
+    Array.from(this.files).forEach(f => fd.append('files', f));
+    fetch('/intra/images/upload-ajax', { method: 'POST', body: fd })
+        .then(() => loadPickerImages())
+        .catch(() => {});
+    this.value = '';
+});
+
+function openImagePicker(callback) {
+    imagePickerCallback = callback;
+    new bootstrap.Modal(pickerModal).show();
+}
+
+function loadPickerImages() {
+    const grid = document.getElementById('pickerGrid');
+    grid.innerHTML = '<div class="col-12 text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>Chargement…</div>';
+    fetch('/intra/images/list')
+        .then(r => r.json())
+        .then(function(images) {
+            if (!images.length) {
+                grid.innerHTML = '<div class="col-12 text-center text-muted py-5"><i class="fas fa-images fa-2x mb-2 d-block opacity-25"></i>Aucune image. Cliquez sur "Uploader".</div>';
+                return;
+            }
+            grid.innerHTML = images.map(function(url) {
+                const safe = url.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+                return '<div class="col-6 col-md-3 col-lg-2">' +
+                       '<div class="picker-img" onclick="imageSelected(\'' + safe + '\')" title="' + url + '">' +
+                       '<img src="' + url + '" loading="lazy">' +
+                       '</div></div>';
+            }).join('');
+        })
+        .catch(function() {
+            grid.innerHTML = '<div class="col-12 text-center text-danger">Erreur de chargement.</div>';
+        });
+}
+
+function imageSelected(url) {
+    if (imagePickerCallback) {
+        imagePickerCallback(url);
+        imagePickerCallback = null;
+    }
+    const m = bootstrap.Modal.getInstance(pickerModal);
+    if (m) m.hide();
+}
+
+// ── Auto-slugify title while typing (only if slug hasn't been manually edited)
+let slugTouched = false;
+document.getElementById('slugInput').addEventListener('input', function() { slugTouched = true; });
+document.getElementById('titleInput').addEventListener('input', function() {
+    if (!slugTouched) {
+        const slug = this.value.toLowerCase()
+            .replace(/\s+/g, '-')
+            .replace(/[^a-z0-9\-]/g, '')
+            .replace(/-{2,}/g, '-');
+        document.getElementById('slugInput').value = slug;
+    }
+});
+
+/*]]>*/
+</script>
+
+<!-- Populate AVAILABLE_WIDGETS from server model -->
+<script th:each="w : ${widgets}" th:inline="javascript">
+    AVAILABLE_WIDGETS.push({ id: /*[[${w.id}]]*/'', label: /*[[${w.label}]]*/'', description: /*[[${w.description}]]*/'' });
+</script>
+
+<!-- Populate blocks from server model -->
+<script th:each="b : ${page.blocks}" th:inline="javascript">
+(function() {
+    let content = {};
+    try { content = JSON.parse(/*[[${b.content}]]*/'{}'); } catch(e) {}
+    blocks.push({ _id: ++blockIdCounter, blockType: /*[[${b.blockType.name()}]]*/'HTML', content: content });
+})();
+</script>
+
+<script th:inline="none">
+// Final init after all blocks and widgets are populated
+finishInit();
+</script>
+</th:block>
+</body>
+</html>

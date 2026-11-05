@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head>
+<title th:text="${currentDashboardObj?.name ?: 'Dashboard'}">Dashboard</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack.min.css">
+<style>
+.grid-stack { background: transparent; }
+.grid-stack-item-content {
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 8px rgba(0,0,0,.07);
+    background: #fff;
+    transition: box-shadow .15s;
+}
+.grid-stack-item-content:hover { box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+.gs-ui-resizable-se { bottom:4px !important; right:4px !important; }
+/* KPI widget */
+.widget-kpi-body { display:flex; align-items:center; gap:1rem; padding:1rem; height:100%; text-decoration:none; color:inherit; }
+.widget-kpi-value { font-size:2rem; font-weight:700; line-height:1; }
+/* Multi-value widget */
+.widget-multi-body { display:flex; flex-direction:column; height:100%; padding:.75rem 1rem; text-decoration:none; color:inherit; }
+.widget-multi-vals  { display:flex; flex-wrap:wrap; justify-content:space-around; align-items:center; flex:1; gap:.25rem; }
+.widget-multi-val   { text-align:center; min-width:30%; flex:1; }
+.widget-multi-num   { font-size:1.4rem; font-weight:700; line-height:1; }
+/* Link-list widget */
+.widget-links-body  { display:flex; flex-direction:column; height:100%; }
+.widget-links-list  { overflow-y:auto; flex:1; padding:.5rem; display:flex; flex-direction:column; gap:.3rem; }
+/* List widget */
+.widget-list-header { display:flex; align-items:center; gap:.5rem; padding:.5rem .75rem; border-bottom:1px solid #f1f5f9; flex-shrink:0; background:#fff; }
+.widget-list-scroll { overflow-y:auto; flex:1; }
+.widget-list-table  { width:100%; font-size:.75rem; border-collapse:collapse; }
+.widget-list-table td { padding:.3rem .75rem; border-bottom:1px solid #f8fafc; }
+.widget-list-table tr:hover td { background:#f8fafc; }
+/* Toolbar */
+.dash-toolbar { position:sticky; top:0; z-index:10; background:#f1f5f9; padding:.5rem 0 .75rem; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.dash-toolbar .btn { font-size:.8rem; }
+/* ── Mode édition ── */
+.gs-edit-mode.grid-stack { background: repeating-linear-gradient(90deg,rgba(99,102,241,.04) 0,rgba(99,102,241,.04) 1px,transparent 1px,transparent calc(100%/12)); }
+.gs-edit-mode .grid-stack-item-content { outline:2px dashed rgba(99,102,241,.25); cursor:grab; }
+.gs-edit-mode .widget-kpi-body,
+.gs-edit-mode .widget-multi-body { pointer-events:none; }
+.gs-edit-mode .widget-list-header > a,
+.gs-edit-mode .widget-links-list a { pointer-events:none; opacity:.35; }
+.btn-widget-remove { opacity:0; pointer-events:none; transition:opacity .15s; }
+.gs-edit-mode .btn-widget-remove { opacity:1; pointer-events:auto; }
+/* Widget loading skeleton */
+.widget-skeleton { display:flex; align-items:center; justify-content:center; height:100%; color:#cbd5e1; }
+</style>
+</head>
+<body>
+<div layout:fragment="content">
+<div class="pt-1">
+
+    <!-- ── Toolbar ───────────────────────────────────────────────────────────── -->
+    <div class="dash-toolbar">
+        <!-- Titre -->
+        <div class="d-flex align-items-center gap-2 me-auto">
+            <span th:if="${currentDashboardObj != null}"
+                  class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                  th:style="'background:' + ${currentDashboardObj.color} + '22;width:38px;height:38px'">
+                <i th:class="${currentDashboardObj.icon}"
+                   th:style="'color:' + ${currentDashboardObj.color} + ';font-size:1rem'"></i>
+            </span>
+            <div>
+                <h1 class="h4 mb-0 fw-bold" th:text="${currentDashboardObj?.name ?: 'Dashboard'}"></h1>
+                <small class="text-muted"
+                       th:text="${#temporals.format(#temporals.createNow(), 'EEEE d MMMM yyyy', new java.util.Locale('fr'))}"></small>
+            </div>
+        </div>
+
+        <!-- Ajouter un widget (admin, mode édition uniquement) -->
+        <div sec:authorize="hasRole('ADMIN')"
+             th:unless="${#lists.isEmpty(availableWidgets)}" class="dropdown edit-only" style="display:none">
+            <button class="btn btn-sm btn-outline-success dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="fas fa-plus me-1"></i>Widget
+            </button>
+            <div class="dropdown-menu p-2 shadow" style="min-width:240px">
+                <form th:action="@{/intra/dashboard/{slug}/widget/add(slug=${currentDashboard})}" method="post">
+                    <select name="widgetType" class="form-select form-select-sm mb-2" required>
+                        <option value="">— Choisir —</option>
+                        <option th:each="w : ${availableWidgets}"
+                                th:value="${w.widgetKey}"
+                                th:text="${w.label}"></option>
+                    </select>
+                    <button type="submit" class="btn btn-success btn-sm w-100">
+                        <i class="fas fa-plus me-1"></i>Ajouter
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Sauvegarder (admin, mode édition uniquement) -->
+        <button sec:authorize="hasRole('ADMIN')"
+                class="btn btn-sm btn-success edit-only" onclick="saveLayout()" style="display:none">
+            <i class="fas fa-save me-1"></i>Sauvegarder
+        </button>
+
+        <!-- Bouton Éditer / Terminer (admin uniquement) -->
+        <button sec:authorize="hasRole('ADMIN')"
+                id="btnEdit" class="btn btn-sm btn-outline-secondary" onclick="toggleEdit()">
+            <i class="fas fa-edit me-1"></i>Éditer
+        </button>
+
+        <!-- Modules (admin) -->
+        <a sec:authorize="hasRole('ADMIN')"
+           th:if="${currentDashboardObj != null}"
+           th:href="@{/intra/dashboards/{id}/modules(id=${currentDashboardObj.id})}"
+           class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-puzzle-piece me-1"></i>Modules
+        </a>
+    </div>
+
+    <!-- ── Flash messages ─────────────────────────────────────────────────────── -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show py-2 mb-2">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show py-2 mb-2">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- ── Grille Gridstack ───────────────────────────────────────────────────── -->
+    <div th:if="${#lists.isEmpty(widgetLayouts)}" class="card border-0 shadow-sm mb-4">
+        <div class="card-body text-center text-muted py-5">
+            <i class="fas fa-gauge-high fa-2x mb-2 d-block opacity-25"></i>
+            Aucun widget configuré. Cliquez sur <strong>+ Widget</strong> pour en ajouter.
+        </div>
+    </div>
+
+    <div class="grid-stack" id="mainGrid">
+        <div th:each="lay : ${widgetLayouts}"
+             class="grid-stack-item"
+             th:attr="gs-id=${lay.widgetType},
+                      gs-x=${lay.gsX ?: 0},
+                      gs-y=${lay.gsY},
+                      gs-w=${lay.gsW ?: 3},
+                      gs-h=${lay.gsH ?: 2}">
+            <!-- hx-get loads widget content asynchronously -->
+            <div class="grid-stack-item-content"
+                 th:attr="hx-get=|/intra/widgets/${lay.widgetType}?dashboard=${currentDashboard}|,
+                          hx-trigger='load',
+                          hx-swap='innerHTML'">
+                <div class="widget-skeleton">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulaire caché pour la sauvegarde du layout -->
+    <form id="layoutForm" method="post"
+          th:action="@{/intra/dashboard/{slug}/layout/save(slug=${currentDashboard})}">
+    </form>
+
+
+</div><!-- /pt-1 -->
+</div><!-- /content -->
+
+<th:block layout:fragment="script">
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js"></script>
+<script>
+let grid;
+let editMode = false;
+
+document.addEventListener('DOMContentLoaded', () => {
+    grid = GridStack.init({
+        cellHeight: 80,
+        margin: 6,
+        column: 12,
+        animate: true,
+        resizable: { handles: 'se,sw,s,e' },
+        draggable: { handle: '.grid-stack-item-content' }
+    });
+    grid.disable();
+
+    // Restaure le mode édition après un save/remove/add (redirect avec ?edit=1)
+    if (new URLSearchParams(location.search).get('edit') === '1') {
+        toggleEdit();
+        history.replaceState(null, '', location.pathname);
+    }
+});
+
+function toggleEdit() {
+    editMode = !editMode;
+    const gridEl  = document.getElementById('mainGrid');
+    const btn     = document.getElementById('btnEdit');
+    const tools   = document.querySelectorAll('.edit-only');
+
+    gridEl.classList.toggle('gs-edit-mode', editMode);
+
+    if (editMode) {
+        grid.enable();
+        btn.innerHTML = '<i class="fas fa-check me-1"></i>Terminer';
+        btn.classList.replace('btn-outline-secondary', 'btn-warning');
+    } else {
+        grid.disable();
+        btn.innerHTML = '<i class="fas fa-edit me-1"></i>Éditer';
+        btn.classList.replace('btn-warning', 'btn-outline-secondary');
+    }
+
+    tools.forEach(el => { el.style.display = editMode ? '' : 'none'; });
+}
+
+function saveLayout() {
+    if (!grid) return;
+    const form = document.getElementById('layoutForm');
+    form.querySelectorAll('.gs-inp').forEach(el => el.remove());
+    grid.save(false).forEach(item => {
+        const fields = {keys: item.id, xs: item.x ?? 0, ys: item.y ?? 0, ws: item.w ?? 3, hs: item.h ?? 2};
+        Object.entries(fields).forEach(function(e) {
+            const inp = document.createElement('input');
+            inp.type = 'hidden'; inp.name = e[0]; inp.value = e[1]; inp.className = 'gs-inp';
+            form.appendChild(inp);
+        });
+    });
+    form.submit();
+}
+</script>
+</th:block>
+</body>
+</html>

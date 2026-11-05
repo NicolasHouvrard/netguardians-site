@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{espace-layout}">
+<head><title>Ticket</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/espace/tickets" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0"><i class="fas fa-ticket me-2"></i>Demande <span class="text-muted" th:text="'#' + ${request.id}"></span></h4>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Fiche ticket -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-3 d-flex align-items-center justify-content-between">
+            <h5 class="fw-bold mb-0" th:text="${request.title}"></h5>
+            <span th:switch="${request.status.name()}">
+                <span th:case="'NEW'"         class="badge text-bg-primary fs-6">Nouveau</span>
+                <span th:case="'IN_PROGRESS'" class="badge text-bg-warning fs-6">En cours</span>
+                <span th:case="'COMPLETED'"   class="badge text-bg-success fs-6">Terminé</span>
+                <span th:case="'CANCELLED'"   class="badge text-bg-secondary fs-6">Annulé</span>
+            </span>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                    <div class="text-muted small">Ouvert le</div>
+                    <div class="fw-semibold" th:text="${#temporals.format(request.createdAt,'dd/MM/yyyy HH:mm')}"></div>
+                </div>
+                <div class="col-md-3" th:if="${request.type != null}">
+                    <div class="text-muted small">Type</div>
+                    <div class="fw-semibold" th:text="${request.type.label}"></div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-muted small">Priorité</div>
+                    <span class="badge" th:classappend="${request.priority.colorClass}"
+                          th:text="${request.priority.displayValue}"></span>
+                </div>
+                <div class="col-md-3" th:if="${request.estimatedMinutes != null}">
+                    <div class="text-muted small">Temps estimé</div>
+                    <div class="fw-semibold" th:text="${request.formattedEstimated}"></div>
+                </div>
+            </div>
+            <div th:if="${request.description}" class="mt-2">
+                <div class="text-muted small mb-1">Description</div>
+                <div class="border rounded p-3 bg-light" style="white-space:pre-wrap" th:text="${request.description}"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ajouter un message (si ticket non clôturé) -->
+    <div th:if="${request.status.name() != 'COMPLETED' and request.status.name() != 'CANCELLED'}"
+         class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0"><i class="fas fa-reply me-2"></i>Ajouter un message</h6>
+        </div>
+        <div class="card-body">
+            <form th:action="@{/espace/tickets/{id}/comment(id=${request.id})}" method="post">
+                <div class="mb-3">
+                    <textarea name="content" class="form-control" rows="3" required
+                              placeholder="Votre message..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="fas fa-paper-plane me-1"></i>Envoyer
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Pièces jointes -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+            <h6 class="fw-bold mb-0"><i class="fas fa-paperclip me-2 text-info"></i>Pièces jointes</h6>
+            <span class="badge text-bg-light border"
+                  th:text="${attachments != null ? attachments.size() : 0}">0</span>
+        </div>
+        <div class="card-body p-0">
+            <!-- Liste -->
+            <div th:if="${attachments != null and not #lists.isEmpty(attachments)}">
+                <div th:each="att : ${attachments}"
+                     class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+                    <i class="fas flex-shrink-0"
+                       th:classappend="${att.image ? 'fa-image text-success' : (att.contentType != null and #strings.contains(att.contentType,'pdf')) ? 'fa-file-pdf text-danger' : 'fa-file text-muted'}"></i>
+                    <div class="flex-grow-1 overflow-hidden">
+                        <a th:href="${att.filename}" target="_blank"
+                           class="text-decoration-none small fw-semibold text-truncate d-block"
+                           th:text="${att.originalName}">fichier</a>
+                        <div class="text-muted" style="font-size:.7rem" th:text="${att.displaySize}"></div>
+                    </div>
+                    <!-- Aperçu image -->
+                    <a th:if="${att.image}" th:href="${att.filename}" target="_blank" class="flex-shrink-0">
+                        <img th:src="${att.filename}" alt="" style="height:40px;width:40px;object-fit:cover;border-radius:4px">
+                    </a>
+                    <!-- Supprimer uniquement ses propres fichiers -->
+                    <form th:if="${att.uploadedBy != null and att.uploadedBy.email == currentUserEmail}"
+                          th:action="@{/espace/tickets/{id}/attachments/{aid}/delete(id=${request.id},aid=${att.id})}"
+                          method="post" class="flex-shrink-0"
+                          onsubmit="return confirm('Supprimer ce fichier ?')">
+                        <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1">
+                            <i class="fas fa-trash" style="font-size:.65rem"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <div th:if="${attachments == null or #lists.isEmpty(attachments)}"
+                 class="text-muted small fst-italic px-3 py-2">Aucune pièce jointe.</div>
+            <!-- Upload (ticket ouvert uniquement) -->
+            <form th:if="${request.status.name() != 'COMPLETED' and request.status.name() != 'CANCELLED'}"
+                  th:action="@{/espace/tickets/{id}/attachments(id=${request.id})}"
+                  method="post" enctype="multipart/form-data"
+                  class="px-3 py-2 border-top">
+                <div class="input-group input-group-sm">
+                    <input type="file" name="file" class="form-control form-control-sm"
+                           accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip" required>
+                    <button type="submit" class="btn btn-info btn-sm text-white">
+                        <i class="fas fa-upload me-1"></i>Ajouter
+                    </button>
+                </div>
+                <div class="text-muted mt-1" style="font-size:.7rem">Images, PDF, documents — max 10 Mo</div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Chronologie unifiée -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0"><i class="fas fa-stream me-2 text-primary"></i>Chronologie</h6>
+        </div>
+        <div class="card-body">
+            <div th:if="${#lists.isEmpty(timeline)}" class="text-muted small py-2">
+                Aucune activité pour le moment.
+            </div>
+
+            <th:block th:each="event : ${timeline}">
+
+                <!-- Commentaire public -->
+                <div th:if="${event.type == 'comment'}" class="mb-3">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
+                             style="width:32px;height:32px;flex-shrink:0">
+                            <i class="fas fa-user text-primary small"></i>
+                        </div>
+                        <span class="fw-semibold small" th:text="${event.comment.author != null ? event.comment.author.fullName : (event.comment.sourceEmail != null ? event.comment.sourceEmail : 'Synchronisation')}"></span>
+                        <span class="text-muted small" th:text="${#temporals.format(event.comment.createdAt,'dd/MM/yyyy HH:mm')}"></span>
+                    </div>
+                    <div class="ms-4 ps-2 border-start border-2 border-primary-subtle">
+                        <div class="small" style="white-space:pre-wrap" th:text="${event.comment.content}"></div>
+                    </div>
+                </div>
+
+                <!-- Intervention -->
+                <div th:if="${event.type == 'timeentry'}" class="mb-3">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <div class="rounded-circle bg-info bg-opacity-10 d-flex align-items-center justify-content-center"
+                             style="width:32px;height:32px;flex-shrink:0">
+                            <i class="fas fa-wrench text-info small"></i>
+                        </div>
+                        <span class="fw-semibold small" th:text="${event.timeEntry.author.fullName}"></span>
+                        <span class="text-muted small">
+                            <span th:text="${#temporals.format(event.timeEntry.date,'dd/MM/yyyy')}"></span>
+                            <span th:if="${event.timeEntry.startTime != null}"
+                                  th:text="${' à ' + #temporals.format(event.timeEntry.startTime,'HH:mm')}"></span>
+                        </span>
+                        <span class="badge text-bg-light border fw-normal ms-1">
+                            <i class="fas fa-clock me-1 text-info"></i>
+                            <span th:text="${event.timeEntry.formattedDuration}"></span>
+                        </span>
+                    </div>
+                    <div class="ms-4 ps-2 border-start border-2 border-info-subtle"
+                         th:if="${event.timeEntry.description != null and not #strings.isEmpty(event.timeEntry.description)}">
+                        <div class="small text-muted" style="white-space:pre-wrap" th:text="${event.timeEntry.description}"></div>
+                    </div>
+                </div>
+
+            </th:block>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

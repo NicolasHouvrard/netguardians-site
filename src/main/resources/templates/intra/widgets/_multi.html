@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="widget" style="height:100%">
+    <a th:href="${widget.link}" class="widget-multi-body text-decoration-none">
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                  th:style="'background:' + ${widget.color} + '22;width:30px;height:30px'">
+                <i th:class="${widget.icon}" th:style="'color:' + ${widget.color} + ';font-size:.8rem'"></i>
+            </span>
+            <span class="fw-semibold text-muted small text-truncate flex-grow-1" th:text="${widget.label}"></span>
+            <form th:if="${dashboard != null}"
+                  th:action="@{/intra/dashboard/{s}/widget/remove(s=${dashboard})}" method="post"
+                  onclick="event.stopPropagation()">
+                <input type="hidden" name="widgetType" th:value="${widgetKey}">
+                <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1 btn-widget-remove" title="Retirer"
+                        onclick="return confirm('Retirer ce widget ?')">
+                    <i class="fas fa-times" style="font-size:.65rem"></i>
+                </button>
+            </form>
+        </div>
+        <div class="widget-multi-vals">
+            <div th:each="sv : ${subValues}" class="widget-multi-val">
+                <div class="widget-multi-num"
+                     th:style="'color:' + ${sv.color}"
+                     th:text="${sv.value}">—</div>
+                <div class="text-muted mt-1" style="font-size:.68rem" th:text="${sv.label}"></div>
+            </div>
+        </div>
+    </a>
+</div>
+</body>
+</html>

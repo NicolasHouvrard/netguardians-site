@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Comptes de messagerie</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-envelope me-2 text-primary"></i>Comptes de messagerie</h4>
+            <div class="text-muted small mt-1">Configurez les boîtes mail pour la réception et l'envoi automatique</div>
+        </div>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAdd">
+            <i class="fas fa-plus me-1"></i>Ajouter un compte
+        </button>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="alert alert-info d-flex gap-3 mb-4 py-3">
+        <i class="fas fa-info-circle fa-lg mt-1 text-info flex-shrink-0"></i>
+        <div class="small">
+            <strong>Google / Gmail</strong> : créez un projet sur
+            <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a>,
+            activez Gmail API + Calendar API, créez des identifiants OAuth2 (Client ID + Secret),
+            ajoutez le redirect URI <code>http://localhost:8080/intra/mail/oauth/google/callback</code>.<br>
+            <strong>Microsoft / Outlook</strong> : enregistrez une app sur
+            <a href="https://portal.azure.com/" target="_blank">Azure Portal</a>,
+            ajoutez les permissions Mail + Calendars, copiez le Client ID et le Secret,
+            redirect URI : <code>http://localhost:8080/intra/mail/oauth/microsoft/callback</code>.<br>
+            <strong>Autre serveur</strong> : activez IMAP et utilisez un <em>App Password</em>
+            si la double authentification est activée.
+        </div>
+    </div>
+
+    <!-- Liste des comptes -->
+    <div class="row g-4">
+        <div th:if="${#lists.isEmpty(accounts)}" class="col-12">
+            <div class="card border-0 shadow-sm text-center py-5 text-muted">
+                <i class="fas fa-envelope-open fa-2x mb-3 d-block"></i>
+                Aucun compte configuré.
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-4" th:each="a : ${accounts}">
+            <div class="card border-0 shadow-sm h-100"
+                 th:classappend="${!a.active ? 'opacity-50' : ''}">
+                <div class="card-body">
+                    <div class="d-flex align-items-start justify-content-between mb-2">
+                        <div>
+                            <div class="fw-bold" th:text="${a.name}"></div>
+                            <div class="text-muted small" th:text="${a.username}"></div>
+                        </div>
+                        <div class="d-flex flex-column align-items-end gap-1">
+                            <span class="badge"
+                                  th:classappend="${a.provider.name() == 'GMAIL' ? 'text-bg-danger' : a.provider.name() == 'MICROSOFT' ? 'text-bg-primary' : 'text-bg-secondary'}"
+                                  th:text="${a.provider.label}"></span>
+                            <span th:if="${a.authType.name() == 'GOOGLE_OAUTH2'}" class="badge text-bg-warning small">
+                                <i class="fab fa-google me-1"></i>OAuth2
+                            </span>
+                            <span th:if="${a.authType.name() == 'MICROSOFT_OAUTH2'}" class="badge text-bg-info small">
+                                <i class="fab fa-microsoft me-1"></i>OAuth2
+                            </span>
+                        </div>
+                    </div>
+                    <div th:if="${a.authType.name() == 'PASSWORD'}" class="row g-2 small text-muted mb-3">
+                        <div class="col-6">
+                            <i class="fas fa-inbox me-1"></i>IMAP
+                            <div class="fw-semibold text-dark small" th:text="${a.imapHost + ':' + a.imapPort}"></div>
+                        </div>
+                        <div class="col-6">
+                            <i class="fas fa-paper-plane me-1"></i>SMTP
+                            <div class="fw-semibold text-dark small" th:text="${a.smtpHost + ':' + a.smtpPort}"></div>
+                        </div>
+                    </div>
+                    <div th:if="${a.authType.name() != 'PASSWORD'}" class="mb-3">
+                        <span th:if="${a.refreshToken != null}" class="badge text-bg-success small">
+                            <i class="fas fa-check me-1"></i>Connecté
+                        </span>
+                        <span th:if="${a.refreshToken == null}" class="badge text-bg-warning small">
+                            <i class="fas fa-exclamation-triangle me-1"></i>Non connecté — cliquez sur Connecter
+                        </span>
+                    </div>
+                    <div class="d-flex gap-2 mb-2 small text-muted">
+                        <span th:if="${a.lastChecked != null}">
+                            <i class="fas fa-clock me-1"></i>Dernière vérif.
+                            <span th:text="${#temporals.format(a.lastChecked,'dd/MM HH:mm')}"></span>
+                        </span>
+                        <span th:if="${a.lastChecked == null}" class="text-warning">
+                            <i class="fas fa-exclamation-triangle me-1"></i>Jamais vérifié
+                        </span>
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-0 d-flex flex-wrap gap-2 justify-content-end">
+                    <a th:if="${a.authType.name() == 'GOOGLE_OAUTH2'}"
+                       th:href="@{/intra/mail/accounts/{id}/auth/google(id=${a.id})}"
+                       class="btn btn-sm btn-outline-danger">
+                        <i class="fab fa-google me-1"></i>Connecter
+                    </a>
+                    <a th:if="${a.authType.name() == 'MICROSOFT_OAUTH2'}"
+                       th:href="@{/intra/mail/accounts/{id}/auth/microsoft(id=${a.id})}"
+                       class="btn btn-sm btn-outline-primary">
+                        <i class="fab fa-microsoft me-1"></i>Connecter
+                    </a>
+                    <form th:action="@{/intra/mail/accounts/{id}/toggle(id=${a.id})}" method="post">
+                        <button type="submit" class="btn btn-sm"
+                                th:classappend="${a.active ? 'btn-outline-warning' : 'btn-outline-success'}"
+                                th:text="${a.active ? 'Désactiver' : 'Activer'}"></button>
+                    </form>
+                    <button class="btn btn-sm btn-outline-secondary"
+                            th:data-id="${a.id}"
+                            th:data-name="${a.name}"
+                            th:data-provider="${a.provider}"
+                            th:data-auth-type="${a.authType}"
+                            th:data-username="${a.username}"
+                            th:data-from-name="${a.fromName}"
+                            th:data-imap-host="${a.imapHost}"
+                            th:data-imap-port="${a.imapPort}"
+                            th:data-imap-ssl="${a.imapSsl}"
+                            th:data-smtp-host="${a.smtpHost}"
+                            th:data-smtp-port="${a.smtpPort}"
+                            th:data-smtp-ssl="${a.smtpSsl}"
+                            th:data-smtp-starttls="${a.smtpStarttls}"
+                            th:data-ms-tenant-id="${a.msTenantId}"
+                            onclick="openEdit(this)">
+                        <i class="fas fa-edit me-1"></i>Modifier
+                    </button>
+                    <form th:action="@{/intra/mail/accounts/{id}/delete(id=${a.id})}" method="post"
+                          onsubmit="return confirm('Supprimer ce compte ?')">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════════
+         Modal — Ajouter un compte
+    ═══════════════════════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="modalAdd" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form action="/intra/mail/accounts" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Ajouter un compte mail</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Nom du compte <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control form-control-sm" required placeholder="Ex: Support Gmail">
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Fournisseur</label>
+                                <select name="provider" id="aProvider" class="form-select form-select-sm" onchange="prefillProvider(this,'a')">
+                                    <option th:each="p : ${providers}"
+                                            th:value="${p}" th:text="${p.label}"
+                                            th:data-imap-host="${p.imapHost}" th:data-imap-port="${p.imapPort}" th:data-imap-ssl="${p.imapSsl}"
+                                            th:data-smtp-host="${p.smtpHost}" th:data-smtp-port="${p.smtpPort}" th:data-smtp-ssl="${p.smtpSsl}"
+                                            th:data-smtp-starttls="${p.smtpStarttls}"></option>
+                                </select>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Mode d'authentification</label>
+                                <select name="authType" id="aAuthType" class="form-select form-select-sm" onchange="toggleAuth('a')">
+                                    <option th:each="t : ${authTypes}" th:value="${t}" th:text="${t.label}"></option>
+                                </select>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Adresse email <span class="text-danger">*</span></label>
+                                <input type="email" name="username" class="form-control form-control-sm" required placeholder="support@exemple.fr">
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Nom affiché dans les emails</label>
+                                <input type="text" name="fromName" class="form-control form-control-sm" placeholder="Support Logiciel Pour Tous">
+                            </div>
+                            <!-- Section PASSWORD -->
+                            <div class="col-12" id="aSectionPassword">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">Mot de passe / App Password</label>
+                                    <input type="password" name="password" class="form-control form-control-sm" placeholder="Mot de passe ou App Password">
+                                </div>
+                                <hr class="my-1"><p class="small fw-semibold mb-2 text-muted">IMAP (réception)</p>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-sm-5">
+                                        <label class="form-label small">Serveur IMAP</label>
+                                        <input type="text" name="imapHost" id="aImapHost" class="form-control form-control-sm" placeholder="imap.gmail.com">
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <label class="form-label small">Port</label>
+                                        <input type="number" name="imapPort" id="aImapPort" class="form-control form-control-sm" value="993">
+                                    </div>
+                                    <div class="col-sm-4 d-flex align-items-end pb-1">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="imapSsl" id="aImapSsl" value="true" checked>
+                                            <label class="form-check-label small" for="aImapSsl">SSL/TLS</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <hr class="my-1"><p class="small fw-semibold mb-2 text-muted">SMTP (envoi)</p>
+                                <div class="row g-2">
+                                    <div class="col-sm-5">
+                                        <label class="form-label small">Serveur SMTP</label>
+                                        <input type="text" name="smtpHost" id="aSmtpHost" class="form-control form-control-sm" placeholder="smtp.gmail.com">
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <label class="form-label small">Port</label>
+                                        <input type="number" name="smtpPort" id="aSmtpPort" class="form-control form-control-sm" value="587">
+                                    </div>
+                                    <div class="col-sm-4 d-flex align-items-end gap-3 pb-1">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="smtpSsl" id="aSmtpSsl" value="true">
+                                            <label class="form-check-label small" for="aSmtpSsl">SSL</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="smtpStarttls" id="aSmtpStarttls" value="true" checked>
+                                            <label class="form-check-label small" for="aSmtpStarttls">STARTTLS</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Section OAuth2 -->
+                            <div class="col-12 d-none" id="aSectionOAuth">
+                                <hr class="my-1"><p class="small fw-semibold mb-2 text-muted">Identifiants OAuth2</p>
+                                <div class="row g-2">
+                                    <div class="col-sm-6">
+                                        <label class="form-label small">Client ID <span class="text-danger">*</span></label>
+                                        <input type="text" name="clientId" class="form-control form-control-sm" placeholder="xxxx.apps.googleusercontent.com">
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label class="form-label small">Client Secret <span class="text-danger">*</span></label>
+                                        <input type="password" name="clientSecret" class="form-control form-control-sm" placeholder="Client Secret">
+                                    </div>
+                                    <div class="col-sm-6 d-none" id="aSectionTenant">
+                                        <label class="form-label small">Tenant ID Microsoft</label>
+                                        <input type="text" name="msTenantId" class="form-control form-control-sm" value="common" placeholder="common ou UUID tenant">
+                                    </div>
+                                </div>
+                                <div class="alert alert-warning small mt-2 mb-0 py-2">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Après l'enregistrement, cliquez sur <strong>Connecter</strong> sur la carte pour autoriser l'accès OAuth2.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save me-1"></i>Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════════
+         Modal — Modifier un compte
+    ═══════════════════════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="modalEdit" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form id="editForm" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Modifier le compte</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Nom du compte <span class="text-danger">*</span></label>
+                                <input type="text" name="name" id="eName" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Fournisseur</label>
+                                <select name="provider" id="eProvider" class="form-select form-select-sm" onchange="prefillProvider(this,'e')">
+                                    <option th:each="p : ${providers}"
+                                            th:value="${p}" th:text="${p.label}"
+                                            th:data-imap-host="${p.imapHost}" th:data-imap-port="${p.imapPort}" th:data-imap-ssl="${p.imapSsl}"
+                                            th:data-smtp-host="${p.smtpHost}" th:data-smtp-port="${p.smtpPort}" th:data-smtp-ssl="${p.smtpSsl}"
+                                            th:data-smtp-starttls="${p.smtpStarttls}"></option>
+                                </select>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Mode d'authentification</label>
+                                <select name="authType" id="eAuthType" class="form-select form-select-sm" onchange="toggleAuth('e')">
+                                    <option th:each="t : ${authTypes}" th:value="${t}" th:text="${t.label}"></option>
+                                </select>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Adresse email <span class="text-danger">*</span></label>
+                                <input type="email" name="username" id="eUsername" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Nom affiché dans les emails</label>
+                                <input type="text" name="fromName" id="eFromName" class="form-control form-control-sm">
+                            </div>
+                            <!-- Section PASSWORD -->
+                            <div class="col-12" id="eSectionPassword">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">Nouveau mot de passe</label>
+                                    <input type="password" name="password" class="form-control form-control-sm" placeholder="Laissez vide pour ne pas changer">
+                                </div>
+                                <hr class="my-1"><p class="small fw-semibold mb-2 text-muted">IMAP (réception)</p>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-sm-5">
+                                        <label class="form-label small">Serveur IMAP</label>
+                                        <input type="text" name="imapHost" id="eImapHost" class="form-control form-control-sm">
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <label class="form-label small">Port</label>
+                                        <input type="number" name="imapPort" id="eImapPort" class="form-control form-control-sm">
+                                    </div>
+                                    <div class="col-sm-4 d-flex align-items-end pb-1">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="imapSsl" id="eImapSsl" value="true">
+                                            <label class="form-check-label small" for="eImapSsl">SSL/TLS</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <hr class="my-1"><p class="small fw-semibold mb-2 text-muted">SMTP (envoi)</p>
+                                <div class="row g-2">
+                                    <div class="col-sm-5">
+                                        <label class="form-label small">Serveur SMTP</label>
+                                        <input type="text" name="smtpHost" id="eSmtpHost" class="form-control form-control-sm">
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <label class="form-label small">Port</label>
+                                        <input type="number" name="smtpPort" id="eSmtpPort" class="form-control form-control-sm">
+                                    </div>
+                                    <div class="col-sm-4 d-flex align-items-end gap-3 pb-1">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="smtpSsl" id="eSmtpSsl" value="true">
+                                            <label class="form-check-label small" for="eSmtpSsl">SSL</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="smtpStarttls" id="eSmtpStarttls" value="true">
+                                            <label class="form-check-label small" for="eSmtpStarttls">STARTTLS</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Section OAuth2 -->
+                            <div class="col-12 d-none" id="eSectionOAuth">
+                                <hr class="my-1"><p class="small fw-semibold mb-2 text-muted">Identifiants OAuth2</p>
+                                <div class="row g-2">
+                                    <div class="col-sm-6">
+                                        <label class="form-label small">Client ID <span class="text-danger">*</span></label>
+                                        <input type="text" name="clientId" id="eClientId" class="form-control form-control-sm">
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label class="form-label small">Client Secret</label>
+                                        <input type="password" name="clientSecret" id="eClientSecret" class="form-control form-control-sm" placeholder="Laissez vide pour conserver">
+                                    </div>
+                                    <div class="col-sm-6 d-none" id="eSectionTenant">
+                                        <label class="form-label small">Tenant ID Microsoft</label>
+                                        <input type="text" name="msTenantId" id="eMsTenantId" class="form-control form-control-sm" value="common">
+                                    </div>
+                                </div>
+                                <div class="alert alert-warning small mt-2 mb-0 py-2">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Après la mise à jour, cliquez sur <strong>Connecter</strong> pour ré-autoriser si nécessaire.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save me-1"></i>Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script th:inline="none">
+function toggleAuth(prefix) {
+    var authType = document.getElementById(prefix + 'AuthType').value;
+    var isPassword  = authType === 'PASSWORD';
+    var isMicrosoft = authType === 'MICROSOFT_OAUTH2';
+    document.getElementById(prefix + 'SectionPassword').classList.toggle('d-none', !isPassword);
+    document.getElementById(prefix + 'SectionOAuth').classList.toggle('d-none',     isPassword);
+    var tenant = document.getElementById(prefix + 'SectionTenant');
+    if (tenant) tenant.classList.toggle('d-none', !isMicrosoft);
+}
+
+function prefillProvider(sel, prefix) {
+    var opt = sel.options[sel.selectedIndex];
+    var ih = document.getElementById(prefix + 'ImapHost');
+    if (ih) {
+        ih.value = opt.dataset.imapHost || '';
+        document.getElementById(prefix + 'ImapPort').value = opt.dataset.imapPort || 993;
+        document.getElementById(prefix + 'ImapSsl').checked = opt.dataset.imapSsl === 'true';
+        document.getElementById(prefix + 'SmtpHost').value = opt.dataset.smtpHost || '';
+        document.getElementById(prefix + 'SmtpPort').value = opt.dataset.smtpPort || 587;
+        document.getElementById(prefix + 'SmtpSsl').checked = opt.dataset.smtpSsl === 'true';
+        document.getElementById(prefix + 'SmtpStarttls').checked = opt.dataset.smtpStarttls === 'true';
+    }
+    var at = document.getElementById(prefix + 'AuthType');
+    if (at) {
+        if      (sel.value === 'GMAIL')     at.value = 'GOOGLE_OAUTH2';
+        else if (sel.value === 'MICROSOFT') at.value = 'MICROSOFT_OAUTH2';
+        else                                at.value = 'PASSWORD';
+        toggleAuth(prefix);
+    }
+}
+
+function openEdit(btn) {
+    var d = btn.dataset;
+    document.getElementById('editForm').action = '/intra/mail/accounts/' + d.id + '/update';
+
+    document.getElementById('eName').value     = d.name     || '';
+    document.getElementById('eUsername').value = d.username || '';
+    document.getElementById('eFromName').value = d.fromName || '';
+
+    var provSel = document.getElementById('eProvider');
+    for (var i = 0; i < provSel.options.length; i++) {
+        if (provSel.options[i].value === d.provider) { provSel.selectedIndex = i; break; }
+    }
+    var atSel = document.getElementById('eAuthType');
+    for (var j = 0; j < atSel.options.length; j++) {
+        if (atSel.options[j].value === d.authType) { atSel.selectedIndex = j; break; }
+    }
+    toggleAuth('e');
+
+    document.getElementById('eImapHost').value    = d.imapHost || '';
+    document.getElementById('eImapPort').value    = d.imapPort || 993;
+    document.getElementById('eImapSsl').checked   = d.imapSsl === 'true';
+    document.getElementById('eSmtpHost').value    = d.smtpHost || '';
+    document.getElementById('eSmtpPort').value    = d.smtpPort || 587;
+    document.getElementById('eSmtpSsl').checked   = d.smtpSsl === 'true';
+    document.getElementById('eSmtpStarttls').checked = d.smtpStarttls === 'true';
+
+    if (d.msTenantId) document.getElementById('eMsTenantId').value = d.msTenantId;
+
+    new bootstrap.Modal(document.getElementById('modalEdit')).show();
+}
+</script>
+</th:block>
+</body>
+</html>

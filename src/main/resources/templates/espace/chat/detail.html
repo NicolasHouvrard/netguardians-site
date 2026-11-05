@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{espace-layout}">
+<head><title>Conversation</title></head>
+<body>
+<section layout:fragment="content">
+<div class="container py-4" style="max-width:760px">
+
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <a href="/espace/chat" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h5 class="mb-0 flex-grow-1">
+            <i class="fas fa-comments me-2 text-primary"></i>Support en ligne
+        </h5>
+        <span class="badge" th:classappend="${conv.status.badgeCss}" th:text="${conv.status.label}"></span>
+    </div>
+
+    <div class="card border-0 shadow-sm" style="height:70vh;display:flex;flex-direction:column">
+
+        <!-- En-tête -->
+        <div class="card-header bg-primary text-white d-flex align-items-center gap-2 py-2">
+            <span class="rounded-circle bg-white text-primary d-flex align-items-center justify-content-center"
+                  style="width:32px;height:32px">
+                <i class="fas fa-headset"></i>
+            </span>
+            <div>
+                <div class="small fw-semibold">Support en ligne</div>
+                <small id="statusText" class="opacity-75">
+                    <span th:if="${conv.status.name() == 'PENDING'}">En attente d'un conseiller...</span>
+                    <span th:if="${conv.status.name() == 'OPEN'}">Connecté avec un conseiller</span>
+                    <span th:if="${conv.status.name() == 'CLOSED'}">Conversation terminée</span>
+                </small>
+            </div>
+            <div th:if="${conv.videoRoomId != null}" class="ms-auto">
+                <a th:href="'https://meet.jit.si/' + ${conv.videoRoomId}"
+                   target="_blank" class="btn btn-sm btn-light">
+                    <i class="fas fa-video me-1"></i>Rejoindre la visio
+                </a>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        <div id="messageArea" class="flex-grow-1 overflow-auto p-3" style="background:#f8fafc">
+            <div th:each="m : ${messages}"
+                 th:id="'msg-' + ${m.id}"
+                 th:class="${m.senderType.name() == 'VISITOR'} ? 'd-flex justify-content-end mb-2' : 'd-flex justify-content-start mb-2'">
+                <div class="d-flex flex-column"
+                     th:style="${m.senderType.name() == 'VISITOR'} ? 'align-items:flex-end;max-width:75%' : 'align-items:flex-start;max-width:75%'">
+                    <small class="text-muted mb-1" th:text="${m.senderName}"></small>
+                    <div class="px-3 py-2 rounded-3"
+                         th:style="${m.senderType.name() == 'VISITOR'} ? 'background:#3b82f6;color:white' :
+                                   (${m.senderType.name() == 'BOT' or m.senderType.name() == 'AI'} ?
+                                   'background:#f1f5f9;border:1px solid #e2e8f0' : 'background:#dcfce7')"
+                         th:utext="${#strings.replace(#strings.escapeXml(m.content), '&#10;', '&lt;br&gt;')}"></div>
+                    <small class="text-muted mt-1" th:text="${#temporals.format(m.createdAt,'HH:mm')}"></small>
+                </div>
+            </div>
+            <!-- Bot choices -->
+            <div id="botChoices" class="d-flex gap-2 flex-wrap mt-2"
+                 th:if="${conv.status.name() == 'PENDING'}">
+                <button class="btn btn-outline-primary btn-sm" onclick="sendBotChoice('SUPPORT')">
+                    <i class="fas fa-wrench me-1"></i>Support
+                </button>
+                <button class="btn btn-outline-success btn-sm" onclick="sendBotChoice('COMMERCIAL')">
+                    <i class="fas fa-handshake me-1"></i>Commercial
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="sendBotChoice('AUTRE')">
+                    <i class="fas fa-question me-1"></i>Autre
+                </button>
+            </div>
+            <div id="typingIndicator" class="d-none text-muted small fst-italic ps-2 mt-1"></div>
+        </div>
+
+        <!-- Zone de saisie -->
+        <div class="card-footer border-top p-2">
+            <div th:if="${conv.status.name() != 'CLOSED'}" class="input-group">
+                <textarea id="msgInput" class="form-control" rows="2"
+                          placeholder="Votre message..."
+                          style="resize:none"
+                          onkeydown="handleEnter(event)"></textarea>
+                <button class="btn btn-primary" onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <div th:if="${conv.status.name() == 'CLOSED'}"
+                 class="text-center text-muted small py-2">
+                Cette conversation est terminée.
+            </div>
+        </div>
+    </div>
+
+</div>
+</section>
+
+<th:block layout:fragment="script" th:if="${conv.status.name() != 'CLOSED'}">
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+<script th:inline="javascript">
+const CONV_ID = /*[[${conv.id}]]*/ 0;
+const Stomp = window.Stomp || window.StompJs?.Stomp;
+let stompClient = null;
+
+function connect() {
+    const socket = new SockJS('/ws');
+    stompClient = Stomp.over(socket);
+    stompClient.debug = () => {};
+    stompClient.connect({}, () => {
+        stompClient.subscribe('/topic/chat/' + CONV_ID, onMessage);
+        stompClient.subscribe('/topic/chat/typing/' + CONV_ID, onTyping);
+    });
+}
+
+function onMessage(frame) {
+    const m = JSON.parse(frame.body);
+    appendMessage(m);
+    document.getElementById('botChoices')?.classList.add('d-none');
+    if (m.senderType === 'USER') {
+        document.getElementById('statusText').textContent = 'Connecté avec un conseiller';
+    }
+    if (m.videoRoomId) {
+        document.getElementById('joinVideoBtn')?.classList.remove('d-none');
+    }
+}
+
+function appendMessage(m) {
+    const area = document.getElementById('messageArea');
+    const isVisitor = m.senderType === 'VISITOR';
+    const isBot     = m.senderType === 'BOT' || m.senderType === 'AI';
+    const bg = isVisitor ? 'background:#3b82f6;color:white'
+             : isBot     ? 'background:#f1f5f9;border:1px solid #e2e8f0'
+             :              'background:#dcfce7';
+    const div = document.createElement('div');
+    div.className = 'd-flex mb-2 ' + (isVisitor ? 'justify-content-end' : 'justify-content-start');
+    div.innerHTML = `<div class="d-flex flex-column" style="${isVisitor ? 'align-items:flex-end' : 'align-items:flex-start'};max-width:75%">
+        <small class="text-muted mb-1">${m.senderName || ''}</small>
+        <div class="px-3 py-2 rounded-3" style="${bg}">${(m.content || '').replace(/\n/g,'<br>')}</div>
+        <small class="text-muted mt-1">${new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</small>
+    </div>`;
+    const indicator = document.getElementById('typingIndicator');
+    area.insertBefore(div, indicator);
+    area.scrollTop = area.scrollHeight;
+}
+
+let typingTimer;
+function onTyping(frame) {
+    const p = JSON.parse(frame.body);
+    const el = document.getElementById('typingIndicator');
+    el.textContent = p.senderName + ' est en train d\'écrire...';
+    el.classList.remove('d-none');
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => el.classList.add('d-none'), 3000);
+}
+
+function sendMessage() {
+    const input = document.getElementById('msgInput');
+    const content = input.value.trim();
+    if (!content || !stompClient) return;
+    stompClient.send('/app/chat/' + CONV_ID + '/send', {}, JSON.stringify({ content }));
+    appendMessage({ senderType: 'VISITOR', senderName: 'Vous', content });
+    input.value = '';
+}
+
+function sendBotChoice(choice) {
+    if (!stompClient) return;
+    stompClient.send('/app/chat/' + CONV_ID + '/bot-choice', {}, JSON.stringify({ choice }));
+    document.getElementById('botChoices')?.classList.add('d-none');
+}
+
+function handleEnter(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    else if (stompClient) {
+        stompClient.send('/app/chat/' + CONV_ID + '/typing', {}, JSON.stringify({ senderName: 'Client', typing: true }));
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const area = document.getElementById('messageArea');
+    if (area) area.scrollTop = area.scrollHeight;
+    connect();
+});
+</script>
+</th:block>
+</body>
+</html>

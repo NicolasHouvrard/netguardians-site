@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>ESN Partenaires</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-handshake me-2 text-primary"></i>ESN Partenaires</h4>
+            <div class="text-muted small mt-1">Réseau d'ESN sous-traitantes pour vos interventions</div>
+        </div>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAddEsn">
+            <i class="fas fa-plus me-1"></i>Nouvelle ESN
+        </button>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(esns)}" class="text-center py-5 text-muted">
+                <i class="fas fa-handshake fa-2x mb-3 d-block"></i>Aucune ESN partenaire.
+            </div>
+            <div class="table-responsive" th:unless="${#lists.isEmpty(esns)}">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Société</th>
+                        <th>Contact</th>
+                        <th>Email</th>
+                        <th>Tél.</th>
+                        <th class="text-end">Taux horaire</th>
+                        <th>Statut</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="esn : ${esns}">
+                        <td>
+                            <div class="fw-semibold" th:text="${esn.companyName}"></div>
+                            <div class="text-muted small" th:if="${esn.city != null}" th:text="${esn.city}"></div>
+                        </td>
+                        <td th:text="${esn.contactName ?: '—'}"></td>
+                        <td>
+                            <a th:if="${esn.email != null}" th:href="'mailto:' + ${esn.email}"
+                               th:text="${esn.email}" class="text-decoration-none"></a>
+                            <span th:unless="${esn.email != null}">—</span>
+                        </td>
+                        <td th:text="${esn.phone ?: '—'}"></td>
+                        <td class="text-end">
+                            <span th:if="${esn.defaultHourlyRate != null}"
+                                  th:text="${#numbers.formatDecimal(esn.defaultHourlyRate, 1, 2) + ' €/h'}"></span>
+                            <span th:unless="${esn.defaultHourlyRate != null}" class="text-muted">—</span>
+                        </td>
+                        <td>
+                            <span class="badge" th:classappend="${esn.active ? 'text-bg-success' : 'text-bg-secondary'}"
+                                  th:text="${esn.active ? 'Active' : 'Inactive'}"></span>
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-xs btn-outline-secondary py-0 px-2"
+                                    th:data-id="${esn.id}"
+                                    th:data-company="${esn.companyName}"
+                                    th:data-contact="${esn.contactName}"
+                                    th:data-email="${esn.email}"
+                                    th:data-phone="${esn.phone}"
+                                    th:data-address="${esn.address}"
+                                    th:data-city="${esn.city}"
+                                    th:data-zip="${esn.zipCode}"
+                                    th:data-siret="${esn.siret}"
+                                    th:data-vat="${esn.vatNumber}"
+                                    th:data-rate="${esn.defaultHourlyRate}"
+                                    th:data-notes="${esn.notes}"
+                                    onclick="openEdit(this)">
+                                <i class="fas fa-pen" style="font-size:.7rem"></i>
+                            </button>
+                            <form th:action="@{/intra/esns/{id}/toggle(id=${esn.id})}" method="post" class="d-inline">
+                                <button type="submit" class="btn btn-xs py-0 px-2"
+                                        th:classappend="${esn.active ? 'btn-outline-danger' : 'btn-outline-success'}"
+                                        th:title="${esn.active ? 'Désactiver' : 'Activer'}">
+                                    <i class="fas" th:classappend="${esn.active ? 'fa-ban' : 'fa-check'}" style="font-size:.7rem"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Créer -->
+    <div class="modal fade" id="modalAddEsn" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form action="/intra/esns" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Nouvelle ESN Partenaire</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Raison sociale <span class="text-danger">*</span></label>
+                                <input type="text" name="companyName" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Contact</label>
+                                <input type="text" name="contactName" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Email</label>
+                                <input type="email" name="email" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Téléphone</label>
+                                <input type="text" name="phone" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-sm-8">
+                                <label class="form-label small fw-semibold">Adresse</label>
+                                <input type="text" name="address" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Ville</label>
+                                <input type="text" name="city" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-sm-1">
+                                <label class="form-label small fw-semibold">CP</label>
+                                <input type="text" name="zipCode" class="form-control form-control-sm" maxlength="10">
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label small fw-semibold">SIRET</label>
+                                <input type="text" name="siret" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label small fw-semibold">N° TVA intracomm.</label>
+                                <input type="text" name="vatNumber" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label small fw-semibold">Taux horaire (€/h)</label>
+                                <input type="number" name="defaultHourlyRate" class="form-control form-control-sm"
+                                       step="0.01" min="0" placeholder="0.00">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Notes</label>
+                                <textarea name="notes" class="form-control form-control-sm" rows="2"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Créer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Éditer -->
+    <div class="modal fade" id="modalEditEsn" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form id="editEsnForm" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-pen me-2"></i>Modifier l'ESN</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Raison sociale <span class="text-danger">*</span></label>
+                                <input type="text" name="companyName" id="eCompany" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Contact</label>
+                                <input type="text" name="contactName" id="eContact" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Email</label>
+                                <input type="email" name="email" id="eEmail" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold">Téléphone</label>
+                                <input type="text" name="phone" id="ePhone" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-sm-8">
+                                <label class="form-label small fw-semibold">Adresse</label>
+                                <input type="text" name="address" id="eAddress" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-sm-3">
+                                <label class="form-label small fw-semibold">Ville</label>
+                                <input type="text" name="city" id="eCity" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-sm-1">
+                                <label class="form-label small fw-semibold">CP</label>
+                                <input type="text" name="zipCode" id="eZip" class="form-control form-control-sm" maxlength="10">
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label small fw-semibold">SIRET</label>
+                                <input type="text" name="siret" id="eSiret" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label small fw-semibold">N° TVA intracomm.</label>
+                                <input type="text" name="vatNumber" id="eVat" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label small fw-semibold">Taux horaire (€/h)</label>
+                                <input type="number" name="defaultHourlyRate" id="eRate" class="form-control form-control-sm"
+                                       step="0.01" min="0">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Notes</label>
+                                <textarea name="notes" id="eNotes" class="form-control form-control-sm" rows="2"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script>
+function openEdit(btn) {
+    var d = btn.dataset;
+    document.getElementById('eCompany').value  = d.company  || '';
+    document.getElementById('eContact').value  = d.contact  || '';
+    document.getElementById('eEmail').value    = d.email    || '';
+    document.getElementById('ePhone').value    = d.phone    || '';
+    document.getElementById('eAddress').value  = d.address  || '';
+    document.getElementById('eCity').value     = d.city     || '';
+    document.getElementById('eZip').value      = d.zip      || '';
+    document.getElementById('eSiret').value    = d.siret    || '';
+    document.getElementById('eVat').value      = d.vat      || '';
+    document.getElementById('eRate').value     = (d.rate && d.rate !== 'null') ? d.rate : '';
+    document.getElementById('eNotes').value    = (d.notes && d.notes !== 'null') ? d.notes : '';
+    document.getElementById('editEsnForm').action = '/intra/esns/' + d.id + '/update';
+    new bootstrap.Modal(document.getElementById('modalEditEsn')).show();
+}
+</script>
+</th:block>
+</body>
+</html>

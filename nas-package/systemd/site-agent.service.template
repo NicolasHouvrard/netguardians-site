@@ -1,0 +1,14 @@
+[Unit]
+Description=Site Agent (paquet Synology NAS)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=__JRE__ -jar __JAR__
+Environment=SERVER_ADDRESS=__SERVER_ADDRESS__
+Environment=AGENT_PORT=__AGENT_PORT__
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

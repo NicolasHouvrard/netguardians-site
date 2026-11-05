@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Nouvelle affaire</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="/intra/pipeline" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Retour
+        </a>
+        <h4 class="mb-0"><i class="fas fa-chart-line me-2 text-primary"></i>Nouvelle affaire</h4>
+    </div>
+
+    <div class="card border-0 shadow-sm" style="max-width:720px">
+        <div class="card-body">
+            <form action="/intra/pipeline" method="post">
+                <div class="row g-3">
+
+                    <!-- Nom de l'affaire -->
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Nom du projet / affaire <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control" required autofocus
+                               placeholder="ex : Migration ERP Dupont, Infogérance 2026…">
+                    </div>
+
+                    <!-- Client -->
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Client / Prospect <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="text" id="customerSearch" class="form-control"
+                                   placeholder="Rechercher…" autocomplete="off">
+                            <select name="customerId" id="customerSelect" class="form-select" required
+                                    style="max-width:300px">
+                                <option value="">— Sélectionner —</option>
+                                <option th:each="c : ${customers}"
+                                        th:value="${c.id}"
+                                        th:text="${c.companyName + (c.contactName != null ? ' — ' + c.contactName : '')}"
+                                        th:selected="${preselectedCustomerId != null and preselectedCustomerId == c.id}"></option>
+                            </select>
+                        </div>
+                        <div class="mt-1">
+                            <a href="/intra/customers/new" class="small text-muted" target="_blank">
+                                <i class="fas fa-plus me-1"></i>Créer un nouveau prospect/client
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Source + Commercial -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Source</label>
+                        <select name="source" class="form-select">
+                            <option value="">— Sélectionner —</option>
+                            <option th:each="s : ${sources}" th:value="${s.name()}" th:text="${s.label}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Équipe</label>
+                        <select name="teamId" id="teamSelectNew" class="form-select"
+                                hx-get="/intra/prospects/team-members"
+                                hx-trigger="change"
+                                hx-target="#commercialSelectNew"
+                                hx-include="[name='teamId']">
+                            <option value="">— Toutes les équipes —</option>
+                            <option th:each="t : ${teams}" th:value="${t.id}" th:text="${t.name}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Commercial assigné</label>
+                        <select name="assignedCommercialId" id="commercialSelectNew" class="form-select">
+                            <option value="">— Aucun —</option>
+                            <option th:each="u : ${commercials}"
+                                    th:value="${u.id}"
+                                    th:text="${u.fullName}"></option>
+                        </select>
+                    </div>
+
+                    <!-- Valeur + Date -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Valeur estimée (€)</label>
+                        <input type="number" name="estimatedValue" class="form-control" step="100" min="0">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Date de clôture prévue</label>
+                        <input type="date" name="expectedCloseDate" class="form-control">
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Notes</label>
+                        <textarea name="notes" class="form-control" rows="3"></textarea>
+                    </div>
+
+                    <!-- Boutons -->
+                    <div class="col-12 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Créer l'affaire
+                        </button>
+                        <a href="/intra/pipeline" class="btn btn-outline-secondary">Annuler</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+<script>
+// Filtre live sur le select client
+const searchInput  = document.getElementById('customerSearch');
+const customerSel  = document.getElementById('customerSelect');
+const allOptions   = Array.from(customerSel.options);
+
+searchInput.addEventListener('input', function () {
+    const q = this.value.toLowerCase();
+    customerSel.innerHTML = '';
+    allOptions.filter(o => !q || o.text.toLowerCase().includes(q))
+              .forEach(o => customerSel.appendChild(o.cloneNode(true)));
+});
+</script>
+
+</div>
+</body>
+</html>

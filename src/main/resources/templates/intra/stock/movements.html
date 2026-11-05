@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Historique des mouvements de stock</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a href="/intra/stock">Stock</a></li>
+                    <li class="breadcrumb-item active">Historique global</li>
+                </ol>
+            </nav>
+            <h4 class="mb-0"><i class="fas fa-history me-2 text-secondary"></i>Historique des mouvements</h4>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(movements)}" class="text-center py-5 text-muted">
+                <i class="fas fa-inbox fa-2x mb-3 d-block"></i>
+                Aucun mouvement enregistré.
+            </div>
+            <table th:if="${!#lists.isEmpty(movements)}" class="table table-hover mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Site</th>
+                        <th>Produit</th>
+                        <th>Type</th>
+                        <th class="text-center">Qté</th>
+                        <th class="text-center">Après</th>
+                        <th>Raison / Référence</th>
+                        <th>Par</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="m : ${movements}">
+                        <td class="text-muted"
+                            th:text="${#temporals.format(m.createdAt,'dd/MM/yy HH:mm')}"></td>
+                        <td>
+                            <a th:href="@{/intra/stock/site/{id}(id=${m.stockItem.site.id})}"
+                               th:text="${m.stockItem.site.name}" class="text-decoration-none"></a>
+                        </td>
+                        <td th:text="${m.stockItem.product.name}"></td>
+                        <td>
+                            <span class="badge"
+                                  th:classappend="'text-bg-' + ${m.type.badgeCss}"
+                                  th:text="${m.type.label}"></span>
+                        </td>
+                        <td class="text-center fw-semibold" th:text="${m.quantity}"></td>
+                        <td class="text-center text-muted" th:text="${m.quantityAfter}"></td>
+                        <td>
+                            <span th:text="${m.reason ?: ''}"></span>
+                            <span th:if="${m.reference != null}" class="text-muted ms-1">
+                                (<span th:text="${m.reference}"></span>)
+                            </span>
+                        </td>
+                        <td class="text-muted">
+                            <span th:if="${m.createdBy != null}"
+                                  th:text="${m.createdBy.fullName}"></span>
+                            <span th:if="${m.createdBy == null}" class="text-muted">Système</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

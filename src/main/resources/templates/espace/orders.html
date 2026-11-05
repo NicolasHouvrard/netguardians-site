@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      layout:decorate="~{espace-layout}">
+<head><title>Mes commandes</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-shopping-cart me-2"></i>Commandes</h4>
+        <a href="/boutique" class="btn btn-outline-primary btn-sm">
+            <i class="fas fa-shop me-1"></i>Aller à la boutique
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Commandes en attente de validation (gestionnaire seulement) -->
+    <div sec:authorize="hasRole('ROLE_GESTIONNAIRE')">
+        <div th:with="pending=${orders.?[status.name() == 'PENDING_VALIDATION']}"
+             th:if="${!#lists.isEmpty(pending)}"
+             class="alert alert-warning d-flex gap-3 align-items-center mb-4">
+            <i class="fas fa-triangle-exclamation fa-lg flex-shrink-0"></i>
+            <div>
+                <strong th:text="${#lists.size(pending)} + ' commande(s) en attente de votre validation'"></strong><br>
+                <span class="small">Cliquez sur une commande pour la consulter et la valider.</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(orders)}" class="text-center py-5 text-muted">
+                <i class="fas fa-shopping-bag fa-2x mb-2 d-block opacity-50"></i>
+                Aucune commande pour le moment.
+                <br><a href="/boutique" class="btn btn-link">Accéder à la boutique</a>
+            </div>
+            <table th:unless="${#lists.isEmpty(orders)}" class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Référence</th>
+                        <th>Date</th>
+                        <th>Mode paiement</th>
+                        <th class="text-end">Total TTC</th>
+                        <th>Statut</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="o : ${orders}"
+                        th:class="${o.status.name() == 'PENDING_VALIDATION'} ? 'table-warning' : ''">
+                        <td>
+                            <span class="fw-semibold font-monospace small" th:text="${o.reference}"></span>
+                            <div th:if="${o.status.name() == 'PENDING_VALIDATION'}"
+                                 class="small text-warning fw-semibold">
+                                <i class="fas fa-circle fa-xs me-1"></i>À valider
+                            </div>
+                        </td>
+                        <td class="small text-muted"
+                            th:text="${#temporals.format(o.createdAt,'dd/MM/yyyy')}"></td>
+                        <td class="small">
+                            <i th:if="${o.paymentMethod?.name() == 'STRIPE'}"
+                               class="fab fa-stripe text-primary me-1"></i>
+                            <i th:if="${o.paymentMethod?.name() == 'BANK_TRANSFER'}"
+                               class="fas fa-university text-success me-1"></i>
+                            <span th:text="${o.paymentMethod?.label}"></span>
+                        </td>
+                        <td class="text-end fw-semibold"
+                            th:text="${#numbers.formatDecimal(o.totalTTC,1,'COMMA',2,'POINT')} + ' €'"></td>
+                        <td>
+                            <span class="badge"
+                                  th:classappend="'bg-' + ${o.status.badgeCss}"
+                                  th:text="${o.status.label}"></span>
+                        </td>
+                        <td>
+                            <a th:href="@{/espace/orders/{id}(id=${o.id})}"
+                               class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-eye me-1"></i>Détail
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

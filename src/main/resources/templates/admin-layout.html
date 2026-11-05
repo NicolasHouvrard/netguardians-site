@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title layout:title-pattern="$CONTENT_TITLE - Administration">Administration</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <style>
+        .adm-nav { background: #1a1a2e; min-height: 100vh; width: 240px; flex-shrink: 0; }
+        .adm-nav .nav-link { color: rgba(255,255,255,.8); padding: .5rem 1.1rem; border-radius: .375rem; font-size: .9rem; }
+        .adm-nav .nav-link:hover,
+        .adm-nav .nav-link.active { background: rgba(255,255,255,.15); color: #fff; }
+        .adm-nav .nav-link i { width: 20px; }
+        .adm-section { color: rgba(255,255,255,.35); font-size: .65rem; text-transform: uppercase;
+                       letter-spacing: .1em; padding: .75rem 1.1rem .15rem; display: block; }
+        .adm-brand { color: #fff; font-size: 1.05rem; font-weight: 700; letter-spacing: .02em; }
+        .adm-main { flex: 1; min-height: 100vh; background: #f8f9fa; }
+        .adm-main .container-fluid { padding: 1.5rem; }
+    </style>
+</head>
+<body>
+<div th:replace="~{header/all :: navbar}"></div>
+<div class="d-flex">
+
+    <nav class="adm-nav p-3 d-flex flex-column">
+        <div class="mb-4 mt-2">
+            <div class="adm-brand"><i class="fas fa-cogs me-2 text-warning"></i>Administration</div>
+            <div class="mt-1">
+                <span sec:authorize="hasRole('ADMIN')" class="badge bg-danger" style="font-size:.62rem">Admin</span>
+            </div>
+        </div>
+
+        <ul class="nav flex-column gap-1 flex-grow-1">
+
+            <li class="nav-item">
+                <a class="nav-link"
+                   th:classappend="${currentUri != null and currentUri == '/admin/console' ? ' active' : ''}"
+                   href="/admin/console">
+                    <i class="fas fa-tachometer-alt me-2"></i>Console
+                </a>
+            </li>
+
+            <!-- Site -->
+            <li><span class="adm-section">Site</span></li>
+
+            <li class="nav-item">
+                <a class="nav-link"
+                   th:classappend="${currentUri != null and currentUri.startsWith('/admin/pages') ? ' active' : ''}"
+                   href="/admin/pages">
+                    <i class="fas fa-file-alt me-2"></i>Pages &amp; Menus
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link"
+                   th:classappend="${currentUri != null and currentUri.startsWith('/admin/settings/modules') ? ' active' : ''}"
+                   href="/admin/settings/modules">
+                    <i class="fas fa-th-large me-2"></i>Modules dashboard
+                </a>
+            </li>
+
+            <!-- Utilisateurs -->
+            <li><span class="adm-section">Utilisateurs</span></li>
+
+            <li class="nav-item">
+                <a class="nav-link"
+                   th:classappend="${currentUri != null and currentUri.startsWith('/admin/users') ? ' active' : ''}"
+                   href="/admin/users/">
+                    <i class="fas fa-users me-2"></i>Utilisateurs
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link"
+                   th:classappend="${currentUri != null and currentUri.startsWith('/admin/settings/roles') ? ' active' : ''}"
+                   href="/admin/settings/roles">
+                    <i class="fas fa-key me-2"></i>Roles
+                </a>
+            </li>
+
+            <!-- Intégrations -->
+            <li><span class="adm-section">Intégrations</span></li>
+
+            <li class="nav-item">
+                <a class="nav-link"
+                   th:classappend="${currentUri != null and currentUri.startsWith('/admin/ninja') ? ' active' : ''}"
+                   href="/admin/ninja/config">
+                    <i class="fas fa-shield-alt me-2"></i>NinjaOne RMM
+                </a>
+            </li>
+
+            <!-- Abonnements -->
+            <li><span class="adm-section">Abonnements</span></li>
+
+            <li class="nav-item">
+                <a class="nav-link"
+                   th:classappend="${currentUri != null and currentUri.startsWith('/admin/subscription-plans') ? ' active' : ''}"
+                   href="/admin/subscription-plans">
+                    <i class="fas fa-box-open me-2"></i>Formules
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link"
+                   th:classappend="${currentUri != null and currentUri.startsWith('/admin/subscription-categories') ? ' active' : ''}"
+                   href="/admin/subscription-categories">
+                    <i class="fas fa-tags me-2"></i>Categories
+                </a>
+            </li>
+
+            <!-- Exploitation -->
+            <li><span class="adm-section">Exploitation</span></li>
+
+            <li class="nav-item">
+                <a class="nav-link"
+                   th:classappend="${currentUri != null and currentUri.startsWith('/intra') ? ' active' : ''}"
+                   href="/intra/dashboard">
+                    <i class="fas fa-server me-2"></i>Console ESN
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link"
+                   th:classappend="${currentUri != null and currentUri.startsWith('/customers') ? ' active' : ''}"
+                   href="/customers">
+                    <i class="fas fa-building me-2"></i>Clients
+                </a>
+            </li>
+
+        </ul>
+
+        <div class="mt-auto border-top border-secondary pt-3">
+            <div class="text-white-50 small mb-2" sec:authentication="name">utilisateur</div>
+            <form th:action="@{/logout}" method="post">
+                <button class="btn btn-sm btn-outline-light w-100">
+                    <i class="fas fa-sign-out-alt me-1"></i>Deconnexion
+                </button>
+            </form>
+        </div>
+    </nav>
+
+    <main class="adm-main">
+        <div layout:fragment="content"></div>
+    </main>
+</div>
+<footer>
+    <small>&copy; 2026 LogicielPourTous - Nicolas App v4.0.2</small>
+</footer>
+<th:block layout:fragment="script"></th:block>
+</body>
+</html>

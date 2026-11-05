@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Synchronisation</title></head>
+<body>
+<div layout:fragment="content">
+
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-sync-alt me-2 text-primary"></i>Synchronisation</h4>
+            <div class="text-muted small mt-1">Gestion des syncs sources de données</div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/intra/sync/history" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-history me-1"></i>Historique
+            </a>
+            <a href="/intra/suppliers" class="btn btn-outline-primary btn-sm">
+                <i class="fas fa-truck me-1"></i>Fournisseurs
+            </a>
+        </div>
+    </div>
+
+    <!-- Flash -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-triangle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Aucun connecteur -->
+    <div th:if="${connectors.empty}" class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5 text-muted">
+            <i class="fas fa-plug fa-3x mb-3 d-block opacity-25"></i>
+            <p>Aucun connecteur configuré.</p>
+            <a href="/intra/connectors/new" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus me-1"></i>Créer un connecteur
+            </a>
+        </div>
+    </div>
+
+    <!-- Liste des connecteurs -->
+    <div th:unless="${connectors.empty}" class="row g-3">
+        <div th:each="c : ${connectors}" class="col-12">
+            <div class="card border-0 shadow-sm"
+                 th:classappend="${!c.active ? 'opacity-50' : ''}">
+                <div class="card-body">
+                    <div class="row align-items-center g-3">
+
+                        <!-- Icône + nom -->
+                        <div class="col-md-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="rounded-circle bg-primary bg-opacity-10 p-2 text-center" style="width:42px;height:42px">
+                                    <i class="fas fa-plug text-primary"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold" th:text="${c.name}"></div>
+                                    <span class="badge text-bg-secondary small"
+                                          th:text="${c.connectorType}"></span>
+                                    <span th:if="${c.publishToBoutique}"
+                                          class="badge text-bg-info small ms-1">
+                                        <i class="fas fa-shop me-1"></i>Boutique
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Dernière sync -->
+                        <div class="col-md-3">
+                            <div th:with="last=${lastLogs[c.id]}">
+                                <div th:if="${last != null}">
+                                    <span th:if="${last.status.name() == 'SUCCESS'}"
+                                          class="badge text-bg-success">
+                                        <i class="fas fa-check me-1"></i>OK
+                                    </span>
+                                    <span th:if="${last.status.name() == 'ERROR'}"
+                                          class="badge text-bg-danger">
+                                        <i class="fas fa-times me-1"></i>Erreur
+                                    </span>
+                                    <span th:if="${last.status.name() == 'RUNNING'}"
+                                          class="badge text-bg-warning">
+                                        <i class="fas fa-spinner fa-spin me-1"></i>En cours
+                                    </span>
+                                    <div class="text-muted small mt-1">
+                                        <span th:text="${#temporals.format(last.startedAt, 'dd/MM/yyyy HH:mm')}"></span>
+                                        <span class="ms-1">·</span>
+                                        <span th:text="${last.created + last.updated} + ' produits'"></span>
+                                        <span th:if="${last.durationSeconds() > 0}"
+                                              class="ms-1 text-muted"
+                                              th:text="'(' + ${last.durationSeconds()} + 's)'"></span>
+                                    </div>
+                                </div>
+                                <div th:unless="${last != null}" class="text-muted small">
+                                    Jamais synchronisé
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Planification -->
+                        <div class="col-md-3">
+                            <div th:if="${c.schedulingEnabled and c.cronExpression != null}"
+                                 class="d-flex align-items-center gap-2">
+                                <i class="fas fa-database text-success"></i>
+                                <div>
+                                    <code class="small" th:text="${c.cronExpression}"></code>
+                                    <div class="text-muted" style="font-size:.75rem">Catalogue planifié</div>
+                                </div>
+                            </div>
+                            <div th:if="${c.priceSchedulingEnabled and c.priceCronExpression != null}"
+                                 class="d-flex align-items-center gap-2 mt-1">
+                                <i class="fas fa-tags text-success"></i>
+                                <div>
+                                    <code class="small" th:text="${c.priceCronExpression}"></code>
+                                    <div class="text-muted" style="font-size:.75rem">Prix/stock planifié</div>
+                                </div>
+                            </div>
+                            <div th:unless="${(c.schedulingEnabled and c.cronExpression != null) or (c.priceSchedulingEnabled and c.priceCronExpression != null)}"
+                                 class="text-muted small">
+                                <i class="fas fa-clock text-muted me-1"></i>Manuel uniquement
+                            </div>
+                            <!-- Bouton planification -->
+                            <button class="btn btn-link btn-sm p-0 mt-1 text-muted"
+                                    type="button"
+                                    th:attr="data-bs-target='#scheduleModal-' + ${c.id}"
+                                    data-bs-toggle="modal">
+                                <i class="fas fa-cog me-1"></i>Planification
+                            </button>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="col-md-3 d-flex justify-content-end gap-2 flex-wrap">
+                            <a th:href="@{/intra/sync/history(connectorId=${c.id})}"
+                               class="btn btn-sm btn-outline-secondary" title="Historique">
+                                <i class="fas fa-history"></i>
+                            </a>
+                            <a th:if="${c.customer != null}"
+                               th:href="@{/intra/suppliers/{id}/settings(id=${c.customer.id})}"
+                               class="btn btn-sm btn-outline-secondary" title="Paramètres fournisseur">
+                                <i class="fas fa-cog"></i>
+                            </a>
+                            <!-- Bouton Prix/Stock (Ingram seulement) -->
+                            <form th:if="${c.connectorType.name() == 'INGRAM_MICRO' and c.customer != null}"
+                                  th:action="@{/intra/sync/{id}/price-trigger(id=${c.id})}"
+                                  method="post" class="d-inline"
+                                  th:id="'priceTriggerForm-' + ${c.id}">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-success price-trigger"
+                                        th:disabled="${!c.active}"
+                                        th:data-id="${c.id}"
+                                        th:data-name="${c.name}"
+                                        title="Mettre à jour prix et stock">
+                                    <i class="fas fa-tags me-1"></i>Prix/Stock
+                                </button>
+                            </form>
+                            <form th:action="@{/intra/sync/{id}/trigger(id=${c.id})}"
+                                  method="post" class="d-inline"
+                                  th:id="'triggerForm-' + ${c.id}">
+                                <button type="button"
+                                        class="btn btn-sm btn-primary sync-trigger"
+                                        th:disabled="${!c.active}"
+                                        th:data-id="${c.id}"
+                                        th:data-name="${c.name}">
+                                    <i class="fas fa-play me-1"></i>Lancer
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal planification -->
+            <div class="modal fade" th:id="'scheduleModal-' + ${c.id}" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="fas fa-clock me-2"></i>Planification — <span th:text="${c.name}"></span>
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <form th:action="@{/intra/sync/{id}/schedule(id=${c.id})}" method="post">
+                            <div class="modal-body">
+
+                                <!-- Sync catalogue complète -->
+                                <h6 class="text-primary mb-2">
+                                    <i class="fas fa-database me-1"></i>Synchronisation catalogue complète
+                                </h6>
+                                <div class="mb-2">
+                                    <input type="text" name="cronExpression" class="form-control form-control-sm font-monospace"
+                                           th:value="${c.cronExpression}"
+                                           placeholder="ex: 0 0 2 * * * (chaque nuit à 2h)">
+                                </div>
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox"
+                                           name="schedulingEnabled" value="true" role="switch"
+                                           th:checked="${c.schedulingEnabled}">
+                                    <label class="form-check-label small">Activer la planification catalogue</label>
+                                </div>
+
+                                <!-- Sync prix/stock (Ingram seulement) -->
+                                <div th:if="${c.connectorType.name() == 'INGRAM_MICRO' and c.customer != null}">
+                                    <hr class="my-2">
+                                    <h6 class="text-success mb-2">
+                                        <i class="fas fa-tags me-1"></i>Mise à jour prix/stock
+                                    </h6>
+                                    <div class="mb-2">
+                                        <input type="text" name="priceCronExpression" class="form-control form-control-sm font-monospace"
+                                               th:value="${c.priceCronExpression}"
+                                               placeholder="ex: 0 0 6 * * * (chaque matin à 6h)">
+                                    </div>
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox"
+                                               name="priceSchedulingEnabled" value="true" role="switch"
+                                               th:checked="${c.priceSchedulingEnabled}">
+                                        <label class="form-check-label small">Activer la mise à jour prix/stock automatique</label>
+                                    </div>
+                                </div>
+
+                                <div class="form-text mt-1">
+                                    Format Spring : <code>secondes minutes heures jour mois jourSemaine</code><br>
+                                    Exemples :
+                                    <code>0 0 2 * * *</code> = 2h du matin ·
+                                    <code>0 0 */6 * * *</code> = toutes les 6h ·
+                                    <code>0 0 6 * * MON-FRI</code> = 6h en semaine
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i>Enregistrer
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script>
+document.querySelectorAll('.sync-trigger').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var id   = this.dataset.id;
+        var name = this.dataset.name;
+        if (confirm('Lancer la synchronisation catalogue complète de "' + name + '" maintenant ?')) {
+            document.getElementById('triggerForm-' + id).submit();
+        }
+    });
+});
+document.querySelectorAll('.price-trigger').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var id   = this.dataset.id;
+        var name = this.dataset.name;
+        if (confirm('Mettre à jour les prix et stocks de "' + name + '" maintenant ?')) {
+            document.getElementById('priceTriggerForm-' + id).submit();
+        }
+    });
+});
+</script>
+</th:block>
+</body>
+</html>

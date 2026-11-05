@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Pages publiques</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-file-alt me-2 text-primary"></i>Pages publiques</h4>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNewPage">
+            <i class="fas fa-plus me-1"></i>Nouvelle page
+        </button>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Titre</th>
+                        <th>Slug</th>
+                        <th>Type</th>
+                        <th>Statut</th>
+                        <th>Créée le</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:if="${pages.isEmpty()}">
+                        <td colspan="6" class="text-center text-muted py-4">
+                            <i class="fas fa-file-alt fa-2x mb-2 d-block opacity-25"></i>
+                            Aucune page créée. Commencez par créer une page.
+                        </td>
+                    </tr>
+                    <tr th:each="p : ${pages}">
+                        <td>
+                            <span class="fw-semibold" th:text="${p.title}">Titre</span>
+                        </td>
+                        <td>
+                            <code class="small" th:text="${p.slug}">slug</code>
+                            <a th:if="${p.published}" th:href="'/' + ${p.slug}" target="_blank"
+                               class="ms-1 text-muted small" title="Voir en ligne">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </td>
+                        <td>
+                            <span th:if="${p.pageType.name() == 'BLOG_POST'}"
+                                  class="badge bg-info text-dark">Article</span>
+                            <span th:unless="${p.pageType.name() == 'BLOG_POST'}"
+                                  class="badge bg-secondary">Page</span>
+                        </td>
+                        <td>
+                            <span th:if="${p.homePage}" class="badge bg-primary me-1">
+                                <i class="fas fa-home me-1"></i>Accueil
+                            </span>
+                            <span th:if="${p.published}" class="badge bg-success">Publiée</span>
+                            <span th:unless="${p.published}" class="badge bg-warning text-dark">Brouillon</span>
+                        </td>
+                        <td>
+                            <span class="small text-muted"
+                                  th:text="${#temporals.format(p.createdAt, 'dd/MM/yyyy HH:mm')}">date</span>
+                        </td>
+                        <td class="text-end">
+                            <a th:href="'/intra/pages/' + ${p.id} + '/preview'" target="_blank"
+                               class="btn btn-outline-secondary btn-sm me-1" title="Prévisualiser">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a th:href="'/intra/pages/' + ${p.id} + '/edit'"
+                               class="btn btn-outline-primary btn-sm me-1">
+                                <i class="fas fa-edit me-1"></i>Éditer
+                            </a>
+                            <form th:action="'/intra/pages/' + ${p.id} + '/set-home'" method="post"
+                                  class="d-inline" title="Définir comme page d'accueil">
+                                <button type="submit" class="btn btn-sm me-1"
+                                        th:classappend="${p.homePage} ? 'btn-primary' : 'btn-outline-secondary'">
+                                    <i class="fas fa-home"></i>
+                                </button>
+                            </form>
+                            <button class="btn btn-outline-danger btn-sm"
+                                    th:data-id="${p.id}"
+                                    th:data-title="${p.title}"
+                                    onclick="confirmDelete(this)">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal: Nouvelle page -->
+    <div class="modal fade" id="modalNewPage" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus me-2 text-primary"></i>Nouvelle page</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" action="/intra/pages/new">
+                    <div class="modal-body">
+                        <label class="form-label fw-semibold">Titre de la page</label>
+                        <input type="text" name="title" class="form-control" placeholder="Ex: À propos" required autofocus>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-arrow-right me-1"></i>Créer &amp; éditer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirmer suppression -->
+    <div class="modal fade" id="modalDeletePage" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content border-danger">
+                <div class="modal-header border-danger">
+                    <h5 class="modal-title text-danger"><i class="fas fa-trash me-2"></i>Supprimer la page</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    Supprimer "<strong id="deletePageTitle"></strong>" ? Cette action est irréversible.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                    <form id="deletePageForm" method="post">
+                        <button type="submit" class="btn btn-danger btn-sm">
+                            <i class="fas fa-trash me-1"></i>Supprimer
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<th:block layout:fragment="script">
+<script th:inline="none">
+function confirmDelete(btn) {
+    document.getElementById('deletePageTitle').textContent = btn.dataset.title;
+    document.getElementById('deletePageForm').action = '/intra/pages/' + btn.dataset.id + '/delete';
+    new bootstrap.Modal(document.getElementById('modalDeletePage')).show();
+}
+</script>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      layout:decorate="~{intra-layout}">
+<head><title>Catégories de dashboard</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div th:replace="~{intra/nav :: dashboard-subnav(categoryName='Configuration')}"></div>
+
+    <div class="pt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-0 fw-bold">
+                    <i class="fas fa-tags me-2" style="color:#6366f1"></i>Modules &amp; Catégories
+                </h1>
+                <small class="text-muted">Gérez les modules, leurs URLs, rôles requis et catégories de dashboard</small>
+            </div>
+            <div class="d-flex gap-2">
+                <a sec:authorize="hasRole('ADMIN')" href="/intra/dashboard/categories/module/new"
+                   class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus me-1"></i>Nouveau module
+                </a>
+                <a href="/intra/dashboard/config" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Retour
+                </a>
+            </div>
+        </div>
+
+        <!-- Flash messages -->
+        <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+            <span th:text="${successMessage}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <form method="post" th:action="@{/intra/dashboard/categories}">
+
+            <th:block th:each="entry : ${byCategory}">
+                <div th:if="${!#lists.isEmpty(entry.value)}" class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-white">
+                        <span class="fw-semibold">
+                            <i class="fas fa-folder me-2 text-primary"></i>
+                            <span th:text="${entry.key}"></span>
+                            <span class="badge bg-secondary ms-2" th:text="${#lists.size(entry.value)}"></span>
+                        </span>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:46px"></th>
+                                    <th>Module</th>
+                                    <th>URL</th>
+                                    <th>Rôles requis</th>
+                                    <th style="width:90px">Audience</th>
+                                    <th style="width:55px" class="text-center">Actif</th>
+                                    <th style="width:180px">Catégorie</th>
+                                    <th sec:authorize="hasRole('ADMIN')" style="width:80px" class="text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="m : ${entry.value}">
+                                    <td>
+                                        <div class="rounded d-flex align-items-center justify-content-center"
+                                             th:style="'background:' + ${m.color} + ';width:32px;height:32px'">
+                                            <i th:class="${m.icon} + ' text-white'" style="font-size:.75rem"></i>
+                                        </div>
+                                    </td>
+                                    <td class="fw-semibold small" th:text="${m.title}"></td>
+                                    <td>
+                                        <code class="text-muted" style="font-size:.7rem" th:text="${m.url}"></code>
+                                    </td>
+                                    <td>
+                                        <th:block th:if="${m.roleRequired != null and !#strings.isEmpty(m.roleRequired)}">
+                                            <span th:each="r : ${#strings.arraySplit(m.roleRequired,',')}"
+                                                  class="badge bg-warning text-dark me-1"
+                                                  style="font-size:.65rem"
+                                                  th:text="${#strings.replace(r.trim(),'ROLE_','')}"></span>
+                                        </th:block>
+                                        <span th:if="${m.roleRequired == null or #strings.isEmpty(m.roleRequired)}"
+                                              class="text-muted small">Tous</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge"
+                                              th:classappend="${m.audience == 'CLIENT'} ? 'bg-info text-dark' : 'bg-primary'"
+                                              th:text="${m.audience ?: 'ESN'}"></span>
+                                    </td>
+                                    <td class="text-center">
+                                        <i th:class="${m.active} ? 'fas fa-check-circle text-success' : 'fas fa-times-circle text-danger'"></i>
+                                    </td>
+                                    <td>
+                                        <input type="hidden" name="moduleIds" th:value="${m.id}">
+                                        <select name="moduleCategories" class="form-select form-select-sm">
+                                            <option value="" th:selected="${#strings.isEmpty(m.category)}">-- Aucune --</option>
+                                            <option th:each="cat : ${dashboardCategories}"
+                                                    th:value="${cat}"
+                                                    th:text="${cat}"
+                                                    th:selected="${cat == m.category}"></option>
+                                        </select>
+                                    </td>
+                                    <td sec:authorize="hasRole('ADMIN')" class="text-center">
+                                        <a class="btn btn-sm btn-outline-primary me-1"
+                                           th:href="'/intra/dashboard/categories/module/' + ${m.id} + '/edit'">
+                                            <i class="fas fa-pencil-alt"></i>
+                                        </a>
+                                        <form th:action="'/intra/dashboard/categories/module/' + ${m.id} + '/delete'"
+                                              method="post" class="d-inline"
+                                              onsubmit="return confirm('Supprimer ce module ?')">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </th:block>
+
+            <div class="d-flex gap-2 mt-3">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i>Enregistrer les catégories
+                </button>
+            </div>
+        </form>
+    </div>
+
+</div>
+
+</th:block>
+
+</body>
+</html>

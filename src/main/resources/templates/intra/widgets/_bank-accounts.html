@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="widget" class="d-flex flex-column h-100">
+    <div class="widget-list-header">
+        <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0"
+              th:style="'background:' + ${widget.color} + '22;width:26px;height:26px'">
+            <i th:class="${widget.icon}" th:style="'color:' + ${widget.color} + ';font-size:.7rem'"></i>
+        </span>
+        <span class="fw-semibold small flex-grow-1 text-truncate" th:text="${widget.label}"></span>
+        <a th:href="${widget.link}" class="btn btn-xs btn-outline-secondary py-0 px-2"
+           style="font-size:.7rem;white-space:nowrap">Voir tout →</a>
+        <form th:if="${dashboard != null}"
+              th:action="@{/intra/dashboard/{s}/widget/remove(s=${dashboard})}" method="post" class="ms-1">
+            <input type="hidden" name="widgetType" th:value="${widgetKey}">
+            <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1 btn-widget-remove" title="Retirer"
+                    onclick="return confirm('Retirer ce widget ?')">
+                <i class="fas fa-times" style="font-size:.65rem"></i>
+            </button>
+        </form>
+    </div>
+    <div class="widget-list-scroll">
+        <div th:each="row : ${rows}" class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+            <div class="rounded-circle p-1 flex-shrink-0"
+                 th:classappend="${row.unreconciled > 0} ? 'bg-warning bg-opacity-15' : 'bg-success bg-opacity-10'">
+                <i class="fas fa-landmark" style="font-size:.65rem"
+                   th:classappend="${row.unreconciled > 0} ? 'text-warning' : 'text-success'"></i>
+            </div>
+            <div class="flex-grow-1 min-w-0">
+                <div class="fw-semibold small text-truncate" th:text="${row.label}"></div>
+                <div class="text-muted font-monospace" style="font-size:.68rem" th:text="${row.number}"></div>
+            </div>
+            <div class="text-end me-1">
+                <div class="fw-bold small text-nowrap"
+                     th:classappend="${row.balance < 0} ? 'text-danger' : ''"
+                     th:text="${#numbers.formatDecimal(row.balance, 1, 'COMMA', 2, 'POINT') + ' €'}"></div>
+                <div style="font-size:.65rem"
+                     th:text="${row.unreconciled > 0} ? (${row.unreconciled} + ' à rapprocher') : 'À jour'"
+                     th:classappend="${row.unreconciled > 0} ? 'text-warning' : 'text-muted'"></div>
+            </div>
+            <a th:href="@{/intra/accounting/bank-transactions(account=${row.number})}"
+               class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size:.7rem">→</a>
+        </div>
+        <div th:if="${rows == null or #lists.isEmpty(rows)}" class="text-center text-muted py-3 small">
+            Aucun compte configuré
+        </div>
+    </div>
+</div>
+</body>
+</html>

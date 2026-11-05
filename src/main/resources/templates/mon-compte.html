@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head><title>Mon compte</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <div class="d-flex align-items-center gap-3 mb-4">
+                <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center"
+                     style="width:56px;height:56px;flex-shrink:0">
+                    <i class="fas fa-user-circle text-white fa-2x"></i>
+                </div>
+                <div>
+                    <h4 class="mb-0" th:text="${user.fullName}">Mon compte</h4>
+                    <div class="text-muted small" th:text="${user.email}"></div>
+                </div>
+            </div>
+
+            <!-- Alertes flash -->
+            <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+                <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+                <i class="fas fa-exclamation-triangle me-2"></i><span th:text="${errorMessage}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <!-- Onglets -->
+            <ul class="nav nav-tabs mb-4" id="accountTabs">
+                <li class="nav-item">
+                    <a class="nav-link" th:classappend="${tab == 'profil'} ? ' active' : ''"
+                       href="/mon-compte?tab=profil">
+                        <i class="fas fa-user me-1"></i>Profil
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" th:classappend="${tab == 'securite'} ? ' active' : ''"
+                       href="/mon-compte?tab=securite">
+                        <i class="fas fa-lock me-1"></i>Sécurité
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" th:classappend="${tab == 'agenda'} ? ' active' : ''"
+                       href="/mon-compte?tab=agenda">
+                        <i class="fas fa-calendar me-1"></i>Agenda
+                    </a>
+                </li>
+            </ul>
+
+            <!-- ─── Onglet Profil ─────────────────────────────────────────── -->
+            <div th:if="${tab == 'profil'}">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold mb-3"><i class="fas fa-id-card me-2 text-muted"></i>Informations personnelles</h6>
+                        <form th:action="@{/mon-compte/profile}" method="post">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Nom complet</label>
+                                <input type="text" name="fullName" class="form-control"
+                                       th:value="${user.fullName}" required placeholder="Prénom Nom">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Adresse e-mail</label>
+                                <input type="email" class="form-control bg-light"
+                                       th:value="${user.email}" disabled>
+                                <div class="form-text">L'adresse e-mail sert d'identifiant et ne peut pas être modifiée ici.</div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i>Enregistrer
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Accès rapide aux espaces -->
+                <div class="card border-0 shadow-sm mt-4">
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold mb-3"><i class="fas fa-th-large me-2 text-muted"></i>Mes espaces</h6>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a sec:authorize="principal.hasEsnRole()" href="/intra"
+                               class="btn btn-outline-info">
+                                <i class="fas fa-building me-1"></i>Intranet ESN
+                            </a>
+                            <a href="/espace" class="btn btn-outline-primary">
+                                <i class="fas fa-user-circle me-1"></i>Mon espace client
+                            </a>
+                            <a sec:authorize="hasRole('ADMIN')" href="/admin/console"
+                               class="btn btn-outline-warning">
+                                <i class="fas fa-cogs me-1"></i>Console Admin
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── Onglet Sécurité ──────────────────────────────────────── -->
+            <div th:if="${tab == 'securite'}">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold mb-3"><i class="fas fa-key me-2 text-muted"></i>Changer le mot de passe</h6>
+                        <form th:action="@{/mon-compte/password}" method="post" autocomplete="off">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Mot de passe actuel</label>
+                                <input type="password" name="currentPassword" class="form-control"
+                                       required autocomplete="current-password">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Nouveau mot de passe</label>
+                                <input type="password" name="newPassword" class="form-control"
+                                       required minlength="8" autocomplete="new-password"
+                                       placeholder="8 caractères minimum"
+                                       id="newPwd">
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">Confirmer le nouveau mot de passe</label>
+                                <input type="password" name="confirmPassword" class="form-control"
+                                       required minlength="8" autocomplete="new-password"
+                                       id="confirmPwd">
+                                <div id="pwdMismatch" class="form-text text-danger d-none">
+                                    Les mots de passe ne correspondent pas.
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-lock me-1"></i>Modifier le mot de passe
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── Onglet Agenda ────────────────────────────────────────── -->
+            <div th:if="${tab == 'agenda'}">
+
+                <!-- Comptes connectés -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold mb-3"><i class="fas fa-calendar-alt me-2 text-muted"></i>Agendas connectés</h6>
+
+                        <div th:if="${#lists.isEmpty(calendarAccounts)}"
+                             class="text-center py-4 text-muted">
+                            <i class="fas fa-calendar-times fa-2x mb-2 d-block opacity-50"></i>
+                            <div class="mb-3">Aucun agenda connecté.</div>
+                            <a href="/intra/mail/personal/auth/google" class="btn btn-outline-danger btn-sm me-2">
+                                <i class="fab fa-google me-1"></i>Connecter Google Calendar
+                            </a>
+                        </div>
+
+                        <div class="list-group list-group-flush"
+                             th:unless="${#lists.isEmpty(calendarAccounts)}">
+                            <div th:each="acc : ${calendarAccounts}"
+                                 class="list-group-item px-0 d-flex align-items-center gap-3">
+                                <span th:if="${acc.authType.name() == 'GOOGLE_OAUTH2'}"
+                                      class="badge rounded-pill text-bg-danger">
+                                    <i class="fab fa-google me-1"></i>Google
+                                </span>
+                                <span th:if="${acc.authType.name() == 'MICROSOFT_OAUTH2'}"
+                                      class="badge rounded-pill text-bg-primary">
+                                    <i class="fab fa-microsoft me-1"></i>Microsoft
+                                </span>
+                                <div class="flex-grow-1">
+                                    <div class="fw-semibold small" th:text="${acc.name}"></div>
+                                    <div class="text-muted" style="font-size:.78rem" th:text="${acc.username}"></div>
+                                </div>
+                                <span th:if="${acc.accessToken != null}"
+                                      class="badge text-bg-success">
+                                    <i class="fas fa-check me-1"></i>Connecté
+                                </span>
+                                <span th:unless="${acc.accessToken != null}"
+                                      class="badge text-bg-warning text-dark">
+                                    Non connecté
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold mb-1"><i class="fas fa-plus-circle me-2 text-muted"></i>Connecter un agenda</h6>
+                        <p class="text-muted small mb-3">
+                            Les agendas Google et Microsoft sont gérés via les comptes mail OAuth.
+                            Configurez un compte mail Google ou Microsoft pour activer l'accès à votre agenda.
+                        </p>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a sec:authorize="principal.hasEsnRole()"
+                               href="/intra/mail/accounts"
+                               class="btn btn-outline-secondary">
+                                <i class="fas fa-envelope me-1"></i>Gérer les comptes mail / agenda
+                            </a>
+                        </div>
+                        <div sec:authorize="!principal.hasEsnRole()" class="text-muted small mt-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            La gestion des agendas est réservée aux utilisateurs ESN.
+                            Contactez votre administrateur pour connecter un agenda.
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var np = document.getElementById('newPwd');
+        var cp = document.getElementById('confirmPwd');
+        var msg = document.getElementById('pwdMismatch');
+        if (!np || !cp) return;
+        function check() {
+            msg.classList.toggle('d-none', !cp.value || np.value === cp.value);
+        }
+        np.addEventListener('input', check);
+        cp.addEventListener('input', check);
+    })();
+    </script>
+
+</div>
+</body>
+</html>

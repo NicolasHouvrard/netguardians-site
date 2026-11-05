@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Paramètres entreprise</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-building me-2 text-primary"></i>Informations de l'entreprise</h4>
+            <div class="text-muted small mt-1">Utilisées sur les factures, bons de livraison et documents officiels</div>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <form th:action="@{/intra/settings/company}" method="post">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-0 pt-3 pb-2">
+                <h6 class="fw-bold mb-0"><i class="fas fa-id-card me-2 text-secondary"></i>Identité légale</h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Raison sociale <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control" required
+                               th:value="${tenant.name}" placeholder="Ma Société SAS">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">SIREN</label>
+                        <input type="text" name="siren" class="form-control" maxlength="9"
+                               th:value="${tenant.siren}" placeholder="123456789">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">N° TVA intracommunautaire</label>
+                        <input type="text" name="vatNumber" class="form-control" maxlength="20"
+                               th:value="${tenant.vatNumber}" placeholder="FR12345678901">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Téléphone</label>
+                        <input type="text" name="phone" class="form-control"
+                               th:value="${tenant.phone}" placeholder="+33 1 23 45 67 89">
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label fw-semibold">Email</label>
+                        <input type="email" name="email" class="form-control"
+                               th:value="${tenant.email}" placeholder="contact@masociete.fr">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Adresse de facturation</label>
+                        <textarea name="billingAddress" class="form-control" rows="3"
+                                  placeholder="12 rue de la Paix&#10;75001 Paris"
+                                  th:text="${tenant.billingAddress}"></textarea>
+                        <div class="form-text">Apparaît sur les documents commerciaux (factures, bons de livraison).</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lien fiche client ESN -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-0 pt-3 pb-2">
+                <h6 class="fw-bold mb-0"><i class="fas fa-link me-2 text-secondary"></i>Rattachement à un client</h6>
+                <div class="text-muted small">Associez ce tenant à une fiche client de votre base pour afficher son nom dans le header et faciliter le suivi.</div>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label fw-semibold">Client associé</label>
+                        <select name="customerId" class="form-select">
+                            <option value="">— Aucun —</option>
+                            <option th:each="c : ${allCustomers}"
+                                    th:value="${c.id}"
+                                    th:text="${c.companyName}"
+                                    th:selected="${tenant.customerId != null and tenant.customerId == c.id}">
+                            </option>
+                        </select>
+                        <div class="form-text">Ce client apparaîtra dans la barre de navigation de l'intranet.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-1"></i>Enregistrer
+        </button>
+    </form>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="panel">
+
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between px-3 py-2 text-white flex-shrink-0"
+         style="background:#0f172a;border-radius:14px 14px 0 0">
+        <span class="fw-semibold" style="font-size:.85rem">
+            <i class="fas fa-comments me-2" style="color:#6366f1"></i>Messagerie
+        </span>
+        <a href="/intra/chat" class="text-white opacity-75 text-decoration-none" style="font-size:.75rem">
+            <i class="fas fa-expand-alt me-1"></i>Ouvrir
+        </a>
+    </div>
+
+    <!-- Liste conversations -->
+    <div class="overflow-auto flex-grow-1" style="background:#fff">
+
+        <!-- EN ATTENTE -->
+        <div th:if="${!pending.isEmpty()}">
+            <div class="px-3 pt-2 pb-1 d-flex align-items-center gap-2"
+                 style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8">
+                <span>En attente</span>
+                <span class="badge text-bg-warning" style="font-size:.6rem" th:text="${pending.size()}"></span>
+            </div>
+            <div th:each="conv : ${pending}"
+                 class="d-flex align-items-center gap-2 px-3 py-2 border-bottom tray-conv-item"
+                 style="cursor:pointer"
+                 th:attr="onclick='openConvTab(' + ${conv.id} + ')'">
+                <div class="rounded-circle bg-warning text-white d-flex align-items-center justify-content-center fw-bold flex-shrink-0"
+                     style="width:32px;height:32px;font-size:.75rem"
+                     th:text="${conv.visitorName != null ? #strings.substring(conv.visitorName,0,1).toUpperCase() : #strings.substring(conv.visitorEmail,0,1).toUpperCase()}">?</div>
+                <div class="flex-grow-1 min-w-0">
+                    <div class="fw-semibold text-truncate" style="font-size:.82rem"
+                         th:text="${conv.visitorName != null ? conv.visitorName : conv.visitorEmail}"></div>
+                    <small class="text-muted d-block text-truncate" style="font-size:.7rem"
+                           th:text="${conv.lastMessageAt != null ? #temporals.format(conv.lastMessageAt,'HH:mm') : '—'}"></small>
+                </div>
+                <span th:if="${unreadCounts[conv.id] != null and unreadCounts[conv.id] > 0}"
+                      class="badge bg-danger rounded-pill flex-shrink-0"
+                      style="font-size:.6rem" th:text="${unreadCounts[conv.id]}"></span>
+            </div>
+        </div>
+
+        <!-- EN COURS -->
+        <div th:if="${!open.isEmpty()}">
+            <div class="px-3 pt-2 pb-1 d-flex align-items-center gap-2"
+                 style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8">
+                <span>En cours</span>
+                <span class="badge text-bg-success" style="font-size:.6rem" th:text="${open.size()}"></span>
+            </div>
+            <div th:each="conv : ${open}"
+                 class="d-flex align-items-center gap-2 px-3 py-2 border-bottom tray-conv-item"
+                 style="cursor:pointer"
+                 th:attr="onclick='openConvTab(' + ${conv.id} + ')'">
+                <div class="position-relative flex-shrink-0">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold"
+                         style="width:32px;height:32px;font-size:.75rem"
+                         th:text="${conv.visitorName != null ? #strings.substring(conv.visitorName,0,1).toUpperCase() : #strings.substring(conv.visitorEmail,0,1).toUpperCase()}">?</div>
+                    <span th:if="${onlineIds != null and onlineIds.contains(conv.id)}"
+                          class="position-absolute bottom-0 end-0 rounded-circle border border-white"
+                          style="width:9px;height:9px;background:#22c55e"></span>
+                </div>
+                <div class="flex-grow-1 min-w-0">
+                    <div class="fw-semibold text-truncate" style="font-size:.82rem"
+                         th:text="${conv.visitorName != null ? conv.visitorName : conv.visitorEmail}"></div>
+                    <small class="text-muted d-block text-truncate" style="font-size:.7rem"
+                           th:text="${userNames != null and conv.assignedUserId != null and userNames[conv.assignedUserId] != null ? userNames[conv.assignedUserId] : conv.visitorEmail}"></small>
+                </div>
+                <span th:if="${unreadCounts[conv.id] != null and unreadCounts[conv.id] > 0}"
+                      class="badge bg-danger rounded-pill flex-shrink-0"
+                      style="font-size:.6rem" th:text="${unreadCounts[conv.id]}"></span>
+            </div>
+        </div>
+
+        <!-- Vide -->
+        <div th:if="${pending.isEmpty() and open.isEmpty()}"
+             class="text-center text-muted py-5 px-3">
+            <i class="fas fa-check-circle text-success fa-lg d-block mb-2 opacity-50"></i>
+            <small>Aucune conversation active</small>
+        </div>
+    </div>
+
+    <style>
+    .tray-conv-item:hover { background: #f1f5f9; }
+    </style>
+
+</th:block>
+</body>
+</html>

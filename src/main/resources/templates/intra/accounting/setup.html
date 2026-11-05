@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+<head><title>Configuration Comptabilité</title></head>
+<body>
+<div layout:fragment="content">    <div class="d-flex align-items-center gap-2 mb-4">
+        <i class="fas fa-cog fa-lg text-primary"></i>
+        <h2 class="mb-0">Configuration de la Comptabilité</h2>
+    </div>
+
+    <!-- Status -->
+    <div th:if="${initialized}" class="alert alert-success d-flex align-items-center gap-2">
+        <i class="fas fa-check-circle fa-lg"></i>
+        <div>
+            <strong>Comptabilité initialisée</strong> —
+            <span th:text="${accountCount}">0</span> comptes PCG,
+            <span th:text="${journalCount}">0</span> journaux.
+        </div>
+    </div>
+    <div th:unless="${initialized}" class="alert alert-warning d-flex align-items-center gap-2">
+        <i class="fas fa-exclamation-triangle fa-lg"></i>
+        <div>
+            <strong>Comptabilité non initialisée</strong> —
+            Cliquez sur le bouton ci-dessous pour créer le PCG standard, les journaux et l'exercice courant.
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Init card -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-rocket text-primary me-2"></i>Initialisation PCG</h5>
+                    <p class="text-muted small">
+                        Crée automatiquement pour votre entreprise :
+                    </p>
+                    <ul class="small text-muted mb-3">
+                        <li>~65 comptes du Plan Comptable Général (classes 1–7)</li>
+                        <li>9 journaux standard (AN, VT, AC, BQ, CA, OD, SA, QTO, STR)</li>
+                        <li>L'exercice fiscal de l'année courante</li>
+                        <li>Les mappings Qonto et Stripe par défaut</li>
+                    </ul>
+                    <form th:unless="${initialized}" th:action="@{/intra/accounting/setup/init}" method="post">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-play me-1"></i>Initialiser la Comptabilité
+                        </button>
+                    </form>
+                    <div th:if="${initialized}" class="text-muted small fst-italic">
+                        Déjà initialisée — utilisez les menus ci-dessous pour gérer vos données.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fiscal years -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-calendar-alt text-info me-2"></i>Exercices Fiscaux</h5>
+                    <div th:if="${fiscalYears.isEmpty()}" class="text-muted small">Aucun exercice créé.</div>
+                    <ul class="list-unstyled mb-0" th:unless="${fiscalYears.isEmpty()}">
+                        <li th:each="fy : ${fiscalYears}" class="d-flex align-items-center gap-2 mb-1">
+                            <span class="badge"
+                                  th:classappend="${fy.current} ? 'bg-success' : (${fy.closed} ? 'bg-secondary' : 'bg-light text-dark border')"
+                                  th:text="${fy.current} ? 'Courant' : (${fy.closed} ? 'Clôturé' : 'Ouvert')">
+                            </span>
+                            <span th:text="${fy.label}"></span>
+                            <span class="text-muted small" th:text="'(' + ${fy.startDate} + ' → ' + ${fy.endDate} + ')'"></span>
+                        </li>
+                    </ul>
+                    <a href="/intra/accounting/fiscal-years" class="btn btn-outline-info btn-sm mt-3">
+                        <i class="fas fa-cog me-1"></i>Gérer les exercices
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick links -->
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3"><i class="fas fa-link text-secondary me-2"></i>Accès rapides</h5>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="/intra/accounting/plan" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-list-ol me-1"></i>Plan Comptable
+                        </a>
+                        <a href="/intra/accounting/journals" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-book me-1"></i>Journaux
+                        </a>
+                        <a href="/intra/accounting/entries" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-pen-to-square me-1"></i>Écritures
+                        </a>
+                        <a href="/intra/accounting/reports/balance" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-scale-balanced me-1"></i>Balance
+                        </a>
+                        <a href="/intra/accounting/reports/bilan" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-landmark me-1"></i>Bilan
+                        </a>
+                        <a href="/intra/accounting/reports/compte-resultat" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-chart-line me-1"></i>Compte de résultat
+                        </a>
+                        <a href="/intra/accounting/qonto" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-landmark me-1"></i>Qonto
+                        </a>
+                        <a href="/intra/accounting/stripe" class="btn btn-outline-secondary btn-sm">
+                            <i class="fab fa-stripe me-1"></i>Stripe
+                        </a>
+                        <a href="/intra/accounting/payfit" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-file-import me-1"></i>FEC / Payfit
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

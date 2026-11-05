@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title>Blog</title>
+    <meta name="description" content="Derniers articles de notre blog">
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container py-5" style="max-width:860px">
+
+        <h1 class="fw-bold mb-1"><i class="fas fa-rss me-2 text-primary"></i>Blog</h1>
+        <p class="text-muted mb-4">Retrouvez nos derniers articles et actualités.</p>
+
+        <div th:if="${posts.isEmpty()}" class="text-center text-muted py-5">
+            <i class="fas fa-newspaper fa-3x mb-3 d-block opacity-25"></i>
+            <p>Aucun article publié pour le moment.</p>
+        </div>
+
+        <div class="row g-4" th:unless="${posts.isEmpty()}">
+            <div class="col-md-6 col-lg-4" th:each="post : ${posts}">
+                <a th:href="'/blog/' + ${post.slug}" class="text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm hover-shadow">
+                        <img th:if="${post.featuredImageUrl != null}"
+                             th:src="${post.featuredImageUrl}"
+                             class="card-img-top" style="height:180px; object-fit:cover"
+                             th:alt="${post.title}">
+                        <div class="card-body">
+                            <div class="d-flex gap-2 mb-2 flex-wrap">
+                                <span th:if="${post.blogCategory != null}"
+                                      class="badge bg-primary-subtle text-primary small"
+                                      th:text="${post.blogCategory}">Catégorie</span>
+                            </div>
+                            <h5 class="card-title fw-semibold text-dark" th:text="${post.title}">Titre</h5>
+                            <p class="card-text text-muted small"
+                               th:text="${post.excerpt != null ? post.excerpt : ''}"
+                               style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"></p>
+                        </div>
+                        <div class="card-footer bg-transparent border-0 pt-0">
+                            <small class="text-muted">
+                                <i class="fas fa-calendar-alt me-1"></i>
+                                <span th:text="${post.publishedAt != null ? #temporals.format(post.publishedAt, 'dd MMMM yyyy') : ''}">date</span>
+                            </small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+    </div>
+</div>
+</body>
+</html>

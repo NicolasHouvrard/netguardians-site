@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<title th:text="${quote.quoteNumber + ' — Devis'}">Devis</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #222; margin: 40px; }
+  h1 { font-size: 22px; color: #6366f1; margin-bottom: 4px; }
+  .company-header { display: flex; justify-content: space-between; margin-bottom: 32px; }
+  .address-block  { background: #f8fafc; border-radius: 6px; padding: 12px 16px; min-width: 200px; }
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+  thead th { background: #6366f1; color: #fff; padding: 8px; text-align: left; }
+  tbody td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; }
+  tbody tr:hover td { background: #f8fafc; }
+  .totals-table { width: 300px; margin-left: auto; }
+  .totals-table td { padding: 4px 8px; }
+  .total-ttc { font-size: 16px; font-weight: bold; color: #6366f1; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 10px; color: #888; text-align: center; }
+  @media print { .no-print { display: none; } }
+</style>
+</head>
+<body onload="window.print()">
+
+<div class="no-print" style="margin-bottom:16px">
+    <button onclick="window.print()" style="padding:8px 16px;background:#6366f1;color:#fff;border:none;border-radius:4px;cursor:pointer">
+        Imprimer / PDF
+    </button>
+    <button onclick="window.close()" style="padding:8px 16px;margin-left:8px;border:1px solid #ddd;border-radius:4px;cursor:pointer">
+        Fermer
+    </button>
+</div>
+
+<div class="company-header">
+    <div>
+        <div th:if="${tenant != null}">
+            <h1 th:text="${tenant.companyName ?: 'Notre Société'}"></h1>
+            <div th:text="${tenant.address}"></div>
+            <div th:text="${tenant.email}"></div>
+            <div th:text="${tenant.phone}"></div>
+        </div>
+        <h1 th:unless="${tenant != null}">Notre Société</h1>
+    </div>
+    <div style="text-align:right">
+        <h2 style="color:#6366f1;font-size:18px;margin-bottom:4px">DEVIS</h2>
+        <div><strong th:text="${quote.quoteNumber}"></strong></div>
+        <div>Date :
+            <span th:text="${quote.quoteDate != null ? #temporals.format(quote.quoteDate,'dd/MM/yyyy') : '—'}"></span>
+        </div>
+        <div>Valide jusqu'au :
+            <span th:text="${quote.validUntil != null ? #temporals.format(quote.validUntil,'dd/MM/yyyy') : '—'}"></span>
+        </div>
+    </div>
+</div>
+
+<div th:if="${quote.customer != null}" class="address-block" style="display:inline-block;margin-bottom:24px">
+    <strong>Destinataire</strong><br>
+    <span th:text="${quote.customer.companyName}"></span><br>
+    <span th:if="${quote.customer.contactName != null}" th:text="${quote.customer.contactName}"></span><br>
+    <span th:if="${quote.customer.address != null}" th:text="${quote.customer.address}"></span><br>
+    <span th:if="${quote.customer.email != null}" th:text="${quote.customer.email}"></span>
+</div>
+
+<table>
+    <thead>
+    <tr>
+        <th style="width:50%">Description</th>
+        <th style="width:8%;text-align:center">Qté</th>
+        <th style="width:14%;text-align:right">PU HT</th>
+        <th style="width:10%;text-align:right">TVA</th>
+        <th style="width:18%;text-align:right">Total HT</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="line : ${quote.lines}">
+        <td th:text="${line.description}"></td>
+        <td style="text-align:center" th:text="${line.quantity}"></td>
+        <td style="text-align:right"
+            th:text="${#numbers.formatDecimal(line.unitPrice != null ? line.unitPrice : 0, 1, 2) + ' €'}"></td>
+        <td style="text-align:right"
+            th:text="${line.vatRateLabel != null ? line.vatRateLabel : (#numbers.formatDecimal(line.vatRate != null ? line.vatRate : 0, 1, 1) + ' %')}"></td>
+        <td style="text-align:right;font-weight:bold"
+            th:text="${#numbers.formatDecimal(line.totalHT != null ? line.totalHT : 0, 1, 2) + ' €'}"></td>
+    </tr>
+    </tbody>
+</table>
+
+<table class="totals-table">
+    <tbody>
+    <tr>
+        <td>Total HT</td>
+        <td style="text-align:right"
+            th:text="${#numbers.formatDecimal(quote.totalHT != null ? quote.totalHT : 0, 1, 2) + ' €'}"></td>
+    </tr>
+    <tr>
+        <td>TVA</td>
+        <td style="text-align:right"
+            th:text="${#numbers.formatDecimal(quote.totalTVA != null ? quote.totalTVA : 0, 1, 2) + ' €'}"></td>
+    </tr>
+    <tr class="total-ttc">
+        <td>Total TTC</td>
+        <td style="text-align:right"
+            th:text="${#numbers.formatDecimal(quote.totalTTC != null ? quote.totalTTC : 0, 1, 2) + ' €'}"></td>
+    </tr>
+    </tbody>
+</table>
+
+<div th:if="${quote.notes != null and not #strings.isEmpty(quote.notes)}"
+     style="margin-top:24px;background:#f8fafc;padding:12px;border-radius:6px">
+    <strong>Notes :</strong><br>
+    <span th:text="${quote.notes}"></span>
+</div>
+
+<div class="footer">
+    <span th:if="${tenant != null}"
+          th:text="${tenant.companyName + ' — ' + (tenant.siren != null ? 'SIREN : ' + tenant.siren : '')}"></span>
+    Ce devis est valable jusqu'au
+    <span th:text="${quote.validUntil != null ? #temporals.format(quote.validUntil,'dd/MM/yyyy') : '—'}"></span>.
+</div>
+
+</body>
+</html>

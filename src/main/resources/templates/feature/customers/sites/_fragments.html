@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Fragment : liste des sites d'un customer.
+  Utilisé dans form.html (onglet Sites) et retourné par SiteController pour les updates HTMX.
+  Nécessite ${customer} dans le modèle.
+-->
+<div th:fragment="sites-list" class="row" id="sites-list">
+
+    <div th:each="site : ${customer.sites}" class="col-md-4 mb-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title fw-bold" th:text="${site.name}"></h5>
+                <p class="card-text text-muted small mb-1">
+                    <i class="fas fa-map-marker-alt me-1"></i>
+                    <span th:text="${site.address}"></span>
+                </p>
+                <p class="card-text text-muted small mb-2">
+                    <span th:text="${site.zipCode + ' ' + site.city}"></span>
+                    <span th:if="${site.country != null and site.country != 'France'}"
+                          th:text="' — ' + ${site.country}"></span>
+                </p>
+                <span class="badge text-bg-success" th:if="${site.active}">Actif</span>
+                <span class="badge text-bg-secondary" th:unless="${site.active}">Inactif</span>
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <a th:href="@{/intra/customers/{cid}/sites/{sid}/contacts(cid=${customer.id},sid=${site.id})}"
+                   class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-users me-1"></i>Contacts
+                    <span th:if="${not #lists.isEmpty(site.contacts)}"
+                          class="badge bg-secondary ms-1"
+                          th:text="${#lists.size(site.contacts)}"></span>
+                </a>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-secondary"
+                            th:hx-get="@{/intra/customers/{cid}/sites/edit/{sid}(cid=${customer.id},sid=${site.id})}"
+                            hx-target="#site-modal-body"
+                            hx-swap="innerHTML"
+                            data-bs-toggle="modal"
+                            data-bs-target="#siteModal"
+                            title="Modifier">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger"
+                            th:hx-delete="@{/intra/customers/{cid}/sites/delete/{sid}(cid=${customer.id},sid=${site.id})}"
+                            hx-target="#sites-list"
+                            hx-swap="outerHTML"
+                            hx-confirm="Supprimer ce site et tous ses contacts ?"
+                            title="Supprimer">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:if="${#lists.isEmpty(customer.sites)}" class="col-12">
+        <p class="text-muted text-center py-4">
+            <i class="fas fa-building fa-2x mb-2 d-block"></i>
+            Aucun site enregistré pour ce client.
+        </p>
+    </div>
+
+</div>
+
+</body>
+</html>

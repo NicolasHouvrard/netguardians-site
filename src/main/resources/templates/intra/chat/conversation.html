@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Conversation</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <a href="/intra/chat" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h5 class="mb-0 flex-grow-1">
+            <i class="fas fa-comments me-2 text-primary"></i>
+            <span th:text="${conv.visitorName != null ? conv.visitorName : conv.visitorEmail}">Visiteur</span>
+        </h5>
+        <span class="badge" th:classappend="${conv.status.badgeCss}" th:text="${conv.status.label}"></span>
+
+        <!-- Actions -->
+        <div class="d-flex gap-2" th:if="${conv.status.name() != 'CLOSED'}">
+            <!-- Visio Jitsi -->
+            <form th:action="'/intra/chat/' + ${conv.id} + '/video'" method="post">
+                <button class="btn btn-outline-info btn-sm" type="submit">
+                    <i class="fas fa-video me-1"></i>Visio
+                </button>
+            </form>
+            <!-- Suggérer IA -->
+            <button class="btn btn-outline-purple btn-sm"
+                    style="border-color:#7c3aed;color:#7c3aed"
+                    onclick="suggestAI()">
+                <i class="fas fa-wand-magic-sparkles me-1"></i>IA
+            </button>
+            <!-- Fermer -->
+            <button class="btn btn-outline-danger btn-sm"
+                    data-bs-toggle="modal" data-bs-target="#closeModal">
+                <i class="fas fa-times me-1"></i>Fermer
+            </button>
+        </div>
+
+        <!-- Transcript (conv fermée) -->
+        <div th:if="${conv.status.name() == 'CLOSED'}">
+            <button class="btn btn-outline-secondary btn-sm"
+                    data-bs-toggle="modal" data-bs-target="#transcriptModal">
+                <i class="fas fa-envelope me-1"></i>Transcription
+            </button>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- Thread principal -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm" style="height:65vh;display:flex;flex-direction:column">
+
+                <!-- En-tête -->
+                <div class="card-header bg-primary text-white d-flex align-items-center gap-2 py-2">
+                    <span class="rounded-circle bg-white text-primary d-flex align-items-center justify-content-center"
+                          style="width:32px;height:32px;font-size:.8rem">
+                        <i class="fas fa-headset"></i>
+                    </span>
+                    <div>
+                        <div class="small fw-semibold" th:text="${conv.visitorEmail}"></div>
+                        <div th:if="${conv.videoRoomId != null}" class="small opacity-75">
+                            <i class="fas fa-video me-1"></i>
+                            <a th:href="'https://meet.jit.si/' + ${conv.videoRoomId}"
+                               target="_blank" class="text-white">Rejoindre la visio</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Messages -->
+                <div id="messageArea" class="flex-grow-1 overflow-auto p-3" style="background:#f8fafc">
+                    <div th:each="m : ${messages}"
+                         th:id="'msg-' + ${m.id}"
+                         th:class="${m.senderType.name() == 'USER'} ? 'd-flex justify-content-end mb-2' : 'd-flex justify-content-start mb-2'">
+                        <div class="d-flex flex-column"
+                             th:style="${m.senderType.name() == 'USER'} ? 'align-items:flex-end;max-width:75%' : 'align-items:flex-start;max-width:75%'">
+                            <small class="text-muted mb-1" th:text="${m.senderName}"></small>
+                            <div class="px-3 py-2 rounded-3"
+                                 th:style="${m.senderType.name() == 'USER'} ? 'background:#3b82f6;color:white' :
+                                           (${m.senderType.name() == 'BOT' or m.senderType.name() == 'AI'} ?
+                                           'background:#f1f5f9;border:1px solid #e2e8f0' : 'background:#dcfce7')"
+                                 th:utext="${#strings.replace(#strings.escapeXml(m.content), '&#10;', '&lt;br&gt;')}"></div>
+                            <small class="text-muted mt-1" th:text="${#temporals.format(m.createdAt,'HH:mm')}"></small>
+                        </div>
+                    </div>
+                    <div id="typingIndicator" class="d-none text-muted small fst-italic ps-2"></div>
+                </div>
+
+                <!-- Zone de saisie -->
+                <div class="card-footer border-top p-2">
+                    <div th:if="${conv.status.name() != 'CLOSED'}">
+                        <textarea id="msgInput" class="form-control mb-2" rows="2"
+                                  placeholder="Répondre..."
+                                  style="resize:none"
+                                  onkeydown="handleEnter(event)"></textarea>
+                        <div class="d-flex justify-content-end">
+                            <button class="btn btn-primary btn-sm" onclick="sendMessage()">
+                                <i class="fas fa-paper-plane me-1"></i>Envoyer
+                            </button>
+                        </div>
+                    </div>
+                    <div th:if="${conv.status.name() == 'CLOSED'}"
+                         class="text-center text-muted small py-2">
+                        Cette conversation est terminée.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panneau droit : infos + résumé IA -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header fw-semibold small py-2">
+                    <i class="fas fa-info-circle me-1 text-muted"></i>Informations
+                </div>
+                <div class="card-body small">
+                    <div class="mb-2">
+                        <span class="text-muted">Email :</span>
+                        <span class="ms-1" th:text="${conv.visitorEmail}"></span>
+                    </div>
+                    <div class="mb-2" th:if="${conv.visitorName != null}">
+                        <span class="text-muted">Nom :</span>
+                        <span class="ms-1" th:text="${conv.visitorName}"></span>
+                    </div>
+                    <div class="mb-2">
+                        <span class="text-muted">Type :</span>
+                        <span class="ms-1 badge text-bg-secondary" th:text="${conv.type.name()}"></span>
+                    </div>
+                    <div class="mb-2">
+                        <span class="text-muted">Démarrée :</span>
+                        <span class="ms-1" th:text="${#temporals.format(conv.createdAt,'dd/MM/yyyy HH:mm')}"></span>
+                    </div>
+                    <div th:if="${conv.closedAt != null}" class="mb-2">
+                        <span class="text-muted">Fermée :</span>
+                        <span class="ms-1" th:text="${#temporals.format(conv.closedAt,'dd/MM/yyyy HH:mm')}"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Résumé IA -->
+            <div th:if="${conv.aiSummary != null}" class="card border-0 shadow-sm mb-3"
+                 style="border-left:3px solid #7c3aed !important">
+                <div class="card-header fw-semibold small py-2" style="color:#7c3aed">
+                    <i class="fas fa-robot me-1"></i>Résumé IA
+                </div>
+                <div class="card-body small" th:utext="${#strings.replace(#strings.escapeXml(conv.aiSummary), '&#10;', '&lt;br&gt;')}"></div>
+            </div>
+
+            <!-- Envoi transcript si conv fermée -->
+            <div th:if="${conv.status.name() == 'CLOSED'}" class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <form th:action="'/intra/chat/' + ${conv.id} + '/transcript'" method="post">
+                        <label class="form-label small fw-semibold">Envoyer la transcription à</label>
+                        <div class="input-group input-group-sm">
+                            <input type="email" name="email" class="form-control"
+                                   th:value="${conv.visitorEmail}" required>
+                            <button class="btn btn-outline-secondary" type="submit">
+                                <i class="fas fa-envelope"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal fermer -->
+<div class="modal fade" id="closeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Fermer la conversation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form th:action="'/intra/chat/' + ${conv.id} + '/close'" method="post">
+                <div class="modal-body">
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" name="sendTranscript"
+                               id="sendTranscriptCheck" value="true"
+                               th:checked="${conv.visitorEmail != null}">
+                        <label class="form-check-label" for="sendTranscriptCheck">
+                            Envoyer la transcription au visiteur
+                            <span th:if="${conv.visitorEmail != null}"
+                                  class="text-muted">(<span th:text="${conv.visitorEmail}"></span>)</span>
+                        </label>
+                    </div>
+                    <p class="text-muted small">Un résumé IA sera généré automatiquement.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-danger">Fermer la conversation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal transcript -->
+<div class="modal fade" id="transcriptModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Envoyer la transcription</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form th:action="'/intra/chat/' + ${conv.id} + '/transcript'" method="post">
+                <div class="modal-body">
+                    <label class="form-label">Adresse email</label>
+                    <input type="email" name="email" class="form-control"
+                           th:value="${conv.visitorEmail}" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Envoyer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<th:block layout:fragment="script" th:if="${conv.status.name() != 'CLOSED'}">
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+<script th:inline="javascript">
+const CONV_ID = /*[[${conv.id}]]*/ 0;
+const Stomp = window.Stomp || window.StompJs?.Stomp;
+let stompClient = null;
+
+function connect() {
+    const socket = new SockJS('/ws');
+    stompClient = Stomp.over(socket);
+    stompClient.debug = () => {};
+    stompClient.connect({}, () => {
+        stompClient.subscribe('/topic/chat/' + CONV_ID, onMessage);
+        stompClient.subscribe('/topic/chat/typing/' + CONV_ID, onTyping);
+    });
+}
+
+function onMessage(frame) {
+    const m = JSON.parse(frame.body);
+    appendMessage(m);
+}
+
+function appendMessage(m) {
+    const area = document.getElementById('messageArea');
+    const isAgent   = m.senderType === 'USER';
+    const isBot     = m.senderType === 'BOT' || m.senderType === 'AI';
+    const bg = isAgent ? 'background:#3b82f6;color:white'
+             : isBot   ? 'background:#f1f5f9;border:1px solid #e2e8f0'
+             :            'background:#dcfce7';
+    const div = document.createElement('div');
+    div.className = 'd-flex mb-2 ' + (isAgent ? 'justify-content-end' : 'justify-content-start');
+    div.innerHTML = `<div class="d-flex flex-column" style="${isAgent ? 'align-items:flex-end' : 'align-items:flex-start'};max-width:75%">
+        <small class="text-muted mb-1">${m.senderName || ''}</small>
+        <div class="px-3 py-2 rounded-3" style="${bg}">${(m.content || '').replace(/\n/g,'<br>')}</div>
+        <small class="text-muted mt-1">${new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</small>
+    </div>`;
+    area.insertBefore(div, document.getElementById('typingIndicator'));
+    area.scrollTop = area.scrollHeight;
+}
+
+let typingTimer;
+function onTyping(frame) {
+    const p = JSON.parse(frame.body);
+    const el = document.getElementById('typingIndicator');
+    el.textContent = p.senderName + ' est en train d\'écrire...';
+    el.classList.remove('d-none');
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => el.classList.add('d-none'), 3000);
+}
+
+function sendMessage() {
+    const input = document.getElementById('msgInput');
+    const content = input.value.trim();
+    if (!content || !stompClient) return;
+    stompClient.send('/app/chat/' + CONV_ID + '/send', {}, JSON.stringify({ content }));
+    input.value = '';
+}
+
+function handleEnter(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    else if (stompClient) {
+        stompClient.send('/app/chat/' + CONV_ID + '/typing', {}, JSON.stringify({ senderName: 'Agent', typing: true }));
+    }
+}
+
+function suggestAI() {
+    fetch('/intra/chat/' + CONV_ID + '/ai-suggest', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            const input = document.getElementById('msgInput');
+            input.value = data.suggestion || '';
+            input.focus();
+        })
+        .catch(() => alert('Erreur lors de la suggestion IA'));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const area = document.getElementById('messageArea');
+    if (area) area.scrollTop = area.scrollHeight;
+    connect();
+});
+</script>
+</th:block>
+</body>
+</html>

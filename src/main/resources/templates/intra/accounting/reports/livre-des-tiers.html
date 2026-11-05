@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Livre des tiers</title></head>
+<body>
+<div layout:fragment="content">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-users me-2 text-primary"></i>Livre des tiers</h4>
+        <button th:if="${blocks != null and !blocks.isEmpty()}" onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-print me-1"></i>Imprimer
+        </button>
+    </div>
+
+    <!-- Filtres -->
+    <form method="get" action="/intra/accounting/reports/livre-des-tiers" class="card border-0 shadow-sm mb-4" id="ltForm">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-sm-4">
+                    <label class="form-label small fw-semibold mb-1">Exercice fiscal</label>
+                    <select name="yearId" class="form-select form-select-sm" onchange="document.getElementById('ltForm').submit()">
+                        <option value="">— Sélectionner —</option>
+                        <option th:each="y : ${fiscalYears}"
+                                th:value="${y.id}"
+                                th:text="${y.label} + (${y.current} ? ' (courant)' : '') + (${y.closed} ? ' [clôturé]' : '')"
+                                th:selected="${year != null and year.id == y.id}">
+                        </option>
+                    </select>
+                </div>
+                <div class="col-sm-4">
+                    <label class="form-label small fw-semibold mb-1">Type de tiers</label>
+                    <select name="accountPrefix" class="form-select form-select-sm" onchange="document.getElementById('ltForm').submit()">
+                        <option value="41" th:selected="${accountPrefix == '41'}">Clients (411xxx)</option>
+                        <option value="40" th:selected="${accountPrefix == '40'}">Fournisseurs (401xxx)</option>
+                        <option value="42" th:selected="${accountPrefix == '42'}">Salariés (421xxx)</option>
+                        <option value="4"  th:selected="${accountPrefix == '4'}">Tous les tiers (4xx)</option>
+                    </select>
+                </div>
+                <div class="col-sm-auto">
+                    <button type="submit" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-filter me-1"></i>Afficher
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Résumé exercice -->
+    <div th:if="${year != null}" class="text-muted small mb-3">
+        <i class="fas fa-calendar me-1"></i>
+        <strong th:text="${year.label}"></strong>
+        (<span th:text="${#temporals.format(year.startDate, 'dd/MM/yyyy')}"></span>
+        – <span th:text="${#temporals.format(year.endDate, 'dd/MM/yyyy')}"></span>)
+    </div>
+
+    <!-- Grand total -->
+    <div th:if="${blocks != null and !blocks.isEmpty()}" class="row g-3 mb-4">
+        <div class="col-sm-4">
+            <div class="card border-0 bg-light text-center py-2">
+                <div class="small text-muted">Total débit</div>
+                <div class="fw-bold font-monospace" th:text="${#numbers.formatDecimal(grandTotalDebit, 1, 'COMMA', 2, 'POINT')} + ' €'"></div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="card border-0 bg-light text-center py-2">
+                <div class="small text-muted">Total crédit</div>
+                <div class="fw-bold font-monospace" th:text="${#numbers.formatDecimal(grandTotalCredit, 1, 'COMMA', 2, 'POINT')} + ' €'"></div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="card border-0 text-center py-2"
+                 th:classappend="${grandSolde.signum() > 0} ? 'bg-warning-subtle' : (${grandSolde.signum() < 0} ? 'bg-success-subtle' : 'bg-light')">
+                <div class="small text-muted">Solde net</div>
+                <div class="fw-bold font-monospace"
+                     th:classappend="${grandSolde.signum() > 0} ? 'text-warning' : (${grandSolde.signum() < 0} ? 'text-success' : '')"
+                     th:text="${#numbers.formatDecimal(grandSolde, 1, 'COMMA', 2, 'POINT')} + ' €'"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Un bloc par tiers -->
+    <div th:each="block : ${blocks}" class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-light d-flex align-items-center py-2">
+            <i class="fas fa-building me-2 text-secondary"></i>
+            <span class="fw-semibold" th:text="${block.partner}"></span>
+            <span class="ms-auto d-flex gap-2 align-items-center">
+                <span class="text-muted small">D&nbsp;<span class="font-monospace"
+                    th:text="${#numbers.formatDecimal(block.totalDebit, 1, 'COMMA', 2, 'POINT')}"></span>
+                </span>
+                <span class="text-muted small">C&nbsp;<span class="font-monospace"
+                    th:text="${#numbers.formatDecimal(block.totalCredit, 1, 'COMMA', 2, 'POINT')}"></span>
+                </span>
+                <span class="badge fs-6 px-3"
+                      th:classappend="${block.solde.signum() > 0} ? 'text-bg-warning' : (${block.solde.signum() < 0} ? 'text-bg-success' : 'text-bg-secondary')"
+                      th:text="${#numbers.formatDecimal(block.solde, 1, 'COMMA', 2, 'POINT')} + ' €'">
+                </span>
+            </span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:110px">Date</th>
+                        <th style="width:170px">Référence</th>
+                        <th style="width:60px">Journal</th>
+                        <th style="width:100px">N° compte</th>
+                        <th>Libellé</th>
+                        <th class="text-end" style="width:120px">Débit</th>
+                        <th class="text-end" style="width:120px">Crédit</th>
+                        <th class="text-end" style="width:130px">Solde cumulé</th>
+                        <th style="width:60px">Lettrage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="gl : ${block.lines}">
+                        <td th:text="${#temporals.format(gl.line().entry.entryDate, 'dd/MM/yyyy')}"></td>
+                        <td>
+                            <a th:href="'/intra/accounting/entries/' + ${gl.line().entry.id}"
+                               class="text-decoration-none small font-monospace"
+                               th:text="${gl.line().entry.reference}">
+                            </a>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary-subtle text-secondary small"
+                                  th:text="${gl.line().entry.journal.code}"></span>
+                        </td>
+                        <td class="font-monospace small text-muted" th:text="${gl.line().account.number}"></td>
+                        <td class="small" th:text="${gl.line().label}"></td>
+                        <td class="text-end font-monospace"
+                            th:text="${gl.line().debit.signum() > 0} ? ${#numbers.formatDecimal(gl.line().debit, 1, 'COMMA', 2, 'POINT')} : ''">
+                        </td>
+                        <td class="text-end font-monospace"
+                            th:text="${gl.line().credit.signum() > 0} ? ${#numbers.formatDecimal(gl.line().credit, 1, 'COMMA', 2, 'POINT')} : ''">
+                        </td>
+                        <td class="text-end font-monospace fw-semibold"
+                            th:classappend="${gl.runSolde().signum() > 0} ? 'text-warning' : (${gl.runSolde().signum() < 0} ? 'text-success' : 'text-muted')"
+                            th:text="${#numbers.formatDecimal(gl.runSolde(), 1, 'COMMA', 2, 'POINT')}">
+                        </td>
+                        <td class="text-muted small" th:text="${gl.line().lettrage}"></td>
+                    </tr>
+                </tbody>
+                <tfoot class="table-light fw-semibold">
+                    <tr>
+                        <td colspan="5" class="text-end text-muted small">Totaux tiers</td>
+                        <td class="text-end font-monospace"
+                            th:text="${#numbers.formatDecimal(block.totalDebit, 1, 'COMMA', 2, 'POINT')}"></td>
+                        <td class="text-end font-monospace"
+                            th:text="${#numbers.formatDecimal(block.totalCredit, 1, 'COMMA', 2, 'POINT')}"></td>
+                        <td class="text-end font-monospace"
+                            th:classappend="${block.solde.signum() > 0} ? 'text-warning' : (${block.solde.signum() < 0} ? 'text-success' : 'text-muted')"
+                            th:text="${#numbers.formatDecimal(block.solde, 1, 'COMMA', 2, 'POINT')}"></td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- États vides -->
+    <div th:if="${year != null and (blocks == null or blocks.isEmpty())}"
+         class="text-center text-muted py-5">
+        <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+        Aucune écriture de tiers pour cet exercice avec ce filtre.
+    </div>
+    <div th:if="${year == null}" class="text-center text-muted py-5">
+        <i class="fas fa-hand-pointer fa-3x mb-3 d-block"></i>
+        Sélectionnez un exercice pour afficher le livre des tiers.
+    </div>
+
+</div>
+</body>
+</html>

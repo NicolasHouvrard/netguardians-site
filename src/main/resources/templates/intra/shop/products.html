@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 fw-bold">Boutique — Produits</h1>
+            <small class="text-muted">Produits publiés en ligne</small>
+        </div>
+        <div class="d-flex gap-2">
+            <a th:href="@{/boutique}" target="_blank" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-external-link-alt me-1"></i>Voir la boutique
+            </a>
+            <a th:href="@{/intra/shop/pricing-rules}" class="btn btn-outline-warning btn-sm">
+                <i class="fas fa-percent me-1"></i>Règles de prix
+            </a>
+            <a th:href="@{/intra/shop/vendors}" class="btn btn-outline-primary btn-sm">
+                <i class="fas fa-handshake me-1"></i>Vendeurs ESN
+            </a>
+            <a th:href="@{/intra/shop/orders}" class="btn btn-primary btn-sm">
+                <i class="fas fa-list me-1"></i>Commandes
+            </a>
+            <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
+                <i class="fas fa-plus me-1"></i>Ajouter
+            </button>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Produit</th>
+                        <th>Slug</th>
+                        <th>Prix TTC</th>
+                        <th>Stock</th>
+                        <th>Vendeur</th>
+                        <th>Ordre</th>
+                        <th>Statut</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:if="${#lists.isEmpty(shopProducts)}">
+                        <td colspan="8" class="text-center text-muted py-4">Aucun produit en boutique</td>
+                    </tr>
+                    <tr th:each="sp : ${shopProducts}">
+                        <td>
+                            <div class="fw-semibold" th:text="${sp.displayTitle}"></div>
+                            <small class="text-muted" th:text="${sp.product.name}" th:if="${sp.shopTitle != null}"></small>
+                        </td>
+                        <td><code th:text="${sp.slug}"></code></td>
+                        <td th:text="${#numbers.formatDecimal(sp.priceTTC,1,'COMMA',2,'POINT')} + ' €'"></td>
+                        <td>
+                            <span th:if="${sp.stockEnabled}" th:text="${sp.stock}"
+                                  th:class="${sp.stock == 0} ? 'badge bg-danger' : (${sp.stock <= 5} ? 'badge bg-warning text-dark' : 'badge bg-success')"></span>
+                            <span th:unless="${sp.stockEnabled}" class="text-muted small">—</span>
+                        </td>
+                        <td>
+                            <span th:if="${sp.vendor != null}" class="badge bg-info text-dark"
+                                  th:text="${sp.vendor.name}"></span>
+                            <span th:unless="${sp.vendor != null}" class="text-muted small">Plateforme</span>
+                        </td>
+                        <td th:text="${sp.displayOrder}"></td>
+                        <td>
+                            <span th:if="${sp.published}" class="badge bg-success">Publié</span>
+                            <span th:unless="${sp.published}" class="badge bg-secondary">Masqué</span>
+                        </td>
+                        <td class="text-end">
+                            <form th:action="@{/intra/shop/products/{id}/toggle(id=${sp.id})}" method="post" class="d-inline">
+                                <button type="submit" class="btn btn-sm"
+                                        th:class="${sp.published} ? 'btn btn-sm btn-outline-warning' : 'btn btn-sm btn-outline-success'"
+                                        th:title="${sp.published} ? 'Masquer' : 'Publier'">
+                                    <i th:class="${sp.published} ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                                </button>
+                            </form>
+                            <button class="btn btn-sm btn-outline-primary ms-1"
+                                    data-bs-toggle="modal" data-bs-target="#editModal"
+                                    th:onclick="openEdit(this)"
+                                    th:data-id="${sp.id}"
+                                    th:data-shop-title="${sp.shopTitle}"
+                                    th:data-slug="${sp.slug}"
+                                    th:data-seo-title="${sp.seoTitle}"
+                                    th:data-seo-description="${sp.seoDescription}"
+                                    th:data-price-override="${sp.priceOverride}"
+                                    th:data-display-order="${sp.displayOrder}"
+                                    th:data-stock-enabled="${sp.stockEnabled}"
+                                    th:data-stock="${sp.stock}"
+                                    th:data-brand="${sp.brand}"
+                                    th:data-shop-category="${sp.shopCategory}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <form th:action="@{/intra/shop/products/{id}/delete(id=${sp.id})}" method="post" class="d-inline"
+                                  onsubmit="return confirm('Retirer ce produit de la boutique ?')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger ms-1">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal Ajouter -->
+    <div class="modal fade" id="addModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <form th:action="@{/intra/shop/products/create}" method="post">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-semibold">Ajouter un produit à la boutique</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label small fw-semibold">Produit du catalogue *</label>
+                            <select name="productId" class="form-select" required>
+                                <option value="">— Choisir un produit —</option>
+                                <option th:each="p : ${products}" th:value="${p.id}"
+                                        th:text="${p.name + ' (' + #numbers.formatDecimal(p.priceHT,1,'COMMA',2,'POINT') + ' € HT)'}"></option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Ordre d'affichage</label>
+                            <input type="number" name="displayOrder" value="0" class="form-control">
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label small fw-semibold">Titre boutique</label>
+                            <input type="text" name="shopTitle" class="form-control" placeholder="Laissez vide = nom du produit">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Slug URL</label>
+                            <input type="text" name="slug" class="form-control" placeholder="auto-généré">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Description boutique (HTML)</label>
+                            <textarea name="shopDescription" class="form-control" rows="3"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Titre SEO</label>
+                            <input type="text" name="seoTitle" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Description SEO</label>
+                            <input type="text" name="seoDescription" class="form-control" maxlength="160">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Prix TTC override (€)</label>
+                            <input type="number" name="priceOverride" step="0.01" class="form-control"
+                                   placeholder="Laissez vide = prix produit">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">TVA override (%)</label>
+                            <input type="number" name="taxRateOverride" step="0.01" class="form-control"
+                                   placeholder="Laissez vide = TVA produit">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Vendeur ESN</label>
+                            <select name="vendorId" class="form-select">
+                                <option value="">Plateforme</option>
+                                <option th:each="v : ${vendors}" th:value="${v.customer.id}"
+                                        th:text="${v.vendorName}"></option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Marque</label>
+                            <input type="text" name="brand" class="form-control" placeholder="ex : HP, Microsoft…">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Catégorie boutique</label>
+                            <input type="text" name="shopCategory" class="form-control" placeholder="ex : Réseau, Sécurité…">
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" name="stockEnabled"
+                                       id="aStockEnabled" value="true">
+                                <label class="form-check-label" for="aStockEnabled">Gestion du stock activée</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Stock initial</label>
+                            <input type="number" name="stock" value="0" min="0" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-success">Ajouter à la boutique</button>
+                </div>
+            </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Modifier -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <form id="editForm" method="post">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-semibold">Modifier le produit boutique</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label small fw-semibold">Titre boutique</label>
+                            <input type="text" id="eShopTitle" name="shopTitle" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Ordre d'affichage</label>
+                            <input type="number" id="eDisplayOrder" name="displayOrder" value="0" class="form-control">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Slug URL</label>
+                            <input type="text" id="eSlug" name="slug" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Titre SEO</label>
+                            <input type="text" id="eSeoTitle" name="seoTitle" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Description SEO</label>
+                            <input type="text" id="eSeoDescription" name="seoDescription" class="form-control" maxlength="160">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Prix override (€ HT)</label>
+                            <input type="number" id="ePriceOverride" name="priceOverride" step="0.01" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">TVA override (%)</label>
+                            <input type="number" id="eTaxRate" name="taxRateOverride" step="0.01" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Stock</label>
+                            <input type="number" id="eStock" name="stock" value="0" min="0" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Marque</label>
+                            <input type="text" id="eBrand" name="brand" class="form-control" placeholder="ex : HP, Microsoft…">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Catégorie boutique</label>
+                            <input type="text" id="eShopCategory" name="shopCategory" class="form-control" placeholder="ex : Réseau, Sécurité…">
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="eStockEnabled"
+                                       name="stockEnabled" value="true">
+                                <label class="form-check-label" for="eStockEnabled">Gestion du stock activée</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+            </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    function openEdit(btn) {
+        const id = btn.dataset.id;
+        document.getElementById('editForm').action = '/intra/shop/products/' + id + '/update';
+        document.getElementById('eShopTitle').value      = btn.dataset.shopTitle || '';
+        document.getElementById('eSlug').value           = btn.dataset.slug || '';
+        document.getElementById('eSeoTitle').value       = btn.dataset.seoTitle || '';
+        document.getElementById('eSeoDescription').value = btn.dataset.seoDescription || '';
+        document.getElementById('ePriceOverride').value  = btn.dataset.priceOverride || '';
+        document.getElementById('eDisplayOrder').value   = btn.dataset.displayOrder || 0;
+        document.getElementById('eStock').value          = btn.dataset.stock || 0;
+        document.getElementById('eStockEnabled').checked = btn.dataset.stockEnabled === 'true';
+        document.getElementById('eBrand').value          = btn.dataset.brand || '';
+        document.getElementById('eShopCategory').value   = btn.dataset.shopCategory || '';
+    }
+    </script>
+
+</div>
+</body>
+</html>

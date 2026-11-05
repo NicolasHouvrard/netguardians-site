@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 fw-bold">Boutique — Commandes</h1>
+            <small class="text-muted" th:text="${orders.size()} + ' commande(s)'"></small>
+        </div>
+        <a th:href="@{/intra/shop/products}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Produits
+        </a>
+    </div>
+
+    <!-- Demandes en attente de validation -->
+    <div th:with="pending=${orders.?[status.name() == 'PENDING_VALIDATION']}"
+         th:if="${!#lists.isEmpty(pending)}"
+         class="alert alert-info d-flex align-items-center gap-3 mb-4">
+        <i class="fas fa-hourglass-half fa-lg flex-shrink-0"></i>
+        <div>
+            <strong th:text="${#lists.size(pending)} + ' demande(s) en attente de validation'"></strong><br>
+            <span class="small">Ces commandes ont été soumises par des clients et attendent votre traitement.</span>
+        </div>
+    </div>
+
+    <!-- Filtres par statut -->
+    <div class="d-flex flex-wrap gap-2 mb-4">
+        <a th:href="@{/intra/shop/orders}"
+           th:class="${currentStatus == null} ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline-secondary'">
+            Toutes
+        </a>
+        <a th:each="s : ${statuses}"
+           th:href="@{/intra/shop/orders(status=${s.name()})}"
+           th:class="${currentStatus == s.name()} ? ('btn btn-sm bg-' + s.badgeCss + ' text-white') : 'btn btn-sm btn-outline-secondary'"
+           th:text="${s.label}"></a>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Référence</th>
+                        <th>Client</th>
+                        <th>Date</th>
+                        <th>Mode paiement</th>
+                        <th>Total TTC</th>
+                        <th>Statut</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:if="${#lists.isEmpty(orders)}">
+                        <td colspan="7" class="text-center text-muted py-4">Aucune commande</td>
+                    </tr>
+                    <th:block th:each="o : ${orders}">
+                    <!-- Ligne principale -->
+                    <tr th:class="${o.status.name() == 'PENDING_VALIDATION'} ? 'table-info' : ''">
+                        <td>
+                            <span class="fw-semibold" th:text="${o.reference}"></span>
+                            <div th:if="${o.status.name() == 'PENDING_VALIDATION'}"
+                                 class="small text-info fw-semibold">
+                                <i class="fas fa-circle fa-xs me-1"></i>À valider
+                            </div>
+                        </td>
+                        <td>
+                            <div th:text="${o.customerName}"></div>
+                            <small class="text-muted" th:text="${o.email}"></small>
+                        </td>
+                        <td>
+                            <span th:text="${#temporals.format(o.createdAt,'dd/MM/yyyy HH:mm')}"></span>
+                        </td>
+                        <td>
+                            <i th:if="${o.paymentMethod?.name() == 'STRIPE'}" class="fab fa-stripe text-primary me-1"></i>
+                            <i th:if="${o.paymentMethod?.name() == 'BANK_TRANSFER'}" class="fas fa-university text-success me-1"></i>
+                            <span th:text="${o.paymentMethod?.label}"></span>
+                            <div th:if="${o.bankRef}" class="small text-muted" th:text="${o.bankRef}"></div>
+                        </td>
+                        <td class="fw-bold" th:text="${#numbers.formatDecimal(o.totalTTC,1,'COMMA',2,'POINT')} + ' €'"></td>
+                        <td>
+                            <span class="badge"
+                                  th:classappend="'bg-' + ${o.status.badgeCss}"
+                                  th:text="${o.status.label}"></span>
+                        </td>
+                        <td class="text-nowrap">
+                            <!-- Ouvrir la commande -->
+                            <a th:href="@{/intra/shop/orders/{id}(id=${o.id})}"
+                               class="btn btn-sm btn-outline-secondary"
+                               title="Ouvrir la commande">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <!-- Détail lignes -->
+                            <button type="button" class="btn btn-sm btn-outline-secondary ms-1"
+                                    th:onclick="|toggleLines(${o.id})|"
+                                    title="Voir les lignes">
+                                <i class="fas fa-list-ul"></i>
+                            </button>
+                            <!-- Changer statut -->
+                            <button type="button" class="btn btn-sm btn-outline-primary ms-1"
+                                    data-bs-toggle="modal" data-bs-target="#statusModal"
+                                    th:attr="data-order-id=${o.id}, data-status=${o.status.name()}"
+                                    onclick="openStatus(this)"
+                                    title="Modifier le statut">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    <!-- Lignes de commande (ligne dépliable, juste en-dessous) -->
+                    <tr th:id="'lines-' + ${o.id}" style="display:none">
+                        <td colspan="7" class="p-0 border-0">
+                            <div class="bg-light p-3 border-bottom">
+                                <table class="table table-sm mb-0">
+                                    <thead>
+                                        <tr class="table-secondary">
+                                            <th>Produit</th>
+                                            <th>Qté</th>
+                                            <th>PU HT</th>
+                                            <th>Total TTC</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="l : ${o.lines}">
+                                            <td th:text="${l.productName}"></td>
+                                            <td th:text="${l.quantity}"></td>
+                                            <td th:text="${#numbers.formatDecimal(l.unitPriceHT,1,'COMMA',2,'POINT')} + ' €'"></td>
+                                            <td th:text="${#numbers.formatDecimal(l.lineTotalTTC,1,'COMMA',2,'POINT')} + ' €'"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div class="mt-2 small text-muted">
+                                    <span th:if="${o.shippingAddress != null and !#strings.isEmpty(o.shippingAddress)}">
+                                        <i class="fas fa-map-marker-alt me-1"></i>
+                                        <span th:text="${o.shippingAddress}"></span>
+                                        <span th:if="${o.shippingZip != null or o.shippingCity != null}"
+                                              th:text="', ' + (${o.shippingZip} ?: '') + ' ' + (${o.shippingCity} ?: '')"></span>
+                                    </span>
+                                    <span th:if="${o.notes != null and !#strings.isEmpty(o.notes)}" class="ms-3">
+                                        <i class="fas fa-comment me-1"></i><span th:text="${o.notes}"></span>
+                                    </span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    </th:block>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal Statut -->
+    <div class="modal fade" id="statusModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form id="statusForm" method="post">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-semibold">Modifier le statut</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label fw-semibold">Nouveau statut</label>
+                    <select name="status" id="statusSelect" class="form-select">
+                        <option th:each="s : ${statuses}"
+                                th:value="${s.name()}"
+                                th:text="${s.label}"></option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+            </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    function toggleLines(orderId) {
+        var row = document.getElementById('lines-' + orderId);
+        row.style.display = (row.style.display === 'table-row') ? 'none' : 'table-row';
+    }
+    function openStatus(btn) {
+        var orderId = btn.getAttribute('data-order-id');
+        var currentStatus = btn.getAttribute('data-status');
+        document.getElementById('statusForm').action = '/intra/shop/orders/' + orderId + '/status';
+        document.getElementById('statusSelect').value = currentStatus;
+    }
+    </script>
+
+</div>
+</body>
+</html>

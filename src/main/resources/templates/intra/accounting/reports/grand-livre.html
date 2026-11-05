@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Grand livre</title></head>
+<body>
+<div layout:fragment="content">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-book-open me-2 text-primary"></i>Grand livre</h4>
+        <button th:if="${lines != null and !lines.isEmpty()}" onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-print me-1"></i>Imprimer
+        </button>
+    </div>
+
+    <!-- Selectors -->
+    <form method="get" action="/intra/accounting/reports/grand-livre" class="card border-0 shadow-sm mb-4" id="glForm">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-sm-4">
+                    <label class="form-label small fw-semibold mb-1">Exercice fiscal</label>
+                    <select name="yearId" class="form-select form-select-sm" onchange="document.getElementById('glForm').submit()">
+                        <option value="">— Sélectionner —</option>
+                        <option th:each="y : ${fiscalYears}"
+                                th:value="${y.id}"
+                                th:text="${y.label} + (${y.current} ? ' (courant)' : '') + (${y.closed} ? ' [clôturé]' : '')"
+                                th:selected="${year != null and year.id == y.id}">
+                        </option>
+                    </select>
+                </div>
+                <div class="col-sm-5">
+                    <label class="form-label small fw-semibold mb-1">Compte</label>
+                    <select name="accountId" class="form-select form-select-sm" onchange="document.getElementById('glForm').submit()">
+                        <option value="">— Sélectionner un compte —</option>
+                        <option th:each="a : ${accounts}"
+                                th:value="${a.id}"
+                                th:text="${a.number} + ' — ' + ${a.label}"
+                                th:selected="${selectedAccount != null and selectedAccount.id == a.id}">
+                        </option>
+                    </select>
+                </div>
+                <div class="col-sm-auto">
+                    <button type="submit" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-filter me-1"></i>Afficher
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Account header -->
+    <div th:if="${selectedAccount != null}" class="mb-3">
+        <h5 class="fw-bold">
+            <span class="font-monospace me-2" th:text="${selectedAccount.number}"></span>
+            <span th:text="${selectedAccount.label}"></span>
+        </h5>
+        <div class="text-muted small" th:if="${year != null}">
+            <i class="fas fa-calendar me-1"></i>
+            <strong th:text="${year.label}"></strong>
+            (<span th:text="${#temporals.format(year.startDate, 'dd/MM/yyyy')}"></span>
+            – <span th:text="${#temporals.format(year.endDate, 'dd/MM/yyyy')}"></span>)
+        </div>
+    </div>
+
+    <!-- Grand livre table -->
+    <div th:if="${lines != null and !lines.isEmpty()}">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:110px">Date</th>
+                            <th style="width:170px">Référence</th>
+                            <th style="width:80px">Journal</th>
+                            <th>Libellé</th>
+                            <th class="text-end" style="width:120px">Débit</th>
+                            <th class="text-end" style="width:120px">Crédit</th>
+                            <th class="text-end" style="width:130px">Solde cumulé</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="gl : ${lines}">
+                            <td th:text="${#temporals.format(gl.line().entry.entryDate, 'dd/MM/yyyy')}"></td>
+                            <td>
+                                <a th:href="'/intra/accounting/entries/' + ${gl.line().entry.id}"
+                                   class="text-decoration-none small"
+                                   th:text="${gl.line().entry.reference}">
+                                </a>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary-subtle text-secondary small"
+                                      th:text="${gl.line().entry.journal.code}"></span>
+                            </td>
+                            <td th:text="${gl.line().label}"></td>
+                            <td class="text-end font-monospace"
+                                th:text="${gl.line().debit.signum() > 0} ? ${#numbers.formatDecimal(gl.line().debit, 1, 'COMMA', 2, 'POINT')} : ''">
+                            </td>
+                            <td class="text-end font-monospace"
+                                th:text="${gl.line().credit.signum() > 0} ? ${#numbers.formatDecimal(gl.line().credit, 1, 'COMMA', 2, 'POINT')} : ''">
+                            </td>
+                            <td class="text-end font-monospace fw-semibold"
+                                th:classappend="${gl.runSolde().signum() >= 0} ? 'text-success' : 'text-danger'"
+                                th:text="${#numbers.formatDecimal(gl.runSolde(), 1, 'COMMA', 2, 'POINT')}">
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td colspan="4" class="text-end">Totaux</td>
+                            <td class="text-end font-monospace"
+                                th:text="${#numbers.formatDecimal(totalDebit, 1, 'COMMA', 2, 'POINT')}">
+                            </td>
+                            <td class="text-end font-monospace"
+                                th:text="${#numbers.formatDecimal(totalCredit, 1, 'COMMA', 2, 'POINT')}">
+                            </td>
+                            <td class="text-end font-monospace"
+                                th:classappend="${solde.signum() >= 0} ? 'text-success' : 'text-danger'"
+                                th:text="${#numbers.formatDecimal(solde, 1, 'COMMA', 2, 'POINT')}">
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div th:if="${selectedAccount != null and (lines == null or lines.isEmpty())}"
+         class="text-center text-muted py-5">
+        <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+        Aucune écriture pour ce compte sur cet exercice.
+    </div>
+
+    <div th:if="${selectedAccount == null}" class="text-center text-muted py-5">
+        <i class="fas fa-hand-pointer fa-3x mb-3 d-block"></i>
+        Sélectionnez un exercice et un compte pour afficher le grand livre.
+    </div>
+
+</div>
+</body>
+</html>

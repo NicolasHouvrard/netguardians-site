@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title th:text="${config.title} + ' — Réservation'">Réservation en ligne</title>
+    <style>
+        .booking-wrapper { max-width: 820px; margin: 0 auto; }
+        .step-header { display:flex; align-items:center; gap:.75rem; margin-bottom:1.25rem; }
+        .step-badge { width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;flex-shrink:0; }
+        .step-badge.active { background:#6366f1;color:#fff; }
+        .step-badge.done { background:#22c55e;color:#fff; }
+        .step-badge.pending { background:#e2e8f0;color:#94a3b8; }
+        .cal-grid { display:grid;grid-template-columns:repeat(7,1fr);gap:.35rem; }
+        .cal-day { border:none;border-radius:.5rem;padding:.4rem .2rem;font-size:.85rem;font-weight:500;cursor:pointer;transition:all .15s;aspect-ratio:1;display:flex;align-items:center;justify-content:center; }
+        .cal-day.available { background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe; }
+        .cal-day.available:hover { background:#dbeafe;border-color:#93c5fd; }
+        .cal-day.selected { background:#6366f1!important;color:#fff!important;border-color:#6366f1!important; }
+        .cal-day.unavailable { background:#f1f5f9;color:#cbd5e1;cursor:default; }
+        .cal-day.today { font-weight:700; }
+        .cal-weekday { font-size:.7rem;font-weight:600;color:#94a3b8;text-align:center;padding-bottom:.25rem; }
+        .slot-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:.5rem; }
+        .slot-btn { padding:.45rem;border:1px solid #e2e8f0;border-radius:.5rem;background:#fff;font-size:.85rem;font-weight:500;color:#1e293b;cursor:pointer;text-align:center;transition:all .15s; }
+        .slot-btn:hover { border-color:#6366f1;color:#6366f1; }
+        .slot-btn.selected { background:#6366f1;border-color:#6366f1;color:#fff; }
+        .summary-box { background:#f8fafc;border:1px solid #e2e8f0;border-radius:.75rem;padding:1rem 1.25rem; }
+        .section-card { background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;padding:1.5rem; box-shadow:0 1px 4px rgba(0,0,0,.04); }
+        .month-nav { display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem; }
+        .month-nav button { border:none;background:none;font-size:1.1rem;color:#6366f1;cursor:pointer;padding:.25rem .5rem;border-radius:.375rem; }
+        .month-nav button:hover { background:#eff0ff; }
+        #step2,#step3 { display:none; }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+<div class="booking-wrapper py-4">
+
+    <div class="text-center mb-4">
+        <h2 class="fw-bold mb-1" th:text="${config.title}"></h2>
+        <p class="text-muted" th:if="${config.description}" th:text="${config.description}"></p>
+    </div>
+
+    <!-- Summary always visible once date+time selected -->
+    <div id="summaryBox" class="summary-box mb-3" style="display:none">
+        <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-calendar-check text-primary"></i>
+            <span class="fw-semibold">Votre sélection :</span>
+            <span id="summaryText" class="text-muted"></span>
+        </div>
+    </div>
+
+    <!-- No dates available -->
+    <div th:if="${availableDates == null or availableDates.isEmpty()}"
+         class="alert alert-warning text-center">
+        <i class="fas fa-calendar-times me-2"></i>
+        Aucun créneau disponible pour le moment. Veuillez réessayer ultérieurement.
+    </div>
+
+    <!-- Step 1: Calendar -->
+    <div id="step1" class="section-card mb-3" th:if="${availableDates != null and !availableDates.isEmpty()}">
+        <div class="step-header">
+            <div class="step-badge active" id="badge1">1</div>
+            <div>
+                <div class="fw-semibold">Choisissez une date</div>
+                <div class="text-muted small">Sélectionnez un jour disponible</div>
+            </div>
+        </div>
+
+        <div class="month-nav">
+            <button onclick="prevMonth()"><i class="fas fa-chevron-left"></i></button>
+            <span id="monthLabel" class="fw-semibold"></span>
+            <button onclick="nextMonth()"><i class="fas fa-chevron-right"></i></button>
+        </div>
+
+        <div class="cal-grid mb-1">
+            <div class="cal-weekday">Lun</div>
+            <div class="cal-weekday">Mar</div>
+            <div class="cal-weekday">Mer</div>
+            <div class="cal-weekday">Jeu</div>
+            <div class="cal-weekday">Ven</div>
+            <div class="cal-weekday">Sam</div>
+            <div class="cal-weekday">Dim</div>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+    </div>
+
+    <!-- Step 2: Slots -->
+    <div id="step2" class="section-card mb-3" th:if="${availableDates != null and !availableDates.isEmpty()}">
+        <div class="step-header">
+            <div class="step-badge pending" id="badge2">2</div>
+            <div>
+                <div class="fw-semibold">Choisissez un créneau</div>
+                <div class="text-muted small" id="selectedDateLabel"></div>
+            </div>
+        </div>
+        <div id="slotsContainer">
+            <div class="text-center text-muted py-3">
+                <i class="fas fa-spinner fa-spin me-2"></i>Chargement des créneaux…
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Form -->
+    <div id="step3" class="section-card" th:if="${availableDates != null and !availableDates.isEmpty()}">
+        <div class="step-header">
+            <div class="step-badge pending" id="badge3">3</div>
+            <div>
+                <div class="fw-semibold">Vos coordonnées</div>
+                <div class="text-muted small">Complétez le formulaire pour confirmer</div>
+            </div>
+        </div>
+
+        <form th:action="'/booking/' + ${config.slug}" method="post" id="bookingForm">
+            <input type="hidden" name="date" id="fieldDate">
+            <input type="hidden" name="time" id="fieldTime">
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Prénom <span class="text-danger">*</span></label>
+                    <input type="text" name="firstName" class="form-control" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Nom <span class="text-danger">*</span></label>
+                    <input type="text" name="lastName" class="form-control" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Email <span class="text-danger">*</span></label>
+                    <input type="email" name="email" class="form-control" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Téléphone <span class="text-danger">*</span></label>
+                    <input type="tel" name="phone" class="form-control" required>
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold">Message (facultatif)</label>
+                    <textarea name="notes" class="form-control" rows="3"
+                              placeholder="Précisez votre demande si nécessaire…"></textarea>
+                </div>
+            </div>
+
+            <hr class="my-3">
+
+            <button type="submit" class="btn btn-primary btn-lg w-100">
+                <i class="fas fa-check-circle me-2"></i>Confirmer le rendez-vous
+            </button>
+        </form>
+    </div>
+
+</div>
+
+<script th:inline="javascript" th:if="${availableDates != null and !availableDates.isEmpty()}">
+    var slug = /*[[${config.slug}]]*/ '';
+    var availableDates = /*[[${availableDates}]]*/ [];
+    var today = /*[[${today}]]*/ '';
+    var maxDate = /*[[${maxDate}]]*/ '';
+
+    var todayDate = new Date(today + 'T00:00:00');
+    var maxDateObj = new Date(maxDate + 'T00:00:00');
+    var currentYear = todayDate.getFullYear();
+    var currentMonth = todayDate.getMonth();
+    var selectedDate = null;
+    var selectedTime = null;
+
+    var availableSet = new Set(availableDates);
+
+    var monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+    function renderCalendar(year, month) {
+        document.getElementById('monthLabel').textContent = monthNames[month] + ' ' + year;
+        var grid = document.getElementById('calGrid');
+        grid.innerHTML = '';
+
+        var firstDay = new Date(year, month, 1);
+        var lastDay = new Date(year, month + 1, 0);
+        var startDow = (firstDay.getDay() + 6) % 7; // Monday=0
+
+        for (var i = 0; i < startDow; i++) {
+            var empty = document.createElement('div');
+            grid.appendChild(empty);
+        }
+
+        for (var d = 1; d <= lastDay.getDate(); d++) {
+            var dateObj = new Date(year, month, d);
+            var dateStr = toIso(dateObj);
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = d;
+            btn.className = 'cal-day';
+
+            var isToday = dateStr === today;
+            if (isToday) btn.classList.add('today');
+
+            if (availableSet.has(dateStr)) {
+                btn.classList.add('available');
+                if (selectedDate === dateStr) btn.classList.add('selected');
+                btn.onclick = function(ds) { return function() { selectDate(ds); }; }(dateStr);
+            } else {
+                btn.classList.add('unavailable');
+                btn.disabled = true;
+            }
+            grid.appendChild(btn);
+        }
+    }
+
+    function prevMonth() {
+        if (currentMonth === 0) { currentYear--; currentMonth = 11; }
+        else currentMonth--;
+        renderCalendar(currentYear, currentMonth);
+    }
+
+    function nextMonth() {
+        if (currentMonth === 11) { currentYear++; currentMonth = 0; }
+        else currentMonth++;
+        renderCalendar(currentYear, currentMonth);
+    }
+
+    function toIso(d) {
+        return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+    }
+    function pad(n) { return n < 10 ? '0'+n : ''+n; }
+
+    function selectDate(dateStr) {
+        selectedDate = dateStr;
+        selectedTime = null;
+        renderCalendar(currentYear, currentMonth);
+
+        var d = new Date(dateStr + 'T00:00:00');
+        var label = d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+        document.getElementById('selectedDateLabel').textContent = label;
+
+        document.getElementById('step2').style.display = 'block';
+        document.getElementById('step3').style.display = 'none';
+        document.getElementById('badge2').className = 'step-badge active';
+        document.getElementById('badge3').className = 'step-badge pending';
+        updateSummary();
+        loadSlots(dateStr);
+        document.getElementById('step2').scrollIntoView({behavior:'smooth', block:'start'});
+    }
+
+    function loadSlots(dateStr) {
+        var container = document.getElementById('slotsContainer');
+        container.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin me-2"></i>Chargement…</div>';
+
+        fetch('/booking/' + slug + '/slots?date=' + dateStr)
+            .then(r => r.json())
+            .then(slots => {
+                if (slots.length === 0) {
+                    container.innerHTML = '<div class="alert alert-info mb-0"><i class="fas fa-info-circle me-2"></i>Aucun créneau disponible pour cette date.</div>';
+                    return;
+                }
+                var grid = document.createElement('div');
+                grid.className = 'slot-grid';
+                slots.forEach(function(t) {
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'slot-btn';
+                    btn.textContent = t;
+                    if (t === selectedTime) btn.classList.add('selected');
+                    btn.onclick = function() { selectTime(t, btn, grid); };
+                    grid.appendChild(btn);
+                });
+                container.innerHTML = '';
+                container.appendChild(grid);
+            })
+            .catch(() => {
+                container.innerHTML = '<div class="alert alert-danger mb-0">Erreur lors du chargement des créneaux.</div>';
+            });
+    }
+
+    function selectTime(time, btn, grid) {
+        grid.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedTime = time;
+        document.getElementById('fieldDate').value = selectedDate;
+        document.getElementById('fieldTime').value = selectedTime;
+        document.getElementById('step3').style.display = 'block';
+        document.getElementById('badge3').className = 'step-badge active';
+        updateSummary();
+        document.getElementById('step3').scrollIntoView({behavior:'smooth', block:'start'});
+    }
+
+    function updateSummary() {
+        if (!selectedDate) return;
+        var d = new Date(selectedDate + 'T00:00:00');
+        var dateLabel = d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
+        var text = dateLabel;
+        if (selectedTime) text += ' à ' + selectedTime;
+        document.getElementById('summaryText').textContent = text;
+        document.getElementById('summaryBox').style.display = 'flex';
+    }
+
+    renderCalendar(currentYear, currentMonth);
+</script>
+</div>
+</body>
+</html>

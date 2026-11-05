@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${siteSettings?.siteName} ?: 'Mon Site'">Mon Site</title>
+    <link th:if="${siteSettings?.faviconUrl != null and !#strings.isEmpty(siteSettings.faviconUrl)}"
+          rel="icon" th:href="${siteSettings.faviconUrl}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script th:src="@{/js/commun.js}"></script>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <div th:replace="~{header/all :: navbar}"></div>
+
+    <main class="container-fluid py-4">
+        <div layout:fragment="content"></div>
+    </main>
+
+    <div th:if="${successMessage}" class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-0">
+            <i class="fas fa-check-circle me-2"></i>
+            <span th:text="${successMessage}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    </div>
+    <div th:if="${errorMessage}" class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-0">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <span th:text="${errorMessage}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    </div>
+
+    <footer class="border-top mt-4 pt-3 pb-2 text-center text-muted small">
+        <!-- Réseaux sociaux -->
+        <div th:if="${siteSettings != null}" class="mb-2">
+            <a th:if="${siteSettings.socialFacebook != null and !#strings.isEmpty(siteSettings.socialFacebook)}"
+               th:href="${siteSettings.socialFacebook}" target="_blank" rel="noopener"
+               class="text-muted me-3 fs-5" title="Facebook">
+                <i class="fab fa-facebook"></i>
+            </a>
+            <a th:if="${siteSettings.socialLinkedin != null and !#strings.isEmpty(siteSettings.socialLinkedin)}"
+               th:href="${siteSettings.socialLinkedin}" target="_blank" rel="noopener"
+               class="text-muted me-3 fs-5" title="LinkedIn">
+                <i class="fab fa-linkedin"></i>
+            </a>
+            <a th:if="${siteSettings.socialInstagram != null and !#strings.isEmpty(siteSettings.socialInstagram)}"
+               th:href="${siteSettings.socialInstagram}" target="_blank" rel="noopener"
+               class="text-muted me-3 fs-5" title="Instagram">
+                <i class="fab fa-instagram"></i>
+            </a>
+            <a th:if="${siteSettings.socialTwitter != null and !#strings.isEmpty(siteSettings.socialTwitter)}"
+               th:href="${siteSettings.socialTwitter}" target="_blank" rel="noopener"
+               class="text-muted me-3 fs-5" title="X / Twitter">
+                <i class="fab fa-x-twitter"></i>
+            </a>
+            <a th:if="${siteSettings.socialYoutube != null and !#strings.isEmpty(siteSettings.socialYoutube)}"
+               th:href="${siteSettings.socialYoutube}" target="_blank" rel="noopener"
+               class="text-muted fs-5" title="YouTube">
+                <i class="fab fa-youtube"></i>
+            </a>
+        </div>
+        <small th:text="${siteSettings?.footerText != null and !#strings.isEmpty(siteSettings.footerText)} ? ${siteSettings.footerText} : '© 2026 LogicielPourTous'">&copy; 2026 LogicielPourTous</small>
+    </footer>
+
+    <!-- ── Widget chat flottant ──────────────────────────────────────────────── -->
+    <style>
+    #chat-widget-toggle {
+        width:56px;height:56px;font-size:1.3rem;
+        box-shadow:0 4px 16px rgba(59,130,246,.45)!important;
+        transition:transform .15s;
+    }
+    #chat-widget-toggle:hover { transform:scale(1.08); }
+    @keyframes chat-pulse {
+        0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}
+        50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}
+    }
+    #chat-unread-dot.pulse { animation:chat-pulse 1.5s infinite; }
+    </style>
+
+    <div id="chat-widget-container" style="position:fixed;bottom:24px;right:24px;z-index:2000;display:flex;flex-direction:column;align-items:flex-end">
+        <!-- Panel -->
+        <div id="chat-widget-panel"
+             style="display:none;width:340px;height:480px;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.18);margin-bottom:12px;background:#fff;flex-direction:column">
+        </div>
+        <!-- Toggle button -->
+        <button id="chat-widget-toggle" class="btn btn-primary rounded-circle position-relative"
+                onclick="toggleChatWidget()" title="Chat">
+            <i class="fas fa-comments" id="chat-btn-icon"></i>
+            <span id="chat-unread-dot" class="d-none position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                  style="font-size:.55rem;padding:3px 5px">!</span>
+        </button>
+    </div>
+
+    <script>
+    (function() {
+        let widgetOpen = false;
+        let widgetLoaded = false;
+        let widgetStomp = null;
+
+        function loadScript(src) {
+            return new Promise(resolve => {
+                if (document.querySelector('script[src="' + src + '"]')) return resolve();
+                const s = document.createElement('script');
+                s.src = src; s.onload = resolve;
+                document.head.appendChild(s);
+            });
+        }
+
+        window.toggleChatWidget = async function() {
+            const panel = document.getElementById('chat-widget-panel');
+            const icon  = document.getElementById('chat-btn-icon');
+            widgetOpen = !widgetOpen;
+            if (widgetOpen) {
+                panel.style.display = 'flex';
+                icon.className = 'fas fa-times';
+                document.getElementById('chat-unread-dot').classList.add('d-none');
+                document.getElementById('chat-unread-dot').classList.remove('pulse');
+                if (!widgetLoaded) {
+                    widgetLoaded = true;
+                    await Promise.all([
+                        loadScript('https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js'),
+                        loadScript('https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js')
+                    ]);
+                    const html = await fetch('/chat/widget').then(r => r.text());
+                    panel.innerHTML = html;
+                    const convIdEl = document.getElementById('widget-conv-id');
+                    if (convIdEl) {
+                        connectWidgetWs(parseInt(convIdEl.value));
+                        setTimeout(() => {
+                            const area = document.getElementById('widget-msg-area');
+                            if (area) area.scrollTop = area.scrollHeight;
+                        }, 50);
+                    }
+                }
+            } else {
+                panel.style.display = 'none';
+                icon.className = 'fas fa-comments';
+            }
+        };
+
+        window.connectWidgetWs = function(convId) {
+            if (!window.SockJS || !window.StompJs) return;
+            const socket = new SockJS('/ws');
+            widgetStomp = StompJs.Stomp.over(socket);
+            widgetStomp.debug = () => {};
+            widgetStomp.connect({}, () => {
+                widgetStomp.subscribe('/topic/chat/' + convId, frame => {
+                    const m = JSON.parse(frame.body);
+                    appendWidgetMsg(m);
+                    document.getElementById('widget-bot-choices')?.classList.add('d-none');
+                    // Notif si widget fermé
+                    if (!widgetOpen) {
+                        const dot = document.getElementById('chat-unread-dot');
+                        dot.classList.remove('d-none');
+                        dot.classList.add('pulse');
+                    }
+                });
+                widgetStomp.subscribe('/topic/chat/typing/' + convId, frame => {
+                    const p = JSON.parse(frame.body);
+                    const el = document.getElementById('widget-typing');
+                    if (!el) return;
+                    el.textContent = p.senderName + ' écrit…';
+                    el.classList.remove('d-none');
+                    clearTimeout(window._widgetTypingTimer);
+                    window._widgetTypingTimer = setTimeout(() => el.classList.add('d-none'), 3000);
+                });
+            });
+        };
+
+        window.appendWidgetMsg = function(m) {
+            const area = document.getElementById('widget-msg-area');
+            if (!area) return;
+            const isVisitor = m.senderType === 'VISITOR';
+            const isBot     = m.senderType === 'BOT' || m.senderType === 'AI';
+            const bg = isVisitor
+                ? 'background:#3b82f6;color:white'
+                : (isBot ? 'background:#f1f5f9;border:1px solid #e2e8f0' : 'background:#dcfce7');
+            const div = document.createElement('div');
+            div.className = 'd-flex mb-2 ' + (isVisitor ? 'justify-content-end' : 'justify-content-start');
+            div.innerHTML = '<div class="d-flex flex-column" style="' +
+                (isVisitor ? 'align-items:flex-end' : 'align-items:flex-start') + ';max-width:85%">' +
+                '<small class="text-muted mb-1" style="font-size:.65rem">' + (m.senderName || '') + '</small>' +
+                '<div class="px-2 py-1 rounded-3" style="font-size:.82rem;word-break:break-word;' + bg + '">' +
+                (m.content || '').replace(/\n/g, '<br>') + '</div></div>';
+            const typing = document.getElementById('widget-typing');
+            area.insertBefore(div, typing);
+            area.scrollTop = area.scrollHeight;
+        };
+
+        window.sendWidgetMessage = function() {
+            const input = document.getElementById('widget-input');
+            const content = input?.value.trim();
+            const convId  = parseInt(document.getElementById('widget-conv-id')?.value);
+            if (!content || !widgetStomp || !convId) return;
+            widgetStomp.send('/app/chat/' + convId + '/send', {}, JSON.stringify({ content }));
+            input.value = '';
+        };
+
+        window.sendWidgetBotChoice = function(choice) {
+            const convId = parseInt(document.getElementById('widget-conv-id')?.value);
+            if (!widgetStomp || !convId) return;
+            widgetStomp.send('/app/chat/' + convId + '/bot-choice', {}, JSON.stringify({ choice }));
+            document.getElementById('widget-bot-choices')?.classList.add('d-none');
+        };
+
+        window.widgetHandleEnter = function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendWidgetMessage(); }
+        };
+
+        window.submitWidgetForm = async function(e) {
+            e.preventDefault();
+            const btn = e.target.querySelector('[type=submit]');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Chargement…';
+            await Promise.all([
+                loadScript('https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js'),
+                loadScript('https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js')
+            ]);
+            const data = new FormData(e.target);
+            const html = await fetch('/chat/widget/start', { method: 'POST', body: data }).then(r => r.text());
+            const panel = document.getElementById('chat-widget-panel');
+            panel.innerHTML = html;
+            const convIdEl = document.getElementById('widget-conv-id');
+            if (convIdEl) {
+                connectWidgetWs(parseInt(convIdEl.value));
+                setTimeout(() => {
+                    const area = document.getElementById('widget-msg-area');
+                    if (area) area.scrollTop = area.scrollHeight;
+                }, 50);
+            }
+            widgetLoaded = true;
+        };
+    })();
+    </script>
+
+    <script>
+    function cleanupBootstrapArtifacts() {
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    }
+    function hideAllModals() {
+        document.querySelectorAll('.modal.show').forEach(el => {
+            const m = bootstrap.Modal.getInstance(el);
+            if (m) m.hide();
+        });
+    }
+    window.addEventListener('load', cleanupBootstrapArtifacts);
+    document.body.addEventListener('htmx:afterOnLoad',  cleanupBootstrapArtifacts);
+    document.body.addEventListener('htmx:afterSwap',    cleanupBootstrapArtifacts);
+    document.body.addEventListener('htmx:afterSettle',  cleanupBootstrapArtifacts);
+    document.body.addEventListener('htmx:beforeRequest', hideAllModals);
+    </script>
+    <th:block layout:fragment="script"></th:block>
+    <th:block th:if="${siteSettings?.googleAnalyticsId != null and !#strings.isEmpty(siteSettings.googleAnalyticsId)}">
+        <script th:src="'https://www.googletagmanager.com/gtag/js?id=' + ${siteSettings.googleAnalyticsId}" async></script>
+        <script th:inline="javascript">
+        /*<![CDATA[*/
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', /*[[${siteSettings.googleAnalyticsId}]]*/'');
+        /*]]>*/
+        </script>
+    </th:block>
+</body>
+</html>

@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Catalogue Produits</title></head>
+<body>
+<div layout:fragment="content">
+
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-box me-2 text-success"></i>Catalogue Produits</h4>
+            <div class="text-muted small mt-1">Gestion des produits, services et licences</div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/intra/products/categories" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-tags me-1"></i>Catégories
+            </a>
+            <a href="/intra/products/new" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus me-1"></i>Nouveau produit
+            </a>
+        </div>
+    </div>
+
+    <!-- Flash -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-triangle me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                        <i class="fas fa-box text-success fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${total}">0</div>
+                        <div class="text-muted small">Total catalogue</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3">
+                        <i class="fas fa-wrench text-primary fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${countService}">0</div>
+                        <div class="text-muted small">Services</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3">
+                        <i class="fas fa-cube text-warning fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${countPhysical}">0</div>
+                        <div class="text-muted small">Produits physiques</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-info bg-opacity-10 p-3">
+                        <i class="fas fa-key text-info fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${countLicense}">0</div>
+                        <div class="text-muted small">Licences</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <a href="/intra/products?image=sans" class="text-decoration-none">
+                <div class="card border-0 shadow-sm h-100" th:classappend="${withoutImageCount > 0 ? 'border-warning border-2' : ''}">
+                    <div class="card-body d-flex align-items-center gap-3">
+                        <div class="rounded-circle bg-warning bg-opacity-10 p-3">
+                            <i class="fas fa-image text-warning fa-lg"></i>
+                        </div>
+                        <div>
+                            <div class="fs-3 fw-bold text-warning" th:text="${withoutImageCount}">0</div>
+                            <div class="text-muted small">Sans image</div>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Formulaire bulk (séparé de la table pour éviter les imbrications) -->
+    <form id="bulkForm" method="post" th:action="@{/intra/products/bulk}">
+        <input type="hidden" id="bulkAction" name="action" value="">
+        <input type="hidden" id="bulkRuleId" name="ruleId" value="">
+        <!-- Les IDs sont injectés par JS avant soumission -->
+
+        <!-- Barre d'actions groupées (masquée par défaut) -->
+        <div id="bulkBar" class="d-none mb-3">
+            <div class="card border-0 shadow-sm border-start border-4 border-primary">
+                <div class="card-body py-2 d-flex align-items-center gap-3 flex-wrap">
+                    <span class="fw-semibold text-primary small">
+                        <i class="fas fa-check-square me-1"></i>
+                        <span id="selCount">0</span> sélectionné(s)
+                    </span>
+                    <div class="vr"></div>
+                    <button type="button" class="btn btn-sm btn-success" onclick="submitBulk('publish')">
+                        <i class="fas fa-shop me-1"></i>Publier en boutique
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-warning" onclick="submitBulk('unpublish')">
+                        <i class="fas fa-eye-slash me-1"></i>Retirer de la boutique
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-info"
+                            onclick="submitBulk('fetch-images')"
+                            title="Récupère les images depuis UPCitemdb (100 req/jour gratuites)">
+                        <i class="fas fa-images me-1"></i>Récupérer images
+                    </button>
+                    <div class="vr"></div>
+                    <div class="d-flex gap-1 align-items-center">
+                        <select id="ruleSelect" class="form-select form-select-sm" style="width:200px">
+                            <option value="">— Choisir une règle —</option>
+                            <option th:each="r : ${pricingRules}"
+                                    th:value="${r.id}"
+                                    th:text="${r.name}"></option>
+                        </select>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="submitBulk('apply-rule')">
+                            <i class="fas fa-magic me-1"></i>Appliquer règle
+                        </button>
+                    </div>
+                    <div class="ms-auto">
+                        <button type="button" class="btn btn-sm btn-link text-muted" onclick="clearSelection()">
+                            <i class="fas fa-times me-1"></i>Désélectionner tout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Filter bar -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <form method="get" action="/intra/products">
+                <input type="hidden" name="page" value="0">
+                <input type="hidden" name="size" th:value="${size}">
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-3">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+                            <input type="text" name="q" class="form-control"
+                                   th:value="${q}" placeholder="Rechercher par nom...">
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="type" class="form-select form-select-sm">
+                            <option value="">Tous les types</option>
+                            <option th:each="t : ${productTypes}"
+                                    th:value="${t.name()}"
+                                    th:text="${t.label}"
+                                    th:selected="${selectedType == t.name()}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="categoryId" class="form-select form-select-sm">
+                            <option value="">Toutes les catégories</option>
+                            <th:block th:each="root : ${rootCategories}">
+                                <option th:value="${root.id}"
+                                        th:text="${root.name}"
+                                        th:selected="${categoryId != null and categoryId == root.id}"></option>
+                                <option th:each="child : ${root.children}"
+                                        th:value="${child.id}"
+                                        th:text="|  ↳ ${child.name}|"
+                                        th:selected="${categoryId != null and categoryId == child.id}"></option>
+                            </th:block>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="boutique" class="form-select form-select-sm">
+                            <option value="">Boutique : tous</option>
+                            <option value="publie"    th:selected="${boutique == 'publie'}">Publié en boutique</option>
+                            <option value="reference" th:selected="${boutique == 'reference'}">Référencé (publié ou non)</option>
+                            <option value="absent"    th:selected="${boutique == 'absent'}">Non référencé</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="image" class="form-select form-select-sm">
+                            <option value="">Image : tous</option>
+                            <option value="avec" th:selected="${image == 'avec'}">Avec image</option>
+                            <option value="sans" th:selected="${image == 'sans'}">Sans image</option>
+                        </select>
+                    </div>
+                    <div class="col-md-auto d-flex gap-1">
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="fas fa-search me-1"></i>Filtrer
+                        </button>
+                        <a href="/intra/products" class="btn btn-sm btn-outline-secondary" title="Réinitialiser">
+                            <i class="fas fa-times"></i>
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Product table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-3 pb-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <h6 class="fw-bold mb-0">
+                <i class="fas fa-list me-2 text-success"></i>Catalogue
+                <span class="text-muted fw-normal small ms-2"
+                      th:text="${productPage.totalElements} + ' produit' + (${productPage.totalElements > 1} ? 's' : '')"></span>
+            </h6>
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label small mb-0 text-muted">Par page :</label>
+                <select class="form-select form-select-sm" style="width:80px" id="sizeSelect">
+                    <option value="25"  th:selected="${size == 25}">25</option>
+                    <option value="50"  th:selected="${size == 50}">50</option>
+                    <option value="100" th:selected="${size == 100}">100</option>
+                </select>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div th:if="${productPage.empty}" class="text-center py-5 text-muted">
+                <i class="fas fa-box fa-2x mb-3 d-block"></i>Aucun produit trouvé.
+            </div>
+            <div class="table-responsive" th:unless="${productPage.empty}">
+                <table class="table table-hover align-middle mb-0" id="productsTable">
+                    <thead class="table-light">
+                    <tr>
+                        <th class="ps-3" style="width:36px">
+                            <input type="checkbox" id="selectAll" class="form-check-input"
+                                   title="Tout sélectionner">
+                        </th>
+                        <th style="width:40px"></th>
+                        <th>Nom</th>
+                        <th>SKU</th>
+                        <th>Type</th>
+                        <th class="text-end">PA HT</th>
+                        <th class="text-end">Prix HT</th>
+                        <th class="text-end">Marge</th>
+                        <th>Statut</th>
+                        <th>Boutique</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="p : ${productPage.content}"
+                        th:classappend="${!p.active ? 'opacity-50' : ''}">
+
+                        <!-- Checkbox -->
+                        <td class="ps-3">
+                            <input type="checkbox" class="form-check-input prod-check"
+                                   th:attr="data-id=${p.id}">
+                        </td>
+
+                        <!-- Photo -->
+                        <td>
+                            <img th:if="${p.photoPath != null}"
+                                 th:src="${p.photoPath}" alt="photo"
+                                 style="width:32px;height:32px;object-fit:cover" class="rounded">
+                            <div th:unless="${p.photoPath != null}"
+                                 class="rounded bg-warning bg-opacity-10 d-flex align-items-center justify-content-center"
+                                 style="width:32px;height:32px"
+                                 title="Aucune image">
+                                <i class="fas fa-exclamation-triangle text-warning" style="font-size:.75rem"></i>
+                            </div>
+                        </td>
+
+                        <!-- Nom -->
+                        <td>
+                            <a th:href="@{/intra/products/{id}(id=${p.id})}"
+                               class="fw-semibold text-decoration-none text-dark"
+                               th:text="${p.name}"></a>
+                            <div th:if="${p.category != null}" class="text-muted small"
+                                 th:text="${p.category.name}"></div>
+                        </td>
+
+                        <!-- SKU -->
+                        <td class="text-muted small" th:text="${p.sku ?: '—'}"></td>
+
+                        <!-- Type -->
+                        <td>
+                            <span class="badge"
+                                  th:classappend="${p.type.name() == 'SERVICE'  ? 'text-bg-primary'  :
+                                                   p.type.name() == 'PHYSICAL' ? 'text-bg-warning'  :
+                                                   p.type.name() == 'LICENSE'  ? 'text-bg-info'     : 'text-bg-success'}"
+                                  th:text="${p.type.label}"></span>
+                        </td>
+
+                        <!-- PA HT -->
+                        <td class="text-end small">
+                            <span th:if="${paMap[p.id] != null}" class="text-muted"
+                                  th:text="${#numbers.formatDecimal(paMap[p.id], 1, 'COMMA', 2, 'POINT')} + ' €'"></span>
+                            <span th:unless="${paMap[p.id] != null}" class="text-muted">—</span>
+                        </td>
+
+                        <!-- Prix HT -->
+                        <td class="text-end fw-semibold"
+                            th:text="${#numbers.formatDecimal(p.priceHT, 1, 'COMMA', 2, 'POINT')} + ' €'"></td>
+
+                        <!-- Marge -->
+                        <td class="text-end small">
+                            <th:block th:if="${paMap[p.id] != null and p.priceHT != null}"
+                                      th:with="marge=${p.priceHT - paMap[p.id]}">
+                                <span th:classappend="${marge >= 0 ? 'text-success fw-semibold' : 'text-danger fw-semibold'}"
+                                      th:text="${#numbers.formatDecimal(marge, 1, 'COMMA', 2, 'POINT')} + ' €'"></span>
+                            </th:block>
+                            <span th:unless="${paMap[p.id] != null and p.priceHT != null}" class="text-muted">—</span>
+                        </td>
+
+                        <!-- Statut -->
+                        <td>
+                            <span class="badge"
+                                  th:classappend="${p.active ? 'text-bg-success' : 'text-bg-secondary'}"
+                                  th:text="${p.active ? 'Actif' : 'Inactif'}"></span>
+                        </td>
+
+                        <!-- Boutique -->
+                        <td>
+                            <span th:if="${publishedIds.contains(p.id)}" class="badge bg-success">
+                                <i class="fas fa-shop me-1"></i>Publié
+                            </span>
+                            <span th:if="${inShopIds.contains(p.id) and !publishedIds.contains(p.id)}"
+                                  class="badge bg-secondary">
+                                <i class="fas fa-eye-slash me-1"></i>Masqué
+                            </span>
+                        </td>
+
+                        <!-- Actions -->
+                        <td class="pe-3">
+                            <div class="d-flex gap-1">
+                                <a th:href="@{/intra/products/{id}(id=${p.id})}"
+                                   class="btn btn-sm btn-outline-secondary" title="Voir">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <form th:action="@{/intra/products/{id}/toggle(id=${p.id})}" method="post" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                            th:title="${p.active ? 'Désactiver' : 'Activer'}">
+                                        <i th:classappend="${p.active ? 'fas fa-toggle-on text-success' : 'fas fa-toggle-off text-muted'}"></i>
+                                    </button>
+                                </form>
+                                <form th:if="${p.photoPath == null}"
+                                      th:action="@{/intra/products/{id}/fetch-image(id=${p.id})}" method="post" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-warning"
+                                            title="Récupérer image automatiquement">
+                                        <i class="fas fa-image"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div th:if="${productPage.totalPages > 1}"
+             class="card-footer bg-white border-top d-flex align-items-center justify-content-between flex-wrap gap-2 py-2">
+            <small class="text-muted">
+                Page <strong th:text="${productPage.number + 1}"></strong>
+                sur <strong th:text="${productPage.totalPages}"></strong>
+                &mdash; <span th:text="${productPage.totalElements}"></span>
+                résultat<span th:if="${productPage.totalElements > 1}">s</span>
+            </small>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item" th:classappend="${!productPage.hasPrevious()} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/intra/products(q=${q},type=${selectedType},categoryId=${categoryId},boutique=${boutique},image=${image},page=${productPage.number - 1},size=${size})}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    <th:block th:each="pn : ${pageWindow}">
+                        <li th:if="${pn == -1}" class="page-item disabled">
+                            <span class="page-link">…</span>
+                        </li>
+                        <li th:unless="${pn == -1}" class="page-item"
+                            th:classappend="${pn == productPage.number} ? 'active'">
+                            <a class="page-link"
+                               th:href="@{/intra/products(q=${q},type=${selectedType},categoryId=${categoryId},boutique=${boutique},image=${image},page=${pn},size=${size})}"
+                               th:text="${pn + 1}"></a>
+                        </li>
+                    </th:block>
+                    <li class="page-item" th:classappend="${!productPage.hasNext()} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/intra/products(q=${q},type=${selectedType},categoryId=${categoryId},boutique=${boutique},image=${image},page=${productPage.number + 1},size=${size})}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+
+</div>
+<th:block layout:fragment="script">
+<script th:inline="javascript">
+(function () {
+
+    // ── Sélecteur de taille de page ───────────────────────────────────────────
+    var sizeSelect = document.getElementById('sizeSelect');
+    if (sizeSelect) {
+        sizeSelect.addEventListener('change', function () {
+            var q          = /*[[${q}]]*/ '';
+            var type       = /*[[${selectedType}]]*/ '';
+            var categoryId = /*[[${categoryId}]]*/ '';
+            var boutique   = /*[[${boutique}]]*/ '';
+            var image      = /*[[${image}]]*/ '';
+            var url = '/intra/products?page=0&size=' + this.value;
+            if (q)          url += '&q='          + encodeURIComponent(q);
+            if (type)       url += '&type='       + encodeURIComponent(type);
+            if (categoryId) url += '&categoryId=' + encodeURIComponent(categoryId);
+            if (boutique)   url += '&boutique='   + encodeURIComponent(boutique);
+            if (image)      url += '&image='      + encodeURIComponent(image);
+            window.location.href = url;
+        });
+    }
+
+    // ── Gestion des cases à cocher ────────────────────────────────────────────
+    var bulkBar  = document.getElementById('bulkBar');
+    var selCount = document.getElementById('selCount');
+    var selectAll = document.getElementById('selectAll');
+
+    function getChecked() {
+        return document.querySelectorAll('.prod-check:checked');
+    }
+
+    function updateBar() {
+        var checked = getChecked();
+        var n = checked.length;
+        selCount.textContent = n;
+        bulkBar.classList.toggle('d-none', n === 0);
+        if (selectAll) {
+            var all = document.querySelectorAll('.prod-check');
+            selectAll.indeterminate = n > 0 && n < all.length;
+            selectAll.checked = n > 0 && n === all.length;
+        }
+    }
+
+    document.querySelectorAll('.prod-check').forEach(function (cb) {
+        cb.addEventListener('change', updateBar);
+    });
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            document.querySelectorAll('.prod-check').forEach(function (cb) {
+                cb.checked = selectAll.checked;
+            });
+            updateBar();
+        });
+    }
+
+    // ── Soumission des actions groupées ───────────────────────────────────────
+    window.submitBulk = function (action) {
+        var checked = getChecked();
+        if (checked.length === 0) return;
+
+        if (action === 'apply-rule') {
+            var ruleId = document.getElementById('ruleSelect').value;
+            if (!ruleId) { alert('Veuillez sélectionner une règle de prix.'); return; }
+            document.getElementById('bulkRuleId').value = ruleId;
+        }
+
+        document.getElementById('bulkAction').value = action;
+
+        var form = document.getElementById('bulkForm');
+        // Nettoyer les anciens IDs
+        form.querySelectorAll('.bulk-id').forEach(function (el) { el.remove(); });
+        // Ajouter les IDs sélectionnés
+        checked.forEach(function (cb) {
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'ids';
+            input.value = cb.getAttribute('data-id');
+            input.className = 'bulk-id';
+            form.appendChild(input);
+        });
+
+        if (!confirm(checked.length + ' produit(s) sélectionné(s). Continuer ?')) return;
+        form.submit();
+    };
+
+    window.clearSelection = function () {
+        document.querySelectorAll('.prod-check').forEach(function (cb) { cb.checked = false; });
+        if (selectAll) selectAll.checked = false;
+        updateBar();
+    };
+
+})();
+</script>
+</th:block>
+</body>
+</html>

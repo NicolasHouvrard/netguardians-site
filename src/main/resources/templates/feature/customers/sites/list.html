@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+<head>
+    <title>Sites</title>
+</head>
+<body>
+<section layout:fragment="content">
+    <div class="container-fluid">
+
+        <div class="d-sm-flex align-items-center justify-content-between mb-4">
+            <h1 class="h3 mb-0 text-gray-800">
+                Sites de <span th:text="${customer.companyName}"></span>
+            </h1>
+            <button class="btn btn-primary shadow-sm"
+                    th:hx-get="@{/customers/{cid}/sites/new(cid=${customer.id})}"
+                    hx-target="#modal-body"
+                    hx-swap="innerHTML"
+                    data-bs-toggle="modal"
+                    data-bs-target="#siteModal">
+                <i class="fas fa-plus fa-sm text-white-50"></i> Nouveau site
+            </button>
+        </div>
+        <p th:text="'Nombre de sites : ' + ${#lists.size(sites)}"></p>
+        <!-- Message succès -->
+        <div th:if="${successMessage}" class="alert alert-success" th:text="${successMessage}"></div>
+
+        <div class="row" id="sites-list"
+                th:fragment="sites-lists"  style="border: 2px solid red" >
+                <div th:each="site : ${sites}" 
+                        th:id="'site-' + ${site.id}"
+                        class="col-md-3 mb-4">
+                        <div class="card shadow h-100">
+                            <div class="card-body">
+                                <h5 class="card-title" th:text="${site.name}">Nom du site</h5>
+                                <p class="card-text text-muted">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span th:text="${site.address}"></span><br/>
+                                    <span th:text="${site.zipCode + ' ' + site.city}"></span><br/>
+                                    <span th:text="${site.country}"></span>
+                                </p>
+                                <span class="badge text-bg-success" th:if="${site.active}">Actif</span>
+                                <span class="badge text-bg-secondary" th:unless="${site.active}">Inactif</span>
+                            </div>
+                            <div class="card-footer d-flex justify-content-between">
+                                <a th:href="@{/customers/{cid}/sites/{sid}/contacts(cid=${customer.id},sid=${site.id})}"
+                                class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-users"></i> Contacts
+                                </a>
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            th:hx-get="@{/customers/{cid}/sites/edit/{sid}(cid=${customer.id},sid=${site.id})}"
+                                            hx-target="#modal-body"
+                                            hx-swap="innerHTML"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#siteModal">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            th:hx-delete="@{/customers/{cid}/sites/delete/{sid}(cid=${customer.id},sid=${site.id})}"
+                                            hx-target="#sites-list"
+                                            hx-swap="outerHTML"
+                                            hx-confirm="Supprimer ce site ?">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                </div>
+
+     </div>
+    <!-- Modal HTMX -->
+    <div class="modal fade" id="siteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Site</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="modal-body">
+                    <!-- Formulaire chargé par HTMX -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- freg list-->
+     
+
+</section>
+</body>
+</html>

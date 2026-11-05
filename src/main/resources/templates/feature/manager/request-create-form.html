@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{admin-layout}">
+<head>
+    <title>Nouvelle demande</title>
+    <style>
+        .origin-card    { border-left: 4px solid #0d6efd; background: #f8f9ff; }
+        .contact-detail { border-left: 4px solid #198754; background: #f0fff4; }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container-fluid">
+
+        <div class="d-sm-flex align-items-center justify-content-between mb-4">
+            <h1 class="h3 mb-0 text-gray-800">Nouvelle demande</h1>
+            <a th:href="@{/admin/request-manager/all}" class="btn btn-secondary btn-sm shadow-sm">
+                <i class="fas fa-arrow-left fa-sm"></i> Retour à la liste
+            </a>
+        </div>
+
+        <form th:action="@{/admin/request-manager/save}" th:object="${request}" method="post">
+            <input type="hidden" th:field="*{id}" />
+            <!--/* Verrouillage optimiste (@Version sur Syncable) : round-trip obligatoire, sinon l'enregistrement d'une demande existante echoue */-->
+            <input type="hidden" th:field="*{version}" />
+
+            <!-- ══ ORIGINE ════════════════════════════════════════════════ -->
+            <div class="card origin-card shadow-sm mb-4">
+                <div class="card-header py-2 d-flex align-items-center gap-2">
+                    <i class="fas fa-map-pin text-primary"></i>
+                    <span class="fw-bold">Origine de la demande</span>
+                </div>
+                <div class="card-body pb-2">
+                    <div class="row g-3 align-items-start">
+
+                        <!-- CLIENT
+                             Recherche → recharge les options de #customerSelect
+                             Select    → recharge les sites
+                        -->
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small text-uppercase text-muted">Client *</label>
+                            <div class="input-group mb-1">
+                                <span class="input-group-text bg-white border-end-0">
+                                    <i class="fas fa-search text-muted small"></i>
+                                </span>
+                                <input type="text" name="q"
+                                       class="form-control form-control-sm border-start-0"
+                                       placeholder="Filtrer les clients…"
+                                       autocomplete="off"
+                                       hx-get="/admin/request-manager/customer-options"
+                                       hx-trigger="input changed delay:250ms"
+                                       hx-target="#customerSelect"
+                                       hx-swap="innerHTML"
+                                       hx-include="this">
+                            </div>
+                            <select id="customerSelect"
+                                    name="customer.id"
+                                    class="form-select form-select-sm"
+                                    required
+                                    hx-get="/admin/request-manager/site-options"
+                                    hx-trigger="change"
+                                    hx-target="#siteSelect"
+                                    hx-swap="innerHTML"
+                                    hx-include="this">
+                                <option value="">— Choisir un client —</option>
+                                <option th:each="c : ${customers}"
+                                        th:value="${c.id}"
+                                        th:text="${c.companyName}">
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- SITE
+                             Recherche → recharge les options de #siteSelect
+                             Select    → recharge les contacts
+                        -->
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small text-uppercase text-muted">Site</label>
+                            <div class="input-group mb-1">
+                                <span class="input-group-text bg-white border-end-0">
+                                    <i class="fas fa-search text-muted small"></i>
+                                </span>
+                                <input type="text" name="q"
+                                       class="form-control form-control-sm border-start-0"
+                                       placeholder="Filtrer les sites…"
+                                       autocomplete="off"
+                                       hx-get="/admin/request-manager/site-options"
+                                       hx-trigger="input changed delay:250ms"
+                                       hx-target="#siteSelect"
+                                       hx-swap="innerHTML"
+                                       hx-include="this, #customerSelect">
+                            </div>
+                            <select id="siteSelect"
+                                    name="siteId"
+                                    class="form-select form-select-sm"
+                                    hx-get="/admin/request-manager/contact-options"
+                                    hx-trigger="change"
+                                    hx-target="#contactSelect"
+                                    hx-swap="innerHTML"
+                                    hx-include="this, #customerSelect">
+                                <option value="">— Tous les sites —</option>
+                            </select>
+                        </div>
+
+                        <!-- CONTACT
+                             Recherche → recharge les options de #contactSelect
+                             Select    → remplace la carte de détail
+                        -->
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small text-uppercase text-muted">Contact</label>
+                            <div class="input-group mb-1">
+                                <span class="input-group-text bg-white border-end-0">
+                                    <i class="fas fa-search text-muted small"></i>
+                                </span>
+                                <input type="text" name="q"
+                                       class="form-control form-control-sm border-start-0"
+                                       placeholder="Filtrer les contacts…"
+                                       autocomplete="off"
+                                       hx-get="/admin/request-manager/contact-options"
+                                       hx-trigger="input changed delay:250ms"
+                                       hx-target="#contactSelect"
+                                       hx-swap="innerHTML"
+                                       hx-include="this, #siteSelect, #customerSelect">
+                            </div>
+                            <select id="contactSelect"
+                                    name="contactId"
+                                    class="form-select form-select-sm"
+                                    hx-get="/admin/request-manager/contact-detail"
+                                    hx-trigger="change"
+                                    hx-target="#contactDetailCard"
+                                    hx-swap="outerHTML"
+                                    hx-include="this">
+                                <option value="">— Sélectionner un contact —</option>
+                            </select>
+                        </div>
+
+                        <!-- CARTE DÉTAIL CONTACT (vide au chargement, remplie par HTMX) -->
+                        <div class="col-md-3 d-flex align-items-end">
+                            <div id="contactDetailCard"
+                                 class="contact-detail rounded px-3 py-2 w-100 d-none"></div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══ CORPS ══════════════════════════════════════════════════ -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+
+                    <div class="form-group mb-3">
+                        <label class="d-block fw-bold">Type d'opération <span class="text-danger">*</span></label>
+                        <div class="row">
+                            <div th:each="t : ${requestTypes}" class="col-md-4 col-sm-6 mb-2">
+                                <div class="custom-control custom-radio h-100 p-0">
+                                    <input type="radio" th:id="${'type-' + t.name()}" th:field="*{type}"
+                                           th:value="${t}" class="custom-control-input" required>
+                                    <label th:for="${'type-' + t.name()}"
+                                           class="custom-control-label btn btn-outline-primary w-100 py-3 shadow-sm h-100 d-flex align-items-center justify-content-center">
+                                        <i th:class="'fas ' + ${t.icon} + ' mr-2'"></i>
+                                        <span th:text="${t.label}"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-3">
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label fw-bold">Objet de la demande *</label>
+                            <input type="text" th:field="*{title}" class="form-control"
+                                   placeholder="Ex : Devis climatisation, Panne serveur…" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Priorité</label>
+                            <select th:field="*{priority}" class="form-control">
+                                <option th:each="p : ${T(com.logicielpourtous.site.features.request.RequestPriority).values()}"
+                                        th:value="${p}" th:text="${p.displayValue}"></option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Description détaillée</label>
+                        <textarea th:field="*{description}" class="form-control" rows="4"
+                                  placeholder="Décrivez la demande en détail…"></textarea>
+                    </div>
+
+                    <div class="row mt-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Temps estimé</label>
+                            <div class="input-group input-group-sm" style="max-width:220px">
+                                <input type="number" name="estimatedHoursInput" min="0" value="0"
+                                       class="form-control" style="max-width:70px">
+                                <span class="input-group-text">h</span>
+                                <input type="number" name="estimatedMinsInput" min="0" max="59" value="0"
+                                       class="form-control" style="max-width:70px">
+                                <span class="input-group-text">min</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 d-flex gap-2">
+                        <button type="submit" class="btn btn-success px-4">
+                            <i class="fas fa-save me-1"></i> Créer la demande
+                        </button>
+                        <a th:href="@{/admin/request-manager/all}" class="btn btn-secondary">Annuler</a>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+</body>
+</html>

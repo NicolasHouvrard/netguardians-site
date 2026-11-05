@@ -1,0 +1,29 @@
+package com.logicielpourtous.site.features.api.mobile.dto;
+
+public record InterventionDetailDto(
+    Long id,
+    String reference,
+    String title,
+    String status,
+    String statusLabel,
+    String type,
+    String typeLabel,
+    String date,
+    String scheduledStart,
+    String scheduledEnd,
+    String actualStart,
+    String actualEnd,
+    Integer actualDurationMinutes,
+    String description,
+    String resolution,
+    Boolean successful,
+    String address,
+    String city,
+    String zipCode,
+    String customerName,
+    Long customerId,
+    String technicianSignature,
+    String technicianSignatureName,
+    String clientSignature,
+    String clientSignatureName
+) {}

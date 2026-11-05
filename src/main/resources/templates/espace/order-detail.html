@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      layout:decorate="~{espace-layout}">
+<head><title>Commande</title></head>
+<body>
+<div layout:fragment="content">
+
+    <!-- En-tête -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h4 class="mb-0 fw-bold" th:text="${order.reference}"></h4>
+            <small class="text-muted"
+                   th:text="'Soumise le ' + ${#temporals.format(order.createdAt,'dd/MM/yyyy à HH:mm')}"></small>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <span class="badge fs-6 px-3 py-2"
+                  th:classappend="'bg-' + ${order.status.badgeCss}"
+                  th:text="${order.status.label}"></span>
+            <a th:href="@{/espace/orders}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>Retour
+            </a>
+        </div>
+    </div>
+
+    <!-- Flash -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-triangle-exclamation me-2"></i><span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- Colonne gauche : formulaire (gestionnaire) / lecture seule (client) -->
+        <div class="col-lg-7">
+
+            <!-- Bannière validation (gestionnaire, PENDING_VALIDATION) -->
+            <div sec:authorize="hasRole('ROLE_GESTIONNAIRE')"
+                 th:if="${order.status.name() == 'PENDING_VALIDATION'}"
+                 class="card border-warning shadow-sm mb-4">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <i class="fas fa-hourglass-half fa-2x text-warning flex-shrink-0"></i>
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold">Cette demande attend votre validation.</div>
+                        <small class="text-muted">
+                            Vérifiez et complétez les informations si nécessaire, puis validez pour lancer le paiement.
+                        </small>
+                    </div>
+                    <form th:action="@{/espace/orders/{id}/validate(id=${order.id})}" method="post">
+                        <button type="submit" class="btn btn-warning fw-semibold flex-shrink-0">
+                            <i class="fas fa-check me-1"></i>Valider &amp; lancer le paiement
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Bannière post-validation : virement -->
+            <div th:if="${order.status.name() == 'AWAITING_TRANSFER'}"
+                 class="alert alert-primary d-flex gap-3 mb-4">
+                <i class="fas fa-university fa-lg mt-1 flex-shrink-0"></i>
+                <div>
+                    <strong>Virement en attente</strong><br>
+                    <span class="small">
+                        Référence virement :
+                        <code th:text="${order.bankRef}"></code><br>
+                        <a th:href="@{/boutique/virement/{ref}(ref=${order.reference})}"
+                           target="_blank">Voir les instructions de virement</a>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Bannière post-validation : Stripe -->
+            <div th:if="${order.status.name() == 'PENDING_PAYMENT'
+                          and order.paymentMethod?.name() == 'STRIPE'}"
+                 class="alert alert-info d-flex gap-3 mb-4">
+                <i class="fab fa-stripe fa-lg mt-1 flex-shrink-0"></i>
+                <div>
+                    <strong>Paiement par carte</strong><br>
+                    <span class="small">
+                        <a th:href="@{/boutique/paiement/{ref}/stripe(ref=${order.reference})}"
+                           class="btn btn-sm btn-primary mt-1">
+                            <i class="fas fa-credit-card me-1"></i>Payer par carte
+                        </a>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Formulaire édition (gestionnaire uniquement) -->
+            <div sec:authorize="hasRole('ROLE_GESTIONNAIRE')">
+            <form th:action="@{/espace/orders/{id}/update(id=${order.id})}" method="post">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-transparent fw-semibold">
+                        <i class="fas fa-user me-2 text-primary"></i>Coordonnées
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-7">
+                                <label class="form-label small fw-semibold">Nom / Prénom *</label>
+                                <input type="text" name="customerName" class="form-control" required
+                                       th:value="${order.customerName}">
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label small fw-semibold">Téléphone</label>
+                                <input type="tel" name="phone" class="form-control"
+                                       th:value="${order.phone}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-transparent fw-semibold">
+                        <i class="fas fa-truck me-2 text-primary"></i>Livraison
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Adresse</label>
+                            <input type="text" name="shippingAddress" class="form-control"
+                                   th:value="${order.shippingAddress}">
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-4">
+                                <label class="form-label small fw-semibold">Code postal</label>
+                                <input type="text" name="shippingZip" class="form-control"
+                                       th:value="${order.shippingZip}">
+                            </div>
+                            <div class="col-8">
+                                <label class="form-label small fw-semibold">Ville</label>
+                                <input type="text" name="shippingCity" class="form-control"
+                                       th:value="${order.shippingCity}">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label small fw-semibold">Pays</label>
+                            <input type="text" name="shippingCountry" class="form-control"
+                                   th:value="${order.shippingCountry}">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-transparent fw-semibold">
+                        <i class="fas fa-credit-card me-2 text-primary"></i>Paiement &amp; notes
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Mode de paiement</label>
+                            <select name="paymentMethod" class="form-select">
+                                <option th:each="pm : ${paymentMethods}"
+                                        th:value="${pm.name()}"
+                                        th:text="${pm.label}"
+                                        th:selected="${pm == order.paymentMethod}"></option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label small fw-semibold">Notes</label>
+                            <textarea name="notes" class="form-control" rows="3"
+                                      th:text="${order.notes}"></textarea>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Enregistrer les modifications
+                        </button>
+                    </div>
+                </div>
+            </form>
+            </div>
+
+            <!-- Vue lecture seule (client) -->
+            <div sec:authorize="!hasRole('ROLE_GESTIONNAIRE')">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-transparent fw-semibold">
+                        <i class="fas fa-info-circle me-2 text-primary"></i>Détails de la commande
+                    </div>
+                    <div class="card-body small">
+                        <div class="row g-2">
+                            <div class="col-sm-4 text-muted">Nom</div>
+                            <div class="col-sm-8 fw-semibold" th:text="${order.customerName}"></div>
+                            <div class="col-sm-4 text-muted" th:if="${order.phone}">Téléphone</div>
+                            <div class="col-sm-8" th:if="${order.phone}" th:text="${order.phone}"></div>
+                            <div class="col-sm-4 text-muted" th:if="${order.shippingAddress}">Adresse</div>
+                            <div class="col-sm-8" th:if="${order.shippingAddress}"
+                                 th:text="${order.shippingAddress + (order.shippingCity != null ? ', ' + order.shippingZip + ' ' + order.shippingCity : '')}"></div>
+                            <div class="col-sm-4 text-muted" th:if="${order.notes}">Notes</div>
+                            <div class="col-sm-8" th:if="${order.notes}" th:text="${order.notes}"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Colonne droite : récapitulatif produits -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent fw-semibold">Produits commandés</div>
+                <div class="card-body p-0">
+                    <div th:each="line, stat : ${order.lines}"
+                         th:class="${stat.last} ? 'p-3' : 'p-3 border-bottom'">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-semibold small" th:text="${line.productName}"></div>
+                                <small class="text-muted">
+                                    <span th:text="${line.quantity}"></span> ×
+                                    <span th:text="${#numbers.formatDecimal(line.unitPriceHT,1,'COMMA',2,'POINT')}"></span> € HT
+                                </small>
+                            </div>
+                            <span class="fw-semibold small"
+                                  th:text="${#numbers.formatDecimal(line.lineTotalTTC,1,'COMMA',2,'POINT')} + ' €'"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <div class="d-flex justify-content-between text-muted small mb-1">
+                        <span>HT</span>
+                        <span th:text="${#numbers.formatDecimal(order.totalHT,1,'COMMA',2,'POINT')} + ' €'"></span>
+                    </div>
+                    <div class="d-flex justify-content-between text-muted small mb-2">
+                        <span>TVA</span>
+                        <span th:text="${#numbers.formatDecimal(order.vatAmount,1,'COMMA',2,'POINT')} + ' €'"></span>
+                    </div>
+                    <div class="d-flex justify-content-between fw-bold">
+                        <span>Total TTC</span>
+                        <span class="text-primary"
+                              th:text="${#numbers.formatDecimal(order.totalTTC,1,'COMMA',2,'POINT')} + ' €'"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

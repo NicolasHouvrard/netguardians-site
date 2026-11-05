@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Fournisseurs</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="mb-0"><i class="fas fa-truck me-2 text-secondary"></i>Fournisseurs</h4>
+            <div class="text-muted small mt-1">Gestion du portefeuille fournisseurs et APIs</div>
+        </div>
+        <a href="/intra/suppliers/new" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus me-1"></i>Nouveau fournisseur
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-secondary bg-opacity-10 p-3">
+                        <i class="fas fa-truck text-secondary fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${total}">0</div>
+                        <div class="text-muted small">Fournisseurs</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3">
+                        <i class="fas fa-plug text-primary fa-lg"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold" th:text="${countWithApi}">0</div>
+                        <div class="text-muted small">Avec synchronisation API</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0"><i class="fas fa-list me-2 text-secondary"></i>
+                <span th:text="${total}">0</span> fournisseur(s)
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(suppliers)}" class="text-center py-5 text-muted">
+                <i class="fas fa-truck fa-2x mb-3 d-block"></i>Aucun fournisseur.
+            </div>
+            <div class="table-responsive" th:unless="${#lists.isEmpty(suppliers)}">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">Nom</th>
+                        <th>Email</th>
+                        <th>Site web</th>
+                        <th>API</th>
+                        <th>Produits</th>
+                        <th>Dernière synchro</th>
+                        <th>Statut</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="s : ${suppliers}"
+                        th:classappend="${!s.active ? 'opacity-50' : ''}">
+                        <td class="ps-3">
+                            <a th:href="@{/intra/suppliers/{id}(id=${s.id})}"
+                               class="fw-semibold text-decoration-none text-dark"
+                               th:text="${s.companyName}"></a>
+                        </td>
+                        <td class="text-muted small" th:text="${s.email ?: '—'}"></td>
+                        <td class="small">
+                            <a th:if="${s.website != null}"
+                               th:href="${s.website}" target="_blank"
+                               class="text-decoration-none text-truncate d-inline-block" style="max-width:140px"
+                               th:text="${s.website}"></a>
+                            <span th:unless="${s.website != null}" class="text-muted">—</span>
+                        </td>
+                        <td>
+                            <span th:if="${s.supplierApiType != null}" class="badge"
+                                  th:classappend="${s.supplierApiType.name() == 'NONE'         ? 'text-bg-secondary' :
+                                                   s.supplierApiType.name() == 'INGRAM_MICRO'  ? 'text-bg-primary'   :
+                                                   s.supplierApiType.name() == 'TECHDATA'      ? 'text-bg-info'      : 'text-bg-warning'}"
+                                  th:text="${s.supplierApiType.label}"></span>
+                            <span th:unless="${s.supplierApiType != null}" class="text-muted small">—</span>
+                        </td>
+                        <td>
+                            <span class="badge text-bg-light text-dark border"
+                                  th:text="${productCounts[s.id] ?: 0}"></span>
+                        </td>
+                        <td class="text-muted small"
+                            th:text="${s.supplierLastSyncAt != null ? #temporals.format(s.supplierLastSyncAt, 'dd/MM/yyyy HH:mm') : '—'}"></td>
+                        <td>
+                            <span class="badge"
+                                  th:classappend="${s.active ? 'text-bg-success' : 'text-bg-secondary'}"
+                                  th:text="${s.active ? 'Actif' : 'Inactif'}"></span>
+                        </td>
+                        <td class="pe-3">
+                            <a th:href="@{/intra/suppliers/{id}(id=${s.id})}"
+                               class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-eye me-1"></i>Voir
+                            </a>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

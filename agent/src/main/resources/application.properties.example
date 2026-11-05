@@ -1,0 +1,42 @@
+spring.application.name=agent
+
+# Deploiement bleu-vert : port HTTP local sur lequel cet Agent expose sa route de reveil (POST
+# /reveil, sans corps) — c'est CE port que DeploiementScheduler (cote appli principale/Maitre)
+# utilise pour contacter l'Agent de chaque LicenceServeur ACTIF (voir app.agent.port cote appli
+# principale, application.properties.example). Meme valeur conventionnelle, 8090, cote des deux
+# projets.
+server.port=${AGENT_PORT:8090}
+
+# Chemin, sur CE MEME hote, vers le fichier LOCAL (jamais une route HTTP — voir la javadoc de
+# MaitreClient et AgentCleApiFileWriter de l'appli principale) dans lequel l'appli principale
+# ecrit la cle API licence de cette installation. Absent tant que ce serveur n'est pas encore
+# enrole : MaitreClient.recupererOrdre() traite alors cet etat comme NORMAL (Optional.empty(),
+# jamais une exception), pas une erreur.
+#
+# OBLIGATOIRE, AUCUNE valeur par defaut devinee : DOIT etre configure pour pointer EXACTEMENT
+# vers le meme chemin que app.agent.cle-api-file-path cote appli principale (meme hote, meme
+# fichier) — un chemin devine par defaut pointerait presque certainement ailleurs.
+app.maitre.cle-api-file-path=${MAITRE_CLE_API_FILE_PATH:}
+
+# URL de base du Maitre (ex. https://maitre.example.com) utilisee par MaitreClient pour GET
+# /api/licence/ordre-deploiement, authentifie avec la cle API licence lue localement
+# (app.maitre.cle-api-file-path ci-dessus).
+#
+# OBLIGATOIRE, AUCUNE valeur par defaut devinee : aucune URL de Maitre par defaut n'a de sens ici.
+app.maitre.url=${MAITRE_URL:}
+
+# Proprietaire GHCR utilise par OrchestrateurDeploiement (Task 9) pour construire l'image a
+# deployer par convention (ghcr.io/<owner>/site:<tag>, voir le plan).
+#
+# OBLIGATOIRE, AUCUNE valeur par defaut devinee : meme discipline que app.deploiement.github-repo
+# cote appli principale (GitHubReleaseClient) — deviner un proprietaire par defaut risquerait de
+# pointer silencieusement vers l'image de quelqu'un d'autre.
+app.deploiement.docker-image-owner=${DEPLOIEMENT_DOCKER_IMAGE_OWNER:}
+
+# Chemin, sur CE MEME hote, vers le fichier de config upstream Nginx local (voir BasculeNginx,
+# Task 8) que OrchestrateurDeploiement (Task 9) reecrit a chaque bascule reussie avant de recharger
+# Nginx (nginx -s reload).
+#
+# OBLIGATOIRE, AUCUNE valeur par defaut devinee : DOIT pointer vers le fichier reellement inclus
+# par la config Nginx de cet hote (voir nginx-upstream.conf.template).
+app.nginx.fichier-config-upstream=${NGINX_FICHIER_CONFIG_UPSTREAM:}

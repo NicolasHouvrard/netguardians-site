@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Objectifs commerciaux</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h4 class="mb-0"><i class="fas fa-bullseye me-2 text-success"></i>Objectifs commerciaux</h4>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show py-2">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- ── Formulaire de création (admin uniquement) ───────────────────────── -->
+    <div sec:authorize="hasRole('ADMIN')" class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0"><i class="fas fa-plus-circle me-2 text-success"></i>Nouvel objectif</h6>
+        </div>
+        <div class="card-body">
+            <form action="/intra/commercial/objectives" method="post">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Période</label>
+                        <select name="period" class="form-select form-select-sm" required>
+                            <option th:each="p : ${periods}" th:value="${p.name()}" th:text="${p.label}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-semibold">Année</label>
+                        <input type="number" name="year" class="form-control form-control-sm"
+                               th:value="${currentYear}" min="2020" max="2030" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-semibold">Mois (0=tout)</label>
+                        <input type="number" name="month" class="form-control form-control-sm"
+                               th:value="${currentMonth}" min="0" max="12">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Métrique</label>
+                        <select name="metric" class="form-select form-select-sm" required>
+                            <option th:each="m : ${metrics}" th:value="${m.name()}" th:text="${m.label}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-semibold">Cible</label>
+                        <input type="number" name="targetValue" class="form-control form-control-sm"
+                               step="1" min="0" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Commercial (optionnel)</label>
+                        <select name="commercialId" class="form-select form-select-sm">
+                            <option value="">— Tous les commerciaux —</option>
+                            <option th:each="u : ${users}" th:value="${u.id}" th:text="${u.fullName}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Équipe (optionnel)</label>
+                        <select name="teamId" class="form-select form-select-sm">
+                            <option value="">— Toutes les équipes —</option>
+                            <option th:each="t : ${teams}" th:value="${t.id}" th:text="${t.name}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Notes</label>
+                        <input type="text" name="notes" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-sm btn-success">
+                            <i class="fas fa-save me-1"></i>Créer l'objectif
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ── Grille des objectifs ───────────────────────────────────────────── -->
+    <div th:if="${#lists.isEmpty(objectives)}" class="text-center text-muted py-5">
+        <i class="fas fa-bullseye fa-2x mb-2 d-block opacity-25"></i>
+        Aucun objectif défini.
+    </div>
+    <div class="row g-3" th:unless="${#lists.isEmpty(objectives)}">
+        <div th:each="obj : ${objectives}" class="col-md-6 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-start justify-content-between mb-2">
+                        <div>
+                            <span class="badge text-bg-success me-1" th:text="${obj.period.label}"></span>
+                            <span class="badge text-bg-light text-dark border"
+                                  th:text="${obj.year + (obj.month > 0 ? '/' + obj.month : '')}"></span>
+                        </div>
+                        <form sec:authorize="hasRole('ADMIN')"
+                              th:action="@{/intra/commercial/objectives/{id}/delete(id=${obj.id})}" method="post">
+                            <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1"
+                                    onclick="return confirm('Supprimer cet objectif ?')">
+                                <i class="fas fa-times" style="font-size:.65rem"></i>
+                            </button>
+                        </form>
+                    </div>
+                    <div class="fw-bold mb-1" th:text="${obj.metric.label}"></div>
+                    <div th:if="${obj.commercial != null}" class="text-muted small mb-1">
+                        <i class="fas fa-user me-1"></i><span th:text="${obj.commercial.fullName}"></span>
+                    </div>
+                    <div th:if="${obj.team != null}" class="text-muted small mb-1">
+                        <i class="fas fa-users me-1"></i><span th:text="${obj.team.name}"></span>
+                    </div>
+
+                    <!-- Progress bar -->
+                    <div class="mt-2">
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span class="text-muted">Atteint</span>
+                            <span class="fw-semibold">
+                                <span th:text="${#numbers.formatDecimal(achievedMap[obj.id] ?: 0, 1, 0)}"></span>
+                                /
+                                <span th:text="${#numbers.formatDecimal(obj.targetValue, 1, 0)}"></span>
+                            </span>
+                        </div>
+                        <div class="progress" style="height:8px">
+                            <div class="progress-bar bg-success"
+                                 th:style="'width:' + ${#numbers.formatDecimal(
+                                     obj.targetValue != null and obj.targetValue > 0
+                                         ? T(java.lang.Math).min(100, (achievedMap[obj.id] ?: 0).doubleValue() / obj.targetValue.doubleValue() * 100)
+                                         : 0, 1, 1)} + '%'">
+                            </div>
+                        </div>
+                        <div class="text-end small text-muted mt-1"
+                             th:text="${obj.targetValue != null and obj.targetValue > 0
+                                 ? #numbers.formatDecimal(T(java.lang.Math).min(100, (achievedMap[obj.id] ?: 0).doubleValue() / obj.targetValue.doubleValue() * 100), 1, 1) + ' %'
+                                 : '—'}">
+                        </div>
+                    </div>
+                    <div th:if="${obj.notes != null and not #strings.isEmpty(obj.notes)}"
+                         class="text-muted small mt-2 fst-italic" th:text="${obj.notes}"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

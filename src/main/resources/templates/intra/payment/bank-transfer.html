@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 fw-bold"><i class="fas fa-university me-2 text-success"></i>Virement Bancaire</h1>
+            <small class="text-muted">Coordonnées bancaires pour les paiements par virement</small>
+        </div>
+        <a th:href="@{/intra/payment/stripe}" class="btn btn-outline-secondary btn-sm">
+            <i class="fab fa-stripe me-1"></i>Stripe
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i><span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+
+            <!-- Statut actuel -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body d-flex align-items-center gap-3 py-3">
+                    <div th:if="${config.active}" class="text-success">
+                        <i class="fas fa-circle-check fa-2x"></i>
+                    </div>
+                    <div th:unless="${config.active}" class="text-secondary">
+                        <i class="fas fa-circle-xmark fa-2x"></i>
+                    </div>
+                    <div>
+                        <div class="fw-semibold"
+                             th:text="${config.active} ? 'Virement bancaire activé' : 'Virement bancaire désactivé'"></div>
+                        <small class="text-muted"
+                               th:if="${config.updatedAt}"
+                               th:text="'Dernière mise à jour : ' + ${#temporals.format(config.updatedAt,'dd/MM/yyyy à HH:mm')}"></small>
+                        <small class="text-muted" th:unless="${config.updatedAt}">Jamais configuré</small>
+                    </div>
+                    <div class="ms-auto">
+                        <span class="badge"
+                              th:classappend="${config.active} ? 'bg-success' : 'bg-secondary'"
+                              th:text="${config.active} ? 'Actif' : 'Inactif'"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulaire -->
+            <form th:action="@{/intra/payment/bank-transfer}" method="post">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-transparent fw-semibold">
+                        Coordonnées bancaires
+                    </div>
+                    <div class="card-body">
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">IBAN</label>
+                            <div th:if="${config.hasIban()}" class="input-group mb-1">
+                                <span class="input-group-text"><i class="fas fa-lock text-muted"></i></span>
+                                <input type="text" class="form-control font-monospace text-muted"
+                                       value="•••• •••• •••• •••• •••• •••• •••" readonly>
+                            </div>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-pen text-muted"></i></span>
+                                <input type="text" name="iban" class="form-control"
+                                       th:placeholder="${config.hasIban()} ? 'Laisser vide pour conserver l\'actuel' : 'FR76 XXXX XXXX XXXX XXXX XXXX XXX'"
+                                       autocomplete="off">
+                            </div>
+                            <div class="form-text">Entrez le nouvel IBAN pour le remplacer (les espaces sont ignorés).</div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">BIC / SWIFT</label>
+                            <div th:if="${config.bic != null}" class="input-group mb-1">
+                                <span class="input-group-text"><i class="fas fa-lock text-muted"></i></span>
+                                <input type="text" class="form-control font-monospace text-muted"
+                                       value="••••••••" readonly>
+                            </div>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-pen text-muted"></i></span>
+                                <input type="text" name="bic" class="form-control"
+                                       th:placeholder="${config.bic != null} ? 'Laisser vide pour conserver l\'actuel' : 'XXXXFRPP'"
+                                       autocomplete="off">
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Bénéficiaire</label>
+                            <input type="text" name="beneficiaryName" class="form-control"
+                                   th:value="${config.beneficiaryName}"
+                                   placeholder="Nom de la société bénéficiaire">
+                            <div class="form-text">Affiché tel quel sur les instructions de virement envoyées aux clients.</div>
+                        </div>
+
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" name="active" id="activeSwitch"
+                                   th:checked="${config.active}">
+                            <label class="form-check-label fw-semibold" for="activeSwitch">
+                                Activer le paiement par virement
+                            </label>
+                        </div>
+                        <div class="form-text mb-0">
+                            Lorsqu'activé, l'option virement est proposée aux clients lors du checkout.
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Enregistrer
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Info sécurité -->
+            <div class="alert alert-light border mt-4 small d-flex gap-2">
+                <i class="fas fa-shield-halved text-primary mt-1 flex-shrink-0"></i>
+                <span>L'IBAN et le BIC sont chiffrés en AES-256 dans la base de données. Ils ne sont jamais affichés en clair dans l'interface.</span>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+</body>
+</html>
