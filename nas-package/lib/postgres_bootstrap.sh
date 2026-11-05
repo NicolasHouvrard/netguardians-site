@@ -1,6 +1,11 @@
 # Amorcage du conteneur Postgres avec donnees hors cycle de vie du paquet DSM.
 # Bibliotheque : destinee a etre sourcee, pas executee directement.
 
+if ! declare -F generer_secret_une_fois >/dev/null; then
+  # shellcheck source=/dev/null
+  . "$NAS_PKG_DIR/lib/secrets.sh"
+fi
+
 # Execution de docker, isolee pour pouvoir etre remplacee dans les tests.
 # Definie seulement si absente, pour ne pas ecraser un remplacement deja en place.
 if ! declare -F _exec_docker >/dev/null; then
@@ -34,11 +39,7 @@ demarrer_postgres() {
   local dossier_donnees_externe="$1" port_hote="$2"
   local fichier_mdp="$(dirname "$dossier_donnees_externe")/.postgres-password"
 
-  if [ ! -s "$fichier_mdp" ]; then
-    ( umask 077
-      head -c 32 /dev/urandom | base64 > "$fichier_mdp"
-    )
-  fi
+  generer_secret_une_fois "$fichier_mdp" texte || return 1
 
   _exec_docker rm -f site-postgres >/dev/null 2>&1 || true
 

@@ -69,6 +69,11 @@ if ! mkdir -p "$DOSSIER_DONNEES_POSTGRES"; then
   avertir_utilisateur "Impossible de creer le dossier de donnees $DOSSIER_DONNEES_POSTGRES."
   exit 1
 fi
+# Dossier racine reserve a son proprietaire : il contient les fichiers de secrets (voir lib/secrets.sh).
+if ! chmod 700 "$SITE_NAS_RACINE_DONNEES"; then
+  avertir_utilisateur "Impossible de restreindre les droits de $SITE_NAS_RACINE_DONNEES."
+  exit 1
+fi
 if ! demarrer_postgres "$DOSSIER_DONNEES_POSTGRES" "$PORT_POSTGRES" >/dev/null; then
   avertir_utilisateur "Le demarrage du conteneur Postgres a echoue (port $PORT_POSTGRES)."
   exit 1

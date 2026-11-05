@@ -2,7 +2,7 @@ NAS_PKG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # prepare un dossier parent avec un dossier de donnees Postgres et le mot de passe deja genere
 _preparer() {
-  dir=$(mktemp -d); mkdir -p "$dir/postgres"; echo "mdp" > "$dir/.postgres-password"
+  dir=$(mktemp -d); mkdir -p "$dir/postgres"; echo "mdp" > "$dir/.postgres-password"; _exec_chown() { :; }
 }
 
 test_demarrer_premiere_instance_nomme_le_conteneur_site_port_en_reseau_host_sur_loopback() {
@@ -29,7 +29,7 @@ test_demarrer_premiere_instance_pointe_vers_postgres_via_le_port_fourni_sans_mot
   _exec_docker() { recu="$*"; }
   source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
   demarrer_premiere_instance "img" 18080 16543 "$dir/postgres"
-  [[ "$recu" == *"DATABASE_URL=jdbc:postgresql://127.0.0.1:16543/site"* ]]     && [[ "$recu" == *"DATABASE_USERNAME=site"* ]]     && [[ "$recu" == *"-v $dir/.postgres-password:/run/secrets-app/DATABASE_PASSWORD:ro"* ]]     && [[ "$recu" != *"DATABASE_PASSWORD="* ]]     && [[ "$recu" != *"mdp"* ]]
+  [[ "$recu" == *"DATABASE_URL=jdbc:postgresql://127.0.0.1:16543/site"* ]]     && [[ "$recu" == *"DATABASE_USERNAME=site"* ]]     && [[ "$recu" == *"-v $dir/.app-db-password:/run/secrets-app/DATABASE_PASSWORD:ro"* ]]     && [[ "$recu" != *"DATABASE_PASSWORD="* ]]     && [[ "$recu" != *"mdp"* ]]
 }
 
 test_demarrer_premiere_instance_genere_le_secret_jwt_une_seule_fois() {
@@ -49,7 +49,7 @@ _mode_0600_ou_fs_sans_permissions() {
   sonde=$(mktemp); chmod 600 "$sonde"
   if [ "$(stat -c %a "$sonde")" != "600" ]; then rm -f "$sonde"; return 0; fi
   rm -f "$sonde"
-  [ "$(stat -c %a "$1")" = "600" ]
+  case "$(stat -c %a "$1")" in 400|600) return 0 ;; *) return 1 ;; esac
 }
 
 test_demarrer_premiere_instance_echoue_ferme_si_postgres_n_a_pas_ete_amorce() {

@@ -1,32 +1,21 @@
 # Demarrage de la premiere instance applicative (conteneur "site-<port>").
 # Bibliotheque : destinee a etre sourcee, pas executee directement.
 
+if ! declare -F generer_secret_une_fois >/dev/null; then
+  # shellcheck source=/dev/null
+  . "$NAS_PKG_DIR/lib/secrets.sh"
+fi
+
 # Execution de docker, isolee pour pouvoir etre remplacee dans les tests.
 # Definie seulement si absente, pour ne pas ecraser un remplacement deja en place.
 if ! declare -F _exec_docker >/dev/null; then
   _exec_docker() { docker "$@"; }
 fi
 
-# Cree "fichier" avec un secret aleatoire UNE SEULE FOIS (jamais regenere s'il est non vide :
-# changer le secret JWT invaliderait les sessions, changer la cle de chiffrement rendrait
-# illisibles les identifiants deja chiffres). Mode 0600. Type : "texte" (base64 sur une ligne)
-# ou "hex" (chaine hexadecimale de longueur paire, exigee pour le salt de chiffrement).
-# Code 1 si le fichier n'a pas pu etre ecrit ou reste vide.
-generer_secret_une_fois() {
-  local fichier="$1" type="$2"
-  # -f d'abord : sous Linux, -s est vrai pour un dossier (taille 4096), qui serait pris pour un secret.
-  if [ -f "$fichier" ] && [ -s "$fichier" ]; then
-    return 0
-  fi
-  case "$type" in
-    texte) ( umask 077; head -c 48 /dev/urandom | base64 | tr -d '
-' > "$fichier" ) || return 1 ;;
-    hex)   ( umask 077; head -c 16 /dev/urandom | od -An -tx1 | tr -d ' 
-' > "$fichier" ) || return 1 ;;
-    *) return 1 ;;
-  esac
-  [ -f "$fichier" ] && [ -s "$fichier" ]
-}
+# Utilisateur du conteneur applicatif : DOIT rester identique a l'uid du Dockerfile
+# (useradd --uid 10001). Les secrets montes lui sont attribues en lecture seule (0400) ; un
+# fichier reserve a root serait illisible et l'application retomberait sur ses valeurs par defaut.
+: "${UID_APPLICATION:=10001}"
 
 # Demarre la premiere instance applicative depuis "image".
 #
@@ -48,9 +37,10 @@ generer_secret_une_fois() {
 # gerer ce conteneur lors d'une future bascule bleu-vert.
 demarrer_premiere_instance() {
   local image="$1" port_hote="$2" port_postgres="$3" dossier_donnees_postgres="$4"
-  local dossier_parent fichier_mdp fichier_jwt fichier_cle fichier_salt
+  local dossier_parent fichier_mdp fichier_mdp_app fichier_jwt fichier_cle fichier_salt
   dossier_parent="$(dirname "$dossier_donnees_postgres")"
   fichier_mdp="$dossier_parent/.postgres-password"
+  fichier_mdp_app="$dossier_parent/.app-db-password"
   fichier_jwt="$dossier_parent/.app-jwt-secret"
   fichier_cle="$dossier_parent/.app-crypto-key"
   fichier_salt="$dossier_parent/.app-crypto-salt"
@@ -58,9 +48,23 @@ demarrer_premiere_instance() {
   if [ ! -s "$fichier_mdp" ]; then
     return 1   # Postgres doit avoir ete amorce avant : jamais d'application sans base
   fi
-  generer_secret_une_fois "$fichier_jwt"  texte || return 1
-  generer_secret_une_fois "$fichier_cle"  texte || return 1
-  generer_secret_une_fois "$fichier_salt" hex   || return 1
+  copier_secret_une_fois  "$fichier_mdp" "$fichier_mdp_app" "$UID_APPLICATION" || return 1
+  generer_secret_une_fois "$fichier_jwt"  texte "$UID_APPLICATION" || return 1
+  generer_secret_une_fois "$fichier_cle"  texte "$UID_APPLICATION" || return 1
+  generer_secret_une_fois "$fichier_salt" hex   "$UID_APPLICATION" || return 1
 
-  _exec_docker run -d --name "site-$port_hote"     --restart unless-stopped     --network host     -v "$fichier_mdp:/run/secrets-app/DATABASE_PASSWORD:ro"     -v "$fichier_jwt:/run/secrets-app/app.jwt.secret:ro"     -v "$fichier_cle:/run/secrets-app/app.crypto.key:ro"     -v "$fichier_salt:/run/secrets-app/app.crypto.salt:ro"     -e SPRING_CONFIG_IMPORT=configtree:/run/secrets-app/     -e SPRING_PROFILES_ACTIVE=prod     -e "DATABASE_URL=jdbc:postgresql://127.0.0.1:$port_postgres/site"     -e DATABASE_USERNAME=site     -e "SERVER_PORT=$port_hote"     -e SERVER_ADDRESS=127.0.0.1     "$image"
+  _exec_docker run -d --name "site-$port_hote" \
+    --restart unless-stopped \
+    --network host \
+    -v "$fichier_mdp_app:/run/secrets-app/DATABASE_PASSWORD:ro" \
+    -v "$fichier_jwt:/run/secrets-app/app.jwt.secret:ro" \
+    -v "$fichier_cle:/run/secrets-app/app.crypto.key:ro" \
+    -v "$fichier_salt:/run/secrets-app/app.crypto.salt:ro" \
+    -e SPRING_CONFIG_IMPORT=configtree:/run/secrets-app/ \
+    -e SPRING_PROFILES_ACTIVE=prod \
+    -e "DATABASE_URL=jdbc:postgresql://127.0.0.1:$port_postgres/site" \
+    -e DATABASE_USERNAME=site \
+    -e "SERVER_PORT=$port_hote" \
+    -e SERVER_ADDRESS=127.0.0.1 \
+    "$image"
 }
