@@ -60,3 +60,46 @@ test_demarrer_premiere_instance_echoue_ferme_si_postgres_n_a_pas_ete_amorce() {
   demarrer_premiere_instance "img" 18080 15432 "$dir/postgres"; code=$?
   [ "$code" -eq 1 ] && [ "$appele" -eq 0 ]
 }
+
+test_demarrer_premiere_instance_genere_cle_et_salt_de_chiffrement_une_seule_fois() {
+  _preparer
+  _exec_docker() { :; }
+  source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
+  demarrer_premiere_instance "img" 18080 15432 "$dir/postgres"
+  cle=$(cat "$dir/.app-crypto-key"); salt=$(cat "$dir/.app-crypto-salt")
+  demarrer_premiere_instance "img" 18080 15432 "$dir/postgres"
+  # cle >= 16 caracteres (MailEncryptionConverter n'en utilise que 16 octets), salt hexa de
+  # longueur paire (Encryptors.text l'exige), et rien n'est regenere au 2e appel
+  [ "${#cle}" -ge 32 ]     && [[ "$salt" =~ ^[0-9a-f]+$ ]] && [ $(( ${#salt} % 2 )) -eq 0 ] && [ "${#salt}" -ge 16 ]     && [ "$cle" = "$(cat "$dir/.app-crypto-key")" ] && [ "$salt" = "$(cat "$dir/.app-crypto-salt")" ]     && [ "$cle" != "$salt" ]
+}
+
+test_demarrer_premiere_instance_monte_cle_et_salt_sans_les_exposer_dans_la_commande() {
+  _preparer
+  recu=""
+  _exec_docker() { recu="$*"; }
+  source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
+  demarrer_premiere_instance "img" 18080 15432 "$dir/postgres"
+  cle=$(cat "$dir/.app-crypto-key"); salt=$(cat "$dir/.app-crypto-salt")
+  [[ "$recu" == *"-v $dir/.app-crypto-key:/run/secrets-app/app.crypto.key:ro"* ]]     && [[ "$recu" == *"-v $dir/.app-crypto-salt:/run/secrets-app/app.crypto.salt:ro"* ]]     && [[ "$recu" != *"$cle"* ]] && [[ "$recu" != *"$salt"* ]]     && [[ "$recu" != *"APP_CRYPTO"* ]]
+}
+
+test_demarrer_premiere_instance_n_ecrase_jamais_une_cle_de_chiffrement_existante() {
+  # une cle regeneree rendrait illisibles les identifiants deja chiffres en base
+  _preparer
+  printf 'cle-existante-a-conserver-0123456789abcdef' > "$dir/.app-crypto-key"
+  printf 'aabbccddeeff0011' > "$dir/.app-crypto-salt"
+  _exec_docker() { :; }
+  source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
+  demarrer_premiere_instance "img" 18080 15432 "$dir/postgres"
+  [ "$(cat "$dir/.app-crypto-key")" = "cle-existante-a-conserver-0123456789abcdef" ]     && [ "$(cat "$dir/.app-crypto-salt")" = "aabbccddeeff0011" ]
+}
+
+test_demarrer_premiere_instance_echoue_ferme_si_un_secret_ne_peut_pas_etre_ecrit() {
+  _preparer
+  appele=0
+  _exec_docker() { appele=1; }
+  source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
+  mkdir "$dir/.app-crypto-key"   # un dossier a la place du fichier : l'ecriture echoue
+  demarrer_premiere_instance "img" 18080 15432 "$dir/postgres"; code=$?
+  [ "$code" -eq 1 ] && [ "$appele" -eq 0 ]
+}
