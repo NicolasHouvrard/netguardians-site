@@ -94,7 +94,7 @@ mkdir -p "$SPK/conf" "$SPK/WIZARD_UIFILES"
 cp "$ICI/src/conf/privilege" "$SPK/conf/privilege"
 cp "$ICI/$WIZARDS_DIR"/install_uifile* "$SPK/WIZARD_UIFILES/"
 cp "$ICI/src/PACKAGE_ICON.PNG" "$ICI/src/PACKAGE_ICON_256.PNG" "$SPK/"
-"$ICI/INFO.sh" > "$SPK/INFO"
+bash "$ICI/INFO.sh" > "$SPK/INFO"
 
 # --- Archive .spk : ustar, liste explicite, INFO en premier ---------------------
 # Modes forces (les permissions du systeme de fichiers source ne sont pas fiables
