@@ -14,7 +14,7 @@ _preparer_installation() {
   for s in preinst postinst postuninst postupgrade preuninst preupgrade start-stop-status; do
     cp "$src/spk/src/scripts/$s.sh" "$SPKDIR/scripts/$s"
   done
-  cp "$src/spk/src/scripts/commun.sh" "$src/spk/src/scripts/prestart.sh" "$src/spk/src/scripts/activer-ecoute.sh" "$SPKDIR/scripts/"
+  cp "$src/spk/src/scripts/commun.sh" "$src/spk/src/scripts/prestart.sh" "$src/spk/src/scripts/activer-ecoute.sh" "$src/spk/src/scripts/mettre-a-jour-maitre.sh" "$SPKDIR/scripts/"
   printf 'HEADSCALE_URL=https://hs.exemple.test\nIMAGE_OWNER=proprietaire\nIMAGE_TAG=v9.9\n' > "$SPKDIR/scripts/constantes.sh"
   cp "$src"/lib/*.sh "$CONTENU/lib/"
   cp "$src"/systemd/* "$CONTENU/systemd/"

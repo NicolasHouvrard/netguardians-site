@@ -79,7 +79,7 @@ mkdir -p "$SPK/scripts"
 for s in preinst postinst preuninst postuninst preupgrade postupgrade start-stop-status; do
   cp "$ICI/src/scripts/$s.sh" "$SPK/scripts/$s"
 done
-cp "$ICI/src/scripts/commun.sh" "$ICI/src/scripts/prestart.sh" "$ICI/src/scripts/activer-ecoute.sh" "$SPK/scripts/"
+cp "$ICI/src/scripts/commun.sh" "$ICI/src/scripts/prestart.sh" "$ICI/src/scripts/activer-ecoute.sh" "$ICI/src/scripts/mettre-a-jour-maitre.sh" "$SPK/scripts/"
 # Valeurs du projet figees a la construction (lues par commun.sh). printf %q :
 # aucune valeur ne peut injecter de code dans ce fichier source par les scripts.
 {
