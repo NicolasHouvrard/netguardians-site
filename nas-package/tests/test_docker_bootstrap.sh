@@ -136,3 +136,27 @@ test_preparer_options_application_refuse_un_chemin_avec_espace() {
   preparer_options_application 15432 "$dir/avec espace/postgres"
   [ "$?" -ne 0 ] && [ -z "$OPTIONS_APPLICATION" ]
 }
+
+test_preparer_options_application_cree_le_fichier_de_reglages_vide_et_le_donne_a_docker() {
+  _preparer
+  source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
+  preparer_options_application 15432 "$dir/postgres" || return 1
+  [ -f "$dir/app.env" ] && [ ! -s "$dir/app.env" ] && [[ "$OPTIONS_APPLICATION" == *"--env-file $dir/app.env"* ]] \
+    && _mode_0600_ou_fs_sans_permissions_reglages "$dir/app.env"
+}
+
+_mode_0600_ou_fs_sans_permissions_reglages() {
+  sonde=$(mktemp); chmod 600 "$sonde"
+  if [ "$(stat -c %a "$sonde")" != "600" ]; then rm -f "$sonde"; return 0; fi
+  rm -f "$sonde"
+  [ "$(stat -c %a "$1")" = "600" ]
+}
+
+test_preparer_options_application_ne_touche_pas_un_fichier_de_reglages_existant_et_le_place_avant_les_e() {
+  _preparer
+  printf 'CAPTCHA_ENABLED=false\n' > "$dir/app.env"
+  source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
+  preparer_options_application 15432 "$dir/postgres" || return 1
+  avant="${OPTIONS_APPLICATION%%-e SPRING_PROFILES_ACTIVE*}"
+  [ "$(cat "$dir/app.env")" = "CAPTCHA_ENABLED=false" ] && [[ "$avant" == *"--env-file $dir/app.env"* ]]
+}

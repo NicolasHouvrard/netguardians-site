@@ -36,7 +36,7 @@ fi
 OPTIONS_APPLICATION=""
 preparer_options_application() {
   local port_postgres="$1" dossier_donnees_postgres="$2"
-  local dossier_parent fichier_mdp fichier_mdp_app fichier_jwt fichier_cle fichier_salt
+  local dossier_parent fichier_mdp fichier_mdp_app fichier_jwt fichier_cle fichier_salt fichier_reglages
   dossier_parent="$(dirname "$dossier_donnees_postgres")"
   fichier_mdp="$dossier_parent/.postgres-password"
   fichier_mdp_app="$dossier_parent/.app-db-password"
@@ -60,6 +60,15 @@ preparer_options_application() {
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $fichier_jwt:/run/secrets-app/app.jwt.secret:ro"
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $fichier_cle:/run/secrets-app/app.crypto.key:ro"
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $fichier_salt:/run/secrets-app/app.crypto.salt:ro"
+  # Reglages propres a CE serveur, geres par l'administrateur (ex. CAPTCHA_ENABLED=false sur le Maitre,
+  # qui n'est pas expose a Internet). Fichier KEY=valeur, cree vide (0600) s'il n'existe pas, car
+  # "docker run --env-file" echoue si le fichier manque. Place AVANT les -e ci-dessous : docker donne
+  # priorite a -e, donc ce fichier ne peut pas ecraser le port, la base, les secrets ou le profil.
+  fichier_reglages="$dossier_parent/app.env"
+  if [ ! -e "$fichier_reglages" ]; then
+    ( umask 077; : > "$fichier_reglages" ) || return 1
+  fi
+  OPTIONS_APPLICATION="$OPTIONS_APPLICATION --env-file $fichier_reglages"
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e SPRING_CONFIG_IMPORT=configtree:/run/secrets-app/"
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e SPRING_PROFILES_ACTIVE=prod"
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e DATABASE_URL=jdbc:postgresql://127.0.0.1:$port_postgres/site"
