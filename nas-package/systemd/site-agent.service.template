@@ -1,6 +1,6 @@
 [Unit]
 Description=Site Agent (paquet Synology NAS)
-After=network-online.target
+After=network-online.target tailscaled.service
 Wants=network-online.target
 
 [Service]

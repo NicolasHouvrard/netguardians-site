@@ -14,7 +14,7 @@ _preparer_installation() {
   for s in preinst postinst postuninst postupgrade preuninst preupgrade start-stop-status; do
     cp "$src/spk/src/scripts/$s.sh" "$SPKDIR/scripts/$s"
   done
-  cp "$src/spk/src/scripts/commun.sh" "$src/spk/src/scripts/prestart.sh" "$src/spk/src/scripts/activer-ecoute.sh" "$src/spk/src/scripts/mettre-a-jour-maitre.sh" "$SPKDIR/scripts/"
+  cp "$src/spk/src/scripts/commun.sh" "$src/spk/src/scripts/prestart.sh" "$src/spk/src/scripts/activer-ecoute.sh" "$src/spk/src/scripts/mettre-a-jour-maitre.sh" "$src/spk/src/scripts/postinst-vps.sh" "$SPKDIR/scripts/"
   printf 'HEADSCALE_URL=https://hs.exemple.test\nIMAGE_OWNER=proprietaire\nIMAGE_TAG=v9.9\n' > "$SPKDIR/scripts/constantes.sh"
   cp "$src"/lib/*.sh "$CONTENU/lib/"
   cp "$src"/systemd/* "$CONTENU/systemd/"
@@ -172,4 +172,61 @@ test_installer_nas_donne_a_l_agent_les_memes_options_que_la_premiere_instance() 
     && grep -F 'Environment="APP_AGENT_DOCKER_RUNOPTIONS=' "$dropin" | grep -Fq -- "-e SPRING_PROFILES_ACTIVE=prod" \
     && grep -F 'Environment="APP_AGENT_DOCKER_RUNOPTIONS=' "$dropin" | grep -Fq -- "/run/secrets-app/app.crypto.key:ro" \
     && grep -F 'Environment="APP_AGENT_DOCKER_RUNOPTIONS=' "$dropin" | grep -Fq -- "DATABASE_URL=jdbc:postgresql://127.0.0.1:15432/site"
+}
+
+# Installation en mode VPS (serveur Linux generique), toutes les commandes systeme simulees.
+_preparer_vps() {
+  _preparer_installation
+  export SITE_NAS_CIBLE=vps SITE_NAS_DOMAINE=app.exemple.test SITE_NAS_DOSSIER_SYSCTL="$T/sysctl"
+  export LICENCE_LOGIN=partenaire1 LICENCE_MOT_DE_PASSE='mot-de-passe-secret'
+  mkdir -p "$T/sysctl" "$T/nginx"   # sur un vrai serveur, /etc/nginx/conf.d existe deja
+  printf '#!/bin/bash\necho "certbot $*" >> "%s"\nexit 0\n' "$STUB_LOG" > "$STUBS/certbot"
+  printf '#!/bin/bash\necho "sysctl $*" >> "%s"\nexit 0\n' "$STUB_LOG" > "$STUBS/sysctl"
+  printf '#!/bin/bash\necho vps-01\n' > "$STUBS/hostname"
+  # L'application repond "UP" ; "docker run" simule l'enrolement en ecrivant la cle de licence de l'Agent.
+  printf '#!/bin/bash\necho "{\\"status\\":\\"UP\\"}"\nexit 0\n' > "$STUBS/curl"
+  printf '#!/bin/bash\necho "docker $*" >> "%s"\nif [ "$1" = run ] && [[ "$*" == *"--name site-18080"* ]]; then mkdir -p "%s/agent" && echo cle > "%s/agent/cle-api-licence"; fi\nexit 0\n' "$STUB_LOG" "$T/data" "$T/data" > "$STUBS/docker"
+  chmod +x "$STUBS"/*
+}
+
+test_installer_vps_installe_nginx_public_enrole_et_demarre_l_agent() {
+  _preparer_vps
+  sortie="$(bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" 2>&1 < /dev/null)"; code=$?
+  [ "$code" -eq 0 ] || { echo "$sortie" | tail -12; return 1; }
+  [[ "$sortie" == *"Installation VPS terminee"* ]] \
+    && [ -f "$T/nginx/site-nas-public.conf" ] && grep -q "server_name app.exemple.test;" "$T/nginx/site-nas-public.conf" \
+    && grep -q "listen 100.64.0.2:8072;" "$T/nginx/site-nas-ecoute.conf" \
+    && grep -q "ip_nonlocal_bind = 1" "$T/sysctl/99-site-nas.conf" \
+    && grep -q "^certbot certonly --nginx -d app.exemple.test" "$STUB_LOG" \
+    && grep -q '^APP_ROLE=PARTNER$' "$T/data/app.env" && grep -q '^APP_LICENCE_MASTERURL=http://' "$T/data/app.env" \
+    && grep -q '^APP_LICENCE_ADRESSEPUBLIQUE=http://100.64.0.2:8072$' "$T/data/app.env" \
+    && [ "$(cat "$T/data/.app-licence-login")" = "partenaire1" ] \
+    && grep -q "^docker run -d --name site-18080 .*app.licence.mot-de-passe:ro" "$STUB_LOG" \
+    && grep -q "^docker restart site-18080" "$STUB_LOG" \
+    && grep -q 'Environment="APP_AGENT_DOCKER_RUNOPTIONS=.*app.licence.login' "$T/systemd-etc/site-agent.service.d/10-site-nas.conf" \
+    && grep -q 'FENETRESANTESECONDES=600' "$T/systemd-etc/site-agent.service.d/10-site-nas.conf" \
+    && [ ! -e "$SITE_NAS_PREFIXE/demarrage-nas.sh" ]
+}
+
+test_installer_vps_ne_laisse_jamais_le_mot_de_passe_dans_la_sortie_ni_dans_les_arguments() {
+  _preparer_vps
+  sortie="$(bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" 2>&1 < /dev/null)"
+  [[ "$sortie" != *"mot-de-passe-secret"* ]] && ! grep -q "mot-de-passe-secret" "$STUB_LOG" \
+    && ! grep -rq "mot-de-passe-secret" "$T/systemd-etc" "$T/nginx" "$T/data/app.env"
+}
+
+test_installer_vps_refuse_un_domaine_invalide_avant_toute_modification() {
+  _preparer_vps
+  export SITE_NAS_DOMAINE='x.com; rm -rf /'
+  sortie="$(bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" 2>&1 < /dev/null)"; code=$?
+  [ "$code" -ne 0 ] && [ ! -e "$SITE_NAS_PREFIXE" ] && [ ! -s "$STUB_LOG" ]
+}
+
+test_installer_vps_retire_ses_fichiers_nginx_si_le_certificat_echoue_et_ne_touche_pas_aux_autres_sites() {
+  _preparer_vps
+  printf '#!/bin/bash\necho "certbot $*" >> "%s"\nexit 1\n' "$STUB_LOG" > "$STUBS/certbot"; chmod +x "$STUBS/certbot"
+  mkdir -p "$T/nginx"; echo "server { # autre site }" > "$T/nginx/autre-site.conf"
+  sortie="$(bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" 2>&1 < /dev/null)"; code=$?
+  [ "$code" -ne 0 ] && [ ! -e "$T/nginx/site-nas-public.conf" ] && [ -f "$T/nginx/autre-site.conf" ] \
+    && [[ "$sortie" == *"Certificat"* ]]
 }

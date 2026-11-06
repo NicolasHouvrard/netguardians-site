@@ -108,7 +108,7 @@ _exec_log_dsm() {
 
 charger_bibliotheques() {
   local lib
-  for lib in role headscale maitre ports postgres_bootstrap nginx_bascule agent_service docker_bootstrap mise_a_jour; do
+  for lib in role headscale maitre ports postgres_bootstrap nginx_bascule agent_service docker_bootstrap mise_a_jour vps; do
     if [ ! -r "$NAS_PKG_DIR/lib/$lib.sh" ]; then
       printf 'Bibliotheque manquante : %s\n' "$NAS_PKG_DIR/lib/$lib.sh" >&2
       return 1
@@ -237,6 +237,8 @@ Environment=APP_DEPLOIEMENT_PORTBLEU=$PORT_APP_BLEU
 Environment=APP_DEPLOIEMENT_PORTVERT=$PORT_APP_VERT
 Environment=APP_NGINX_FICHIERCONFIGUPSTREAM=$FICHIER_NGINX_UPSTREAM
 # Instances lancees par l'Agent : meme reseau, memes secrets, meme base que la premiere instance.
+# L'application met 2 a 3 minutes a demarrer sur une machine modeste : fenetre de sante de 10 minutes.
+Environment=APP_DEPLOIEMENT_FENETRESANTESECONDES=600
 Environment=APP_AGENT_DOCKER_RESEAUHOTE=true
 Environment="APP_AGENT_DOCKER_RUNOPTIONS=$options_application"
 EOF

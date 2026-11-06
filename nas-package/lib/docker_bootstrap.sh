@@ -69,6 +69,15 @@ preparer_options_application() {
     ( umask 077; : > "$fichier_reglages" ) || return 1
   fi
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION --env-file $fichier_reglages"
+  # Serveur enrole aupres du Maitre (PARTNER/CLIENT) : identifiants de licence montes comme secrets
+  # (jamais dans l'environnement), et dossier ou l'application ecrit sa cle API, lue par l'Agent.
+  # Present seulement si l'installation a fourni les deux fichiers (inexistants sur le Maitre).
+  if [ -s "$dossier_parent/.app-licence-login" ] && [ -s "$dossier_parent/.app-licence-mdp" ]; then
+    OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $dossier_parent/.app-licence-login:/run/secrets-app/app.licence.login:ro"
+    OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $dossier_parent/.app-licence-mdp:/run/secrets-app/app.licence.mot-de-passe:ro"
+    OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $dossier_parent/agent:/var/lib/site/agent"
+    OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e AGENT_CLE_API_FILE_PATH=/var/lib/site/agent/cle-api-licence"
+  fi
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e SPRING_CONFIG_IMPORT=configtree:/run/secrets-app/"
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e SPRING_PROFILES_ACTIVE=prod"
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e DATABASE_URL=jdbc:postgresql://127.0.0.1:$port_postgres/site"

@@ -20,6 +20,9 @@
 set -u
 
 PREFIXE="${SITE_NAS_PREFIXE:-/usr/local/site-nas}"
+# Cible : "nas" (Synology DSM, par defaut) ou "vps" (serveur Linux generique : Nginx, certbot et systemd
+# du systeme, domaine public). En mode vps, SITE_NAS_DOMAINE = nom de domaine public de l'application.
+CIBLE="${SITE_NAS_CIBLE:-nas}"
 SPK="${1:-}"
 SHA256_ATTENDU="$(printf '%s' "${2:-${SITE_NAS_SHA256:-}}" | tr 'A-F' 'a-f')"
 
@@ -31,6 +34,13 @@ echec() { printf 'installer-nas : %s\n' "$1" >&2; exit 1; }
 if [ "${SITE_NAS_SANS_ROOT:-}" != "1" ] && [ "$(id -u)" -ne 0 ]; then
   echec "ce script doit etre lance en root : sudo bash installer-nas.sh $SPK"
 fi
+
+case "$CIBLE" in
+  nas) ;;
+  vps) [[ "${SITE_NAS_DOMAINE:-}" =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}$ ]] \
+         || echec "mode vps : SITE_NAS_DOMAINE (ex. app.exemple.com) manquant ou invalide" ;;
+  *) echec "SITE_NAS_CIBLE doit valoir nas ou vps (recu : $CIBLE)" ;;
+esac
 
 # Le dossier d'installation ne doit pas etre sous l'arborescence que DSM associe a un paquet
 # (nettoyee a la desinstallation) ni relatif.
@@ -58,6 +68,7 @@ tar -xf "$TMP/copie/paquet.spk" -C "$TMP" || echec "archive .spk illisible : $SP
 for f in INFO package.tgz scripts/postinst scripts/preinst scripts/commun.sh scripts/constantes.sh; do
   [ -e "$TMP/$f" ] || echec "archive incomplete, il manque : $f"
 done
+[ "$CIBLE" != vps ] || [ -e "$TMP/scripts/postinst-vps.sh" ] || echec "archive incomplete, il manque : scripts/postinst-vps.sh"
 
 # --- 3. Mise en place dans le dossier d'installation ----------------------------------------
 mkdir -p "$PREFIXE/scripts" || echec "impossible de creer $PREFIXE"
@@ -65,6 +76,8 @@ cp -a "$TMP/scripts/." "$PREFIXE/scripts/" || echec "copie des scripts impossibl
 tar -xzf "$TMP/package.tgz" -C "$PREFIXE" || echec "extraction de package.tgz impossible"
 
 # Script de demarrage, a executer a chaque demarrage du NAS (tache planifiee root, voir ci-dessous).
+# Inutile sur un serveur Linux : systemd relance l'Agent et Docker les conteneurs.
+if [ "$CIBLE" = nas ]; then
 cat > "$PREFIXE/demarrage-nas.sh" <<DEMARRAGE
 #!/bin/bash
 # Rejoue au demarrage ce que le Centre de paquets aurait fait avant de lancer le paquet :
@@ -79,10 +92,11 @@ bash "$PREFIXE/scripts/activer-ecoute.sh"
 [ "\$prestart" -eq 0 ] && systemctl restart site-agent
 DEMARRAGE
 chmod 755 "$PREFIXE/demarrage-nas.sh"
+fi
 
 # --- 4. Cle Headscale : seulement si le NAS n'est pas deja connecte -------------------------------
 CLE="${CLE_HEADSCALE:-}"
-if [ -z "$CLE" ] && ! tailscale status >/dev/null 2>&1; then
+if [ "$CIBLE" = nas ] && [ -z "$CLE" ] && ! tailscale status >/dev/null 2>&1; then
   if [ -t 0 ]; then
     printf 'Cle de connexion Headscale (saisie masquee) : ' >&2
     read -rs CLE
@@ -94,9 +108,14 @@ unset CLE_HEADSCALE
 # --- 5. Meme execution que DSM : preinst puis postinst ----------------------------------------------
 export SYNOPKG_PKGDEST="$PREFIXE" SYNOPKG_PKGNAME=site-nas SYNOPKG_PKG_STATUS=INSTALL SYNOPKG_TEMP_LOGFILE="$JOURNAL"
 code=0
-wizard_headscale_cle="$CLE" bash "$PREFIXE/scripts/preinst" || code=$?
-if [ "$code" -eq 0 ]; then
-  wizard_headscale_cle="$CLE" bash "$PREFIXE/scripts/postinst" || code=$?
+if [ "$CIBLE" = vps ]; then
+  # Serveur Linux generique : le VPS est deja connecte a Headscale (tailscale up fait a la main).
+  SITE_NAS_DOMAINE="$SITE_NAS_DOMAINE" bash "$PREFIXE/scripts/postinst-vps.sh" || code=$?
+else
+  wizard_headscale_cle="$CLE" bash "$PREFIXE/scripts/preinst" || code=$?
+  if [ "$code" -eq 0 ]; then
+    wizard_headscale_cle="$CLE" bash "$PREFIXE/scripts/postinst" || code=$?
+  fi
 fi
 unset CLE
 
@@ -110,6 +129,17 @@ fi
 if [ "$code" -ne 0 ]; then
   echo "L'installation a echoue (code $code). Rien d'irreversible : les donnees ne sont jamais supprimees." >&2
   exit "$code"
+fi
+
+if [ "$CIBLE" = vps ]; then
+  cat <<FINVPS
+Installation terminee.
+
+Verifiez : https://$SITE_NAS_DOMAINE repond, puis sur le Maitre l'ecran des serveurs de licence doit lister ce serveur.
+Si "nginx -t" ou un de vos sites ne repond plus, retirez nos fichiers et rechargez Nginx :
+  sudo rm -f /etc/nginx/conf.d/site-nas-public.conf /etc/nginx/conf.d/site-nas-ecoute.conf && sudo nginx -t && sudo systemctl reload nginx
+FINVPS
+  exit 0
 fi
 
 cat <<FIN
