@@ -103,7 +103,7 @@ if [ -s "$JOURNAL" ]; then
 fi
 
 if [ "$code" -ne 0 ]; then
-  echo "L'installation a echoue (code $code). Rien d'irreversible : les donnees ($(dirname "$PREFIXE")/site-data ou dossier configure) ne sont jamais supprimees." >&2
+  echo "L'installation a echoue (code $code). Rien d'irreversible : les donnees ne sont jamais supprimees." >&2
   exit "$code"
 fi
 

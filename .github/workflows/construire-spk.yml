@@ -68,7 +68,9 @@ jobs:
             echo
             echo "Commande d'installation (sur le NAS, en SSH, dans le dossier ou vous avez copie les fichiers) : l'installateur est verifie AVANT d'etre execute, puis il verifie le .spk."
             echo '```'
-            echo "echo \"$INSTALLATEUR_SOMME  installer-nas.sh\" | sha256sum -c - && sudo bash installer-nas.sh $SPK_FICHIER $SPK_SOMME"
+            # L'installateur est copie dans un dossier prive de root, verifie, puis ce sont ces memes octets
+            # qui sont executes : un fichier verifie puis relu depuis un dossier modifiable pourrait etre remplace entre les deux.
+            echo "D=\"\$(sudo mktemp -d)\" && sudo cp -- installer-nas.sh \"\$D/i.sh\" && echo \"$INSTALLATEUR_SOMME  \$D/i.sh\" | sudo sha256sum -c - && sudo bash \"\$D/i.sh\" $SPK_FICHIER $SPK_SOMME; sudo rm -rf \"\$D\""
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
