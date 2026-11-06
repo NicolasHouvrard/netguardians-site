@@ -44,6 +44,8 @@ fi
 
 # --- 4. Ports non standard : tout port deja occupe fait abandonner -------------
 # (8072, le port d'ecoute Nginx, est traite a l'etape 6.)
+# Reinstallation : nos propres composants tiennent deja ces ports, on les arrete le temps du controle.
+arreter_composants_du_paquet "site-$PORT_APP_BLEU" "site-$PORT_APP_VERT" site-postgres
 ports_occupes=""
 for port in "$PORT_APP_BLEU" "$PORT_APP_VERT" "$PORT_POSTGRES" "$PORT_AGENT"; do
   if ! port_est_libre "$port"; then
@@ -51,6 +53,7 @@ for port in "$PORT_APP_BLEU" "$PORT_APP_VERT" "$PORT_POSTGRES" "$PORT_AGENT"; do
   fi
 done
 if [ -n "$ports_occupes" ]; then
+  relancer_composants_arretes
   avertir_utilisateur "Installation interrompue : port(s) deja utilise(s) sur ce NAS :$ports_occupes. Ces ports sont fixes par le projet (partages avec l'Agent) ; liberez-les puis relancez l'installation. Rien n'a ete demarre."
   exit 1
 fi

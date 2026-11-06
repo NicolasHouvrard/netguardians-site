@@ -72,3 +72,29 @@ test_avertir_utilisateur_affiche_aussi_le_message_sur_la_sortie() {
   source "$NAS_PKG_DIR/lib/ports.sh"
   [ "$(avertir_utilisateur "ports non standard : 18080/18081/15432/18090")" = "ports non standard : 18080/18081/15432/18090" ]
 }
+
+test_arreter_composants_du_paquet_arrete_agent_et_conteneurs_actifs_puis_les_relance() {
+  appels=""
+  _exec_systemctl() { appels="$appels|sc:$*"; [ "$1" != "is-active" ] || return 0; }
+  _exec_docker() {
+    appels="$appels|d:$*"
+    if [ "$1" = "ps" ]; then case "$*" in *site-18080*|*site-postgres*) echo abc ;; esac; fi
+    return 0
+  }
+  source "$NAS_PKG_DIR/lib/ports.sh"
+  arreter_composants_du_paquet site-18080 site-18081 site-postgres
+  [ "$COMPOSANTS_ARRETES" = "agent site-18080 site-postgres" ] || return 1
+  relancer_composants_arretes
+  [[ "$appels" == *"sc:stop site-agent"* && "$appels" == *"d:stop site-18080"* && "$appels" == *"d:stop site-postgres"* \
+     && "$appels" != *"d:stop site-18081"* && "$appels" == *"sc:start site-agent"* \
+     && "$appels" == *"d:start site-18080"* && "$appels" == *"d:start site-postgres"* && -z "$COMPOSANTS_ARRETES" ]]
+}
+
+test_arreter_composants_du_paquet_ne_fait_rien_si_rien_ne_tourne() {
+  appels=""
+  _exec_systemctl() { appels="$appels|sc:$*"; return 3; }
+  _exec_docker() { appels="$appels|d:$*"; return 0; }
+  source "$NAS_PKG_DIR/lib/ports.sh"
+  arreter_composants_du_paquet site-18080
+  [ -z "$COMPOSANTS_ARRETES" ] && [[ "$appels" != *stop* ]]
+}

@@ -51,3 +51,36 @@ avertir_utilisateur() {
   printf '%s\n' "$message"
   _exec_log_dsm "$message"
 }
+
+# Reinstallation / mise a jour : les composants du paquet (Agent, conteneurs applicatifs, Postgres)
+# occupent deja LEURS ports, ce qui ne doit pas faire echouer la verification. On les arrete avant
+# de verifier (ils sont recrees plus loin par l'installation) et on garde la liste dans
+# COMPOSANTS_ARRETES pour pouvoir les relancer si la verification echoue quand meme (port pris par
+# un autre programme). Necessite _exec_systemctl et _exec_docker (autres bibliotheques).
+COMPOSANTS_ARRETES=""
+arreter_composants_du_paquet() {
+  local c
+  COMPOSANTS_ARRETES=""
+  if _exec_systemctl is-active --quiet site-agent >/dev/null 2>&1; then
+    _exec_systemctl stop site-agent >/dev/null 2>&1 && COMPOSANTS_ARRETES="agent"
+  fi
+  for c in "$@"; do
+    if [ -n "$(_exec_docker ps -q --filter "name=^${c}\$" 2>/dev/null)" ]; then
+      _exec_docker stop "$c" >/dev/null 2>&1 && COMPOSANTS_ARRETES="$COMPOSANTS_ARRETES $c"
+    fi
+  done
+  return 0
+}
+
+relancer_composants_arretes() {
+  local c
+  for c in $COMPOSANTS_ARRETES; do
+    if [ "$c" = "agent" ]; then
+      _exec_systemctl start site-agent >/dev/null 2>&1 || true
+    else
+      _exec_docker start "$c" >/dev/null 2>&1 || true
+    fi
+  done
+  COMPOSANTS_ARRETES=""
+  return 0
+}
