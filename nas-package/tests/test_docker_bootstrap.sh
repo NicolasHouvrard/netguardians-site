@@ -103,3 +103,36 @@ test_demarrer_premiere_instance_echoue_ferme_si_un_secret_ne_peut_pas_etre_ecrit
   demarrer_premiere_instance "img" 18080 15432 "$dir/postgres"; code=$?
   [ "$code" -eq 1 ] && [ "$appele" -eq 0 ]
 }
+
+test_preparer_options_application_donne_les_memes_options_que_celles_de_la_premiere_instance() {
+  _preparer
+  recu=""
+  _exec_docker() { recu="$*"; }
+  source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
+  preparer_options_application 15432 "$dir/postgres" || return 1
+  demarrer_premiere_instance "img" 18080 15432 "$dir/postgres"
+  [[ "$OPTIONS_APPLICATION" == *"SPRING_PROFILES_ACTIVE=prod"* && "$OPTIONS_APPLICATION" == *"-v $dir/.app-crypto-key:/run/secrets-app/app.crypto.key:ro"* \
+     && "$OPTIONS_APPLICATION" != *"SERVER_PORT"* && "$recu" == *"$OPTIONS_APPLICATION"* ]]
+}
+
+test_preparer_options_application_ajoute_le_depot_github_seulement_sur_le_maitre() {
+  _preparer
+  source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
+  GITHUB_REPO="Proprietaire/depot-site"
+  nas_est_maitre() { return 0; }
+  preparer_options_application 15432 "$dir/postgres"; sur_maitre="$OPTIONS_APPLICATION"
+  nas_est_maitre() { return 1; }
+  preparer_options_application 15432 "$dir/postgres"; sur_client="$OPTIONS_APPLICATION"
+  GITHUB_REPO="pas un depot valide"
+  nas_est_maitre() { return 0; }
+  preparer_options_application 15432 "$dir/postgres"; invalide="$OPTIONS_APPLICATION"
+  [[ "$sur_maitre" == *"-e APP_DEPLOIEMENT_GITHUBREPO=Proprietaire/depot-site"* && "$sur_client" != *GITHUBREPO* && "$invalide" != *GITHUBREPO* ]]
+}
+
+test_preparer_options_application_refuse_un_chemin_avec_espace() {
+  dir=$(mktemp -d); mkdir -p "$dir/avec espace/postgres"; echo mdp > "$dir/avec espace/.postgres-password"
+  _exec_chown() { :; }
+  source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
+  preparer_options_application 15432 "$dir/avec espace/postgres"
+  [ "$?" -ne 0 ] && [ -z "$OPTIONS_APPLICATION" ]
+}

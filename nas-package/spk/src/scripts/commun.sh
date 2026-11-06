@@ -217,7 +217,7 @@ verifier_maitre() {
 # les @Value(app.*) meme si le jar n'embarque aucun application.properties.
 # A ecrire AVANT installer_service_agent (son daemon-reload la prend en compte).
 ecrire_complement_agent() {
-  local url_maitre_agent="$1"
+  local url_maitre_agent="$1" options_application="${2:-}"
   mkdir -p "$DOSSIER_DROPIN_AGENT" || return 1
   local temp
   temp="$(mktemp "$DOSSIER_DROPIN_AGENT/.10-site-nas.conf.XXXXXX")" || return 1
@@ -236,6 +236,9 @@ Environment=APP_DEPLOIEMENT_DOCKERIMAGEOWNER=$IMAGE_OWNER
 Environment=APP_DEPLOIEMENT_PORTBLEU=$PORT_APP_BLEU
 Environment=APP_DEPLOIEMENT_PORTVERT=$PORT_APP_VERT
 Environment=APP_NGINX_FICHIERCONFIGUPSTREAM=$FICHIER_NGINX_UPSTREAM
+# Instances lancees par l'Agent : meme reseau, memes secrets, meme base que la premiere instance.
+Environment=APP_AGENT_DOCKER_RESEAUHOTE=true
+Environment="APP_AGENT_DOCKER_RUNOPTIONS=$options_application"
 EOF
   mv "$temp" "$FICHIER_DROPIN_AGENT"
 }

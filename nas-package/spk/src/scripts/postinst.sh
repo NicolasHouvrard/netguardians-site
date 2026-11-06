@@ -118,7 +118,12 @@ if ! mkdir -p "$DOSSIER_DONNEES_AGENT" || ! chmod 700 "$DOSSIER_DONNEES_AGENT"; 
   exit 1
 fi
 URL_MAITRE_AGENT="$(url_maitre_pour_agent "$ADRESSE_HEADSCALE")"
-if [ -z "$URL_MAITRE_AGENT" ] || ! ecrire_complement_agent "$URL_MAITRE_AGENT"; then
+# Options des instances applicatives : l'Agent les reutilise a chaque bascule (secrets crees ici).
+if ! preparer_options_application "$PORT_POSTGRES" "$DOSSIER_DONNEES_POSTGRES"; then
+  avertir_utilisateur "Impossible de preparer les secrets et options de l'application."
+  exit 1
+fi
+if [ -z "$URL_MAITRE_AGENT" ] || ! ecrire_complement_agent "$URL_MAITRE_AGENT" "$OPTIONS_APPLICATION"; then
   avertir_utilisateur "Impossible d'ecrire la configuration complementaire de l'Agent."
   exit 1
 fi

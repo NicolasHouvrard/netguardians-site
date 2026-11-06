@@ -24,14 +24,26 @@ public class DockerControl {
     private final CommandeExecuteur executeur;
     /** Options supplementaires pour {@code docker run} (ex. --env-file, --network, -v). */
     private final List<String> optionsRun;
+    /**
+     * Mode "reseau hote" (paquet Synology) : le conteneur partage le reseau du NAS pour joindre
+     * Postgres sur 127.0.0.1. {@code -p} n'a alors aucun effet : l'ecoute est fixee par
+     * {@code SERVER_PORT}/{@code SERVER_ADDRESS}, comme pour la premiere instance du paquet.
+     */
+    private final boolean reseauHote;
 
     public DockerControl(CommandeExecuteur executeur) {
-        this(executeur, "");
+        this(executeur, "", false);
+    }
+
+    public DockerControl(CommandeExecuteur executeur, String optionsRun) {
+        this(executeur, optionsRun, false);
     }
 
     @Autowired
     public DockerControl(CommandeExecuteur executeur,
-            @Value("${app.agent.docker.run-options:}") String optionsRun) {
+            @Value("${app.agent.docker.run-options:}") String optionsRun,
+            @Value("${app.agent.docker.reseau-hote:false}") boolean reseauHote) {
+        this.reseauHote = reseauHote;
         this.executeur = executeur;
         this.optionsRun = optionsRun.isBlank()
                 ? List.of()
@@ -53,8 +65,14 @@ public class DockerControl {
         supprimer(nom);
 
         List<String> commande = new ArrayList<>(List.of(DOCKER, "run", "--name", nom,
-                "--restart", "unless-stopped", "-d",
-                "-p", "127.0.0.1:" + port + ":" + PORT_CONTENEUR));
+                "--restart", "unless-stopped", "-d"));
+        if (reseauHote) {
+            // Jamais 0.0.0.0 : seul le Nginx local de bascule doit atteindre l'application.
+            commande.addAll(List.of("--network", "host",
+                    "-e", "SERVER_PORT=" + port, "-e", "SERVER_ADDRESS=127.0.0.1"));
+        } else {
+            commande.addAll(List.of("-p", "127.0.0.1:" + port + ":" + PORT_CONTENEUR));
+        }
         commande.addAll(optionsRun);
         commande.add(image);
 

@@ -163,3 +163,13 @@ test_installer_nas_garde_l_ecoute_hors_de_sites_enabled_et_la_reactive_au_demarr
     && bash -n "$SITE_NAS_PREFIXE/demarrage-nas.sh" \
     && [ -f "$SITE_NAS_PREFIXE/scripts/activer-ecoute.sh" ]
 }
+
+test_installer_nas_donne_a_l_agent_les_memes_options_que_la_premiere_instance() {
+  _preparer_installation
+  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" >/dev/null 2>&1 < /dev/null || return 1
+  dropin="$T/systemd-etc/site-agent.service.d/10-site-nas.conf"
+  grep -Fq 'Environment=APP_AGENT_DOCKER_RESEAUHOTE=true' "$dropin" \
+    && grep -F 'Environment="APP_AGENT_DOCKER_RUNOPTIONS=' "$dropin" | grep -Fq -- "-e SPRING_PROFILES_ACTIVE=prod" \
+    && grep -F 'Environment="APP_AGENT_DOCKER_RUNOPTIONS=' "$dropin" | grep -Fq -- "/run/secrets-app/app.crypto.key:ro" \
+    && grep -F 'Environment="APP_AGENT_DOCKER_RUNOPTIONS=' "$dropin" | grep -Fq -- "DATABASE_URL=jdbc:postgresql://127.0.0.1:15432/site"
+}

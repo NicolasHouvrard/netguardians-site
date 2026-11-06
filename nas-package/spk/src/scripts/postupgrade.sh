@@ -42,7 +42,8 @@ fi
 if verifier_headscale ""; then
   ADRESSE_HEADSCALE="$(headscale_adresse_ip | head -n 1)"
   URL_MAITRE_AGENT="$(url_maitre_pour_agent "$ADRESSE_HEADSCALE")"
-  if [ -n "$URL_MAITRE_AGENT" ] && ecrire_complement_agent "$URL_MAITRE_AGENT" \
+  if [ -n "$URL_MAITRE_AGENT" ] && preparer_options_application "$PORT_POSTGRES" "$DOSSIER_DONNEES_POSTGRES" \
+    && ecrire_complement_agent "$URL_MAITRE_AGENT" "$OPTIONS_APPLICATION" \
     && installer_service_agent "$CHEMIN_JRE" "$CHEMIN_JAR_AGENT" "$ADRESSE_HEADSCALE" "$PORT_AGENT" "$FICHIER_UNITE_AGENT"; then
     exit 0
   fi

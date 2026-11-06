@@ -76,6 +76,20 @@ class DockerControlTest {
     }
 
     @Test
+    void modeReseauHoteFixeLeportParVariablesEtNePublieAucunPort() {
+        var executeur = mock(CommandeExecuteur.class);
+        when(executeur.executer(any())).thenReturn(new ResultatCommande(0, "abc123\n", ""));
+
+        new DockerControl(executeur, "-e DATABASE_USERNAME=site", true)
+                .demarrerVersion("ghcr.io/owner/site:v1.2.3", 18081);
+
+        verify(executeur).executer(List.of("docker", "run", "--name", "site-18081",
+                "--restart", "unless-stopped", "-d", "--network", "host",
+                "-e", "SERVER_PORT=18081", "-e", "SERVER_ADDRESS=127.0.0.1",
+                "-e", "DATABASE_USERNAME=site", "ghcr.io/owner/site:v1.2.3"));
+    }
+
+    @Test
     void optionsDeRunVidesNAjoutentAucunJeton() {
         var executeur = mock(CommandeExecuteur.class);
         when(executeur.executer(any())).thenReturn(new ResultatCommande(0, "abc123\n", ""));

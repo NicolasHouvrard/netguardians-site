@@ -87,6 +87,8 @@ cp "$ICI/src/scripts/commun.sh" "$ICI/src/scripts/prestart.sh" "$ICI/src/scripts
   printf 'HEADSCALE_URL=%q\n' "$HEADSCALE_URL"
   printf 'IMAGE_OWNER=%q\n' "$IMAGE_OWNER"
   printf 'IMAGE_TAG=%q\n' "$IMAGE_TAG"
+  # Depot GitHub (owner/repo) sonde par le Maitre pour detecter les nouvelles versions.
+  printf 'GITHUB_REPO=%q\n' "${GITHUB_REPOSITORY:-}"
 } > "$SPK/scripts/constantes.sh"
 
 # --- conf/, WIZARD_UIFILES/, icones, INFO ---------------------------------------
