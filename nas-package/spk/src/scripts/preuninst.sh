@@ -29,7 +29,8 @@ fi
 charger_bibliotheques || exit 1
 
 # Agent
-_exec_systemctl disable --now site-agent >/dev/null 2>&1 || true
+_exec_systemctl stop site-agent >/dev/null 2>&1 || true
+_exec_systemctl disable site-agent >/dev/null 2>&1 || true
 rm -f "$FICHIER_UNITE_AGENT" "$FICHIER_DROPIN_AGENT"
 rmdir "$DOSSIER_DROPIN_AGENT" 2>/dev/null || true
 _exec_systemctl daemon-reload >/dev/null 2>&1 || true

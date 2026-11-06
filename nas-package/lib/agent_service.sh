@@ -49,5 +49,9 @@ installer_service_agent() {
   fi
   mv "$fichier_temp" "$fichier_unite_cible"
 
-  _exec_systemctl enable --now site-agent
+  # Pas de "enable --now" : le systemctl de DSM ne connait pas --now (constate sur DSM 7.4).
+  # Rechargement, activation au demarrage, puis (re)demarrage, en commandes separees.
+  _exec_systemctl daemon-reload || return 1
+  _exec_systemctl enable site-agent || return 1
+  _exec_systemctl restart site-agent
 }

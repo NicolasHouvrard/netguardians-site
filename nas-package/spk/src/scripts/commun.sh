@@ -210,7 +210,7 @@ verifier_maitre() {
 # defaut cote Java (voir agent/src/main/resources/application.properties.example).
 # Noms d'environnement canoniques Spring Boot (liaison relachee) : ils alimentent
 # les @Value(app.*) meme si le jar n'embarque aucun application.properties.
-# A ecrire AVANT installer_service_agent (son "enable --now" recharge systemd).
+# A ecrire AVANT installer_service_agent (son daemon-reload la prend en compte).
 ecrire_complement_agent() {
   local url_maitre_agent="$1"
   mkdir -p "$DOSSIER_DROPIN_AGENT" || return 1
