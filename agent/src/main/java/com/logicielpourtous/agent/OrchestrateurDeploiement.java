@@ -128,8 +128,9 @@ public class OrchestrateurDeploiement {
     static final int PORT_BLEU = 8080;
     static final int PORT_VERT = 8081;
 
-    /** Fenetre de controle de sante avant abandon (Global Constraints du plan) : constante ICI,
-     * pas injectee depuis ailleurs. */
+    /** Fenetre de controle de sante avant abandon : 30 s par defaut (Global Constraints du plan),
+     * rendue configurable par {@code app.deploiement.fenetre-sante-secondes} (paquet Synology : une
+     * application met 2 a 3 minutes a demarrer sur un NAS ARM, bien plus que 30 s). */
     static final Duration FENETRE = Duration.ofSeconds(30);
 
     private static final String IMAGE_DOCKER_TEMPLATE = "ghcr.io/%s/site:%s";
@@ -147,6 +148,7 @@ public class OrchestrateurDeploiement {
     private final String dockerImageOwner;
     private final int portBleu;
     private final int portVert;
+    private final Duration fenetreSante;
 
     /**
      * Constructeur Spring : construit lui-meme le {@link BasculeNginx} (pas encore un bean, voir
@@ -174,10 +176,11 @@ public class OrchestrateurDeploiement {
                                      @Value("${app.deploiement.docker-image-owner:}") String dockerImageOwner,
                                      @Value("${app.nginx.fichier-config-upstream:}") String cheminFichierConfigNginx,
                                      @Value("${app.deploiement.port-bleu:8080}") int portBleu,
-                                     @Value("${app.deploiement.port-vert:8081}") int portVert) {
+                                     @Value("${app.deploiement.port-vert:8081}") int portVert,
+                                     @Value("${app.deploiement.fenetre-sante-secondes:30}") long fenetreSanteSecondes) {
         this(maitreClient, dockerControl, controleSante,
                 new BasculeNginx(Path.of(blankToEmpty(cheminFichierConfigNginx)), executeur),
-                dockerImageOwner, portBleu, portVert);
+                dockerImageOwner, portBleu, portVert, Duration.ofSeconds(fenetreSanteSecondes));
     }
 
     /** Visible pour les tests UNIQUEMENT (meme package) : surcharge historique a 5 arguments,
@@ -198,6 +201,17 @@ public class OrchestrateurDeploiement {
     OrchestrateurDeploiement(MaitreClient maitreClient, DockerControl dockerControl,
                              ControleSante controleSante, BasculeNginx basculeNginx,
                              String dockerImageOwner, int portBleu, int portVert) {
+        this(maitreClient, dockerControl, controleSante, basculeNginx, dockerImageOwner, portBleu, portVert, FENETRE);
+    }
+
+    /** Visible pour les tests UNIQUEMENT : fenetre de sante explicite (doit etre strictement positive). */
+    OrchestrateurDeploiement(MaitreClient maitreClient, DockerControl dockerControl,
+                             ControleSante controleSante, BasculeNginx basculeNginx,
+                             String dockerImageOwner, int portBleu, int portVert, Duration fenetreSante) {
+        if (fenetreSante == null || fenetreSante.isZero() || fenetreSante.isNegative()) {
+            throw new IllegalArgumentException("app.deploiement.fenetre-sante-secondes doit etre > 0");
+        }
+        this.fenetreSante = fenetreSante;
         this.maitreClient = maitreClient;
         this.dockerControl = dockerControl;
         this.controleSante = controleSante;
@@ -262,12 +276,12 @@ public class OrchestrateurDeploiement {
             return;
         }
 
-        boolean sain = controleSante.attendreSante(portInactif, FENETRE);
+        boolean sain = controleSante.attendreSante(portInactif, fenetreSante);
         if (!sain) {
             dockerControl.arreterConteneur(idNouvelleVersion);
             log.warn("Agent : controle de sante en echec pour la version {} (port {}, fenetre {}), "
                     + "annulation — Nginx n'est jamais touche, l'ancienne version continue de repondre",
-                    versionRecue, portInactif, FENETRE);
+                    versionRecue, portInactif, fenetreSante);
             return;
         }
 
