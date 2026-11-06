@@ -98,5 +98,7 @@ assurer_interface_tailscale() {
   fi
   _exec_tailscale configure-host || return 1
   _exec_synosystemctl restart pkgctl-Tailscale.service || return 1
-  avec_reessai 30 2 interface_tailscale_presente
+  # 2+4+8+16+32+64 = 126 s d'attente cumulee : au demarrage du NAS, l'interface met plus de 30 s a
+  # apparaitre apres le redemarrage de Tailscale (constate sur DSM 7.4 : elle arrive juste apres).
+  avec_reessai 126 2 interface_tailscale_presente
 }

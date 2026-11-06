@@ -159,5 +159,7 @@ test_installer_nas_garde_l_ecoute_hors_de_sites_enabled_et_la_reactive_au_demarr
     && [ -f "$T/systemd-etc/site-nas-nginx.service" ] \
     && grep -q "ExecStop=/bin/rm -f $T/nginx/site-nas-ecoute.conf" "$T/systemd-etc/site-nas-nginx.service" \
     && grep -q "activer-ecoute.sh" "$SITE_NAS_PREFIXE/demarrage-nas.sh" \
+    && grep -Fq 'prestart=$?' "$SITE_NAS_PREFIXE/demarrage-nas.sh" \
+    && bash -n "$SITE_NAS_PREFIXE/demarrage-nas.sh" \
     && [ -f "$SITE_NAS_PREFIXE/scripts/activer-ecoute.sh" ]
 }

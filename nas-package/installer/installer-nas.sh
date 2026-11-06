@@ -73,7 +73,10 @@ cat > "$PREFIXE/demarrage-nas.sh" <<DEMARRAGE
 export SYNOPKG_PKGDEST="$PREFIXE" SYNOPKG_PKGNAME=site-nas
 # L'ecoute Nginx n'est activee qu'ici, une fois tailscale0 creee : en permanence dans sites-enabled
 # elle ferait echouer "nginx -t" au demarrage (File Station, Synology Drive en erreur).
-bash "$PREFIXE/scripts/prestart.sh" && { bash "$PREFIXE/scripts/activer-ecoute.sh"; systemctl restart site-agent; }
+# L'activation de l'ecoute ne depend pas du verdict de prestart.sh (Maitre joignable ou non).
+bash "$PREFIXE/scripts/prestart.sh"; prestart=\$?
+bash "$PREFIXE/scripts/activer-ecoute.sh"
+[ "\$prestart" -eq 0 ] && systemctl restart site-agent
 DEMARRAGE
 chmod 755 "$PREFIXE/demarrage-nas.sh"
 
