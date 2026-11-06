@@ -40,7 +40,9 @@ _exec_docker rm -f "site-$PORT_APP_BLEU" "site-$PORT_APP_VERT" site-postgres >/d
 
 # Nginx : sans nos fichiers, le Nginx de DSM ne doit plus ecouter sur 8072 ni
 # relayer vers un upstream disparu.
-rm -f "$FICHIER_NGINX_UPSTREAM" "$FICHIER_NGINX_ECOUTE"
+_exec_systemctl stop site-nas-nginx >/dev/null 2>&1 || true
+_exec_systemctl disable site-nas-nginx >/dev/null 2>&1 || true
+rm -f "$FICHIER_UNITE_NETTOYAGE_NGINX" "$FICHIER_NGINX_UPSTREAM" "$FICHIER_NGINX_ECOUTE" "$FICHIER_NGINX_ECOUTE_SOURCE"
 if _exec_nginx -t >/dev/null 2>&1; then
   _exec_nginx -s reload >/dev/null 2>&1 || true
 fi

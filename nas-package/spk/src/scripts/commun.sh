@@ -68,6 +68,11 @@ DOSSIER_DONNEES_AGENT="$SITE_NAS_RACINE_DONNEES/agent"
 FICHIER_CLE_API_AGENT="$DOSSIER_DONNEES_AGENT/cle-api-licence"
 FICHIER_NGINX_UPSTREAM="$SITE_NAS_DOSSIER_NGINX/site-nas-upstream.conf"
 FICHIER_NGINX_ECOUTE="$SITE_NAS_DOSSIER_NGINX/site-nas-ecoute.conf"
+# L'ecoute (listen <adresse Headscale>) est gardee HORS de sites-enabled et n'y est copiee qu'une
+# fois tailscale0 creee (activer-ecoute.sh) : en permanence dans sites-enabled, elle ferait echouer
+# "nginx -t" a chaque demarrage du NAS (adresse absente) et empecherait File Station / Drive.
+FICHIER_NGINX_ECOUTE_SOURCE="$SITE_NAS_RACINE_DONNEES/nginx/site-nas-ecoute.conf"
+FICHIER_UNITE_NETTOYAGE_NGINX="$SITE_NAS_DOSSIER_SYSTEMD/site-nas-nginx.service"
 FICHIER_UNITE_AGENT="$SITE_NAS_DOSSIER_SYSTEMD/site-agent.service"
 DOSSIER_DROPIN_AGENT="$SITE_NAS_DOSSIER_SYSTEMD/site-agent.service.d"
 FICHIER_DROPIN_AGENT="$DOSSIER_DROPIN_AGENT/10-site-nas.conf"

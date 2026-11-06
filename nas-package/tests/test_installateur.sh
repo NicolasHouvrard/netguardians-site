@@ -14,7 +14,7 @@ _preparer_installation() {
   for s in preinst postinst postuninst postupgrade preuninst preupgrade start-stop-status; do
     cp "$src/spk/src/scripts/$s.sh" "$SPKDIR/scripts/$s"
   done
-  cp "$src/spk/src/scripts/commun.sh" "$src/spk/src/scripts/prestart.sh" "$SPKDIR/scripts/"
+  cp "$src/spk/src/scripts/commun.sh" "$src/spk/src/scripts/prestart.sh" "$src/spk/src/scripts/activer-ecoute.sh" "$SPKDIR/scripts/"
   printf 'HEADSCALE_URL=https://hs.exemple.test\nIMAGE_OWNER=proprietaire\nIMAGE_TAG=v9.9\n' > "$SPKDIR/scripts/constantes.sh"
   cp "$src"/lib/*.sh "$CONTENU/lib/"
   cp "$src"/systemd/* "$CONTENU/systemd/"
@@ -149,4 +149,15 @@ test_installer_nas_installe_la_copie_verifiee_meme_si_le_fichier_d_origine_est_r
   chmod +x "$STUBS/sha256sum"
   bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$somme_officielle" >/dev/null 2>&1 < /dev/null; code=$?
   [ "$code" -eq 0 ] && [ ! -e "$T/marqueur-piege" ] && ! grep -q "marqueur-piege" "$SITE_NAS_PREFIXE/scripts/postinst"
+}
+
+test_installer_nas_garde_l_ecoute_hors_de_sites_enabled_et_la_reactive_au_demarrage() {
+  _preparer_installation
+  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" >/dev/null 2>&1 < /dev/null || return 1
+  [ -f "$T/data/nginx/site-nas-ecoute.conf" ] \
+    && [ -f "$T/nginx/site-nas-ecoute.conf" ] \
+    && [ -f "$T/systemd-etc/site-nas-nginx.service" ] \
+    && grep -q "ExecStop=/bin/rm -f $T/nginx/site-nas-ecoute.conf" "$T/systemd-etc/site-nas-nginx.service" \
+    && grep -q "activer-ecoute.sh" "$SITE_NAS_PREFIXE/demarrage-nas.sh" \
+    && [ -f "$SITE_NAS_PREFIXE/scripts/activer-ecoute.sh" ]
 }

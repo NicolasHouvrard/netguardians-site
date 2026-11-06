@@ -71,7 +71,9 @@ cat > "$PREFIXE/demarrage-nas.sh" <<DEMARRAGE
 # mode TUN de Tailscale, connexion Headscale, Maitre joignable, puis redemarrage de l'Agent
 # (qui ecoute sur l'adresse Headscale et echoue si elle n'existe pas encore au demarrage).
 export SYNOPKG_PKGDEST="$PREFIXE" SYNOPKG_PKGNAME=site-nas
-bash "$PREFIXE/scripts/prestart.sh" && systemctl restart site-agent
+# L'ecoute Nginx n'est activee qu'ici, une fois tailscale0 creee : en permanence dans sites-enabled
+# elle ferait echouer "nginx -t" au demarrage (File Station, Synology Drive en erreur).
+bash "$PREFIXE/scripts/prestart.sh" && { bash "$PREFIXE/scripts/activer-ecoute.sh"; systemctl restart site-agent; }
 DEMARRAGE
 chmod 755 "$PREFIXE/demarrage-nas.sh"
 
@@ -117,7 +119,7 @@ A FAIRE UNE FOIS, a la main (DSM ne le permet pas depuis un script) : creer la t
 Sans elle, apres un redemarrage du NAS, l'interface reseau Tailscale (tailscale0) n'est pas recreee et
 l'Agent n'est pas relance.
 
-Si, apres un redemarrage, l'interface web de DSM ne repond plus, c'est le Nginx de DSM qui n'a pas pu
-ecouter sur l'adresse Headscale avant sa creation. Depuis SSH :
+Si, apres une coupure brutale du NAS, DSM signale des pages web en erreur (File Station, Drive), c'est
+que l'ecoute Nginx est restee en place sans son adresse. Depuis SSH :
   sudo rm /usr/local/etc/nginx/sites-enabled/site-nas-ecoute.conf && sudo synosystemctl restart nginx
 FIN

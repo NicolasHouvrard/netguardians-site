@@ -85,22 +85,27 @@ if ! mkdir -p "$SITE_NAS_DOSSIER_NGINX"; then
   exit 1
 fi
 upstream_cree=0
-ecoute_cree=0
 [ -e "$FICHIER_NGINX_UPSTREAM" ] || upstream_cree=1
-[ -e "$FICHIER_NGINX_ECOUTE" ] || ecoute_cree=1
 initialiser_nginx_local "$FICHIER_NGINX_UPSTREAM" "$PORT_APP_BLEU"
-configurer_ecoute_nginx "$FICHIER_NGINX_ECOUTE" "$ADRESSE_HEADSCALE" "$PORT_NGINX_ECOUTE"
+# Ecoute ecrite hors de sites-enabled, puis activee (tailscale0 existe a ce stade, verifie a
+# l'etape 1) ; elle est re-activee a chaque demarrage par activer-ecoute.sh.
+if ! mkdir -p "$(dirname "$FICHIER_NGINX_ECOUTE_SOURCE")" || ! chmod 700 "$(dirname "$FICHIER_NGINX_ECOUTE_SOURCE")"; then
+  avertir_utilisateur "Impossible de creer $(dirname "$FICHIER_NGINX_ECOUTE_SOURCE")."
+  exit 1
+fi
+configurer_ecoute_nginx "$FICHIER_NGINX_ECOUTE_SOURCE" "$ADRESSE_HEADSCALE" "$PORT_NGINX_ECOUTE"
 # Le Nginx recharge est celui de DSM (il sert aussi l'interface DSM) : une
 # configuration invalide laissee dans sites-enabled casserait son prochain
 # rechargement. On valide d'abord, et on retire ce qu'on vient d'ecrire si refus.
-if ! _exec_nginx -t >/dev/null 2>&1; then
+if ! activer_ecoute_nginx "$FICHIER_NGINX_ECOUTE_SOURCE" "$FICHIER_NGINX_ECOUTE"; then
   [ "$upstream_cree" -eq 1 ] && rm -f "$FICHIER_NGINX_UPSTREAM"
-  [ "$ecoute_cree" -eq 1 ] && rm -f "$FICHIER_NGINX_ECOUTE"
-  avertir_utilisateur "Configuration Nginx refusee par 'nginx -t' : fichiers retires, installation interrompue (Postgres reste demarre, ses donnees sont intactes)."
+  desactiver_ecoute_nginx "$FICHIER_NGINX_ECOUTE"
+  avertir_utilisateur "Configuration Nginx refusee ou rechargement impossible : fichiers retires, installation interrompue (Postgres reste demarre, ses donnees sont intactes)."
   exit 1
 fi
-if ! _exec_nginx -s reload; then
-  avertir_utilisateur "Le rechargement de Nginx a echoue (port $PORT_NGINX_ECOUTE)."
+# A l'arret du NAS, l'ecoute est retiree de sites-enabled (voir activer-ecoute.sh).
+if ! installer_nettoyage_ecoute_nginx "$FICHIER_UNITE_NETTOYAGE_NGINX" "$FICHIER_NGINX_ECOUTE"; then
+  avertir_utilisateur "Impossible d'installer le nettoyage de l'ecoute Nginx a l'arret."
   exit 1
 fi
 

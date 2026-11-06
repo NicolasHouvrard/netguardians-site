@@ -61,7 +61,7 @@ CONTENU="$CONSTRUCTION/package"
 # --- package.tgz : contenu installe dans SYNOPKG_PKGDEST (= NAS_PKG_DIR) --------
 mkdir -p "$CONTENU/lib" "$CONTENU/systemd" "$CONTENU/agent"
 cp "$RACINE_PAQUET"/lib/*.sh "$CONTENU/lib/"
-cp "$RACINE_PAQUET"/systemd/site-agent.service.template "$CONTENU/systemd/"
+cp "$RACINE_PAQUET"/systemd/site-agent.service.template "$RACINE_PAQUET"/systemd/site-nas-nginx.service.template "$CONTENU/systemd/"
 cp "$AGENT_JAR" "$CONTENU/agent/agent.jar"
 cp -R "$JRE_DIR" "$CONTENU/jre"
 
@@ -79,7 +79,7 @@ mkdir -p "$SPK/scripts"
 for s in preinst postinst preuninst postuninst preupgrade postupgrade start-stop-status; do
   cp "$ICI/src/scripts/$s.sh" "$SPK/scripts/$s"
 done
-cp "$ICI/src/scripts/commun.sh" "$ICI/src/scripts/prestart.sh" "$SPK/scripts/"
+cp "$ICI/src/scripts/commun.sh" "$ICI/src/scripts/prestart.sh" "$ICI/src/scripts/activer-ecoute.sh" "$SPK/scripts/"
 # Valeurs du projet figees a la construction (lues par commun.sh). printf %q :
 # aucune valeur ne peut injecter de code dans ce fichier source par les scripts.
 {

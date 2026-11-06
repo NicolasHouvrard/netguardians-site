@@ -1,0 +1,11 @@
+[Unit]
+Description=Retire l'ecoute Nginx du paquet site-nas a l'arret (evite un nginx -t en echec au demarrage)
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+ExecStop=/bin/rm -f __FICHIER__
+
+[Install]
+WantedBy=multi-user.target

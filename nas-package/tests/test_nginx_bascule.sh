@@ -51,3 +51,46 @@ test_configurer_ecoute_nginx_ne_touche_pas_un_fichier_deja_present() {
   configurer_ecoute_nginx "$dir/server.conf" "100.64.0.12" 8072
   grep -q "100.64.0.99:9999" "$dir/server.conf"
 }
+
+test_activer_ecoute_nginx_copie_valide_puis_recharge() {
+  dir=$(mktemp -d); mkdir "$dir/sites"; appels=""
+  printf 'listen 100.64.0.12:8072;\n' > "$dir/source.conf"
+  _exec_nginx() { appels="$appels|$*"; }
+  source "$NAS_PKG_DIR/lib/nginx_bascule.sh"
+  activer_ecoute_nginx "$dir/source.conf" "$dir/sites/ecoute.conf"
+  grep -q "100.64.0.12:8072" "$dir/sites/ecoute.conf" && [ "$appels" = "|-t|-s reload" ] && [ -e "$dir/source.conf" ]
+}
+
+test_activer_ecoute_nginx_retire_le_fichier_si_nginx_t_echoue() {
+  dir=$(mktemp -d); mkdir "$dir/sites"; appels=""
+  printf 'listen 100.64.0.12:8072;\n' > "$dir/source.conf"
+  _exec_nginx() { appels="$appels|$*"; [ "$1" != "-t" ]; }
+  source "$NAS_PKG_DIR/lib/nginx_bascule.sh"
+  activer_ecoute_nginx "$dir/source.conf" "$dir/sites/ecoute.conf"; code=$?
+  [ "$code" -ne 0 ] && [ ! -e "$dir/sites/ecoute.conf" ] && [ "$appels" = "|-t" ]
+}
+
+test_activer_ecoute_nginx_echoue_sans_fichier_source() {
+  dir=$(mktemp -d); mkdir "$dir/sites"
+  _exec_nginx() { :; }
+  source "$NAS_PKG_DIR/lib/nginx_bascule.sh"
+  activer_ecoute_nginx "$dir/absent.conf" "$dir/sites/ecoute.conf"; code=$?
+  [ "$code" -ne 0 ] && [ ! -e "$dir/sites/ecoute.conf" ]
+}
+
+test_desactiver_ecoute_nginx_retire_la_cible_et_garde_la_source() {
+  dir=$(mktemp -d); : > "$dir/source.conf"; : > "$dir/cible.conf"
+  source "$NAS_PKG_DIR/lib/nginx_bascule.sh"
+  desactiver_ecoute_nginx "$dir/cible.conf"
+  desactiver_ecoute_nginx "$dir/cible.conf"
+  [ ! -e "$dir/cible.conf" ] && [ -e "$dir/source.conf" ]
+}
+
+test_installer_nettoyage_ecoute_nginx_ecrit_l_unite_avec_execstop_et_l_active() {
+  dir=$(mktemp -d); appels=""
+  _exec_systemctl() { appels="$appels|$*"; }
+  source "$NAS_PKG_DIR/lib/nginx_bascule.sh"
+  installer_nettoyage_ecoute_nginx "$dir/u.service" "/usr/local/etc/nginx/sites-enabled/site-nas-ecoute.conf"
+  grep -q "ExecStop=/bin/rm -f /usr/local/etc/nginx/sites-enabled/site-nas-ecoute.conf" "$dir/u.service" \
+    && [ "$appels" = "|daemon-reload|enable site-nas-nginx|start site-nas-nginx" ]
+}
