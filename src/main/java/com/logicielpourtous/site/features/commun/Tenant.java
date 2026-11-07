@@ -120,6 +120,20 @@ private String siren;
     public Long getCustomerId() { return customerId; }
     public void setCustomerId(Long customerId) { this.customerId = customerId; }
 
+    /** Serveur d'accueil du tenant : id d'un {@code LicenceServeur} ; {@code null} = rattache au Maitre. */
+    @Column(name = "serveur_licence_id")
+    private Long serveurLicenceId;
+
+    public Long getServeurLicenceId() { return serveurLicenceId; }
+    public void setServeurLicenceId(Long serveurLicenceId) { this.serveurLicenceId = serveurLicenceId; }
+
+    /** Pour un tenant client : le tenant partenaire dont il depend (un seul niveau). */
+    @Column(name = "tenant_partenaire_id")
+    private Long tenantPartenaireId;
+
+    public Long getTenantPartenaireId() { return tenantPartenaireId; }
+    public void setTenantPartenaireId(Long tenantPartenaireId) { this.tenantPartenaireId = tenantPartenaireId; }
+
     // Getters et Setters
     public String getSchemaName() {
         return schemaName;

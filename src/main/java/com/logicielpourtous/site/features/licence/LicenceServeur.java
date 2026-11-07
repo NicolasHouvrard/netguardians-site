@@ -108,6 +108,10 @@ public class LicenceServeur {
 
     private Instant creeA;
 
+    /** Adresse HTTPS publique du serveur (ex. {@code https://app.exemple.com}), distincte de l'adresse
+     * Headscale : sert a rediriger le navigateur d'un utilisateur vers le serveur de son tenant. */
+    private String urlPublique;
+
     @PrePersist
     protected void onCreate() {
         if (statut == null) {
