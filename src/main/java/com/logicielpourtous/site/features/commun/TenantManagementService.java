@@ -19,12 +19,17 @@ public class TenantManagementService {
     @Autowired
     private TenantRepository tenantRepository;
 
+    @Autowired
+    private com.logicielpourtous.site.features.licence.ServeurAccueilService serveurAccueilService;
+
     @Transactional
     public void createNewTenant(String companyName, String schemaName) {
         // 1. Sauvegarde dans le catalogue global (public)
         Tenant tenant = new Tenant();
         tenant.setName(companyName);
         tenant.setSchemaName(schemaName);
+        // Nouveau tenant : serveur d'accueil par defaut (aucun = rattache au Maitre).
+        tenant.setServeurLicenceId(serveurAccueilService.serveurParDefautId().orElse(null));
         tenantRepository.save(tenant);
 
         // 2. Création du schéma et des tables
