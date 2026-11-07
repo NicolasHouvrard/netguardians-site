@@ -3,7 +3,10 @@ package com.logicielpourtous.agent;
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.regex.Pattern;
 import java.time.Duration;
 import java.util.Optional;
 
@@ -54,6 +57,9 @@ public class MaitreClient {
 
     private static final String ORDRE_DEPLOIEMENT_PATH = "/api/licence/ordre-deploiement";
     private static final String HEADER_CLE_API = "X-Licence-Api-Key";
+    /** Une cle API reelle fait quelques dizaines de caracteres : au-dela, le fichier est suspect. */
+    private static final long TAILLE_MAX_CLE_API = 4096;
+    private static final Pattern FORMAT_CLE_API = Pattern.compile("^[A-Za-z0-9._~+/=-]{1,512}$");
 
     /** Securite scan, fix round 1 : sans delai de connexion dedie, un Maitre INJOIGNABLE
      * bloquerait indefiniment le thread de l'executor qui execute {@code
@@ -158,12 +164,32 @@ public class MaitreClient {
      * statut NORMAL de cet etat.
      */
     private String lireCleApiLocale() {
-        if (cheminCleApiLocale == null || !Files.exists(cheminCleApiLocale)) {
+        if (cheminCleApiLocale == null || !Files.exists(cheminCleApiLocale, LinkOption.NOFOLLOW_LINKS)) {
             return null;
         }
         try {
+            // Le fichier est ecrit par l'application (conteneur, utilisateur non privilegie) et lu ici
+            // par l'Agent : il n'est donc PAS de confiance. Refus d'un lien symbolique ou d'un fichier
+            // special (lecture en root d'un fichier arbitraire), d'une taille anormale, et de tout
+            // contenu qui ne ressemble pas a une cle (le contenu part dans un en-tete HTTP : un saut
+            // de ligne y serait une injection d'en-tete).
+            BasicFileAttributes attributs = Files.readAttributes(cheminCleApiLocale,
+                    BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            if (!attributs.isRegularFile() || attributs.size() > TAILLE_MAX_CLE_API) {
+                log.warn("Agent : fichier de cle API locale {} ignore (ni fichier ordinaire ni taille "
+                        + "raisonnable)", cheminCleApiLocale);
+                return null;
+            }
             String contenu = Files.readString(cheminCleApiLocale).trim();
-            return contenu.isEmpty() ? null : contenu;
+            if (contenu.isEmpty()) {
+                return null;
+            }
+            if (!FORMAT_CLE_API.matcher(contenu).matches()) {
+                log.warn("Agent : contenu du fichier de cle API locale {} ignore (caracteres inattendus)",
+                        cheminCleApiLocale);
+                return null;
+            }
+            return contenu;
         } catch (IOException e) {
             log.warn("Agent : lecture du fichier de cle API locale {} impossible, nouvel essai au "
                     + "prochain reveil/sondage : {}", cheminCleApiLocale, e.toString());

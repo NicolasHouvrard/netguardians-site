@@ -86,6 +86,54 @@ class MaitreClientTest {
     }
 
     @Test
+    void recupererOrdre_cleAvecCaracteresInterdits_estIgnoreeSansAppelerLeMaitre() throws IOException {
+        // Un saut de ligne dans la cle serait une injection d'en-tete HTTP (le fichier est ecrit par
+        // l'application, pas de confiance).
+        Path cheminCle = tmpDir.resolve("cle-api-licence-piegee");
+        Files.writeString(cheminCle, "abc\r\nX-Evil: 1");
+        List<String> appelsRecus = new CopyOnWriteArrayList<>();
+        demarrerMaitre("{\"version\":\"v1.2.3\"}", appelsRecus);
+
+        MaitreClient client = new MaitreClient(cheminCle, "http://localhost:" + maitre.getAddress().getPort());
+
+        assertThat(client.recupererOrdre()).isEmpty();
+        assertThat(appelsRecus).isEmpty();
+    }
+
+    @Test
+    void recupererOrdre_fichierTropGros_estIgnoreSansAppelerLeMaitre() throws IOException {
+        Path cheminCle = tmpDir.resolve("cle-api-licence-enorme");
+        Files.writeString(cheminCle, "a".repeat(10_000));
+        List<String> appelsRecus = new CopyOnWriteArrayList<>();
+        demarrerMaitre("{\"version\":\"v1.2.3\"}", appelsRecus);
+
+        MaitreClient client = new MaitreClient(cheminCle, "http://localhost:" + maitre.getAddress().getPort());
+
+        assertThat(client.recupererOrdre()).isEmpty();
+        assertThat(appelsRecus).isEmpty();
+    }
+
+    @Test
+    void recupererOrdre_lienSymboliqueVersUnAutreFichier_estIgnore() throws IOException {
+        Path vraie = tmpDir.resolve("autre-fichier-sensible");
+        Files.writeString(vraie, "abc");
+        Path lien = tmpDir.resolve("cle-api-licence-lien");
+        try {
+            Files.createSymbolicLink(lien, vraie);
+        } catch (UnsupportedOperationException | IOException | SecurityException e) {
+            // Liens symboliques indisponibles (ex. Windows sans droit) : cas non testable ici.
+            org.junit.jupiter.api.Assumptions.assumeTrue(false, "liens symboliques non disponibles");
+        }
+        List<String> appelsRecus = new CopyOnWriteArrayList<>();
+        demarrerMaitre("{\"version\":\"v1.2.3\"}", appelsRecus);
+
+        MaitreClient client = new MaitreClient(lien, "http://localhost:" + maitre.getAddress().getPort());
+
+        assertThat(client.recupererOrdre()).isEmpty();
+        assertThat(appelsRecus).isEmpty();
+    }
+
+    @Test
     void recupererOrdre_versionNulleCoteMaitre_renvoieVide() throws IOException {
         Path cheminCle = tmpDir.resolve("cle-api-licence");
         Files.writeString(cheminCle, "abc");

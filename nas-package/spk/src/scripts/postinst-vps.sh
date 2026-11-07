@@ -105,9 +105,12 @@ printf '%s' "$LOGIN" | _ecrire_secret_atomique "$SITE_NAS_RACINE_DONNEES/.app-li
   && printf '%s' "$MDP" | _ecrire_secret_atomique "$SITE_NAS_RACINE_DONNEES/.app-licence-mdp" "$UID_APPLICATION" \
   || echec "Impossible d'ecrire les identifiants de licence."
 unset LOGIN MDP
-# Dossier ou l'application ecrit sa cle API de licence, lue ensuite par l'Agent (root).
-_exec_chown "$UID_APPLICATION:$UID_APPLICATION" "$DOSSIER_DONNEES_AGENT" && chmod 700 "$DOSSIER_DONNEES_AGENT" \
-  || echec "Impossible de preparer $DOSSIER_DONNEES_AGENT."
+# Dossier DEDIE ou l'application ecrit sa cle API de licence (lue ensuite par l'Agent, qui ne suit pas
+# les liens symboliques). Le dossier de travail de l'Agent reste a root et hors de portee du conteneur.
+mkdir -p "$DOSSIER_CLE_API_AGENT" \
+  && _exec_chown "$UID_APPLICATION:$UID_APPLICATION" "$DOSSIER_CLE_API_AGENT" && chmod 700 "$DOSSIER_CLE_API_AGENT" \
+  || echec "Impossible de preparer $DOSSIER_CLE_API_AGENT."
+chmod 700 "$DOSSIER_DONNEES_AGENT" || echec "Impossible de restreindre $DOSSIER_DONNEES_AGENT."
 
 # --- 6. Agent -------------------------------------------------------------------------------
 preparer_options_application "$PORT_POSTGRES" "$DOSSIER_DONNEES_POSTGRES" || echec "Impossible de preparer les secrets et options de l'application."

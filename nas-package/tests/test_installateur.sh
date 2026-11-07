@@ -185,7 +185,7 @@ _preparer_vps() {
   printf '#!/bin/bash\necho vps-01\n' > "$STUBS/hostname"
   # L'application repond "UP" ; "docker run" simule l'enrolement en ecrivant la cle de licence de l'Agent.
   printf '#!/bin/bash\necho "{\\"status\\":\\"UP\\"}"\nexit 0\n' > "$STUBS/curl"
-  printf '#!/bin/bash\necho "docker $*" >> "%s"\nif [ "$1" = run ] && [[ "$*" == *"--name site-18080"* ]]; then mkdir -p "%s/agent" && echo cle > "%s/agent/cle-api-licence"; fi\nexit 0\n' "$STUB_LOG" "$T/data" "$T/data" > "$STUBS/docker"
+  printf '#!/bin/bash\necho "docker $*" >> "%s"\nif [ "$1" = run ] && [[ "$*" == *"--name site-18080"* ]]; then mkdir -p "%s/agent-cle" && echo cle > "%s/agent-cle/cle-api-licence"; fi\nexit 0\n' "$STUB_LOG" "$T/data" "$T/data" > "$STUBS/docker"
   chmod +x "$STUBS"/*
 }
 

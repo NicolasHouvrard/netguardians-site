@@ -65,7 +65,11 @@ version_tailscale_suffisante() {
 
 DOSSIER_DONNEES_POSTGRES="$SITE_NAS_RACINE_DONNEES/postgres"
 DOSSIER_DONNEES_AGENT="$SITE_NAS_RACINE_DONNEES/agent"
-FICHIER_CLE_API_AGENT="$DOSSIER_DONNEES_AGENT/cle-api-licence"
+# Dossier DEDIE a la cle API : seul dossier que le conteneur applicatif (non privilegie) peut ecrire.
+# Il est distinct du dossier de travail de l'Agent (root), qui ne doit jamais etre inscriptible par
+# l'application : Spring Boot y lit sa configuration (./config/application.properties).
+DOSSIER_CLE_API_AGENT="$SITE_NAS_RACINE_DONNEES/agent-cle"
+FICHIER_CLE_API_AGENT="$DOSSIER_CLE_API_AGENT/cle-api-licence"
 FICHIER_NGINX_UPSTREAM="$SITE_NAS_DOSSIER_NGINX/site-nas-upstream.conf"
 FICHIER_NGINX_ECOUTE="$SITE_NAS_DOSSIER_NGINX/site-nas-ecoute.conf"
 # L'ecoute (listen <adresse Headscale>) est gardee HORS de sites-enabled et n'y est copiee qu'une

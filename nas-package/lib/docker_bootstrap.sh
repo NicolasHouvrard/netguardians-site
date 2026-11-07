@@ -75,7 +75,7 @@ preparer_options_application() {
   if [ -s "$dossier_parent/.app-licence-login" ] && [ -s "$dossier_parent/.app-licence-mdp" ]; then
     OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $dossier_parent/.app-licence-login:/run/secrets-app/app.licence.login:ro"
     OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $dossier_parent/.app-licence-mdp:/run/secrets-app/app.licence.mot-de-passe:ro"
-    OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $dossier_parent/agent:/var/lib/site/agent"
+    OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $dossier_parent/agent-cle:/var/lib/site/agent"
     OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e AGENT_CLE_API_FILE_PATH=/var/lib/site/agent/cle-api-licence"
   fi
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e SPRING_CONFIG_IMPORT=configtree:/run/secrets-app/"
