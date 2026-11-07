@@ -2,6 +2,7 @@ package com.logicielpourtous.site.features.licence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -56,7 +57,7 @@ class CompteLicenceAdminControllerTest {
     @Test
     void createCompte_hashesPasswordAndPersists() throws Exception {
         mockMvc.perform(post("/intra/licence/comptes")
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("login", "client-alpha-" + UUID.randomUUID())
                         .param("motDePasse", "secret-en-clair")
                         .param("typeAbonnement", "ILLIMITE")
@@ -64,7 +65,7 @@ class CompteLicenceAdminControllerTest {
                         .param("nombreServeursAutorises", "3"))
                 .andExpect(status().is3xxRedirection());
 
-        mockMvc.perform(get("/intra/licence/comptes").with(user(adminPrincipal(tenantRepository))))
+        mockMvc.perform(get("/intra/licence/comptes").with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().isOk());
 
         CompteLicence compte = compteLicenceRepository.findAll().stream()
@@ -85,7 +86,7 @@ class CompteLicenceAdminControllerTest {
         compte.setNombreServeursAutorises(7);
         compte = compteLicenceRepository.save(compte);
 
-        mockMvc.perform(get("/intra/licence/comptes").with(user(adminPrincipal(tenantRepository))))
+        mockMvc.perform(get("/intra/licence/comptes").with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString(compte.getLogin())))
                 .andExpect(content().string(containsString("7")));
@@ -103,7 +104,7 @@ class CompteLicenceAdminControllerTest {
         assertThat(compte.isActif()).isTrue();
 
         mockMvc.perform(post("/intra/licence/comptes/{id}/toggle-actif", compte.getId())
-                        .with(user(adminPrincipal(tenantRepository))))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().is3xxRedirection());
 
         assertThat(compteLicenceRepository.findById(compte.getId()).orElseThrow().isActif()).isFalse();
@@ -127,7 +128,7 @@ class CompteLicenceAdminControllerTest {
         client = licenceServeurRepository.save(client);
 
         mockMvc.perform(post("/intra/licence/comptes/{id}/toggle-actif", compte.getId())
-                        .with(user(adminPrincipal(tenantRepository))))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().is3xxRedirection());
 
         assertThat(compteLicenceRepository.findById(compte.getId()).orElseThrow().isActif()).isFalse();
@@ -146,10 +147,10 @@ class CompteLicenceAdminControllerTest {
         LicenceServeur serveur = licenceServeurDuCompte(compte, "10.0.0.5");
 
         mockMvc.perform(post("/intra/licence/comptes/{id}/toggle-actif", compte.getId())
-                        .with(user(adminPrincipal(tenantRepository))))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().is3xxRedirection()); // desactivation
         mockMvc.perform(post("/intra/licence/comptes/{id}/toggle-actif", compte.getId())
-                        .with(user(adminPrincipal(tenantRepository))))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().is3xxRedirection()); // reactivation
 
         assertThat(compteLicenceRepository.findById(compte.getId()).orElseThrow().isActif()).isTrue();
@@ -164,7 +165,7 @@ class CompteLicenceAdminControllerTest {
         CompteLicence compte = compteAvecQuota(5);
         LicenceServeur serveur = licenceServeurDuCompte(compte, "10.0.0.5");
 
-        mockMvc.perform(get("/intra/licence/comptes/{id}", compte.getId()).with(user(adminPrincipal(tenantRepository))))
+        mockMvc.perform(get("/intra/licence/comptes/{id}", compte.getId()).with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString(serveur.getIdentifiantInstallationStable())))
                 .andExpect(content().string(containsString("10.0.0.5")));
@@ -177,7 +178,7 @@ class CompteLicenceAdminControllerTest {
 
         mockMvc.perform(post("/intra/licence/comptes/{compteId}/serveurs/{serveurId}/adresse",
                         compte.getId(), serveur.getId())
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("adresseDeclaree", "192.168.99.99"))
                 .andExpect(status().is3xxRedirection());
 
@@ -193,7 +194,7 @@ class CompteLicenceAdminControllerTest {
 
         mockMvc.perform(post("/intra/licence/comptes/{compteId}/serveurs/{serveurId}/revoquer",
                         compte.getId(), aRevoquer.getId())
-                        .with(user(adminPrincipal(tenantRepository))))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().is3xxRedirection());
 
         assertThat(licenceServeurRepository.findById(aRevoquer.getId()).orElseThrow().getStatut())
@@ -214,7 +215,7 @@ class CompteLicenceAdminControllerTest {
 
         mockMvc.perform(post("/intra/licence/comptes/{compteId}/serveurs/{serveurId}/revoquer",
                         compte.getId(), serveur.getId())
-                        .with(user(adminPrincipal(tenantRepository))))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().is3xxRedirection());
 
         LicenceServeur apres = licenceServeurRepository.findById(serveur.getId()).orElseThrow();
@@ -231,7 +232,7 @@ class CompteLicenceAdminControllerTest {
 
         mockMvc.perform(post("/intra/licence/comptes/{compteId}/serveurs/{serveurId}/adresse",
                         compteA.getId(), serveurDeB.getId())
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("adresseDeclaree", "192.168.99.99"))
                 .andExpect(status().isNotFound());
 
@@ -247,7 +248,7 @@ class CompteLicenceAdminControllerTest {
 
         mockMvc.perform(post("/intra/licence/comptes/{compteId}/serveurs/{serveurId}/revoquer",
                         compteA.getId(), serveurDeB.getId())
-                        .with(user(adminPrincipal(tenantRepository))))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().isNotFound());
 
         assertThat(licenceServeurRepository.findById(serveurDeB.getId()).orElseThrow().getStatut())
@@ -284,7 +285,7 @@ class CompteLicenceAdminControllerTest {
 
         @Test
         void adminScreen_notAvailableWhenRoleIsNotMaster() throws Exception {
-            mockMvc.perform(get("/intra/licence/comptes").with(user(adminPrincipal(tenantRepository))))
+            mockMvc.perform(get("/intra/licence/comptes").with(user(adminPrincipal(tenantRepository))).with(csrf()))
                     .andExpect(status().isNotFound());
         }
     }

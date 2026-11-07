@@ -2,6 +2,7 @@ package com.logicielpourtous.site.features.licence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -51,7 +52,7 @@ class FederationAdminControllerTest {
         Tenant visible = tenant("Tenant visible " + UUID.randomUUID());
         LicenceServeur serveur = serveur(LicenceServeur.LicenceServeurStatut.ACTIF, "100.64.9.9");
 
-        mockMvc.perform(get(PAGE).with(user(adminPrincipal(tenantRepository))))
+        mockMvc.perform(get(PAGE).with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString(visible.getName())))
                 .andExpect(content().string(containsString("100.64.9.9")));
@@ -67,7 +68,7 @@ class FederationAdminControllerTest {
         licenceServeurRepository.saveAndFlush(serveur);
 
         // L'ecran ne doit pas faire croire que le tenant est rattache au Maitre.
-        mockMvc.perform(get(PAGE).with(user(adminPrincipal(tenantRepository))))
+        mockMvc.perform(get(PAGE).with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("#" + serveur.getId() + " (révoqué)")));
     }
@@ -79,7 +80,7 @@ class FederationAdminControllerTest {
         LicenceServeur serveur = serveur(LicenceServeur.LicenceServeurStatut.ACTIF, "100.64.9.9");
 
         mockMvc.perform(post(PAGE + "/tenants/{id}", client.getId())
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("serveurLicenceId", String.valueOf(serveur.getId()))
                         .param("tenantPartenaireId", String.valueOf(partenaire.getId())))
                 .andExpect(status().is3xxRedirection())
@@ -98,7 +99,7 @@ class FederationAdminControllerTest {
         serveurAccueilService.rattacherTenant(client.getId(), null, partenaire.getId());
 
         mockMvc.perform(post(PAGE + "/tenants/{id}", client.getId())
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("serveurLicenceId", "")
                         .param("tenantPartenaireId", ""))
                 .andExpect(status().is3xxRedirection());
@@ -113,7 +114,7 @@ class FederationAdminControllerTest {
         Tenant t = tenant("Seul");
 
         mockMvc.perform(post(PAGE + "/tenants/{id}", t.getId())
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("tenantPartenaireId", String.valueOf(t.getId())))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attributeExists("errorMessage"));
@@ -126,7 +127,7 @@ class FederationAdminControllerTest {
         LicenceServeur serveur = serveur(LicenceServeur.LicenceServeurStatut.ACTIF, "100.64.9.9");
 
         mockMvc.perform(post(PAGE + "/serveurs/{id}/url", serveur.getId())
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("urlPublique", "https://app.exemple.com/"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attributeExists("successMessage"));
@@ -140,7 +141,7 @@ class FederationAdminControllerTest {
         LicenceServeur serveur = serveur(LicenceServeur.LicenceServeurStatut.ACTIF, "100.64.9.9");
 
         mockMvc.perform(post(PAGE + "/serveurs/{id}/url", serveur.getId())
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("urlPublique", "http://app.exemple.com"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attributeExists("errorMessage"));
@@ -151,7 +152,7 @@ class FederationAdminControllerTest {
     @Test
     void postUrl_serveurInconnu_afficheUneErreurSansPlanter() throws Exception {
         mockMvc.perform(post(PAGE + "/serveurs/{id}/url", 987654321L)
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("urlPublique", "https://app.exemple.com"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attributeExists("errorMessage"));
@@ -163,14 +164,14 @@ class FederationAdminControllerTest {
         LicenceServeur revoque = serveur(LicenceServeur.LicenceServeurStatut.REVOQUE, "100.64.9.8");
 
         mockMvc.perform(post(PAGE + "/defaut")
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("serveurId", String.valueOf(actif.getId())))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attributeExists("successMessage"));
         assertThat(serveurAccueilService.serveurParDefautId()).contains(actif.getId());
 
         mockMvc.perform(post(PAGE + "/defaut")
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("serveurId", String.valueOf(revoque.getId())))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attributeExists("errorMessage"));
@@ -193,7 +194,7 @@ class FederationAdminControllerTest {
 
         @Test
         void pageIntrouvableSiCeServeurNEstPasLeMaitre() throws Exception {
-            mockMvc.perform(get(PAGE).with(user(adminPrincipal(tenantRepository))))
+            mockMvc.perform(get(PAGE).with(user(adminPrincipal(tenantRepository))).with(csrf()))
                     .andExpect(status().isNotFound());
         }
     }

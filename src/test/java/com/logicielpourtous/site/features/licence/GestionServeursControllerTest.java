@@ -2,6 +2,7 @@ package com.logicielpourtous.site.features.licence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -79,7 +80,7 @@ class GestionServeursControllerTest {
         Customer customer = customer("Client serveur liste");
         SecondaryServer serveur = secondaryServer("Secondaire liste " + UUID.randomUUID(), ServerRole.CLIENT, customer.getId());
 
-        mockMvc.perform(get("/intra/licence/serveurs").with(user(adminPrincipal(tenantRepository))))
+        mockMvc.perform(get("/intra/licence/serveurs").with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString(serveur.getNom())))
                 .andExpect(content().string(containsString("ACTIF")))
@@ -91,7 +92,7 @@ class GestionServeursControllerTest {
         SecondaryServer serveur = secondaryServer("Secondaire a revoquer " + UUID.randomUUID(), ServerRole.PARTNER, null);
 
         mockMvc.perform(post("/intra/licence/serveurs/{id}/revoquer", serveur.getId())
-                        .with(user(adminPrincipal(tenantRepository))))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().is3xxRedirection());
 
         assertThat(secondaryServerRepository.findById(serveur.getId()).orElseThrow().getStatut())
@@ -103,7 +104,7 @@ class GestionServeursControllerTest {
         String nom = "Nouveau secondaire " + UUID.randomUUID();
 
         mockMvc.perform(post("/intra/licence/serveurs")
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("nom", nom)
                         .param("role", "CLIENT"))
                 .andExpect(status().is3xxRedirection());
@@ -131,7 +132,7 @@ class GestionServeursControllerTest {
         String nom = "Role invalide " + UUID.randomUUID();
 
         mockMvc.perform(post("/intra/licence/serveurs")
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("nom", nom)
                         .param("role", "MASTER"))
                 .andExpect(status().is3xxRedirection());
@@ -144,7 +145,7 @@ class GestionServeursControllerTest {
         String nom = "Client inconnu " + UUID.randomUUID();
 
         mockMvc.perform(post("/intra/licence/serveurs")
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("nom", nom)
                         .param("role", "CLIENT")
                         .param("customerId", "999999999"))
@@ -161,7 +162,7 @@ class GestionServeursControllerTest {
         Request request = request(customer, "Original");
         SyncConflict conflit = creerConflit(request, "Modifie", 42L, 7L);
 
-        mockMvc.perform(get("/intra/licence/conflits").with(user(adminPrincipal(tenantRepository))))
+        mockMvc.perform(get("/intra/licence/conflits").with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString(conflit.getEntitySyncId().toString())))
                 .andExpect(content().string(containsString("42")))
@@ -175,7 +176,7 @@ class GestionServeursControllerTest {
         SyncConflict conflit = creerConflit(request, "Titre recu du conflit", request.getVersion(), request.getVersion() + 1);
 
         mockMvc.perform(post("/intra/licence/conflits/{id}/appliquer", conflit.getId())
-                        .with(user(adminPrincipal(tenantRepository))))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().is3xxRedirection());
 
         assertThat(requestRepository.findById(request.getId()).orElseThrow().getTitle())
@@ -191,7 +192,7 @@ class GestionServeursControllerTest {
         SyncConflict conflit = creerConflit(request, "Titre recu ignore", request.getVersion(), request.getVersion() + 1);
 
         mockMvc.perform(post("/intra/licence/conflits/{id}/garder", conflit.getId())
-                        .with(user(adminPrincipal(tenantRepository))))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().is3xxRedirection());
 
         assertThat(requestRepository.findById(request.getId()).orElseThrow().getTitle()).isEqualTo("Original intact");
@@ -207,7 +208,7 @@ class GestionServeursControllerTest {
         syncConflictRepository.save(conflit);
 
         mockMvc.perform(post("/intra/licence/conflits/{id}/appliquer", conflit.getId())
-                        .with(user(adminPrincipal(tenantRepository))))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().is3xxRedirection());
 
         assertThat(requestRepository.findById(request.getId()).orElseThrow().getTitle()).isEqualTo("Original");
@@ -217,7 +218,7 @@ class GestionServeursControllerTest {
 
     @Test
     void generateJetonButton_notShownWhenRoleIsNotPartner() throws Exception {
-        mockMvc.perform(get("/intra/licence/serveurs").with(user(adminPrincipal(tenantRepository))))
+        mockMvc.perform(get("/intra/licence/serveurs").with(user(adminPrincipal(tenantRepository))).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Générer un jeton d'installation"))));
     }
@@ -225,7 +226,7 @@ class GestionServeursControllerTest {
     @Test
     void generateJeton_notPartnerRole_isNotFound() throws Exception {
         mockMvc.perform(post("/intra/licence/serveurs/jetons")
-                        .with(user(adminPrincipal(tenantRepository)))
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
                         .param("customerId", "1"))
                 .andExpect(status().isNotFound());
     }
@@ -308,7 +309,7 @@ class GestionServeursControllerTest {
             customer = customerRepository.save(customer);
 
             MvcResult result = mockMvc.perform(post("/intra/licence/serveurs/jetons")
-                            .with(user(adminPrincipal(tenantRepository)))
+                            .with(user(adminPrincipal(tenantRepository))).with(csrf())
                             .param("customerId", String.valueOf(customer.getId())))
                     .andExpect(status().is3xxRedirection())
                     .andReturn();
@@ -319,7 +320,7 @@ class GestionServeursControllerTest {
 
         @Test
         void generateJetonButton_shownOnPartnerInstance() throws Exception {
-            mockMvc.perform(get("/intra/licence/serveurs").with(user(adminPrincipal(tenantRepository))))
+            mockMvc.perform(get("/intra/licence/serveurs").with(user(adminPrincipal(tenantRepository))).with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(content().string(containsString("Générer un jeton d'installation")));
         }
@@ -331,7 +332,7 @@ class GestionServeursControllerTest {
             int avant = FakeLicenceClientConfig.APPELS.get();
 
             mockMvc.perform(post("/intra/licence/serveurs/jetons")
-                            .with(user(adminPrincipal(tenantRepository)))
+                            .with(user(adminPrincipal(tenantRepository))).with(csrf())
                             .param("customerId", "999999999"))
                     .andExpect(status().is3xxRedirection());
 

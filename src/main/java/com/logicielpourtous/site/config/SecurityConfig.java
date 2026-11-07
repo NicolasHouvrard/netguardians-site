@@ -13,6 +13,10 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.AndRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -32,6 +36,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 
 import java.util.List;
+import java.util.Set;
 
 @Configuration
 @EnableWebSecurity
@@ -214,11 +219,32 @@ public class SecurityConfig {
 
     // ── Web session chain ─────────────────────────────────────────────────────
 
+    private static final Set<String> METHODES_SANS_EFFET = Set.of("GET", "HEAD", "TRACE", "OPTIONS");
+
+    /**
+     * Requetes de la chaine web qui DOIVENT porter un jeton CSRF : methode modifiante (POST, PUT, PATCH,
+     * DELETE) sur la licence et la federation des serveurs, la gestion des ESN/tenants et le reglage de la
+     * societe. Chaque formulaire de ces ecrans doit etre ecrit avec {@code th:action} (Thymeleaf ajoute
+     * alors le jeton) ou porter un champ {@code _csrf} ; tout appel JavaScript y enverrait le jeton en
+     * en-tete. Pour proteger un autre ecran, ajouter son chemin ici une fois ses formulaires verifies.
+     */
+    private static RequestMatcher csrfCible() {
+        PathPatternRequestMatcher.Builder chemins = PathPatternRequestMatcher.withDefaults();
+        RequestMatcher ecransSensibles = new OrRequestMatcher(
+                chemins.matcher("/intra/licence/**"),
+                chemins.matcher("/intra/esns/**"),
+                chemins.matcher("/intra/settings/company/**"));
+        RequestMatcher methodeModifiante = request -> !METHODES_SANS_EFFET.contains(request.getMethod());
+        return new AndRequestMatcher(methodeModifiante, ecransSensibles);
+    }
+
     @Bean
     @Order(3)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable())
+            // CSRF CIBLE : exige uniquement sur les ecrans sensibles listes dans csrfCible() ; le reste de
+            // l'interface web est inchange pour l'instant (extension par lots, apres audit des formulaires).
+            .csrf(csrf -> csrf.requireCsrfProtectionMatcher(csrfCible()))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/css/**", "/js/**", "/images/**", "/webjars/**", "/uploads/**").permitAll()
                 .requestMatchers("/app", "/app/**").permitAll()
