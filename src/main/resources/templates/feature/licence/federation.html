@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Fédération des serveurs</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <h4 class="mb-0"><i class="fas fa-project-diagram me-2 text-primary"></i>Fédération des serveurs</h4>
+        <a th:href="@{/intra/licence/comptes}" class="btn btn-sm btn-outline-secondary ms-auto">
+            <i class="fas fa-key me-1"></i>Comptes de licence
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <p class="text-muted small">
+        Un tenant est rattaché à un serveur d'accueil (« Maître » s'il n'en a pas) ; un tenant client peut dépendre
+        d'un tenant partenaire (un seul niveau). Cette page ne change pas encore la façon de se connecter.
+    </p>
+
+    <!-- Serveur par défaut des nouveaux tenants -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0">Serveur par défaut des nouveaux tenants</h6>
+        </div>
+        <div class="card-body">
+            <form th:action="@{/intra/licence/federation/defaut}" method="post" class="row g-2 align-items-end">
+                <div class="col-md-8">
+                    <select name="serveurId" class="form-select form-select-sm">
+                        <option value="">Aucun (les nouveaux tenants restent rattachés au Maître)</option>
+                        <th:block th:each="s : ${serveurs}" th:if="${s.statut.name() == 'ACTIF'}">
+                            <option th:value="${s.id}"
+                                    th:selected="${serveurDefautId != null and serveurDefautId == s.id}"
+                                    th:text="${'#' + s.id + ' — ' + s.role + ' — ' + s.adresseDeclaree}"></option>
+                        </th:block>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-sm btn-primary">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Serveurs et URL publique -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0">Serveurs enrôlés</h6>
+        </div>
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(serveurs)}" class="text-center py-4 text-muted">Aucun serveur enrôlé.</div>
+            <table th:unless="${#lists.isEmpty(serveurs)}" class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                <tr><th>#</th><th>Rôle</th><th>Statut</th><th>Adresse Headscale</th><th>URL publique (https://hôte)</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="s : ${serveurs}" th:classappend="${s.statut.name() == 'REVOQUE' ? ' opacity-50' : ''}">
+                    <td th:text="${s.id}"></td>
+                    <td th:text="${s.role}"></td>
+                    <td th:text="${s.statut}"></td>
+                    <td th:text="${s.adresseDeclaree}"></td>
+                    <td>
+                        <form th:action="@{/intra/licence/federation/serveurs/{id}/url(id=${s.id})}" method="post"
+                              class="d-flex gap-2">
+                            <input type="text" name="urlPublique" class="form-control form-control-sm"
+                                   th:value="${s.urlPublique}" placeholder="https://app.exemple.com">
+                            <button type="submit" class="btn btn-sm btn-outline-primary">OK</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Rattachement des tenants -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-3 pb-2">
+            <h6 class="fw-bold mb-0">Tenants</h6>
+        </div>
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(tenants)}" class="text-center py-4 text-muted">Aucun tenant.</div>
+            <table th:unless="${#lists.isEmpty(tenants)}" class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                <tr><th>Tenant</th><th>Schéma</th><th>Serveur d'accueil</th><th>Tenant partenaire</th><th></th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="t : ${tenants}">
+                    <td th:text="${t.name}"></td>
+                    <td><code th:text="${t.schemaName}"></code></td>
+                    <td colspan="3">
+                        <form th:action="@{/intra/licence/federation/tenants/{id}(id=${t.id})}" method="post"
+                              class="row g-2 align-items-center">
+                            <div class="col-md-5">
+                                <select name="serveurLicenceId" class="form-select form-select-sm">
+                                    <option value="">Maître (aucun serveur)</option>
+                                    <th:block th:each="s : ${serveurs}" th:if="${s.statut.name() == 'ACTIF'}">
+                                        <option th:value="${s.id}"
+                                                th:selected="${t.serveurLicenceId != null and t.serveurLicenceId == s.id}"
+                                                th:text="${'#' + s.id + ' — ' + s.role + ' — ' + s.adresseDeclaree}"></option>
+                                    </th:block>
+                                </select>
+                            </div>
+                            <div class="col-md-5">
+                                <select name="tenantPartenaireId" class="form-select form-select-sm">
+                                    <option value="">Aucun partenaire</option>
+                                    <th:block th:each="p : ${tenants}" th:if="${p.id != t.id}">
+                                        <option th:value="${p.id}"
+                                                th:selected="${t.tenantPartenaireId != null and t.tenantPartenaireId == p.id}"
+                                                th:text="${p.name}"></option>
+                                    </th:block>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-sm btn-primary">Enregistrer</button>
+                            </div>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>
