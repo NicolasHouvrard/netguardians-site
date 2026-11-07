@@ -110,7 +110,13 @@ unset LOGIN MDP
 mkdir -p "$DOSSIER_CLE_API_AGENT" \
   && _exec_chown "$UID_APPLICATION:$UID_APPLICATION" "$DOSSIER_CLE_API_AGENT" && chmod 700 "$DOSSIER_CLE_API_AGENT" \
   || echec "Impossible de preparer $DOSSIER_CLE_API_AGENT."
-chmod 700 "$DOSSIER_DONNEES_AGENT" || echec "Impossible de restreindre $DOSSIER_DONNEES_AGENT."
+# Dossier de travail de l'Agent (root) : on le remet a root et on retire tout ce qu'une version ou un
+# conteneur precedent aurait pu y laisser (ancienne cle, configuration Spring lue depuis le dossier
+# courant) : seul ce que le paquet cree lui-meme doit y rester.
+_exec_chown -R root:root "$DOSSIER_DONNEES_AGENT" \
+  && rm -rf "$DOSSIER_DONNEES_AGENT/config" "$DOSSIER_DONNEES_AGENT/cle-api-licence" \
+  && rm -f "$DOSSIER_DONNEES_AGENT"/application*.properties "$DOSSIER_DONNEES_AGENT"/application*.yml "$DOSSIER_DONNEES_AGENT"/application*.yaml \
+  && chmod 700 "$DOSSIER_DONNEES_AGENT" || echec "Impossible de securiser $DOSSIER_DONNEES_AGENT."
 
 # --- 6. Agent -------------------------------------------------------------------------------
 preparer_options_application "$PORT_POSTGRES" "$DOSSIER_DONNEES_POSTGRES" || echec "Impossible de preparer les secrets et options de l'application."

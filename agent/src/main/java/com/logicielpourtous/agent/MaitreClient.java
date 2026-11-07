@@ -1,6 +1,8 @@
 package com.logicielpourtous.agent;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.net.http.HttpClient;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -175,12 +177,23 @@ public class MaitreClient {
             // de ligne y serait une injection d'en-tete).
             BasicFileAttributes attributs = Files.readAttributes(cheminCleApiLocale,
                     BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-            if (!attributs.isRegularFile() || attributs.size() > TAILLE_MAX_CLE_API) {
-                log.warn("Agent : fichier de cle API locale {} ignore (ni fichier ordinaire ni taille "
-                        + "raisonnable)", cheminCleApiLocale);
+            if (!attributs.isRegularFile()) {
+                log.warn("Agent : fichier de cle API locale {} ignore (n'est pas un fichier ordinaire)",
+                        cheminCleApiLocale);
                 return null;
             }
-            String contenu = Files.readString(cheminCleApiLocale).trim();
+            // UNE SEULE ouverture, sans suivre de lien, puis lecture BORNEE sur ce descripteur : le
+            // chemin n'est jamais re-resolu apres la verification (un lien pose entre-temps ferait
+            // echouer l'ouverture), et la taille se controle sur ce qui est reellement lu.
+            byte[] octets;
+            try (InputStream flux = Files.newInputStream(cheminCleApiLocale, LinkOption.NOFOLLOW_LINKS)) {
+                octets = flux.readNBytes((int) TAILLE_MAX_CLE_API + 1);
+            }
+            if (octets.length > TAILLE_MAX_CLE_API) {
+                log.warn("Agent : fichier de cle API locale {} ignore (taille anormale)", cheminCleApiLocale);
+                return null;
+            }
+            String contenu = new String(octets, StandardCharsets.UTF_8).trim();
             if (contenu.isEmpty()) {
                 return null;
             }

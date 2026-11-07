@@ -230,3 +230,14 @@ test_installer_vps_retire_ses_fichiers_nginx_si_le_certificat_echoue_et_ne_touch
   [ "$code" -ne 0 ] && [ ! -e "$T/nginx/site-nas-public.conf" ] && [ -f "$T/nginx/autre-site.conf" ] \
     && [[ "$sortie" == *"Certificat"* ]]
 }
+
+test_installer_vps_nettoie_le_dossier_de_travail_de_l_agent_des_restes_d_une_version_precedente() {
+  _preparer_vps
+  mkdir -p "$T/data/agent/config"
+  echo "app.agent.docker.run-options=--privileged" > "$T/data/agent/config/application.properties"
+  echo "ancienne" > "$T/data/agent/cle-api-licence"
+  echo "x=y" > "$T/data/agent/application.properties"
+  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" >/dev/null 2>&1 < /dev/null || return 1
+  [ ! -e "$T/data/agent/config" ] && [ ! -e "$T/data/agent/cle-api-licence" ] && [ ! -e "$T/data/agent/application.properties" ] \
+    && grep -q "^chown -R root:root $T/data/agent" "$STUB_LOG"
+}
