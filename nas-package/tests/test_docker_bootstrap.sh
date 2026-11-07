@@ -160,3 +160,21 @@ test_preparer_options_application_ne_touche_pas_un_fichier_de_reglages_existant_
   avant="${OPTIONS_APPLICATION%%-e SPRING_PROFILES_ACTIVE*}"
   [ "$(cat "$dir/app.env")" = "CAPTCHA_ENABLED=false" ] && [[ "$avant" == *"--env-file $dir/app.env"* ]]
 }
+
+test_preparer_options_application_donne_a_l_application_le_port_de_l_agent_du_paquet() {
+  # Le Maitre reveille l'Agent de chaque serveur sur app.agent.port (defaut 8090 cote application) ;
+  # l'Agent du paquet ecoute sur PORT_AGENT (18090) : sans cette variable le reveil echoue toujours.
+  _preparer
+  PORT_AGENT=18090
+  source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
+  preparer_options_application 15432 "$dir/postgres" || return 1
+  [[ "$OPTIONS_APPLICATION" == *"-e AGENT_PORT=18090"* ]]
+}
+
+test_preparer_options_application_suit_port_agent_quand_il_change() {
+  _preparer
+  PORT_AGENT=19999
+  source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
+  preparer_options_application 15432 "$dir/postgres" || return 1
+  [[ "$OPTIONS_APPLICATION" == *"-e AGENT_PORT=19999"* && "$OPTIONS_APPLICATION" != *"AGENT_PORT=18090"* ]]
+}

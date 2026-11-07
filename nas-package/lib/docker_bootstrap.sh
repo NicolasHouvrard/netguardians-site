@@ -82,6 +82,10 @@ preparer_options_application() {
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e SPRING_PROFILES_ACTIVE=prod"
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e DATABASE_URL=jdbc:postgresql://127.0.0.1:$port_postgres/site"
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e DATABASE_USERNAME=site"
+  # Port de l'Agent de chaque serveur : le Maitre reveille les Agents sur app.agent.port, dont la valeur par
+  # defaut cote application (8090) n'est PAS celle de l'Agent du paquet (PORT_AGENT, 18090). Sans cette
+  # variable, le reveil automatique d'un serveur echoue toujours (constate sur le VPS).
+  OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e AGENT_PORT=${PORT_AGENT:-18090}"
   if [[ "${GITHUB_REPO:-}" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] \
      && declare -F nas_est_maitre >/dev/null && nas_est_maitre; then
     OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e APP_DEPLOIEMENT_GITHUBREPO=$GITHUB_REPO"
