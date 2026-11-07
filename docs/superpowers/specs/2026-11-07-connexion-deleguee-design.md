@@ -1,6 +1,6 @@
 # Connexion déléguée au Maître : conception
 
-Statut : **brouillon à valider** (rien n'est codé). Écrit le 2026-11-07.
+Statut : **brouillon, décision sur l'administrateur prise** (rien n'est codé). Écrit le 2026-11-07.
 
 ## Intention
 
@@ -10,7 +10,7 @@ Aujourd'hui chaque serveur (Maître, VPS partenaire, futurs serveurs clients) a 
 
 1. Le Maître regroupe tous les identifiants.
 2. Un identifiant est relié à un **tenant**, un tenant est relié à un **serveur** (partenaire ou client).
-3. Tous les membres des tenants rattachés au serveur partenaire (le VPS) peuvent s'y connecter, ainsi que l'administrateur (partenaire par défaut), qui accède en plus à la partie « admin public ».
+3. Tous les membres des tenants rattachés au serveur partenaire (le VPS) peuvent s'y connecter, ainsi que l'administrateur (partenaire par défaut), qui accède en plus à la partie « admin public » : **par un compte local distinct sur chaque serveur, non délégué** (voir la décision plus bas).
 4. Si le compte n'existe pas en local, le serveur demande au Maître.
 5. Visibilité : l'**administrateur** voit tous les tenants (partenaires et clients) ; un **partenaire** voit son tenant et ceux de ses clients ; un **client** voit uniquement son tenant.
 6. Un nouveau partenaire ou client est **affecté par défaut au VPS**. S'il crée son propre serveur, il est **redirigé vers son serveur**.
@@ -51,12 +51,16 @@ Aujourd'hui chaque serveur (Maître, VPS partenaire, futurs serveurs clients) a 
 - Le Maître renvoie aussi la liste des tenants visibles (administrateur : tous ; partenaire : le sien et ses clients ; client : le sien).
 - Côté application : filtre selon cette liste. **Inconnu à explorer** : comment afficher plusieurs tenants dans une session (sélecteur, vue agrégée).
 
-## Risque principal à décider : l'administrateur sur le VPS
+## Décision : l'administrateur sur le VPS (tranchée le 2026-11-07)
+
+**Choix du propriétaire : option 1.** L'administrateur a un **compte local distinct sur chaque serveur**, avec un mot de passe différent, en attendant l'OTP. Les comptes ayant le rôle administrateur ne sont **jamais délégués** : le point d'entrée du Maître refuse (même réponse que pour un échec ordinaire) toute demande de délégation pour un compte `ROLE_ADMIN`. La délégation ne concerne que les membres des tenants. L'administrateur accède à la partie « admin public » de chaque serveur par son compte local.
+
+### Raisonnement (conservé pour mémoire)
 
 Si l'administrateur du Maître se connecte au VPS par délégation, le VPS reçoit **son mot de passe en clair**. Un VPS compromis (il est exposé sur Internet) permettrait de le collecter. Le même risque existe pour tout membre, mais il est plus lourd pour l'administrateur, puisque ce mot de passe ouvre aussi le Maître.
 
-Options :
-1. **(recommandé pour l'instant)** Ne pas déléguer les comptes administrateur : l'administrateur garde un **compte local distinct sur chaque serveur**, avec un autre mot de passe. La délégation concerne les membres des tenants.
+Options étudiées :
+1. **(retenue)** Ne pas déléguer les comptes administrateur : l'administrateur garde un **compte local distinct sur chaque serveur**, avec un autre mot de passe. La délégation concerne les membres des tenants.
 2. Autoriser la délégation de l'administrateur, avec un réglage par serveur (désactivé par défaut), en attendant l'OTP.
 3. Autoriser sans réserve : non recommandé.
 
