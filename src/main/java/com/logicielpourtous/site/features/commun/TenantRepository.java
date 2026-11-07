@@ -5,5 +5,8 @@ import java.util.Optional;
 
 public interface TenantRepository extends JpaRepository<Tenant, Long> {
     Optional<Tenant> findBySchemaName(String schemaName);
+
+    /** Vrai si au moins un tenant client dependant de ce tenant partenaire existe. */
+    boolean existsByTenantPartenaireId(Long tenantPartenaireId);
  
 }

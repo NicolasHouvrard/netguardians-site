@@ -19,12 +19,17 @@ public class TenantManagementService {
     @Autowired
     private TenantRepository tenantRepository;
 
+    @Autowired
+    private org.springframework.context.ApplicationEventPublisher evenements;
+
     @Transactional
     public void createNewTenant(String companyName, String schemaName) {
         // 1. Sauvegarde dans le catalogue global (public)
         Tenant tenant = new Tenant();
         tenant.setName(companyName);
         tenant.setSchemaName(schemaName);
+        // Les autres modules peuvent completer le tenant avant son enregistrement (ex. serveur d'accueil).
+        evenements.publishEvent(new TenantEnCreationEvenement(tenant));
         tenantRepository.save(tenant);
 
         // 2. Création du schéma et des tables
