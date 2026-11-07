@@ -299,9 +299,11 @@ class EndToEndLicenceTest {
 
     /**
      * Session Spring Security classique (formLogin, cookie {@code JSESSIONID}) requise par les
-     * ecrans {@code /intra/licence/**} : CSRF est desactive sur CETTE chaine de securite aussi (voir
-     * {@code SecurityConfig#filterChain}), donc un simple POST {@code username}/{@code password} sur
-     * {@code /login} suffit, sans jeton CSRF a extraire au prealable.
+     * ecrans {@code /intra/licence/**}. Le POST {@code username}/{@code password} sur {@code /login}
+     * n'exige pas de jeton CSRF (non cible, voir {@code SecurityConfig#csrfCible}). EN REVANCHE les POST
+     * suivants sur {@code /intra/licence/**} (voir {@link #postForm}) EXIGENT desormais un jeton CSRF :
+     * ce test est {@code @Disabled} et n'a pas ete adapte ; AVANT de le reactiver, faire lire a
+     * {@code postForm} le champ {@code _csrf} d'une page de l'ecran (meme session) et l'ajouter au corps.
      *
      * <p><b>Fix round 1 (task review)</b> : {@code CaptchaFilter} siege sur CETTE MEME chaine, AVANT
      * {@code UsernamePasswordAuthenticationFilter}, et {@code application.properties} active le
