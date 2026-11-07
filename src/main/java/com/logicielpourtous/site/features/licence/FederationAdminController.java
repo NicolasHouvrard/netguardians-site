@@ -52,6 +52,10 @@ public class FederationAdminController {
         model.addAttribute("tenants", tenantRepository.findAll(Sort.by("name")));
         model.addAttribute("serveurs", licenceServeurRepository.findAll(Sort.by("id")));
         model.addAttribute("serveurDefautId", serveurAccueilService.serveurParDefautId().orElse(null));
+        // Serveurs revoques : un tenant encore rattache a l'un d'eux doit l'afficher (et non "Maitre").
+        model.addAttribute("serveursRevoquesIds", licenceServeurRepository.findByStatut(
+                        LicenceServeur.LicenceServeurStatut.REVOQUE).stream()
+                .map(LicenceServeur::getId).collect(java.util.stream.Collectors.toSet()));
         return "feature/licence/federation";
     }
 

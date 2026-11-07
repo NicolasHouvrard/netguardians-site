@@ -59,6 +59,20 @@ class FederationAdminControllerTest {
     }
 
     @Test
+    void get_afficheLeServeurRevoqueAuquelUnTenantEstRattache() throws Exception {
+        LicenceServeur serveur = serveur(LicenceServeur.LicenceServeurStatut.ACTIF, "100.64.9.9");
+        Tenant t = tenant("Tenant sur serveur revoque");
+        serveurAccueilService.rattacherTenant(t.getId(), serveur.getId(), null);
+        serveur.setStatut(LicenceServeur.LicenceServeurStatut.REVOQUE);
+        licenceServeurRepository.saveAndFlush(serveur);
+
+        // L'ecran ne doit pas faire croire que le tenant est rattache au Maitre.
+        mockMvc.perform(get(PAGE).with(user(adminPrincipal(tenantRepository))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("#" + serveur.getId() + " (révoqué)")));
+    }
+
+    @Test
     void postTenant_rattacheEtRedirige() throws Exception {
         Tenant partenaire = tenant("Partenaire");
         Tenant client = tenant("Client");

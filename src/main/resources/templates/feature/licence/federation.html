@@ -103,6 +103,9 @@
                             <div class="col-md-5">
                                 <select name="serveurLicenceId" class="form-select form-select-sm">
                                     <option value="">Maître (aucun serveur)</option>
+                                    <option th:if="${t.serveurLicenceId != null and serveursRevoquesIds.contains(t.serveurLicenceId)}"
+                                            th:value="${t.serveurLicenceId}" selected
+                                            th:text="${'#' + t.serveurLicenceId + ' (révoqué)'}"></option>
                                     <th:block th:each="s : ${serveurs}" th:if="${s.statut.name() == 'ACTIF'}">
                                         <option th:value="${s.id}"
                                                 th:selected="${t.serveurLicenceId != null and t.serveurLicenceId == s.id}"

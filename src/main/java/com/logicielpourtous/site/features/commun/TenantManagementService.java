@@ -20,7 +20,7 @@ public class TenantManagementService {
     private TenantRepository tenantRepository;
 
     @Autowired
-    private com.logicielpourtous.site.features.licence.ServeurAccueilService serveurAccueilService;
+    private org.springframework.context.ApplicationEventPublisher evenements;
 
     @Transactional
     public void createNewTenant(String companyName, String schemaName) {
@@ -28,8 +28,8 @@ public class TenantManagementService {
         Tenant tenant = new Tenant();
         tenant.setName(companyName);
         tenant.setSchemaName(schemaName);
-        // Nouveau tenant : serveur d'accueil par defaut (aucun = rattache au Maitre).
-        tenant.setServeurLicenceId(serveurAccueilService.serveurParDefautId().orElse(null));
+        // Les autres modules peuvent completer le tenant avant son enregistrement (ex. serveur d'accueil).
+        evenements.publishEvent(new TenantEnCreationEvenement(tenant));
         tenantRepository.save(tenant);
 
         // 2. Création du schéma et des tables

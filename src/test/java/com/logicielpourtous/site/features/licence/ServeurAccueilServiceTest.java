@@ -76,6 +76,64 @@ class ServeurAccueilServiceTest {
         assertThat(service.serveurParDefautId()).isEmpty();
     }
 
+    private void revoquer(LicenceServeur serveur) {
+        serveur.setStatut(LicenceServeur.LicenceServeurStatut.REVOQUE);
+        licenceServeurRepository.saveAndFlush(serveur);
+    }
+
+    @Test
+    void serveurParDefaut_ignoreUnServeurRevoqueApresCoup() {
+        LicenceServeur actif = serveur(LicenceServeur.LicenceServeurStatut.ACTIF);
+        service.definirServeurParDefaut(actif.getId());
+
+        revoquer(actif);
+
+        assertThat(service.serveurParDefautId()).isEmpty();
+    }
+
+    @Test
+    void rattacher_conserveUnServeurDevenuRevoqueQuandOnNeChangeQueLePartenaire() {
+        LicenceServeur serveur = serveur(LicenceServeur.LicenceServeurStatut.ACTIF);
+        Tenant partenaire = tenant("Partenaire");
+        Tenant client = tenant("Client");
+        service.rattacherTenant(client.getId(), serveur.getId(), null);
+        revoquer(serveur);
+
+        // Le serveur est desormais revoque ; enregistrer le formulaire pour ne changer que le partenaire
+        // ne doit ni echouer ni deplacer silencieusement le tenant vers le Maitre.
+        service.rattacherTenant(client.getId(), serveur.getId(), partenaire.getId());
+
+        Tenant relu = tenantRepository.findById(client.getId()).orElseThrow();
+        assertThat(relu.getServeurLicenceId()).isEqualTo(serveur.getId());
+        assertThat(relu.getTenantPartenaireId()).isEqualTo(partenaire.getId());
+    }
+
+    @Test
+    void rattacher_refuseToujoursDeChoisirUnServeurRevoqueNouveau() {
+        LicenceServeur revoque = serveur(LicenceServeur.LicenceServeurStatut.REVOQUE);
+        Tenant t = tenant("T");
+
+        assertThatThrownBy(() -> service.rattacherTenant(t.getId(), revoque.getId(), null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void nouveauTenant_neRecoitPasUnServeurParDefautDevenuRevoque() throws Exception {
+        LicenceServeur actif = serveur(LicenceServeur.LicenceServeurStatut.ACTIF);
+        service.definirServeurParDefaut(actif.getId());
+        revoquer(actif);
+        String schema = "t_rev_" + UUID.randomUUID().toString().replace("-", "");
+        try {
+            tenantManagementService.createNewTenant("Apres revocation", schema);
+
+            assertThat(tenantRepository.findBySchemaName(schema).orElseThrow().getServeurLicenceId()).isNull();
+        } finally {
+            try (Connection c = dataSource.getConnection(); Statement s = c.createStatement()) {
+                s.executeUpdate("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+            }
+        }
+    }
+
     @Test
     void rattacher_accepteEtConserveServeurEtPartenaire() {
         Tenant partenaire = tenant("Partenaire");

@@ -4,10 +4,12 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.logicielpourtous.site.features.commun.Tenant;
+import com.logicielpourtous.site.features.commun.TenantEnCreationEvenement;
 import com.logicielpourtous.site.features.commun.TenantRepository;
 
 /**
@@ -37,10 +39,22 @@ public class ServeurAccueilService {
         this.tenantRepository = tenantRepository;
     }
 
+    /** Le serveur par defaut, seulement s'il est encore actif : un serveur revoque apres coup est ignore. */
     @Transactional(readOnly = true)
     public Optional<Long> serveurParDefautId() {
         return parametreFederationRepository.findById(ParametreFederation.ID_UNIQUE)
-                .map(ParametreFederation::getServeurDefautId);
+                .map(ParametreFederation::getServeurDefautId)
+                .flatMap(licenceServeurRepository::findById)
+                .filter(s -> s.getStatut() == LicenceServeur.LicenceServeurStatut.ACTIF)
+                .map(LicenceServeur::getId);
+    }
+
+    /** Nouveau tenant sans serveur d'accueil : recoit le serveur par defaut (aucun = rattache au Maitre). */
+    @EventListener
+    public void attribuerServeurParDefaut(TenantEnCreationEvenement evenement) {
+        if (evenement.tenant().getServeurLicenceId() == null) {
+            evenement.tenant().setServeurLicenceId(serveurParDefautId().orElse(null));
+        }
     }
 
     /** {@code null} efface le serveur par defaut. */
@@ -58,7 +72,9 @@ public class ServeurAccueilService {
     public void rattacherTenant(Long tenantId, Long serveurId, Long partenaireId) {
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant introuvable."));
-        if (serveurId != null) {
+        // Un serveur n'est exige actif que s'il CHANGE : le conserver tel quel (par exemple en ne
+        // modifiant que le partenaire) reste possible meme si ce serveur a ete revoque depuis.
+        if (serveurId != null && !serveurId.equals(tenant.getServeurLicenceId())) {
             exigerServeurActif(serveurId);
         }
         if (partenaireId != null) {
