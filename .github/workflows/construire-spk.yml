@@ -11,6 +11,15 @@ on:
         description: "Tag de l'image applicative a embarquer (deja publiee sur GHCR)"
         required: true
         default: v1.1
+      arch:
+        description: "Cible : armv8 = NAS Synology, x86_64 = serveur Linux (VPS)"
+        type: choice
+        options: [armv8, x86_64]
+        default: armv8
+      domaine:
+        description: "VPS (x86_64) uniquement : nom de domaine public de l'application (affiche dans la commande)"
+        required: false
+        default: app.logicielpourtous.com
   push:
     tags: ['v*']
 
@@ -32,17 +41,19 @@ jobs:
       - name: Agent (jar)
         run: mvn -B -f agent/pom.xml -DskipTests package
 
-      - name: JRE ARM epingle (SHA-256 verifiee)
-        run: bash nas-package/spk/fetch-jre.sh armv8 "$RUNNER_TEMP/jre-armv8"
-
-      - name: Paquet .spk (armv8)
+      - name: JRE epingle (SHA-256 verifiee)
         env:
-          SPK_ARCH: armv8
+          ARCH: ${{ inputs.arch || 'armv8' }}
+        run: bash nas-package/spk/fetch-jre.sh "$ARCH" "$RUNNER_TEMP/jre"
+
+      - name: Paquet .spk
+        env:
+          SPK_ARCH: ${{ inputs.arch || 'armv8' }}
           HEADSCALE_URL: https://headscale.logicielpourtous.com
           IMAGE_TAG: ${{ inputs.image_tag || github.ref_name }}
         run: |
           export IMAGE_OWNER="${GITHUB_REPOSITORY_OWNER,,}"
-          export JRE_DIR="$RUNNER_TEMP/jre-armv8"
+          export JRE_DIR="$RUNNER_TEMP/jre"
           export AGENT_JAR="$(ls agent/target/agent-*.jar | grep -v original | head -n 1)"
           bash nas-package/spk/build-spk.sh
           ls -la nas-package/spk/dist
@@ -50,6 +61,9 @@ jobs:
       # Livrable : le .spk et les scripts d'installation par SSH (DSM 7 refuse d'installer ce
       # .spk par le Centre de paquets : il demande les droits root).
       - name: Assembler le livrable
+        env:
+          ARCH: ${{ inputs.arch || 'armv8' }}
+          DOMAINE: ${{ inputs.domaine || 'app.logicielpourtous.com' }}
         run: |
           mkdir -p livrable
           cp nas-package/spk/dist/*.spk livrable/
@@ -70,12 +84,19 @@ jobs:
             echo '```'
             # L'installateur est copie dans un dossier prive de root, verifie, puis ce sont ces memes octets
             # qui sont executes : un fichier verifie puis relu depuis un dossier modifiable pourrait etre remplace entre les deux.
-            echo "D=\"\$(sudo mktemp -d)\" && sudo cp -- installer-nas.sh \"\$D/i.sh\" && echo \"$INSTALLATEUR_SOMME  \$D/i.sh\" | sudo sha256sum -c - && sudo bash \"\$D/i.sh\" $SPK_FICHIER $SPK_SOMME; sudo rm -rf \"\$D\""
+            if [ "$ARCH" = "x86_64" ]; then
+              # Serveur Linux (VPS) : mode vps + domaine public ; l'identifiant/mot de passe du compte de
+              # licence partenaire sont demandes au clavier (jamais dans la commande).
+              [[ "$DOMAINE" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "domaine invalide" >&2; exit 1; }
+              echo "D=\"\$(sudo mktemp -d)\" && sudo cp -- installer-nas.sh \"\$D/i.sh\" && echo \"$INSTALLATEUR_SOMME  \$D/i.sh\" | sudo sha256sum -c - && sudo SITE_NAS_CIBLE=vps SITE_NAS_DOMAINE=$DOMAINE bash \"\$D/i.sh\" $SPK_FICHIER $SPK_SOMME; sudo rm -rf \"\$D\""
+            else
+              echo "D=\"\$(sudo mktemp -d)\" && sudo cp -- installer-nas.sh \"\$D/i.sh\" && echo \"$INSTALLATEUR_SOMME  \$D/i.sh\" | sudo sha256sum -c - && sudo bash \"\$D/i.sh\" $SPK_FICHIER $SPK_SOMME; sudo rm -rf \"\$D\""
+            fi
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: site-nas-armv8
+          name: site-nas-${{ inputs.arch || 'armv8' }}
           path: livrable/*
           if-no-files-found: error
