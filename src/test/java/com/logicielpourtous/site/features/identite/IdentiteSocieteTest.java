@@ -84,6 +84,28 @@ class IdentiteSocieteTest {
     }
 
     @Test
+    void leConstructeurPublicAccepteUneIdentiteValideEtRefuseTouteIncoherence() {
+        assertThat(new IdentiteSociete("404833048", "FR83404833048", false).siren()).isEqualTo("404833048");
+        assertThat(new IdentiteSociete(null, "DE123456789", true).etrangere()).isTrue();
+
+        // TVA non normalisee (minuscules) : sinon un doublon passerait les index uniques
+        assertThatThrownBy(() -> new IdentiteSociete(null, "de123456789", true))
+                .isInstanceOfSatisfying(IdentiteInvalideException.class, e -> assertThat(e.champ()).isEqualTo("tva"));
+        // societe francaise declaree sans SIREN, ou etrangere avec un SIREN
+        assertThatThrownBy(() -> new IdentiteSociete(null, "FR83404833048", false))
+                .isInstanceOf(IdentiteInvalideException.class);
+        assertThatThrownBy(() -> new IdentiteSociete("404833048", "DE123456789", true))
+                .isInstanceOf(IdentiteInvalideException.class);
+        // TVA francaise incoherente avec le SIREN, SIREN mal forme, TVA nulle
+        assertThatThrownBy(() -> new IdentiteSociete("404833048", "FR84404833048", false))
+                .isInstanceOf(IdentiteInvalideException.class);
+        assertThatThrownBy(() -> new IdentiteSociete("40483304", "FR83404833048", false))
+                .isInstanceOf(IdentiteInvalideException.class);
+        assertThatThrownBy(() -> new IdentiteSociete(null, null, true))
+                .isInstanceOf(IdentiteInvalideException.class);
+    }
+
+    @Test
     void depuis_refuseUneTvaDeHorsDeLUnionEuropeenne() {
         refuse(null, null, "US123456789", "tva");
     }

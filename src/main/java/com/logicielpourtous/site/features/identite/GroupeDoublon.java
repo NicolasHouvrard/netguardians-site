@@ -9,6 +9,6 @@ import java.util.List;
 public record GroupeDoublon(String nature, String cle, List<LigneSource> lignes) {
 
     /** Une fiche d'une table existante ({@code customers}, {@code tenants} ou {@code partner_esns}). */
-    public record LigneSource(String table, Long id, String nom) {
+    public record LigneSource(String table, Long id, String nom, String detail) {
     }
 }

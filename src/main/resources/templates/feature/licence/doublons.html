@@ -15,7 +15,9 @@
 
     <p class="text-muted small">
         Sociétés qui partagent un même SIREN (ou une même TVA pour les sociétés étrangères) dans les clients, les
-        tenants et les ESN. Aucune fusion automatique : corrigez ou supprimez les fiches à la main.
+        tenants et les ESN. Aucune fusion automatique : corrigez les fiches à la main.
+        <strong>Vérifiez les liens avant de supprimer quoi que ce soit</strong> : une société promue en ESN
+        peut aussi apparaître à la fois dans les clients et dans les ESN, et un tenant peut dépendre d'une fiche client.
     </p>
 
     <div th:if="${#lists.isEmpty(groupes)}" class="alert alert-success">
@@ -33,13 +35,14 @@
         <div class="card-body p-0">
             <table class="table table-sm align-middle mb-0">
                 <thead class="table-light">
-                <tr><th>Table</th><th>Identifiant</th><th>Nom</th></tr>
+                <tr><th>Table</th><th>Identifiant</th><th>Nom</th><th>Détail</th></tr>
                 </thead>
                 <tbody>
                 <tr th:each="l : ${g.lignes}">
                     <td><code th:text="${l.table}"></code></td>
                     <td th:text="${l.id}"></td>
                     <td th:text="${l.nom}"></td>
+                    <td class="text-muted small" th:text="${l.detail}"></td>
                 </tr>
                 </tbody>
             </table>

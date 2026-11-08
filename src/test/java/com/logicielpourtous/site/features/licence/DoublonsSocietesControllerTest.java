@@ -54,7 +54,8 @@ class DoublonsSocietesControllerTest {
                 .andExpect(content().string(containsString("999000777")))
                 .andExpect(content().string(containsString("Societe Alpha Test")))
                 .andExpect(content().string(containsString("Societe Beta Test")))
-                .andExpect(content().string(containsString("Aucune fusion automatique")));
+                .andExpect(content().string(containsString("Aucune fusion automatique")))
+                .andExpect(content().string(containsString("peut aussi apparaître")));
     }
 
     @Test

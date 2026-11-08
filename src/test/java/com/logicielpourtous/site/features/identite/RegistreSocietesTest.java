@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
@@ -24,6 +26,7 @@ class RegistreSocietesTest {
     @Autowired private RegistreSocietes registre;
     @Autowired private SocieteIdentiteRepository repository;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private PlatformTransactionManager transactionManager;
     @PersistenceContext private EntityManager em;
 
     private static IdentiteSociete francaise(String siren, String siret, String tva) {
@@ -43,6 +46,26 @@ class RegistreSocietesTest {
         assertThat(relue.getType()).isEqualTo(TypeSociete.CLIENT);
         assertThat(relue.getProprietaireTenantId()).isEqualTo(7L);
         assertThat(relue.getCreeA()).isNotNull();
+    }
+
+    @Test
+    void enregistrer_unDoublonDejaConnuNeMarquePasLaTransactionDeLAppelantEnRollbackOnly() {
+        // Le formulaire d'inscription attrape l'exception pour afficher un message neutre et enregistrer
+        // une notification dans la MEME transaction : elle ne doit pas etre condamnee a l'echec.
+        registre.enregistrer(TypeSociete.CLIENT, francaise("404833048", null, "FR83404833048"), null);
+
+        assertThatThrownBy(() -> registre.enregistrer(TypeSociete.CLIENT,
+                francaise("404833048", null, "FR83404833048"), null))
+                .isInstanceOf(SocieteDejaConnueException.class);
+
+        assertThat(transactionManager.getTransaction(new DefaultTransactionDefinition()).isRollbackOnly())
+                .as("transaction de l'appelant marquee rollback-only").isFalse();
+    }
+
+    @Test
+    void enregistrer_refuseUnTypeNul() {
+        assertThatThrownBy(() -> registre.enregistrer(null, francaise("404833048", null, "FR83404833048"), null))
+                .isInstanceOf(NullPointerException.class);
     }
 
     @Test
