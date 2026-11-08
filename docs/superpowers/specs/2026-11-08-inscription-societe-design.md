@@ -1,6 +1,6 @@
 # Inscription d'une société : identité, unicité, invitation, transfert
 
-Statut : **brouillon à valider** (rien n'est codé). Écrit le 2026-11-08.
+Statut : **brouillon à valider** (rien n'est codé). Écrit le 2026-11-08, mis à jour avec les réponses du propriétaire.
 
 ## Intention
 
@@ -14,7 +14,11 @@ Statut : **brouillon à valider** (rien n'est codé). Écrit le 2026-11-08.
 4. **Société étrangère** : on saisit la **TVA** (européenne). Plus tard, elles ne seront que des **fournisseurs de matériel**, jamais des partenaires ni des clients.
 5. **Société déjà dans la liste d'un partenaire** : l'inscripteur est renvoyé vers son partenaire. Le message public reste **neutre** (aucune relation commerciale n'est révélée à un inconnu).
 6. **Exclusivité** : une société n'a qu'**un seul partenaire à la fois**. Si un partenaire B reprend le client d'un partenaire A, B envoie un **lien de transfert au client** ; A reçoit une **notification**. Il y a un **engagement d'un an entre deux transferts** d'une même société. **Exception : faillite du partenaire propriétaire** — alors **seul le Maître** peut transférer le client.
-7. La **bascule** vers un sous-domaine ou un serveur propre est la phase 2 ; la gestion des **domaines des clients** viendra plus tard ; l'automatisation de l'installation vient **après** ce chantier.
+7. **Délai d'un an** : il court à partir du **premier rattachement** d'une société à son partenaire **et** de chaque transfert (décision du 2026-11-08).
+8. **Une personne (même e-mail) peut appartenir à plusieurs sociétés.**
+9. Une **société étrangère** sans partenaire a le **Maître** pour propriétaire.
+10. **Faillite** : le **Maître décide seul** du transfert, sans confirmation du client (à améliorer par la suite).
+11. La **bascule** vers un sous-domaine ou un serveur propre est la phase 2 ; la gestion des **domaines des clients** viendra plus tard ; l'automatisation de l'installation vient **après** ce chantier.
 
 ## Buts, non-buts, anti-buts
 
@@ -54,22 +58,27 @@ Statut : **brouillon à valider** (rien n'est codé). Écrit le 2026-11-08.
 - Écran du Maître : créer une société (mêmes contrôles et unicité), puis **inviter une personne**.
 - **Invitation** : jeton aléatoire non devinable (stocké haché), lié à la société, à l'e-mail et au rôle, valable **7 jours**, **à usage unique** ; la personne l'ouvre et crée son accès.
 
+### 5 bis. Appartenance d'une personne à plusieurs sociétés (conséquence de la décision 8)
+- Aujourd'hui un utilisateur a **un seul tenant** (`users.tenant_id`) et un compte de portail relié à **une** société cliente. Avec la décision 8, il faut séparer la **personne** (identité, e-mail, mot de passe) de son **appartenance** à chaque société (une ligne par couple personne-société, avec son **rôle dans cette société**).
+- À la connexion, une personne qui appartient à plusieurs sociétés **choisit celle dans laquelle elle travaille** (sélecteur), et peut en changer ensuite.
+- Une invitation envoyée à un e-mail **déjà connu** ajoute une **appartenance** au compte existant (après connexion ou confirmation), sans créer de second compte.
+- Impact à traiter avec soin : tout ce qui lit `user.getTenant()` (la redirection après connexion, le choix du schéma, les filtres) doit passer par la société **active** de la session ; le **rôle** devient propre à la société. Ce point touche aussi la connexion déléguée au Maître (un compte, plusieurs sociétés, donc éventuellement plusieurs serveurs d'accueil).
+
 ### 6. Transfert d'un client entre partenaires (réalisé après ; règles fixées ici)
 - Le partenaire B envoie au **client** un **lien de transfert** ; le client **confirme**. Le partenaire A est **notifié**.
 - **Un an minimum entre deux transferts** d'une même société : un nouveau transfert est refusé tant que le délai n'est pas écoulé.
-- **Faillite du partenaire propriétaire (décision du propriétaire)** : le **Maître seul** peut transférer le client, sans attendre le délai d'un an. Le Maître déclare la faillite du partenaire A et choisit le nouveau partenaire ; l'opération est **journalisée** (qui, quand, motif).
+- **Faillite du partenaire propriétaire (décision du propriétaire)** : le **Maître seul** peut transférer le client, sans attendre le délai d'un an. Le Maître déclare la faillite du partenaire A et choisit le nouveau partenaire ; l'opération est **journalisée** (qui, quand, motif). **Le Maître décide seul** : le client n'a pas à confirmer dans ce cas (décision du propriétaire, à améliorer par la suite).
 - Les données déjà produites pour A (devis, factures, historique comptable) restent chez A ; le sort exact de ce qui suit le client est à trancher avant ce chantier.
 
 ## Points ouverts
-- **Transfert par le Maître en cas de faillite** : le client doit-il tout de même **confirmer** (lien envoyé au client comme pour un transfert ordinaire), ou le Maître décide-t-il seul ? Que devient la fiche du partenaire failli (désactivée, conservée) ?
-- **Début du délai d'un an** : à partir du dernier transfert, ou aussi à partir du premier rattachement d'une société à son partenaire ?
-- Une **personne peut-elle appartenir à plusieurs sociétés** (un même e-mail invité dans deux sociétés) ?
-- Que **devient une société étrangère** sans partenaire (propriétaire : le Maître) ?
+- **Fiche d'un partenaire failli** : désactivée ou conservée ? (à trancher avec le chantier de transfert).
+- **Une personne dans plusieurs sociétés** : comportement exact du sélecteur à la connexion (société par défaut, mémorisation du dernier choix) et rôle d'une personne **administratrice** dans une société et simple utilisatrice dans une autre.
 - Exception de La Poste et format TVA par pays : liste exacte à arrêter à la réalisation.
 
-## Livraison en quatre étapes
+## Livraison en cinq étapes
 1. **Identité** : contrôle des numéros, registre unique, contraintes d'unicité, rapport de doublons.
-2. **Inscription autonome** : client et partenaire, avec la gestion neutre des sociétés connues et la notification.
-3. **Enregistrement par le Maître et invitation.**
-4. **Transfert entre partenaires** (avec le délai d'un an).
+2. **Appartenance multi-sociétés** : séparation personne / appartenance, rôle par société, sélecteur à la connexion.
+3. **Inscription autonome** : client et partenaire, avec la gestion neutre des sociétés connues et la notification.
+4. **Enregistrement par le Maître et invitation** (y compris l'ajout d'une appartenance à un compte existant).
+5. **Transfert entre partenaires** (délai d'un an depuis le premier rattachement et chaque transfert ; faillite : le Maître décide seul).
 Chaque étape est livrée, déployée et validée avant la suivante.
