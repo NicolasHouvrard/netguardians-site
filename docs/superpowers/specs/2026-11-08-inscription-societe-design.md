@@ -13,7 +13,7 @@ Statut : **brouillon à valider** (rien n'est codé). Écrit le 2026-11-08.
 3. **SIREN déjà connu** : on renvoie vers une **invitation**.
 4. **Société étrangère** : on saisit la **TVA** (européenne). Plus tard, elles ne seront que des **fournisseurs de matériel**, jamais des partenaires ni des clients.
 5. **Société déjà dans la liste d'un partenaire** : l'inscripteur est renvoyé vers son partenaire. Le message public reste **neutre** (aucune relation commerciale n'est révélée à un inconnu).
-6. **Exclusivité** : une société n'a qu'**un seul partenaire à la fois**. Si un partenaire B reprend le client d'un partenaire A, B envoie un **lien de transfert au client** ; A reçoit une **notification**. Il y a un **engagement d'un an entre deux transferts** d'une même société.
+6. **Exclusivité** : une société n'a qu'**un seul partenaire à la fois**. Si un partenaire B reprend le client d'un partenaire A, B envoie un **lien de transfert au client** ; A reçoit une **notification**. Il y a un **engagement d'un an entre deux transferts** d'une même société. **Exception : faillite du partenaire propriétaire** — alors **seul le Maître** peut transférer le client.
 7. La **bascule** vers un sous-domaine ou un serveur propre est la phase 2 ; la gestion des **domaines des clients** viendra plus tard ; l'automatisation de l'installation vient **après** ce chantier.
 
 ## Buts, non-buts, anti-buts
@@ -57,9 +57,11 @@ Statut : **brouillon à valider** (rien n'est codé). Écrit le 2026-11-08.
 ### 6. Transfert d'un client entre partenaires (réalisé après ; règles fixées ici)
 - Le partenaire B envoie au **client** un **lien de transfert** ; le client **confirme**. Le partenaire A est **notifié**.
 - **Un an minimum entre deux transferts** d'une même société : un nouveau transfert est refusé tant que le délai n'est pas écoulé.
+- **Faillite du partenaire propriétaire (décision du propriétaire)** : le **Maître seul** peut transférer le client, sans attendre le délai d'un an. Le Maître déclare la faillite du partenaire A et choisit le nouveau partenaire ; l'opération est **journalisée** (qui, quand, motif).
 - Les données déjà produites pour A (devis, factures, historique comptable) restent chez A ; le sort exact de ce qui suit le client est à trancher avant ce chantier.
 
 ## Points ouverts
+- **Transfert par le Maître en cas de faillite** : le client doit-il tout de même **confirmer** (lien envoyé au client comme pour un transfert ordinaire), ou le Maître décide-t-il seul ? Que devient la fiche du partenaire failli (désactivée, conservée) ?
 - **Début du délai d'un an** : à partir du dernier transfert, ou aussi à partir du premier rattachement d'une société à son partenaire ?
 - Une **personne peut-elle appartenir à plusieurs sociétés** (un même e-mail invité dans deux sociétés) ?
 - Que **devient une société étrangère** sans partenaire (propriétaire : le Maître) ?
