@@ -11,5 +11,5 @@
  * ({@code Request}/{@code RequestRepository}, pour resoudre un {@code SyncConflict.entitySyncId}
  * avant d'appliquer son payload — Task 5).
  */
-@org.springframework.modulith.ApplicationModule(allowedDependencies = {"commun", "customers", "sync", "request"})
+@org.springframework.modulith.ApplicationModule(allowedDependencies = {"commun", "customers", "identite", "sync", "request"})
 package com.logicielpourtous.site.features.licence;
