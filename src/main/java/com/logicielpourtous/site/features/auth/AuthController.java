@@ -121,7 +121,7 @@ public class AuthController {
                 || companyName == null || companyName.isBlank()) {
             model.addAttribute("error", "Tous les champs sont obligatoires.");
             model.addAttribute("activeType", "CLIENT");
-            return "feature/auth/register";
+            return formulaire(model);
         }
 
         // Longueur maximale des champs libres (colonnes en 255) : refus clair au lieu d'une erreur 500
@@ -130,7 +130,7 @@ public class AuthController {
             model.addAttribute("error", "Ce champ est trop long (255 caractères au maximum).");
             model.addAttribute("champErreur", champTropLong);
             model.addAttribute("activeType", "CLIENT");
-            return "feature/auth/register";
+            return formulaire(model);
         }
 
         ResultatInscription resultat;
@@ -142,7 +142,7 @@ public class AuthController {
             model.addAttribute("error", e.getMessage());
             model.addAttribute("champErreur", e.champ());
             model.addAttribute("activeType", "CLIENT");
-            return "feature/auth/register";
+            return formulaire(model);
         } catch (IllegalArgumentException e) {
             // Seul le refus de l'e-mail est montre (message inchange) ; toute autre erreur remonte telle quelle.
             if (!InscriptionSocieteService.EMAIL_DEJA_UTILISE.equals(e.getMessage())) {
@@ -150,7 +150,7 @@ public class AuthController {
             }
             model.addAttribute("error", e.getMessage());
             model.addAttribute("activeType", "CLIENT");
-            return "feature/auth/register";
+            return formulaire(model);
         }
 
         if (resultat instanceof ResultatInscription.Creee creee) {
@@ -160,6 +160,13 @@ public class AuthController {
         }
         // Societe deja connue : issue neutre, identique quel que soit son proprietaire
         return "redirect:/register/societe-connue";
+    }
+
+    /** Re-affiche le formulaire en gardant le captcha (sinon le widget disparait et la re-soumission est refusee). */
+    private String formulaire(Model model) {
+        model.addAttribute("captchaEnabled", captchaService.isEnabled());
+        model.addAttribute("captchaSiteKey", captchaSiteKey);
+        return "feature/auth/register";
     }
 
     private static final int LONGUEUR_MAX = 255;
@@ -185,17 +192,17 @@ public class AuthController {
                 || contactName == null || contactName.isBlank()) {
             model.addAttribute("error", "Tous les champs sont obligatoires.");
             model.addAttribute("activeType", "ESN");
-            return "feature/auth/register";
+            return formulaire(model);
         }
         if (subscriptionRequestRepository.existsByEmail(email)) {
             model.addAttribute("error", "Une demande existe déjà pour cet email.");
             model.addAttribute("activeType", "ESN");
-            return "feature/auth/register";
+            return formulaire(model);
         }
         if (userRepository.findByEmail(email).isPresent()) {
             model.addAttribute("error", "Cet email est déjà associé à un compte.");
             model.addAttribute("activeType", "ESN");
-            return "feature/auth/register";
+            return formulaire(model);
         }
 
         SubscriptionRequest req = new SubscriptionRequest();

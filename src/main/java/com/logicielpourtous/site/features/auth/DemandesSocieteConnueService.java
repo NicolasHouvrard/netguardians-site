@@ -59,7 +59,11 @@ public class DemandesSocieteConnueService {
 
     @Transactional(readOnly = true)
     public int compter(Tenant tenant) {
-        return dansLePerimetre(tenant).size();
+        if (tenant == null || tenant.getId() == null) {
+            return 0;
+        }
+        return estMaitre(tenant) ? demandes.compterDuMaitre(tenant.getId())
+                : demandes.compterDuPartenaire(tenant.getId());
     }
 
     /**
@@ -69,8 +73,11 @@ public class DemandesSocieteConnueService {
      */
     @Transactional
     public boolean marquerTraitee(Long id, Tenant tenant) {
-        Optional<DemandeSocieteConnue> trouvee = dansLePerimetre(tenant).stream()
-                .filter(d -> d.getId().equals(id)).findFirst();
+        if (tenant == null || tenant.getId() == null || id == null) {
+            return false;
+        }
+        Optional<DemandeSocieteConnue> trouvee = estMaitre(tenant)
+                ? demandes.unDuMaitre(id, tenant.getId()) : demandes.unDuPartenaire(id, tenant.getId());
         trouvee.ifPresent(d -> d.setTraitee(true));
         return trouvee.isPresent();
     }
@@ -80,7 +87,7 @@ public class DemandesSocieteConnueService {
             return List.of();
         }
         if (estMaitre(tenant)) {
-            return demandes.nonTraiteesDuMaitre();
+            return demandes.nonTraiteesDuMaitre(tenant.getId());
         }
         return demandes.nonTraiteesDuPartenaire(tenant.getId());
     }

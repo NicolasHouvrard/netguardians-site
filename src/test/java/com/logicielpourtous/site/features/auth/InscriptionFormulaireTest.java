@@ -55,6 +55,7 @@ class InscriptionFormulaireTest {
     @Autowired private TenantRepository tenantRepository;
     @Autowired private DemandeSocieteConnueRepository demandes;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private AuthController authController;
 
     private final List<String> sirens = new ArrayList<>();
     private final List<String> tvas = new ArrayList<>();
@@ -209,6 +210,21 @@ class InscriptionFormulaireTest {
                 .andExpect(model().attribute("champErreur", "fullName"));
     }
 
+    @Test
+    void formulaireEnErreur_gardeLeCaptcha() throws Exception {
+        AuthController controller = org.springframework.test.util.AopTestUtils.getTargetObject(authController);
+        Object ancienne = ReflectionTestUtils.getField(controller, "captchaSiteKey");
+        ReflectionTestUtils.setField(controller, "captchaSiteKey", "cle-de-test");
+        try {
+            mockMvc.perform(inscription("123456789", "FR00123456789"))
+                    .andExpect(status().isOk())
+                    .andExpect(model().attribute("captchaSiteKey", "cle-de-test"))
+                    .andExpect(model().attributeExists("captchaEnabled"));
+        } finally {
+            ReflectionTestUtils.setField(controller, "captchaSiteKey", ancienne);
+        }
+    }
+
     // ── Tableau de bord des demandes ─────────────────────────────────────
 
     @Test
@@ -224,6 +240,8 @@ class InscriptionFormulaireTest {
         assertThat(pageA).contains("pour-a@example.com").doesNotContain("pour-b@example.com")
                 .doesNotContain("pour-maitre@example.com");
         String pageM = lister(compte(maitre, "ADMIN"));
+        assertThat(lister(compte(partenaireB, "ADMIN"))).contains("pour-b@example.com")
+                .doesNotContain("pour-a@example.com");
         assertThat(pageM).contains("pour-maitre@example.com").doesNotContain("pour-a@example.com")
                 .doesNotContain("pour-b@example.com");
     }

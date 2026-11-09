@@ -1,6 +1,7 @@
 package com.logicielpourtous.site.features.auth;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -17,8 +18,27 @@ public interface DemandeSocieteConnueRepository extends JpaRepository<DemandeSoc
             + "where d.traitee = false and s.proprietaireTenantId = :tenantId order by d.creeA desc, d.id desc")
     List<DemandeSocieteConnue> nonTraiteesDuPartenaire(@Param("tenantId") Long tenantId);
 
-    /** Demandes non traitees des societes qui appartiennent au Maitre (proprietaire nul). */
+    /** Idem pour le Maitre : societes sans proprietaire, et aussi les siennes si son id de tenant est proprietaire. */
     @Query("select d from DemandeSocieteConnue d join SocieteIdentite s on s.id = d.societeIdentiteId "
-            + "where d.traitee = false and s.proprietaireTenantId is null order by d.creeA desc, d.id desc")
-    List<DemandeSocieteConnue> nonTraiteesDuMaitre();
+            + "where d.traitee = false and (s.proprietaireTenantId is null or s.proprietaireTenantId = :tenantId) "
+            + "order by d.creeA desc, d.id desc")
+    List<DemandeSocieteConnue> nonTraiteesDuMaitre(@Param("tenantId") Long tenantId);
+
+    @Query("select count(d) from DemandeSocieteConnue d join SocieteIdentite s on s.id = d.societeIdentiteId "
+            + "where d.traitee = false and s.proprietaireTenantId = :tenantId")
+    int compterDuPartenaire(@Param("tenantId") Long tenantId);
+
+    @Query("select count(d) from DemandeSocieteConnue d join SocieteIdentite s on s.id = d.societeIdentiteId "
+            + "where d.traitee = false and (s.proprietaireTenantId is null or s.proprietaireTenantId = :tenantId)")
+    int compterDuMaitre(@Param("tenantId") Long tenantId);
+
+    /** Une demande non traitee, seulement si elle est dans le perimetre du partenaire. */
+    @Query("select d from DemandeSocieteConnue d join SocieteIdentite s on s.id = d.societeIdentiteId "
+            + "where d.id = :id and d.traitee = false and s.proprietaireTenantId = :tenantId")
+    Optional<DemandeSocieteConnue> unDuPartenaire(@Param("id") Long id, @Param("tenantId") Long tenantId);
+
+    @Query("select d from DemandeSocieteConnue d join SocieteIdentite s on s.id = d.societeIdentiteId "
+            + "where d.id = :id and d.traitee = false "
+            + "and (s.proprietaireTenantId is null or s.proprietaireTenantId = :tenantId)")
+    Optional<DemandeSocieteConnue> unDuMaitre(@Param("id") Long id, @Param("tenantId") Long tenantId);
 }
