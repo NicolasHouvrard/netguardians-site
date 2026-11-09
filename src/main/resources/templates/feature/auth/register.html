@@ -40,7 +40,8 @@
         <p class="text-muted">Choisissez le type de compte qui correspond à votre situation</p>
     </div>
 
-    <div th:if="${error}" class="alert alert-danger mb-3" th:text="${error}"></div>
+    <div th:if="${error != null and champErreur == null}" class="alert alert-danger mb-3" th:text="${error}"></div>
+    <div th:if="${error != null and (champErreur == 'companyName' or champErreur == 'fullName' or champErreur == 'email')}" class="alert alert-danger mb-3" th:text="${error}"></div>
 
     <!-- ── Étape 1 : choix du type ────────────────────────────────────────── -->
     <div id="stepType" class="row g-3 mb-4">
@@ -90,12 +91,36 @@
                 <input type="hidden" name="accountType" value="CLIENT">
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Société <span class="text-danger">*</span></label>
-                    <input type="text" name="companyName" class="form-control"
+                    <input type="text" name="companyName" class="form-control" maxlength="255"
                            placeholder="Nom de votre entreprise" required>
                 </div>
                 <div class="mb-3">
+                    <label class="form-label fw-semibold">SIREN ou SIRET <span class="text-danger">*</span></label>
+                    <div class="row g-2">
+                        <div class="col-sm-6">
+                            <input type="text" name="siren" class="form-control" maxlength="20"
+                                   th:classappend="${champErreur == 'siren'} ? ' is-invalid'"
+                                   placeholder="SIREN (9 chiffres)" inputmode="numeric">
+                        </div>
+                        <div class="col-sm-6">
+                            <input type="text" name="siret" class="form-control" maxlength="20"
+                                   th:classappend="${champErreur == 'siret'} ? ' is-invalid'"
+                                   placeholder="ou SIRET (14 chiffres)" inputmode="numeric">
+                        </div>
+                    </div>
+                    <div th:if="${champErreur == 'siren' or champErreur == 'siret'}"
+                         class="text-danger small mt-1" th:text="${error}"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">N° de TVA intracommunautaire <span class="text-danger">*</span></label>
+                    <input type="text" name="tva" class="form-control" maxlength="20"
+                           th:classappend="${champErreur == 'tva'} ? ' is-invalid'"
+                           placeholder="FR12345678901" required>
+                    <div th:if="${champErreur == 'tva'}" class="text-danger small mt-1" th:text="${error}"></div>
+                </div>
+                <div class="mb-3">
                     <label class="form-label fw-semibold">Votre nom complet <span class="text-danger">*</span></label>
-                    <input type="text" name="fullName" class="form-control"
+                    <input type="text" name="fullName" class="form-control" maxlength="255"
                            placeholder="Prénom Nom" required>
                 </div>
                 <div class="mb-3">

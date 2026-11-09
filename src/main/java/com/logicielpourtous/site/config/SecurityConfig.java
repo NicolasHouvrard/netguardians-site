@@ -262,6 +262,7 @@ public class SecurityConfig {
                 chemins.matcher("/intra/licence/**"),
                 chemins.matcher("/intra/esns/**"),
                 chemins.matcher("/intra/settings/company/**"),
+                chemins.matcher("/intra/demandes-societe-connue/**"),
                 chemins.matcher(SelectionSocieteFilter.SELECTEUR));
         RequestMatcher methodeModifiante = request -> !METHODES_SANS_EFFET.contains(request.getMethod());
         return new AndRequestMatcher(methodeModifiante, ecransSensibles);

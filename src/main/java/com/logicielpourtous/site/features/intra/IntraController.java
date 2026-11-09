@@ -1,6 +1,7 @@
 package com.logicielpourtous.site.features.intra;
 
 import com.logicielpourtous.site.features.auth.CustomUserDetails;
+import com.logicielpourtous.site.features.auth.DemandesSocieteConnueService;
 import com.logicielpourtous.site.features.dashboard.UserDashboardConfig;
 import com.logicielpourtous.site.features.dashboard.UserDashboardConfigRepository;
 import com.logicielpourtous.site.features.request.Request;
@@ -34,15 +35,18 @@ public class IntraController {
     private final UserDashboardConfigRepository configRepository;
     private final RequestRepository            requestRepository;
     private final ShopOrderRepository          shopOrderRepository;
+    private final DemandesSocieteConnueService demandesSocieteConnueService;
 
     public IntraController(IntraWidgetService widgetService,
                            UserDashboardConfigRepository configRepository,
                            RequestRepository requestRepository,
-                           ShopOrderRepository shopOrderRepository) {
+                           ShopOrderRepository shopOrderRepository,
+                           DemandesSocieteConnueService demandesSocieteConnueService) {
         this.widgetService      = widgetService;
         this.configRepository   = configRepository;
         this.requestRepository  = requestRepository;
         this.shopOrderRepository = shopOrderRepository;
+        this.demandesSocieteConnueService = demandesSocieteConnueService;
     }
 
     // ── Accueil ESN (dashboard global configurable) ───────────────────────────
@@ -61,6 +65,11 @@ public class IntraController {
         model.addAttribute("intraWidgetsAvailable", widgetService.availableWidgets(roles));
         model.addAttribute("intraWidgetConfig",     config);
         model.addAttribute("currentDashboard",      "accueil");
+        // Demandes « societe connue » : reservees aux administrateurs (comme l'ecran), compteur de leur perimetre
+        if (roles.contains("ROLE_ADMIN")) {
+            model.addAttribute("demandesSocieteConnueNonTraitees",
+                    demandesSocieteConnueService.compter(user.getTenant()));
+        }
 
         List<Request> recentTickets = requestRepository
                 .findByStatusInOrderByCreatedAtDesc(List.of(RequestStatus.NEW, RequestStatus.IN_PROGRESS))

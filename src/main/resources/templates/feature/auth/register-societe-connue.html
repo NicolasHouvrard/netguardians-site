@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head><title>Société connue</title></head>
+<body>
+<section layout:fragment="content">
+<div class="row justify-content-center align-items-center" style="min-height:60vh">
+<div class="col-md-6 text-center">
+    <div class="card border-0 shadow-sm p-5">
+        <h3 class="fw-bold mb-3">Société connue</h3>
+        <!-- Page neutre : aucun parametre, aucun nom de societe ni de partenaire (anti-enumeration). -->
+        <p class="mb-4">Cette société est déjà connue de la plateforme. Une demande a été transmise à son responsable.</p>
+        <a th:href="@{/login}" class="btn btn-outline-primary">Se connecter</a>
+    </div>
+</div>
+</div>
+</section>
+</body>
+</html>

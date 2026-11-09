@@ -23,6 +23,17 @@
             </button>
         </div>
 
+        <!-- Demandes de société connue (administrateurs) -->
+        <div sec:authorize="hasRole('ADMIN')" th:if="${demandesSocieteConnueNonTraitees != null}" class="mb-3">
+            <a th:href="@{/intra/demandes-societe-connue}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-building-circle-exclamation me-1"></i>Demandes de société connue
+                <span class="badge rounded-pill ms-1"
+                      th:classappend="${demandesSocieteConnueNonTraitees > 0} ? 'bg-danger' : 'bg-secondary'"
+                      th:attr="data-compteur-demandes=${demandesSocieteConnueNonTraitees}"
+                      th:text="${demandesSocieteConnueNonTraitees}">0</span>
+            </a>
+        </div>
+
         <!-- Widgets KPI ────────────────────────────────────────────────────── -->
         <div class="row g-3 mb-4">
             <div th:each="w : ${intraWidgets}"

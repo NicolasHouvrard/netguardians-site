@@ -8,5 +8,8 @@ public interface TenantRepository extends JpaRepository<Tenant, Long> {
 
     /** Vrai si au moins un tenant client dependant de ce tenant partenaire existe. */
     boolean existsByTenantPartenaireId(Long tenantPartenaireId);
+
+    /** Le tenant cree en premier (plus petit id) : celui du Maitre. */
+    Optional<Tenant> findFirstByOrderByIdAsc();
  
 }

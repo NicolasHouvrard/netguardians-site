@@ -124,6 +124,15 @@ public class AuthController {
             return "feature/auth/register";
         }
 
+        // Longueur maximale des champs libres (colonnes en 255) : refus clair au lieu d'une erreur 500
+        String champTropLong = champTropLong(companyName, fullName, email);
+        if (champTropLong != null) {
+            model.addAttribute("error", "Ce champ est trop long (255 caractères au maximum).");
+            model.addAttribute("champErreur", champTropLong);
+            model.addAttribute("activeType", "CLIENT");
+            return "feature/auth/register";
+        }
+
         ResultatInscription resultat;
         try {
             resultat = inscriptionSocieteService.inscrireClient(
@@ -151,6 +160,16 @@ public class AuthController {
         }
         // Societe deja connue : issue neutre, identique quel que soit son proprietaire
         return "redirect:/register/societe-connue";
+    }
+
+    private static final int LONGUEUR_MAX = 255;
+
+    /** Nom du premier champ libre depassant 255 caracteres, ou {@code null}. */
+    private static String champTropLong(String companyName, String fullName, String email) {
+        if (companyName != null && companyName.length() > LONGUEUR_MAX) return "companyName";
+        if (fullName != null && fullName.length() > LONGUEUR_MAX) return "fullName";
+        if (email != null && email.length() > LONGUEUR_MAX) return "email";
+        return null;
     }
 
     @GetMapping("/register/societe-connue")
