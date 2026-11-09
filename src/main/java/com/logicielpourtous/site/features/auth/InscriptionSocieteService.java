@@ -46,6 +46,13 @@ import com.logicielpourtous.site.features.user.UserRepository;
  * <p><b>Anti-enumeration.</b> Une societe deja inscrite et une societe suivie par un partenaire donnent la
  * MEME issue ({@link ResultatInscription.DejaConnue}), par le meme chemin de code ; rien n'est cree hormis la
  * {@link DemandeSocieteConnue} destinee au proprietaire.
+ *
+ * <p><b>Double envoi du formulaire</b> (connu, accepte) : le 2e envoi peut finir sur « Cet email est déjà
+ * utilisé. » alors que l'inscription du 1er a reussi.
+ *
+ * <p><b>Donnees non fiables</b> : {@code nom_demandeur} et {@code email_demandeur} des demandes viennent de
+ * visiteurs anonymes ; tout ecran qui les affiche doit les echapper ({@code th:text} uniquement, jamais
+ * {@code th:utext}).
  */
 @Service
 public class InscriptionSocieteService {
@@ -204,9 +211,15 @@ public class InscriptionSocieteService {
             log.warn("Inscription client : societe deja connue sans ligne de registre, demande non enregistree");
             return;
         }
+        String email = d.email() == null ? null : d.email().trim();
+        // Pas de doublon : une seule demande non traitee par societe et par e-mail (casse et espaces ignores).
+        if (demandeSocieteConnueRepository.existsBySocieteIdentiteIdAndEmailDemandeurIgnoreCaseAndTraiteeFalse(
+                existante.getId(), email)) {
+            return;
+        }
         DemandeSocieteConnue demande = new DemandeSocieteConnue();
         demande.setSocieteIdentiteId(existante.getId());
-        demande.setEmailDemandeur(d.email());
+        demande.setEmailDemandeur(email);
         demande.setNomDemandeur(d.nomComplet());
         demandeSocieteConnueRepository.save(demande);
     }

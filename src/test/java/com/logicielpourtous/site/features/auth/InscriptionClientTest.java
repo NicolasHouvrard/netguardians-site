@@ -3,8 +3,10 @@ package com.logicielpourtous.site.features.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -16,8 +18,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import com.logicielpourtous.site.features.auth.InscriptionSocieteService.DemandeClient;
 import com.logicielpourtous.site.features.auth.InscriptionSocieteService.ResultatInscription;
@@ -243,6 +243,7 @@ class InscriptionClientTest {
 
         assertThatThrownBy(() -> service.inscrireClient(demande(email, null, null, "DE123456789")))
                 .isInstanceOf(IdentiteInvalideException.class)
+                .hasMessage("Seule une société française peut s'inscrire : saisissez un numéro de TVA français.")
                 .satisfies(e -> assertThat(((IdentiteInvalideException) e).champ()).isEqualTo("tva"));
 
         assertThat(userRepository.findByEmail(email)).isEmpty();
@@ -310,63 +311,131 @@ class InscriptionClientTest {
 
     // ── Conflit concurrent : la base refuse, on rejoue une fois ─────────
 
-    /** Registre dont le 1er enregistrement simule une inscription concurrente gagnante puis un refus de la base. */
-    private RegistreSocietes registreAvecConcurrent(AtomicInteger appels, boolean toujoursEnConflit) {
-        TransactionTemplate autreTransaction = new TransactionTemplate(transactionManager);
-        autreTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    /**
+     * Registre REEL dont la 1re recherche laisse d'abord une inscription concurrente (le vrai service, dans sa
+     * propre transaction) valider la meme societe, puis repond « inconnue » : le vrai {@code enregistrer} fait
+     * alors un vrai {@code saveAndFlush}, PostgreSQL refuse (23505) et la vraie
+     * {@link EnregistrementConcurrentException} remonte du vrai code. Avec {@code toujoursEnConflit}, toutes
+     * les recherches repondent « inconnue » : la 2e tentative est refusee par la base elle aussi.
+     */
+    private RegistreSocietes registreAvecConcurrent(Runnable gagnant, AtomicInteger appels,
+                                                    List<EnregistrementConcurrentException> conflits,
+                                                    boolean toujoursEnConflit) {
+        AtomicInteger recherches = new AtomicInteger();
         return new RegistreSocietes(identites) {
             @Override
+            public Optional<SocieteIdentite> trouver(IdentiteSociete identite) {
+                if (recherches.incrementAndGet() == 1) {
+                    gagnant.run();
+                    return Optional.empty();
+                }
+                return toujoursEnConflit ? Optional.empty() : super.trouver(identite);
+            }
+
+            @Override
             public SocieteIdentite enregistrer(TypeSociete type, IdentiteSociete identite, Long proprietaire) {
-                int n = appels.incrementAndGet();
-                if (n == 1) {
-                    // L'autre inscription valide la societe pendant la notre
-                    autreTransaction.executeWithoutResult(s -> registre.enregistrer(type, identite, proprietaire));
+                appels.incrementAndGet();
+                try {
+                    return super.enregistrer(type, identite, proprietaire);
+                } catch (EnregistrementConcurrentException e) {
+                    conflits.add(e);
+                    throw e;
                 }
-                if (n == 1 || toujoursEnConflit) {
-                    throw new EnregistrementConcurrentException(new RuntimeException("23505 simule"));
-                }
-                return super.enregistrer(type, identite, proprietaire);
             }
         };
     }
 
+    private static boolean vientDUneViolationDUnicite(Throwable erreur) {
+        for (Throwable t = erreur; t != null; t = t.getCause()) {
+            if (t instanceof SQLException sql && "23505".equals(sql.getSQLState())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Test
     void conflitConcurrent_estRejoueUneFois_puisDejaConnue() {
-        AtomicInteger appels = new AtomicInteger();
-        InscriptionSocieteService avecConcurrent = new InscriptionSocieteService(userRepository, customerRepository,
-                siteRepository, contactRepository, portalUserService, registreAvecConcurrent(appels, false),
-                appartenanceRepository, demandes, transactionManager);
         String siren = nouveauSiren();
+        String tva = NumerosSociete.tvaFrancaise(siren);
+        String emailGagnant = nouvelEmail();
         String email = nouvelEmail();
+        AtomicInteger appels = new AtomicInteger();
+        List<EnregistrementConcurrentException> conflits = new ArrayList<>();
+        Runnable gagnant = () -> assertThat(service.inscrireClient(demande(emailGagnant, siren, null, tva)))
+                .isInstanceOf(ResultatInscription.Creee.class);
+        InscriptionSocieteService perdant = new InscriptionSocieteService(userRepository, customerRepository,
+                siteRepository, contactRepository, portalUserService,
+                registreAvecConcurrent(gagnant, appels, conflits, false),
+                appartenanceRepository, demandes, transactionManager);
 
-        ResultatInscription resultat = avecConcurrent.inscrireClient(
-                demande(email, siren, null, NumerosSociete.tvaFrancaise(siren)));
+        ResultatInscription resultat = perdant.inscrireClient(demande(email, siren, null, tva));
 
         assertThat(resultat).isInstanceOf(ResultatInscription.DejaConnue.class);
         assertThat(appels.get()).isEqualTo(2);
+        assertThat(conflits).hasSize(1);
+        assertThat(vientDUneViolationDUnicite(conflits.get(0))).as("vrai refus 23505 de PostgreSQL").isTrue();
+        // Une seule societe : celle du gagnant ; rien d'orphelin cote perdant
         assertThat(nbIdentitesAvecSiren(siren)).isEqualTo(1L);
-        assertThat(nbCustomersAvecSiren(siren)).isZero();
+        assertThat(nbCustomersAvecSiren(siren)).isEqualTo(1L);
+        assertThat(userRepository.findByEmail(emailGagnant)).isPresent();
         assertThat(userRepository.findByEmail(email)).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM contacts WHERE email = ?", Long.class, email)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM customers WHERE email = ?", Long.class, email)).isZero();
         Long societeId = identites.findBySiren(siren).orElseThrow().getId();
         assertThat(nbDemandesPour(societeId, email)).isEqualTo(1L);
     }
 
     @Test
     void conflitConcurrentRepete_neRejoueQuUneFois_etResteNeutre() {
-        AtomicInteger appels = new AtomicInteger();
-        InscriptionSocieteService avecConcurrent = new InscriptionSocieteService(userRepository, customerRepository,
-                siteRepository, contactRepository, portalUserService, registreAvecConcurrent(appels, true),
-                appartenanceRepository, demandes, transactionManager);
         String siren = nouveauSiren();
+        String tva = NumerosSociete.tvaFrancaise(siren);
+        String emailGagnant = nouvelEmail();
         String email = nouvelEmail();
+        AtomicInteger appels = new AtomicInteger();
+        List<EnregistrementConcurrentException> conflits = new ArrayList<>();
+        Runnable gagnant = () -> service.inscrireClient(demande(emailGagnant, siren, null, tva));
+        InscriptionSocieteService perdant = new InscriptionSocieteService(userRepository, customerRepository,
+                siteRepository, contactRepository, portalUserService,
+                registreAvecConcurrent(gagnant, appels, conflits, true),
+                appartenanceRepository, demandes, transactionManager);
 
-        ResultatInscription resultat = avecConcurrent.inscrireClient(
-                demande(email, siren, null, NumerosSociete.tvaFrancaise(siren)));
+        ResultatInscription resultat = perdant.inscrireClient(demande(email, siren, null, tva));
 
         assertThat(resultat).isInstanceOf(ResultatInscription.DejaConnue.class);
         assertThat(appels.get()).isEqualTo(2);
-        assertThat(nbCustomersAvecSiren(siren)).isZero();
+        assertThat(conflits).hasSize(2).allMatch(InscriptionClientTest::vientDUneViolationDUnicite);
+        assertThat(nbIdentitesAvecSiren(siren)).isEqualTo(1L);
+        assertThat(nbCustomersAvecSiren(siren)).isEqualTo(1L);
         assertThat(userRepository.findByEmail(email)).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM customers WHERE email = ?", Long.class, email)).isZero();
+    }
+
+    // ── Demandes « societe connue » sans doublon ─────────────────────────
+
+    @Test
+    void memeEmailDeuxFois_uneSeuleDemande_autreEmail_secondeDemande() {
+        String siren = nouveauSiren();
+        String tva = NumerosSociete.tvaFrancaise(siren);
+        Long societeId = registre.enregistrer(TypeSociete.CLIENT, IdentiteSociete.depuis(siren, null, tva), 7L).getId();
+        String email = nouvelEmail();
+        String autre = nouvelEmail();
+
+        assertThat(service.inscrireClient(demande(email, siren, null, tva)))
+                .isInstanceOf(ResultatInscription.DejaConnue.class);
+        assertThat(service.inscrireClient(demande("  " + email.toUpperCase() + " ", siren, null, tva)))
+                .isInstanceOf(ResultatInscription.DejaConnue.class);
+        assertThat(nbDemandes(societeId)).isEqualTo(1L);
+        assertThat(nbDemandesPour(societeId, email)).isEqualTo(1L);
+
+        assertThat(service.inscrireClient(demande(autre, siren, null, tva)))
+                .isInstanceOf(ResultatInscription.DejaConnue.class);
+        assertThat(nbDemandes(societeId)).isEqualTo(2L);
+    }
+
+    private long nbDemandes(Long societeIdentiteId) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM demandes_societe_connue WHERE societe_identite_id = ?",
+                Long.class, societeIdentiteId);
     }
 
     // ── Nettoyage ────────────────────────────────────────────────────────
