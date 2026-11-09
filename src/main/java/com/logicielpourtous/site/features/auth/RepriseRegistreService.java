@@ -4,7 +4,11 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -15,6 +19,7 @@ import com.logicielpourtous.site.features.identite.EnregistrementConcurrentExcep
 import com.logicielpourtous.site.features.identite.GroupeDoublon;
 import com.logicielpourtous.site.features.identite.IdentiteInvalideException;
 import com.logicielpourtous.site.features.identite.IdentiteSociete;
+import com.logicielpourtous.site.features.identite.NumerosSociete;
 import com.logicielpourtous.site.features.identite.RapportDoublonsService;
 import com.logicielpourtous.site.features.identite.RegistreSocietes;
 import com.logicielpourtous.site.features.identite.SocieteDejaConnueException;
@@ -33,8 +38,8 @@ import com.logicielpourtous.site.features.identite.TypeSociete;
  *       {@code null}.</li>
  *   <li>Type : {@code CLIENT} pour un client, {@code PARTENAIRE} pour une ESN, {@code FOURNISSEUR} pour toute
  *       societe a TVA etrangere (le registre n'accepte pas d'autre type pour elles).</li>
- *   <li>Sont ignorees et LISTEES : les fiches de numeros invalides ou incomplets (la TVA est obligatoire, elle
- *       n'est jamais deduite du SIREN), les fiches d'un groupe du rapport de doublons, et celles dont l'identite
+ *   <li>Sont ignorees et LISTEES : les fiches de numeros invalides ou incomplets (une TVA absente est calculee depuis un
+ *       SIREN/SIRET valide, un SIREN est tire d'une TVA francaise seule ; sinon la fiche est inutilisable), les fiches d'un groupe du rapport de doublons, et celles dont l'identite
  *       est deja detenue par une AUTRE fiche du registre.</li>
  *   <li>Idempotent : une fiche deja liee au registre ({@code fiche_type} + {@code fiche_id}) est sautee en silence.</li>
  * </ul>
@@ -45,6 +50,11 @@ import com.logicielpourtous.site.features.identite.TypeSociete;
  */
 @Service
 public class RepriseRegistreService {
+
+    private static final Logger log = LoggerFactory.getLogger(RepriseRegistreService.class);
+
+    /** TVA francaise : FR + cle (2 caracteres) + SIREN (9 chiffres). */
+    private static final Pattern TVA_FRANCAISE = Pattern.compile("^FR[0-9A-Z]{2}([0-9]{9})$");
 
     static final String FICHE_CUSTOMERS = "customers";
     static final String FICHE_PARTNER_ESNS = "partner_esns";
@@ -100,7 +110,8 @@ public class RepriseRegistreService {
             }
             IdentiteSociete identite;
             try {
-                identite = IdentiteSociete.depuis(fiche.siren(), fiche.siret(), fiche.tva());
+                String[] numeros = completerNumeros(fiche);
+                identite = IdentiteSociete.depuis(numeros[0], numeros[1], numeros[2]);
             } catch (IdentiteInvalideException e) {
                 invalides++;
                 details.add(fiche.libelle() + " : ignorée, numéros invalides ou incomplets (" + e.getMessage() + ")");
@@ -130,9 +141,41 @@ public class RepriseRegistreService {
             } catch (EnregistrementConcurrentException e) {
                 doublons++;
                 details.add(fiche.libelle() + " : ignorée, conflit d'enregistrement simultané ; relancez la reprise.");
+            } catch (RuntimeException e) {
+                // Filet : une erreur inattendue sur UNE fiche (sa transaction est annulee) n'arrete pas le lot.
+                invalides++;
+                log.error("Reprise du registre : echec inattendu pour {}", fiche.libelle(), e);
+                details.add(fiche.libelle() + " : erreur inattendue, fiche non reprise (" + e.getClass().getSimpleName() + ").");
             }
         }
         return new BilanReprise(reprises, doublons, invalides, List.copyOf(details));
+    }
+
+    /**
+     * Complete les numeros d'une fiche comme le fait le rapport des doublons : TVA absente avec SIREN (ou SIRET)
+     * valide -> TVA francaise calculee ; TVA francaise seule -> SIREN pris dans la TVA. Rien n'est invente
+     * si les numeros sont inutilisables : {@code IdentiteSociete.depuis} les refuse alors. Les fiches ne sont
+     * jamais modifiees, seule la ligne de registre recoit les valeurs completees.
+     *
+     * @return {siren, siret, tva}
+     */
+    private static String[] completerNumeros(Fiche fiche) {
+        String siren = NumerosSociete.chiffres(fiche.siren());
+        String siret = NumerosSociete.chiffres(fiche.siret());
+        String tva = NumerosSociete.tva(fiche.tva());
+        if (tva == null) {
+            if (NumerosSociete.sirenValide(siren)) {
+                tva = NumerosSociete.tvaFrancaise(siren);
+            } else if (siren == null && NumerosSociete.siretValide(siret)) {
+                tva = NumerosSociete.tvaFrancaise(NumerosSociete.sirenDe(siret));
+            }
+        } else if (siren == null && siret == null) {
+            Matcher m = TVA_FRANCAISE.matcher(tva);
+            if (m.matches()) {
+                siren = m.group(1);
+            }
+        }
+        return new String[] {siren, siret, tva};
     }
 
     private static TypeSociete typePour(Fiche fiche, IdentiteSociete identite) {

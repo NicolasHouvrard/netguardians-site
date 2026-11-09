@@ -201,14 +201,63 @@ class RepriseRegistreServiceTest {
     }
 
     @Test
-    void ficheSansTva_estIgnoreeEtListee_sansTvaDeduite() {
+    void ficheAvecSirenValideSansTva_tvaDeduiteEtSocieteProtegee() {
         String siren = nouveauSiren();
-        Long id = client("Client Sans TVA", siren, null, null);
+        String tva = NumerosSociete.tvaFrancaise(siren);
+        client("Client Sans TVA", siren, null, null);
+
+        service.reprendre(false);
+
+        SocieteIdentite l = ligne(siren);
+        assertThat(l).isNotNull();
+        assertThat(l.getTva()).isEqualTo(tva);
+        ResultatInscription resultat = inscription.inscrireClient(new DemandeClient("Autre Nom", "Bob Durand",
+                "reprise-" + UUID.randomUUID() + "@example.com", "MotDePasse!1", siren, null, tva));
+        assertThat(resultat).isInstanceOf(ResultatInscription.DejaConnue.class);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM customers WHERE siren = ?", Long.class, siren))
+                .isEqualTo(1L);
+    }
+
+    @Test
+    void ficheAvecTvaFrancaiseSeule_sirenDeduitEtSocieteProtegee() {
+        String siren = nouveauSiren();
+        String tva = NumerosSociete.tvaFrancaise(siren);
+        client("Client TVA Seule", null, tva, null);
+
+        service.reprendre(false);
+
+        SocieteIdentite l = ligne(siren);
+        assertThat(l).isNotNull();
+        assertThat(l.getTva()).isEqualTo(tva);
+        ResultatInscription resultat = inscription.inscrireClient(new DemandeClient("Autre Nom", "Bob Durand",
+                "reprise-" + UUID.randomUUID() + "@example.com", "MotDePasse!1", siren, null, tva));
+        assertThat(resultat).isInstanceOf(ResultatInscription.DejaConnue.class);
+    }
+
+    @Test
+    void ficheAvecSiretSeul_tvaEtSirenDeduits() {
+        String siren = nouveauSiren();
+        Long id = jdbc.queryForObject(
+                "INSERT INTO customers (active, companyname, siret) VALUES (true, 'Client Siret Seul', ?) RETURNING id",
+                Long.class, siretDe(siren));
+        customers.add(id);
+
+        service.reprendre(false);
+
+        SocieteIdentite l = ligne(siren);
+        assertThat(l).isNotNull();
+        assertThat(l.getTva()).isEqualTo(NumerosSociete.tvaFrancaise(siren));
+        assertThat(l.getFicheId()).isEqualTo(id);
+    }
+
+    @Test
+    void ficheAuxNumerosInutilisables_resteIgnoreeEtListee() {
+        Long id = client("Client Inutilisable", "123456780", null, null);
 
         BilanReprise bilan = service.reprendre(false);
 
         assertThat(bilan.details()).anyMatch(d -> d.contains("customers #" + id));
-        assertThat(nbLignes(siren)).isZero();
+        assertThat(nbLignes("123456780")).isZero();
     }
 
     @Test
@@ -258,7 +307,7 @@ class RepriseRegistreServiceTest {
     @Test
     void deuxiemeExecution_nEnRepreRien() {
         String siren = nouveauSiren();
-        client("Client Idempotent", siren, NumerosSociete.tvaFrancaise(siren), null);
+        Long id = client("Client Idempotent", siren, NumerosSociete.tvaFrancaise(siren), null);
 
         BilanReprise premier = service.reprendre(false);
         long apresPremier = jdbc.queryForObject("SELECT COUNT(*) FROM societes_identites", Long.class);
@@ -266,6 +315,8 @@ class RepriseRegistreServiceTest {
 
         assertThat(premier.reprises()).isGreaterThanOrEqualTo(1);
         assertThat(second.reprises()).isZero();
+        assertThat(second.ignoreesDoublon()).isLessThanOrEqualTo(premier.ignoreesDoublon());
+        assertThat(second.details()).noneMatch(d -> d.contains("customers #" + id));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM societes_identites", Long.class)).isEqualTo(apresPremier);
         assertThat(nbLignes(siren)).isEqualTo(1);
     }
