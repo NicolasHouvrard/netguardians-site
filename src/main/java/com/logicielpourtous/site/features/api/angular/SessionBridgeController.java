@@ -44,8 +44,13 @@ public class SessionBridgeController {
                 || !(auth.getPrincipal() instanceof CustomUserDetails user)) {
             return ResponseEntity.status(401).build();
         }
+        // Personne de plusieurs societes sans societe choisie : aucun jeton (elle choisit d'abord sur le web).
+        if (user.selectionRequise() || user.getTenant() == null || !user.isEnabled()) {
+            return ResponseEntity.status(401).build();
+        }
 
-        String token = jwtTokenProvider.generate(user);
+        // Jeton portant la societe active (personne de plusieurs societes), sinon le jeton d'avant.
+        String token = jwtTokenProvider.jetonDuCompte(user);
         List<String> roles = user.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority).toList();
 

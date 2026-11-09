@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +49,14 @@ import com.logicielpourtous.site.features.user.UserRepository;
 @Transactional
 class ChoixSocieteControllerTest {
 
+    /**
+     * Secret de test d'au moins 32 octets : la valeur par defaut d'application.properties est trop courte pour
+     * HMAC-SHA. Pose sur le bean (puis restaure) plutot que par une propriete de test : un contexte Spring de
+     * plus ouvrirait un pool de connexions de plus et epuiserait les connexions Postgres de la suite complete.
+     */
+    private static final String SECRET_DE_TEST = "secret-de-test-appartenance-au-moins-32-octets";
+    private Object secretOrigine;
+
     @Autowired private MockMvc mockMvc;
     @Autowired private TenantRepository tenantRepository;
     @Autowired private CustomerRepository customerRepository;
@@ -55,6 +64,10 @@ class ChoixSocieteControllerTest {
     @Autowired private RoleRepository roleRepository;
     @Autowired private AppartenanceRepository appartenanceRepository;
     @Autowired private CustomUserDetailsService userDetailsService;
+    @Autowired private com.logicielpourtous.site.config.JwtTokenProvider jwtTokenProvider;
+
+    @org.springframework.beans.factory.annotation.Value("${app.angular.login-redirect:http://localhost:4200/login}")
+    private String angularLoginRedirect;
 
     private Tenant alpha;
     private Tenant beta;
@@ -65,6 +78,8 @@ class ChoixSocieteControllerTest {
 
     @BeforeEach
     void preparer() {
+        secretOrigine = ReflectionTestUtils.getField(jwtTokenProvider, "secret");
+        ReflectionTestUtils.setField(jwtTokenProvider, "secret", SECRET_DE_TEST);
         String suffixe = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         alpha = tenant("Societe Alpha " + suffixe, "test_choix_alpha_" + suffixe);
         beta = tenant("Societe Beta " + suffixe, "test_choix_beta_" + suffixe);
@@ -85,6 +100,11 @@ class ChoixSocieteControllerTest {
         personneMulti = userRepository.save(u);
         idAlpha = enregistrer(personneMulti, alpha, null, admin).getId();
         idBeta = enregistrer(personneMulti, beta, ficheId, client).getId();
+    }
+
+    @AfterEach
+    void restaurer() {
+        ReflectionTestUtils.setField(jwtTokenProvider, "secret", secretOrigine);
     }
 
     // ── En attente de choix ─────────────────────────────────────────────────
@@ -140,8 +160,13 @@ class ChoixSocieteControllerTest {
         MvcResult r = mockMvc.perform(post("/choisir-societe").with(user(multiSocietes(null))).with(csrf())
                         .param("appartenanceId", String.valueOf(idAlpha)))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/"))
+                // Task 4 : meme destination que la connexion d'un compte d'une seule societe (ADMIN -> console).
+                .andExpect(redirectedUrl("/admin/console"))
                 .andReturn();
+        // Jeton court pour l'auto-connexion Angular, portant la societe choisie.
+        jakarta.servlet.http.Cookie cookie = r.getResponse().getCookie("_intra_jwt");
+        assertThat(cookie).isNotNull();
+        assertThat(jwtTokenProvider.extractAppartenanceId(cookie.getValue())).isEqualTo(idAlpha);
         MockHttpSession session = (MockHttpSession) r.getRequest().getSession(false);
         assertThat(session).isNotNull();
         assertThat(session.getAttribute("CURRENT_TENANT_ID")).isEqualTo(alpha.getSchemaName());
@@ -158,7 +183,9 @@ class ChoixSocieteControllerTest {
         MvcResult r2 = mockMvc.perform(post("/choisir-societe").with(user(multiSocietes(null))).with(csrf())
                         .param("appartenanceId", String.valueOf(idBeta)))
                 .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/espace"))
                 .andReturn();
+        assertThat(r2.getResponse().getCookie("_intra_jwt")).isNull();
         MockHttpSession session2 = (MockHttpSession) r2.getRequest().getSession(false);
         assertThat(session2.getAttribute("CURRENT_TENANT_ID")).isEqualTo(beta.getSchemaName());
         assertThat(autorites(session2)).contains("ROLE_CLIENT").doesNotContain("ROLE_ADMIN");
@@ -282,6 +309,35 @@ class ChoixSocieteControllerTest {
         mockMvc.perform(post("/choisir-societe").with(user(charge)).with(csrf())
                         .param("appartenanceId", String.valueOf(idAlpha)))
                 .andExpect(status().isForbidden());
+    }
+
+    // ── Task 4 : meme suite que la connexion ──────────────────────────────────
+
+    @Test
+    void choisir_apresUneConnexionDepuisAngular_renvoieAAngularAvecUnJetonDeLaSociete() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute(CustomTenantSuccessHandler.ORIGINE_ANGULAR_EN_ATTENTE, Boolean.TRUE);
+        MvcResult r = mockMvc.perform(post("/choisir-societe").session(session).with(user(multiSocietes(null)))
+                        .with(csrf()).param("appartenanceId", String.valueOf(idBeta)))
+                .andExpect(status().is3xxRedirection())
+                .andReturn();
+        String cible = r.getResponse().getRedirectedUrl();
+        assertThat(cible).startsWith(angularLoginRedirect + "?token=");
+        String jeton = cible.substring((angularLoginRedirect + "?token=").length());
+        assertThat(jwtTokenProvider.extractAppartenanceId(jeton)).isEqualTo(idBeta);
+        // Indicateur a usage unique.
+        assertThat(r.getRequest().getSession(false).getAttribute(CustomTenantSuccessHandler.ORIGINE_ANGULAR_EN_ATTENTE))
+                .isNull();
+    }
+
+    @Test
+    void choisir_avecChangementDeMotDePasseEnAttente_renvoieAuChangementDeMotDePasse() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute("MUST_CHANGE_PASSWORD", Boolean.TRUE);
+        mockMvc.perform(post("/choisir-societe").session(session).with(user(multiSocietes(null)))
+                        .with(csrf()).param("appartenanceId", String.valueOf(idAlpha)))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/change-password"));
     }
 
     // ── Outils ──────────────────────────────────────────────────────────────

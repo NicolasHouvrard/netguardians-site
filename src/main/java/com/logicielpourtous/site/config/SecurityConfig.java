@@ -6,6 +6,11 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.authorization.AuthenticatedAuthorizationManager;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -162,12 +167,15 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/login", "/api/auth/providers", "/api/auth/google").permitAll()
+                // Choix de la societe active : tout compte authentifie, y compris en attente de choix (seule
+                // route qu'ouvre le jeton de selection, voir JwtAuthenticationFilter).
+                .requestMatchers(HttpMethod.POST, JwtAuthenticationFilter.CHOIX_SOCIETE).authenticated()
                 .requestMatchers("/api/intra/admin/**").hasRole("ADMIN")
                 // ESN_USER est une autorité synthétique posée par CustomUserDetails
                 // pour TOUS les rôles de type ESN (y compris les rôles custom par tenant).
                 .requestMatchers("/api/intra/**").hasAnyRole("ADMIN","ESN_USER")
                 .requestMatchers("/api/espace/**").hasAnyRole("ADMIN","CLIENT","GESTIONNAIRE")
-                .anyRequest().authenticated()
+                .anyRequest().access(authentifieHorsSelection())
             )
             .addFilterBefore(
                 new JwtAuthenticationFilter(jwtTokenProvider, customUserDetailsService),
@@ -188,13 +196,25 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/mobile/auth/**").permitAll()
-                .anyRequest().authenticated()
+                // Jamais un compte en attente de choix de societe (defense en profondeur : le filtre JWT ne
+                // l'authentifie deja pas ici).
+                .anyRequest().access(authentifieHorsSelection())
             )
             .addFilterBefore(
                 new JwtAuthenticationFilter(jwtTokenProvider, customUserDetailsService),
                 UsernamePasswordAuthenticationFilter.class
             );
         return http.build();
+    }
+
+    /**
+     * Authentifie ET pas en attente de choix de societe ({@code ROLE_SELECTION_SOCIETE}) : regle par defaut des
+     * chaines API, pour qu'un compte en attente n'atteigne aucune route ouverte "a tout compte authentifie".
+     */
+    private static AuthorizationManager<RequestAuthorizationContext> authentifieHorsSelection() {
+        return AuthorizationManagers.allOf(
+                AuthenticatedAuthorizationManager.authenticated(),
+                AuthorizationManagers.not(AuthorityAuthorizationManager.hasRole("SELECTION_SOCIETE")));
     }
 
     @Bean

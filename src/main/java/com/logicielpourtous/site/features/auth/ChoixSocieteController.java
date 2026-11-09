@@ -45,12 +45,15 @@ public class ChoixSocieteController {
 
     private final CustomerRepository customerRepository;
     private final CustomUserDetailsService userDetailsService;
+    private final CustomTenantSuccessHandler successHandler;
     private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
     private final SecurityContextHolderStrategy holderStrategy = SecurityContextHolder.getContextHolderStrategy();
 
-    public ChoixSocieteController(CustomerRepository customerRepository, CustomUserDetailsService userDetailsService) {
+    public ChoixSocieteController(CustomerRepository customerRepository, CustomUserDetailsService userDetailsService,
+                                  CustomTenantSuccessHandler successHandler) {
         this.customerRepository = customerRepository;
         this.userDetailsService = userDetailsService;
+        this.successHandler = successHandler;
     }
 
     @GetMapping
@@ -99,7 +102,15 @@ public class ChoixSocieteController {
         // Les donnees de session propres a l'ancienne societe (client consulte, facture en cours d'import,
         // dernier tableau de bord, conversation...) ne doivent pas suivre la personne dans la nouvelle.
         HttpSession session = request.getSession(false);
+        // Suite de la connexion (lus avant le vidage de la session) : origine Angular retenue par le
+        // gestionnaire de connexion, changement de mot de passe obligatoire.
+        boolean depuisAngular = false;
+        boolean doitChangerMotDePasse = false;
         if (session != null) {
+            depuisAngular = Boolean.TRUE.equals(
+                    session.getAttribute(CustomTenantSuccessHandler.ORIGINE_ANGULAR_EN_ATTENTE));
+            doitChangerMotDePasse = Boolean.TRUE.equals(session.getAttribute("MUST_CHANGE_PASSWORD"));
+            // Retire aussi l'indicateur d'origine Angular (absent de la liste blanche) : usage unique.
             viderDonneesDeSociete(session);
             // Changement de droits : nouvel identifiant de session (protection contre la fixation de session).
             request.changeSessionId();
@@ -112,7 +123,10 @@ public class ChoixSocieteController {
         String schema = choisi.getTenant().getSchemaName();
         request.getSession().setAttribute("CURRENT_TENANT_ID", schema);
         TenantContext.setCurrentTenant(schema);
-        return "redirect:/";
+        // Meme suite qu'une connexion d'un compte qui a une societe (Angular, mot de passe, accueil par droits,
+        // cookie _intra_jwt pour admin/ESN), avec des jetons portant la societe choisie.
+        return "redirect:" + successHandler.destinationApresConnexion(response, choisi,
+                doitChangerMotDePasse, depuisAngular);
     }
 
     /**

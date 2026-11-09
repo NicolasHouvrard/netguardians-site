@@ -26,6 +26,12 @@ import java.util.List;
 @Component
 public class CustomTenantSuccessHandler implements AuthenticationSuccessHandler {
 
+    /**
+     * Attribut de session : la connexion d'une personne en attente de choix de societe venait d'Angular
+     * (cookie {@code oauth_origin}) ; le selecteur la renvoie a Angular une fois la societe choisie.
+     */
+    public static final String ORIGINE_ANGULAR_EN_ATTENTE = "ORIGINE_ANGULAR_EN_ATTENTE";
+
     private final UserRepository          userRepository;
     private final CustomUserDetailsService userDetailsService;
     private final JwtTokenProvider        jwtTokenProvider;
@@ -73,6 +79,8 @@ public class CustomTenantSuccessHandler implements AuthenticationSuccessHandler 
                 request.getHeader("User-Agent"), true);
 
         boolean fromAngular = hasCookie(request, "oauth_origin", "angular");
+        // Indicateur d'une connexion precedente de la meme session : ne vaut que pour celle-ci.
+        request.getSession().removeAttribute(ORIGINE_ANGULAR_EN_ATTENTE);
 
         // Compte rechargé (rôles complets, appartenances). Le principal de la session fait foi s'il connaît
         // les appartenances (connexion par formulaire) ; un principal historique qui les ignore (OAuth2/OIDC)
@@ -94,6 +102,8 @@ public class CustomTenantSuccessHandler implements AuthenticationSuccessHandler 
             TenantContext.clear();
             if (fromAngular) {
                 clearCookie(response, "oauth_origin");
+                // Retenu pour apres le choix : le selecteur renverra alors a Angular avec un jeton de la societe.
+                request.getSession().setAttribute(ORIGINE_ANGULAR_EN_ATTENTE, Boolean.TRUE);
             }
             if (user.isMustChangePassword()) {
                 // L'obligation demeure : elle s'appliquera une fois la société choisie.
@@ -108,19 +118,32 @@ public class CustomTenantSuccessHandler implements AuthenticationSuccessHandler 
         TenantContext.setCurrentTenant(schemaToSwitch);
         request.getSession().setAttribute("CURRENT_TENANT_ID", schemaToSwitch);
 
-        // ── Détection origine Angular ──────────────────────────────────────────
         if (fromAngular) {
             clearCookie(response, "oauth_origin");
-            String token = jwtTokenProvider.generate(userDetails);
-            response.sendRedirect(angularLoginRedirect + "?token=" + token);
-            return;
+        } else if (user.isMustChangePassword()) {
+            request.getSession().setAttribute("MUST_CHANGE_PASSWORD", Boolean.TRUE);
+        }
+        response.sendRedirect(destinationApresConnexion(response, userDetails, user.isMustChangePassword(), fromAngular));
+    }
+
+    /**
+     * Destination d'un compte qui a une societe (connexion, ou choix de societe par le selecteur) : retour a
+     * Angular avec un jeton si la connexion venait d'Angular, sinon changement de mot de passe obligatoire,
+     * sinon page d'accueil selon les droits ; pose le cookie {@code _intra_jwt} pour un admin ou un ESN.
+     * Les jetons portent la societe active d'une personne de plusieurs societes.
+     *
+     * @return l'URL vers laquelle rediriger
+     */
+    public String destinationApresConnexion(HttpServletResponse response, CustomUserDetails userDetails,
+                                            boolean doitChangerMotDePasse, boolean depuisAngular) {
+        // ── Détection origine Angular ──────────────────────────────────────────
+        if (depuisAngular) {
+            return angularLoginRedirect + "?token=" + jwtTokenProvider.jetonDuCompte(userDetails);
         }
 
         // ── Redirection Thymeleaf classique ───────────────────────────────────
-        if (user.isMustChangePassword()) {
-            request.getSession().setAttribute("MUST_CHANGE_PASSWORD", Boolean.TRUE);
-            response.sendRedirect("/change-password");
-            return;
+        if (doitChangerMotDePasse) {
+            return "/change-password";
         }
 
         // userDetails : UserDetails complets (rechargés, ou principal à appartenances) pour hasEsnRole()
@@ -131,7 +154,7 @@ public class CustomTenantSuccessHandler implements AuthenticationSuccessHandler 
 
         // Pose un cookie JWT court (5 min) lisible par Angular pour le SSO auto-login
         if (isAdmin || isEsnUser) {
-            String token = jwtTokenProvider.generate(userDetails);
+            String token = jwtTokenProvider.jetonDuCompte(userDetails);
             Cookie jwtCookie = new Cookie("_intra_jwt", token);
             jwtCookie.setPath("/");
             jwtCookie.setMaxAge(300);
@@ -139,9 +162,9 @@ public class CustomTenantSuccessHandler implements AuthenticationSuccessHandler 
             response.addCookie(jwtCookie);
         }
 
-        if (isAdmin)        response.sendRedirect("/admin/console");
-        else if (isEsnUser) response.sendRedirect("/intra");
-        else                response.sendRedirect("/espace");
+        if (isAdmin)        return "/admin/console";
+        else if (isEsnUser) return "/intra";
+        else                return "/espace";
     }
 
     /** Remplace l'authentification de la requête et de la session (survit à la requête suivante). */

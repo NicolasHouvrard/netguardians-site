@@ -3,6 +3,7 @@ package com.logicielpourtous.site.features.api.angular;
 import com.logicielpourtous.site.config.JwtTokenProvider;
 import com.logicielpourtous.site.features.audit.AuditLogService;
 import com.logicielpourtous.site.features.auth.CustomUserDetails;
+import com.logicielpourtous.site.features.auth.CustomUserDetailsService;
 import com.logicielpourtous.site.features.user.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -12,6 +13,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,6 +35,7 @@ public class AuthApiController {
     private final UserRepository             userRepository;
     private final GoogleAuthService          googleAuthService;
     private final AuditLogService            auditLogService;
+    private final CustomUserDetailsService   userDetailsService;
 
     @Autowired(required = false)
     private ClientRegistrationRepository clientRegistrationRepository;
@@ -41,17 +44,22 @@ public class AuthApiController {
                              JwtTokenProvider jwtTokenProvider,
                              UserRepository userRepository,
                              GoogleAuthService googleAuthService,
-                             AuditLogService auditLogService) {
+                             AuditLogService auditLogService,
+                             CustomUserDetailsService userDetailsService) {
         this.authenticationManager = authenticationManager;
         this.jwtTokenProvider      = jwtTokenProvider;
         this.userRepository        = userRepository;
         this.googleAuthService     = googleAuthService;
         this.auditLogService       = auditLogService;
+        this.userDetailsService    = userDetailsService;
     }
 
     public record LoginRequest(String email, String password) {}
 
     public record GoogleLoginRequest(String credential) {}
+
+    /** Corps de {@code POST /api/auth/societe} : l'appartenance (societe) choisie. */
+    public record ChoixSocieteRequest(Long appartenanceId) {}
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest req,
@@ -63,7 +71,7 @@ public class AuthApiController {
                     new UsernamePasswordAuthenticationToken(req.email(), req.password()));
             CustomUserDetails user = (CustomUserDetails) auth.getPrincipal();
             auditLogService.logLogin(user.getUserId(), user.getUsername(), ip, ua, true);
-            return ResponseEntity.ok(buildUserPayload(user, jwtTokenProvider.generate(user)));
+            return ResponseEntity.ok(reponseDeConnexion(user));
         } catch (BadCredentialsException e) {
             auditLogService.logLogin(null, req.email(), ip, ua, false);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -86,12 +94,65 @@ public class AuthApiController {
         }
         return userRepository.findByEmail(info.email())
                 .filter(u -> u.isActive())
-                .map(u -> {
-                    CustomUserDetails details = new CustomUserDetails(u);
-                    return ResponseEntity.ok(buildUserPayload(details, jwtTokenProvider.generate(details)));
+                .<ResponseEntity<?>>map(u -> {
+                    // Compte charge avec ses appartenances (comme une connexion par mot de passe) : une personne
+                    // de plusieurs societes doit d'abord choisir la sienne.
+                    CustomUserDetails details;
+                    try {
+                        details = (CustomUserDetails) userDetailsService.charger(u.getEmail(), null);
+                    } catch (UsernameNotFoundException e) {
+                        return aucunCompte(info.email());
+                    }
+                    if (!details.isEnabled()) {
+                        return aucunCompte(info.email());
+                    }
+                    return ResponseEntity.ok(reponseDeConnexion(details));
                 })
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(Map.of("error", "Aucun compte intranet associé à " + info.email())));
+                .orElseGet(() -> aucunCompte(info.email()));
+    }
+
+    private static ResponseEntity<?> aucunCompte(String email) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", "Aucun compte intranet associé à " + email));
+    }
+
+    /**
+     * POST /api/auth/societe — choix (ou changement) de la societe active d'une personne de plusieurs societes.
+     * Accepte le jeton de selection remis a la connexion, ou un jeton complet (changement de societe). Renvoie
+     * un jeton portant la societe choisie ; 403 si l'appartenance n'est pas l'une de celles de la personne
+     * connectee (jamais de recherche par identifiant seul), si le compte recharge n'y donne pas acces, ou si
+     * la personne n'a qu'une societe.
+     */
+    @PostMapping("/societe")
+    public ResponseEntity<?> choisirSociete(@RequestBody(required = false) ChoixSocieteRequest req,
+                                            Authentication auth) {
+        if (auth == null || !(auth.getPrincipal() instanceof CustomUserDetails compte)
+                || req == null || req.appartenanceId() == null || !compte.plusieursSocietes()) {
+            return interdit();
+        }
+        Long appartenanceId = req.appartenanceId();
+        try {
+            // Garde de propriete : l'identifiant doit etre l'une des appartenances du compte connecte.
+            compte.avecAppartenanceActive(appartenanceId);
+        } catch (IllegalArgumentException e) {
+            return interdit();
+        }
+        // Compte recharge depuis la base avec la societe choisie (appartenance retiree, compte desactive...).
+        CustomUserDetails choisi;
+        try {
+            choisi = (CustomUserDetails) userDetailsService.charger(compte.getUsername(), appartenanceId);
+        } catch (UsernameNotFoundException e) {
+            return interdit();
+        }
+        if (choisi.selectionRequise() || !choisi.plusieursSocietes() || choisi.getTenant() == null
+                || !choisi.isEnabled() || !appartenanceId.equals(choisi.appartenanceActiveId())) {
+            return interdit();
+        }
+        return ResponseEntity.ok(buildUserPayload(choisi, jwtTokenProvider.generate(choisi, appartenanceId)));
+    }
+
+    private static ResponseEntity<?> interdit() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Société non autorisée"));
     }
 
     @PostMapping("/logout")
@@ -145,6 +206,32 @@ public class AuthApiController {
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Reponse d'une connexion reussie. Personne de plusieurs societes sans societe choisie : jeton de
+     * selection (qui n'ouvre que {@code POST /api/auth/societe}), {@code selectionRequise} et la liste de ses
+     * societes, sans roles ni tenant. Sinon : reponse d'avant, jeton complet.
+     */
+    private Map<String, Object> reponseDeConnexion(CustomUserDetails user) {
+        if (!user.selectionRequise()) {
+            return buildUserPayload(user, jwtTokenProvider.jetonDuCompte(user));
+        }
+        var map = new java.util.LinkedHashMap<String, Object>();
+        map.put("token",            jwtTokenProvider.generateSelection(user));
+        map.put("selectionRequise", true);
+        map.put("societes",         user.appartenances().stream()
+                .map(a -> {
+                    var societe = new java.util.LinkedHashMap<String, Object>();
+                    societe.put("id",      a.getId());
+                    societe.put("libelle", a.getTenant() != null ? a.getTenant().getName() : "");
+                    return societe;
+                })
+                .toList());
+        map.put("email",            user.getUsername());
+        map.put("fullName",         user.getFullName() != null ? user.getFullName() : "");
+        map.put("userId",           user.getUserId());
+        return map;
+    }
 
     private Map<String, Object> buildUserPayload(CustomUserDetails user, String token) {
         List<String> roles = user.getAuthorities().stream()

@@ -44,7 +44,12 @@ public class MobileAuthController {
                 new UsernamePasswordAuthenticationToken(req.email(), req.password())
             );
             CustomUserDetails user = (CustomUserDetails) auth.getPrincipal();
-            String token = jwtTokenProvider.generate(user);
+            // Personne de plusieurs societes : l'API mobile ne propose pas de choix de societe, aucun jeton
+            // n'est remis (refus). Elle peut obtenir un jeton de sa societe par POST /api/auth/societe.
+            if (user.selectionRequise()) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+            String token = jwtTokenProvider.jetonDuCompte(user);
             List<String> roles = user.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .toList();

@@ -57,6 +57,9 @@ class CustomTenantSuccessHandlerSelectionTest {
         userDetailsService = mock(CustomUserDetailsService.class);
         jwtTokenProvider = mock(JwtTokenProvider.class);
         when(jwtTokenProvider.generate(any())).thenReturn("jeton");
+        when(jwtTokenProvider.generate(any(), any())).thenReturn("jeton-societe");
+        // Choix du jeton (avec ou sans societe) : logique reelle, sur les generate() simules ci-dessus.
+        when(jwtTokenProvider.jetonDuCompte(any())).thenCallRealMethod();
         handler = new CustomTenantSuccessHandler(userRepository, userDetailsService, jwtTokenProvider,
                 mock(AuditLogService.class));
         ReflectionTestUtils.setField(handler, "angularLoginRedirect", "http://angular/login");
@@ -94,6 +97,8 @@ class CustomTenantSuccessHandlerSelectionTest {
         assertThat(TenantContext.getCurrentTenant()).isNull();
         assertThat(resp.getCookie("_intra_jwt")).isNull();
         verify(jwtTokenProvider, never()).generate(any());
+        verify(jwtTokenProvider, never()).generate(any(), any());
+        assertThat(req.getSession().getAttribute(CustomTenantSuccessHandler.ORIGINE_ANGULAR_EN_ATTENTE)).isNull();
     }
 
     @Test
@@ -108,6 +113,10 @@ class CustomTenantSuccessHandlerSelectionTest {
 
         assertThat(resp.getRedirectedUrl()).isEqualTo("/choisir-societe");
         verify(jwtTokenProvider, never()).generate(any());
+        verify(jwtTokenProvider, never()).generate(any(), any());
+        // Task 4 : l'origine Angular est retenue pour apres le choix (jeton emis par le selecteur).
+        assertThat(req.getSession().getAttribute(CustomTenantSuccessHandler.ORIGINE_ANGULAR_EN_ATTENTE))
+                .isEqualTo(Boolean.TRUE);
     }
 
     @Test
@@ -156,6 +165,8 @@ class CustomTenantSuccessHandlerSelectionTest {
         assertThat(resp.getRedirectedUrl()).isEqualTo("/admin/console");
         assertThat(req.getSession().getAttribute("CURRENT_TENANT_ID")).isEqualTo("schema_fiche");
         assertThat(resp.getCookie("_intra_jwt")).isNotNull();
+        // Task 4 : une seule societe, jeton d'avant (sans revendication de societe).
+        assertThat(resp.getCookie("_intra_jwt").getValue()).isEqualTo("jeton");
     }
 
     @Test
@@ -171,6 +182,9 @@ class CustomTenantSuccessHandlerSelectionTest {
         assertThat(TenantContext.getCurrentTenant()).isEqualTo("schema_alpha");
         // Les droits sont ceux de la societe active (ADMIN dans Alpha), pas ceux d'un rechargement en attente.
         assertThat(resp.getRedirectedUrl()).isEqualTo("/admin/console");
+        // Task 4 : le jeton porte la societe active (sinon le filtre JWT le refuserait).
+        assertThat(resp.getCookie("_intra_jwt").getValue()).isEqualTo("jeton-societe");
+        verify(jwtTokenProvider).generate(actif, 10L);
     }
 
     private CustomUserDetails multi(Long active) {
