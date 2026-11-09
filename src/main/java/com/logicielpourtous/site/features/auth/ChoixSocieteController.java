@@ -1,6 +1,8 @@
 package com.logicielpourtous.site.features.auth;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.RememberMeAuthenticationToken;
@@ -26,6 +28,8 @@ import com.logicielpourtous.site.features.user.Appartenance;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 /**
  * Selecteur de societe pour une personne qui appartient a plusieurs societes : affiche ses societes et
@@ -40,11 +44,13 @@ public class ChoixSocieteController {
     public record SocieteProposee(Long appartenanceId, String societe, String fiche, boolean active) {}
 
     private final CustomerRepository customerRepository;
+    private final CustomUserDetailsService userDetailsService;
     private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
     private final SecurityContextHolderStrategy holderStrategy = SecurityContextHolder.getContextHolderStrategy();
 
-    public ChoixSocieteController(CustomerRepository customerRepository) {
+    public ChoixSocieteController(CustomerRepository customerRepository, CustomUserDetailsService userDetailsService) {
         this.customerRepository = customerRepository;
+        this.userDetailsService = userDetailsService;
     }
 
     @GetMapping
@@ -70,19 +76,32 @@ public class ChoixSocieteController {
         if (compte == null) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
-        CustomUserDetails choisi;
         try {
-            choisi = compte.avecAppartenanceActive(appartenanceId);
+            // Garde de propriete : l'identifiant doit etre l'une des appartenances du compte connecte.
+            compte.avecAppartenanceActive(appartenanceId);
         } catch (IllegalArgumentException e) {
             // Pas l'une des appartenances du compte connecte : refus, rien n'est modifie.
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
-        if (choisi.selectionRequise() || choisi.getTenant() == null) {
+        // Compte recharge depuis la base : une appartenance retiree, des roles modifies ou un compte
+        // desactive depuis la connexion sont pris en compte (l'objet de session peut etre perime).
+        CustomUserDetails choisi;
+        try {
+            choisi = (CustomUserDetails) userDetailsService.charger(compte.getUsername(), appartenanceId);
+        } catch (UsernameNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+        if (choisi.selectionRequise() || choisi.getTenant() == null || !choisi.isEnabled()
+                || !appartenanceId.equals(choisi.appartenanceActiveId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
 
-        // Changement de droits : nouvel identifiant de session (protection contre la fixation de session).
-        if (request.getSession(false) != null) {
+        // Les donnees de session propres a l'ancienne societe (client consulte, facture en cours d'import,
+        // dernier tableau de bord, conversation...) ne doivent pas suivre la personne dans la nouvelle.
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            viderDonneesDeSociete(session);
+            // Changement de droits : nouvel identifiant de session (protection contre la fixation de session).
             request.changeSessionId();
         }
         SecurityContext contexte = holderStrategy.createEmptyContext();
@@ -94,6 +113,24 @@ public class ChoixSocieteController {
         request.getSession().setAttribute("CURRENT_TENANT_ID", schema);
         TenantContext.setCurrentTenant(schema);
         return "redirect:/";
+    }
+
+    /**
+     * Attributs de session conserves lors d'un changement de societe ; tous les autres sont retires (liste
+     * blanche : un futur attribut propre a une societe est retire par defaut). Le contexte de securite est
+     * reecrit juste apres, {@code CURRENT_TENANT_ID} aussi.
+     */
+    private static final Set<String> CONSERVES_AU_CHANGEMENT = Set.of(
+            HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+            "MUST_CHANGE_PASSWORD",
+            "shopCart");
+
+    private static void viderDonneesDeSociete(HttpSession session) {
+        for (String nom : Collections.list(session.getAttributeNames())) {
+            if (!CONSERVES_AU_CHANGEMENT.contains(nom)) {
+                session.removeAttribute(nom);
+            }
+        }
     }
 
     /** Compte connecte qui appartient a plusieurs societes, sinon nul. */

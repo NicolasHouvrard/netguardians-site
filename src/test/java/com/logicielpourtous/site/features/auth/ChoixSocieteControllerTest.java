@@ -33,7 +33,10 @@ import com.logicielpourtous.site.features.customers.Customer;
 import com.logicielpourtous.site.features.customers.CustomerRepository;
 import com.logicielpourtous.site.features.role.Role;
 import com.logicielpourtous.site.features.user.Appartenance;
+import com.logicielpourtous.site.features.role.RoleRepository;
+import com.logicielpourtous.site.features.user.AppartenanceRepository;
 import com.logicielpourtous.site.features.user.User;
+import com.logicielpourtous.site.features.user.UserRepository;
 
 /**
  * Selecteur de societe a la connexion web : une personne qui appartient a plusieurs societes doit en
@@ -45,16 +48,20 @@ import com.logicielpourtous.site.features.user.User;
 @Transactional
 class ChoixSocieteControllerTest {
 
-    private static final long ID_ALPHA = 9_100_001L;
-    private static final long ID_BETA = 9_100_002L;
-
     @Autowired private MockMvc mockMvc;
     @Autowired private TenantRepository tenantRepository;
     @Autowired private CustomerRepository customerRepository;
+    @Autowired private UserRepository userRepository;
+    @Autowired private RoleRepository roleRepository;
+    @Autowired private AppartenanceRepository appartenanceRepository;
+    @Autowired private CustomUserDetailsService userDetailsService;
 
     private Tenant alpha;
     private Tenant beta;
     private Long ficheId;
+    private User personneMulti;
+    private Long idAlpha;
+    private Long idBeta;
 
     @BeforeEach
     void preparer() {
@@ -64,6 +71,20 @@ class ChoixSocieteControllerTest {
         Customer fiche = new Customer();
         fiche.setCompanyName("Fiche Dupont " + suffixe);
         ficheId = customerRepository.save(fiche).getId();
+
+        // Personne enregistree : membre d'Alpha (ADMIN, sans fiche) et de Beta (CLIENT, fiche Dupont).
+        Role admin = role("ADMIN", "ESN");
+        Role client = role("CLIENT", "CLIENT");
+        User u = new User();
+        u.setEmail("choix-" + UUID.randomUUID() + "@exemple.fr");
+        u.setPassword("x");
+        u.setFullName("Personne Multi");
+        u.setActive(true);
+        u.setTenant(alpha);
+        u.setRoles(new java.util.HashSet<>(Set.of(admin)));
+        personneMulti = userRepository.save(u);
+        idAlpha = enregistrer(personneMulti, alpha, null, admin).getId();
+        idBeta = enregistrer(personneMulti, beta, ficheId, client).getId();
     }
 
     // ── En attente de choix ─────────────────────────────────────────────────
@@ -102,7 +123,7 @@ class ChoixSocieteControllerTest {
         assertThat(html).contains(alpha.getName(), beta.getName());
         assertThat(html).contains("Fiche Dupont");
         assertThat(html).contains("name=\"_csrf\"");
-        assertThat(html).contains("value=\"" + ID_ALPHA + "\"", "value=\"" + ID_BETA + "\"");
+        assertThat(html).contains("value=\"" + idAlpha + "\"", "value=\"" + idBeta + "\"");
     }
 
     @Test
@@ -117,7 +138,7 @@ class ChoixSocieteControllerTest {
     @Test
     void choisir_unePourLaPersonne_activeLaSocieteEtMetAJourLeTenantDeSession() throws Exception {
         MvcResult r = mockMvc.perform(post("/choisir-societe").with(user(multiSocietes(null))).with(csrf())
-                        .param("appartenanceId", String.valueOf(ID_ALPHA)))
+                        .param("appartenanceId", String.valueOf(idAlpha)))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/"))
                 .andReturn();
@@ -126,7 +147,7 @@ class ChoixSocieteControllerTest {
         assertThat(session.getAttribute("CURRENT_TENANT_ID")).isEqualTo(alpha.getSchemaName());
         CustomUserDetails actif = principalDeSession(session);
         assertThat(actif.selectionRequise()).isFalse();
-        assertThat(actif.appartenanceActiveId()).isEqualTo(ID_ALPHA);
+        assertThat(actif.appartenanceActiveId()).isEqualTo(idAlpha);
         assertThat(autorites(session)).contains("ROLE_ADMIN").doesNotContain("ROLE_SELECTION_SOCIETE");
 
         // La page suivante, avec la seule session (sans user()), n'est plus redirigee vers le selecteur.
@@ -135,7 +156,7 @@ class ChoixSocieteControllerTest {
 
         // Autre societe : pas d'autorite ADMIN.
         MvcResult r2 = mockMvc.perform(post("/choisir-societe").with(user(multiSocietes(null))).with(csrf())
-                        .param("appartenanceId", String.valueOf(ID_BETA)))
+                        .param("appartenanceId", String.valueOf(idBeta)))
                 .andExpect(status().is3xxRedirection())
                 .andReturn();
         MockHttpSession session2 = (MockHttpSession) r2.getRequest().getSession(false);
@@ -163,7 +184,7 @@ class ChoixSocieteControllerTest {
     @Test
     void choisir_sansJeton_estRefuse() throws Exception {
         mockMvc.perform(post("/choisir-societe").with(user(multiSocietes(null)))
-                        .param("appartenanceId", String.valueOf(ID_ALPHA)))
+                        .param("appartenanceId", String.valueOf(idAlpha)))
                 .andExpect(status().isForbidden());
     }
 
@@ -191,7 +212,7 @@ class ChoixSocieteControllerTest {
 
     @Test
     void lienChangerDeSociete_n_apparaitQueSiPlusieursSocietes() throws Exception {
-        String avec = mockMvc.perform(get("/").with(user(multiSocietes(ID_ALPHA))))
+        String avec = mockMvc.perform(get("/").with(user(multiSocietes(idAlpha))))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertThat(avec).contains("href=\"/choisir-societe\"");
 
@@ -199,6 +220,68 @@ class ChoixSocieteControllerTest {
         String sans = mockMvc.perform(get("/").with(user(seul)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertThat(sans).doesNotContain("href=\"/choisir-societe\"");
+    }
+
+    // ── Fix round 1 ─────────────────────────────────────────────────────────
+
+    @Test
+    void choisir_retireLesDonneesDeSessionDeLAncienneSociete() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute("portalViewClientId", 77L);
+        session.setAttribute("mindeeResult", "resultat");
+        session.setAttribute("mindeeFilePath", "supplier-invoices/" + alpha.getSchemaName() + "/f.pdf");
+        session.setAttribute("mindeeOriginalFilename", "f.pdf");
+        session.setAttribute("lastIntraDashboardSlug", "tableau-alpha");
+        session.setAttribute("chatConvId", 12L);
+        session.setAttribute("attributInconnuDUnFuturEcran", "x");
+        session.setAttribute("CURRENT_TENANT_ID", alpha.getSchemaName());
+        session.setAttribute("MUST_CHANGE_PASSWORD", Boolean.TRUE);
+        session.setAttribute("shopCart", "panier");
+
+        MvcResult r = mockMvc.perform(post("/choisir-societe").session(session).with(user(multiSocietes(idAlpha)))
+                        .with(csrf()).param("appartenanceId", String.valueOf(idBeta)))
+                .andExpect(status().is3xxRedirection())
+                .andReturn();
+        MockHttpSession apres = (MockHttpSession) r.getRequest().getSession(false);
+        List<String> noms = java.util.Collections.list(apres.getAttributeNames());
+        assertThat(noms).doesNotContain("portalViewClientId", "mindeeResult", "mindeeFilePath",
+                "mindeeOriginalFilename", "lastIntraDashboardSlug", "chatConvId", "attributInconnuDUnFuturEcran");
+        assertThat(apres.getAttribute("CURRENT_TENANT_ID")).isEqualTo(beta.getSchemaName());
+        assertThat(apres.getAttribute("MUST_CHANGE_PASSWORD")).isEqualTo(Boolean.TRUE);
+        assertThat(apres.getAttribute("shopCart")).isEqualTo("panier");
+        assertThat(principalDeSession(apres).appartenanceActiveId()).isEqualTo(idBeta);
+    }
+
+    @Test
+    void choisir_uneAppartenanceSupprimeeDepuisLaConnexion_estRefusee_etLaSessionResteEnAttente() throws Exception {
+        CustomUserDetails charge = multiSocietes(null); // charge a la connexion : Alpha et Beta
+        appartenanceRepository.deleteById(idBeta);
+        appartenanceRepository.flush();
+
+        MvcResult r = mockMvc.perform(post("/choisir-societe").with(user(charge)).with(csrf())
+                        .param("appartenanceId", String.valueOf(idBeta)))
+                .andExpect(status().isForbidden())
+                .andReturn();
+        MockHttpSession session = (MockHttpSession) r.getRequest().getSession(false);
+        if (session != null) {
+            assertThat(session.getAttribute("CURRENT_TENANT_ID")).isNull();
+            Object ctx = session.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+            if (ctx != null) {
+                assertThat(((CustomUserDetails) ((SecurityContext) ctx).getAuthentication().getPrincipal())
+                        .selectionRequise()).isTrue();
+            }
+        }
+    }
+
+    @Test
+    void choisir_compteDesactiveDepuisLaConnexion_estRefuse() throws Exception {
+        CustomUserDetails charge = multiSocietes(null);
+        personneMulti.setActive(false);
+        userRepository.saveAndFlush(personneMulti);
+
+        mockMvc.perform(post("/choisir-societe").with(user(charge)).with(csrf())
+                        .param("appartenanceId", String.valueOf(idAlpha)))
+                .andExpect(status().isForbidden());
     }
 
     // ── Outils ──────────────────────────────────────────────────────────────
@@ -222,22 +305,22 @@ class ChoixSocieteControllerTest {
         return u;
     }
 
-    /** Personne membre d'Alpha (ADMIN, sans fiche) et de Beta (CLIENT, fiche Dupont). */
+    /** Compte de la personne enregistree, tel que la connexion le charge (appartenance active eventuelle). */
     private CustomUserDetails multiSocietes(Long active) {
-        User u = personne(alpha, Set.of(new Role("ADMIN", "Admin", "ESN")));
-        Appartenance a = appartenance(ID_ALPHA, alpha, null, new Role("ADMIN", "Admin", "ESN"));
-        Appartenance b = appartenance(ID_BETA, beta, ficheId, new Role("CLIENT", "Client", "CLIENT"));
-        return new CustomUserDetails(u, List.of(a, b), active);
+        return (CustomUserDetails) userDetailsService.charger(personneMulti.getEmail(), active);
     }
 
-    private static Appartenance appartenance(long id, Tenant t, Long customerId, Role role) {
+    private Role role(String nom, String type) {
+        return roleRepository.findByName(nom).orElseGet(() -> roleRepository.save(new Role(nom, nom, type)));
+    }
+
+    private Appartenance enregistrer(User u, Tenant t, Long customerId, Role role) {
         Appartenance a = new Appartenance();
-        a.setId(id);
-        a.setUserId(8_800_001L);
+        a.setUserId(u.getId());
         a.setTenant(t);
         a.setCustomerId(customerId);
-        a.setRoles(Set.of(role));
-        return a;
+        a.setRoles(new java.util.HashSet<>(Set.of(role)));
+        return appartenanceRepository.saveAndFlush(a);
     }
 
     private static CustomUserDetails principalDeSession(MockHttpSession session) {
