@@ -1,11 +1,5 @@
 package com.logicielpourtous.site.features.auth;
 
-import com.logicielpourtous.site.features.customers.Contact;
-import com.logicielpourtous.site.features.customers.ContactRepository;
-import com.logicielpourtous.site.features.customers.Customer;
-import com.logicielpourtous.site.features.customers.CustomerRepository;
-import com.logicielpourtous.site.features.customers.Site;
-import com.logicielpourtous.site.features.customers.SiteRepository;
 import com.logicielpourtous.site.features.mail.GoogleMailService;
 import com.logicielpourtous.site.features.mail.MailAccount;
 import com.logicielpourtous.site.features.mail.MailAccountRepository;
@@ -13,7 +7,9 @@ import com.logicielpourtous.site.features.mail.MailTemplateService;
 import com.logicielpourtous.site.features.mail.MailTemplateService.RenderedMail;
 import com.logicielpourtous.site.features.mail.MailTemplateType;
 import com.logicielpourtous.site.features.mail.MicrosoftMailService;
-import com.logicielpourtous.site.features.portal.PortalUserService;
+import com.logicielpourtous.site.features.auth.InscriptionSocieteService.DemandeClient;
+import com.logicielpourtous.site.features.auth.InscriptionSocieteService.ResultatInscription;
+import com.logicielpourtous.site.features.identite.IdentiteInvalideException;
 import com.logicielpourtous.site.features.registration.SubscriptionRequest;
 import com.logicielpourtous.site.features.registration.SubscriptionRequestRepository;
 import com.logicielpourtous.site.features.user.User;
@@ -54,10 +50,7 @@ public class AuthController {
 
     private final CaptchaService captchaService;
     private final UserRepository userRepository;
-    private final CustomerRepository             customerRepository;
-    private final SiteRepository                 siteRepository;
-    private final ContactRepository              contactRepository;
-    private final PortalUserService              portalUserService;
+    private final InscriptionSocieteService      inscriptionSocieteService;
     private final SubscriptionRequestRepository  subscriptionRequestRepository;
     private final MailTemplateService            templateService;
     private final MailAccountRepository          mailAccountRepository;
@@ -67,10 +60,7 @@ public class AuthController {
 
     public AuthController(CaptchaService captchaService,
                           UserRepository userRepository,
-                          CustomerRepository customerRepository,
-                          SiteRepository siteRepository,
-                          ContactRepository contactRepository,
-                          PortalUserService portalUserService,
+                          InscriptionSocieteService inscriptionSocieteService,
                           SubscriptionRequestRepository subscriptionRequestRepository,
                           MailTemplateService templateService,
                           MailAccountRepository mailAccountRepository,
@@ -79,10 +69,7 @@ public class AuthController {
                           ClientRegistrationRepository clientRegistrationRepository) {
         this.captchaService                = captchaService;
         this.userRepository                = userRepository;
-        this.customerRepository            = customerRepository;
-        this.siteRepository                = siteRepository;
-        this.contactRepository             = contactRepository;
-        this.portalUserService             = portalUserService;
+        this.inscriptionSocieteService     = inscriptionSocieteService;
         this.subscriptionRequestRepository = subscriptionRequestRepository;
         this.templateService               = templateService;
         this.mailAccountRepository         = mailAccountRepository;
@@ -111,6 +98,9 @@ public class AuthController {
                            @RequestParam(required = false) String email,
                            // ── Client uniquement ──
                            @RequestParam(required = false) String password,
+                           @RequestParam(required = false) String siren,
+                           @RequestParam(required = false) String siret,
+                           @RequestParam(required = false) String tva,
                            // ── ESN uniquement ──
                            @RequestParam(required = false) String phone,
                            @RequestParam(required = false) String plan,
@@ -119,64 +109,53 @@ public class AuthController {
         if ("ESN".equals(accountType)) {
             return registerEsn(companyName, fullName, email, phone, plan, model);
         } else {
-            return registerClient(companyName, fullName, email, password, model);
+            return registerClient(companyName, fullName, email, password, siren, siret, tva, model);
         }
     }
 
     // ── Inscription CLIENT ─────────────────────────────────────────────────────
 
-    private String registerClient(String companyName, String fullName,
-                                   String email, String password, Model model) {
+    private String registerClient(String companyName, String fullName, String email, String password,
+                                  String siren, String siret, String tva, Model model) {
         if (email == null || email.isBlank() || password == null || password.isBlank()
                 || companyName == null || companyName.isBlank()) {
             model.addAttribute("error", "Tous les champs sont obligatoires.");
             model.addAttribute("activeType", "CLIENT");
             return "feature/auth/register";
         }
-        if (userRepository.findByEmail(email).isPresent()) {
-            model.addAttribute("error", "Cet email est déjà utilisé.");
+
+        ResultatInscription resultat;
+        try {
+            resultat = inscriptionSocieteService.inscrireClient(
+                    new DemandeClient(companyName, fullName, email, password, siren, siret, tva));
+        } catch (IdentiteInvalideException e) {
+            // Numero refuse : retour au formulaire avec l'erreur sur le champ fautif
+            model.addAttribute("error", e.getMessage());
+            model.addAttribute("champErreur", e.champ());
+            model.addAttribute("activeType", "CLIENT");
+            return "feature/auth/register";
+        } catch (IllegalArgumentException e) {
+            // Seul le refus de l'e-mail est montre (message inchange) ; toute autre erreur remonte telle quelle.
+            if (!InscriptionSocieteService.EMAIL_DEJA_UTILISE.equals(e.getMessage())) {
+                throw e;
+            }
+            model.addAttribute("error", e.getMessage());
             model.addAttribute("activeType", "CLIENT");
             return "feature/auth/register";
         }
 
-        // 1. Créer le client
-        Customer customer = new Customer();
-        customer.setCompanyName(companyName);
-        customer.setEmail(email);
-        customer.setContactName(fullName);
-        customerRepository.save(customer);
+        if (resultat instanceof ResultatInscription.Creee creee) {
+            // Envoi APRES le commit de l'inscription : un echec d'envoi n'annule rien (renvoi possible).
+            sendVerificationEmail(creee.utilisateur(), companyName, creee.jetonVerification());
+            return "redirect:/register/email-sent?email=" + java.net.URLEncoder.encode(email.trim(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+        // Societe deja connue : issue neutre, identique quel que soit son proprietaire
+        return "redirect:/register/societe-connue";
+    }
 
-        // 2. Site "Siège" par défaut
-        Site siege = new Site();
-        siege.setName("Siège");
-        siege.setCustomer(customer);
-        siteRepository.save(siege);
-
-        // 3. Contact principal
-        Contact contact = new Contact();
-        String[] parts = (fullName != null ? fullName.trim() : "").split(" ", 2);
-        contact.setFirstName(parts[0]);
-        contact.setLastName(parts.length > 1 ? parts[1] : "");
-        contact.setEmail(email);
-        contact.setCustomer(customer);
-        contact.setSite(siege);
-        contactRepository.save(contact);
-
-        // 4. Compte portail GESTIONNAIRE (inactif jusqu'à vérification email)
-        PortalUserService.CreationResult result =
-                portalUserService.createExplicit(email, fullName, password, customer.getId(), "GESTIONNAIRE");
-        User user = result.user();
-        contact.setUserId(user.getId());
-        contactRepository.save(contact);
-
-        String token = UUID.randomUUID().toString();
-        user.setActive(false);
-        user.setEmailVerificationToken(token);
-        userRepository.save(user);
-
-        sendVerificationEmail(user, companyName, token);
-
-        return "redirect:/register/email-sent?email=" + java.net.URLEncoder.encode(email.trim(), java.nio.charset.StandardCharsets.UTF_8);
+    @GetMapping("/register/societe-connue")
+    public String societeConnue() {
+        return "feature/auth/register-societe-connue";
     }
 
     // ── Inscription ESN ────────────────────────────────────────────────────────

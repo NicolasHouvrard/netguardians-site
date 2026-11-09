@@ -278,7 +278,7 @@ public class SecurityConfig {
                 .requestMatchers("/css/**", "/js/**", "/images/**", "/webjars/**", "/uploads/**").permitAll()
                 .requestMatchers("/app", "/app/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
-                .requestMatchers("/", "/register", "/register/confirm", "/register/email-sent", "/register/verify", "/register/resend", "/login", "/public/**", "/error", "/access-denied").permitAll()
+                .requestMatchers("/", "/register", "/register/confirm", "/register/email-sent", "/register/societe-connue","/register/verify", "/register/resend", "/login", "/public/**", "/error", "/access-denied").permitAll()
                 .requestMatchers("/auth/session-token").permitAll()
                 // Selecteur de societe : avant la regle generique /{slug} (permitAll), qui l'ouvrirait aux anonymes.
                 .requestMatchers(SelectionSocieteFilter.SELECTEUR).authenticated()
