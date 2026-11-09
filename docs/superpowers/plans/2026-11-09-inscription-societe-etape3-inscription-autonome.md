@@ -101,3 +101,40 @@
 - [ ] **Step 3: Implémenter** les trois points ci-dessus (formulaire, `registerEsn`, approbation).
 - [ ] **Step 4: Lancer** `InscriptionEsnTest`, tests existants de `SubscriptionRequestController` (grep), `ModularityTests`.
 - [ ] **Step 5: Commit** `feat(inscription): inscription partenaire avec identite et registre a l'approbation`.
+
+---
+
+## Ajouts issus de la revue de la tâche 2 (conditions de déploiement de l'étape 3)
+
+Décision du propriétaire (2026-11-09) : les sociétés déjà en base reçoivent comme propriétaire **le partenaire indiqué par la fiche du client** (`customers.tenant_id` ; `NULL` = le Maître).
+
+### Task 5: Reprise des sociétés existantes dans le registre
+
+**Files:**
+- Create: `src/main/java/com/logicielpourtous/site/features/auth/RepriseRegistreService.java` ; `RepriseRegistreController.java` (Maître uniquement, comme `DoublonsSocietesController`) ; `src/main/resources/templates/feature/licence/reprise-registre.html`
+- Test: `src/test/java/com/logicielpourtous/site/features/auth/RepriseRegistreServiceTest.java`
+
+**Interfaces:**
+- Consumes: `IdentiteSociete.depuis`, `RegistreSocietes.enregistrer`, `RapportDoublonsService.rapport()` (étape 1, pour exclure les groupes en doublon), `TypeSociete`.
+- Produces: `record BilanReprise(int reprises, int ignoreesDoublon, int ignoreesInvalides, List<String> details)` et `BilanReprise RepriseRegistreService.reprendre(boolean simulation)`. Pour chaque fiche de `customers` (type `CLIENT`, ou `FOURNISSEUR` si TVA étrangère), `partner_esns` (type `PARTENAIRE`) : normalise SIREN/SIRET/TVA par `IdentiteSociete.depuis` ; ignore (et liste) les fiches sans numéros valides ou appartenant à un groupe du rapport de doublons ; enregistre sinon avec `proprietaireTenantId = customers.tenant_id` (NULL = Maître) et renseigne `fiche_type`/`fiche_id`. Idempotent : une fiche déjà au registre (même `fiche_type`+`fiche_id`) est sautée. `GET /intra/societes/reprise` (Maître, `hasRole('ADMIN')`, 404 hors Maître) affiche la simulation ; `POST` (CSRF) l'exécute. Une société déjà au registre avec le même SIREN par une autre fiche = doublon, listé, jamais fusionné.
+
+- [ ] **Step 1: Tests** (`@SpringBootTest`, base réelle, SIREN aléatoires valides) : un client avec `tenant_id` d'un partenaire → ligne `CLIENT` dont `proprietaire_tenant_id` = ce tenant ; un client sans tenant → propriétaire `NULL` ; une fiche aux numéros invalides → ignorée et listée ; deux fiches de même SIREN → aucune reprise, listées en doublon ; mode simulation → aucune écriture ; deuxième exécution → 0 reprise ; **après la reprise, `inscrireClient` avec le SIREN d'un client existant renvoie `DejaConnue` et ne crée aucun `Customer`** ; un non-Maître reçoit 404.
+- [ ] **Step 2: Lancer, constater l'échec.**
+- [ ] **Step 3: Implémenter** service, contrôleur, gabarit (lien depuis la page des doublons du Maître).
+- [ ] **Step 4: Lancer** `RepriseRegistreServiceTest`, `InscriptionClientTest`, `CsrfCibleTest`, `ModularityTests`.
+- [ ] **Step 5: Commit** `feat(inscription): reprise des societes existantes dans le registre`.
+
+### Task 6: Libération des inscriptions jamais vérifiées
+
+**Files:**
+- Modify: `InscriptionSocieteService.java` ; Create: `src/main/java/com/logicielpourtous/site/features/auth/NettoyageInscriptionsNonVerifiees.java`
+- Test: `src/test/java/com/logicielpourtous/site/features/auth/InscriptionNonVerifieeTest.java`
+
+**Interfaces:**
+- Produces: `boolean InscriptionSocieteService.liberer(SocieteIdentite s)` : si la ligne est un client auto-inscrit (propriétaire `NULL`, `fiche_type='customers'`), dont **tous** les utilisateurs sont inactifs avec un jeton de vérification encore présent, et dont la création date de plus de `app.inscription.delai-verification-heures` (défaut **72**), supprime dans la même transaction appartenances, utilisateurs, contacts, sites, client et ligne de registre, et renvoie `true`. Utilisée (a) dans `inscrireClient` quand la société est « déjà connue » : si `liberer` renvoie `true`, l'inscription continue comme pour une société libre ; (b) par un nettoyage quotidien `@Scheduled`. Une inscription récente, ou dont un utilisateur est actif, n'est **jamais** libérée.
+
+- [ ] **Step 1: Tests** : inscription non vérifiée de plus de 72 h → une nouvelle inscription du même SIREN réussit et l'ancienne est entièrement supprimée (aucun orphelin) ; inscription non vérifiée de 1 h → `DejaConnue`, rien supprimé ; inscription dont l'utilisateur est actif, même ancienne → `DejaConnue` ; le nettoyage quotidien supprime les anciennes non vérifiées seulement ; un client lié à un partenaire (propriétaire non nul) n'est jamais libéré.
+- [ ] **Step 2: Lancer, constater l'échec.**
+- [ ] **Step 3: Implémenter** `liberer`, son usage dans `inscrireClient`, le nettoyage planifié et la propriété (défaut 72).
+- [ ] **Step 4: Lancer** `InscriptionNonVerifieeTest`, `InscriptionClientTest`, `ModularityTests`.
+- [ ] **Step 5: Commit** `feat(inscription): liberation des inscriptions jamais verifiees`.
