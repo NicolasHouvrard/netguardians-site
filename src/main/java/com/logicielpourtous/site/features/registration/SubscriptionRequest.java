@@ -26,6 +26,14 @@ public class SubscriptionRequest {
 
     private String phone;
 
+    /** SIREN saisi par l'ESN (nul pour une societe etrangere). */
+    @Column(name = "siren", length = 9)
+    private String siren;
+
+    /** Numero de TVA intracommunautaire saisi par l'ESN. */
+    @Column(name = "vat_number", length = 20)
+    private String vatNumber;
+
     @Enumerated(EnumType.STRING)
     private SubscriptionPlan plan;
 
