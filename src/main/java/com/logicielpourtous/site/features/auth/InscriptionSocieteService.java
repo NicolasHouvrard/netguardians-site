@@ -1,11 +1,13 @@
 package com.logicielpourtous.site.features.auth;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -205,13 +207,46 @@ public class InscriptionSocieteService {
         return new ResultatInscription.Creee(user, jeton);
     }
 
+    /**
+     * Demande d'inscription d'un partenaire : controle l'identite saisie, sans rien ecrire au registre
+     * (une demande en attente ne reserve pas la societe ; le registre est ecrit a l'approbation).
+     *
+     * @throws IdentiteInvalideException si un numero est invalide, incoherent, ou si la TVA est etrangere
+     */
+    public IdentiteSociete controlerIdentitePartenaire(String siren, String siret, String tva) {
+        IdentiteSociete identite = IdentiteSociete.depuis(siren, siret, tva);
+        if (identite.etrangere()) {
+            throw new IdentiteInvalideException("tva",
+                    "Seule une société française peut s'inscrire : saisissez un numéro de TVA français.");
+        }
+        return identite;
+    }
+
+    /**
+     * Si la societe est deja au registre, enregistre (sans doublon) la demande destinee a son responsable et
+     * renvoie {@code true} ; l'appelant donne alors la MEME issue neutre que pour un client. Sinon {@code false}.
+     */
+    @Transactional
+    public boolean refuserSiSocieteConnue(IdentiteSociete identite, String email, String nomDemandeur) {
+        Optional<SocieteIdentite> existante = registre.trouver(identite);
+        if (existante.isEmpty()) {
+            return false;
+        }
+        enregistrerDemandeSocieteConnue(existante.get(), email, nomDemandeur);
+        return true;
+    }
+
     private void enregistrerDemandeSocieteConnue(SocieteIdentite existante, DemandeClient d) {
+        enregistrerDemandeSocieteConnue(existante, d.email(), d.nomComplet());
+    }
+
+    private void enregistrerDemandeSocieteConnue(SocieteIdentite existante, String emailDemandeur, String nomDemandeur) {
         if (existante == null) {
             // Conflit detecte par la base sans fiche connue : rien a rattacher (cas theorique ici).
             log.warn("Inscription client : societe deja connue sans ligne de registre, demande non enregistree");
             return;
         }
-        String email = d.email() == null ? null : d.email().trim();
+        String email = emailDemandeur == null ? null : emailDemandeur.trim();
         // Pas de doublon : une seule demande non traitee par societe et par e-mail (casse et espaces ignores).
         if (demandeSocieteConnueRepository.existsBySocieteIdentiteIdAndEmailDemandeurIgnoreCaseAndTraiteeFalse(
                 existante.getId(), email)) {
@@ -220,7 +255,7 @@ public class InscriptionSocieteService {
         DemandeSocieteConnue demande = new DemandeSocieteConnue();
         demande.setSocieteIdentiteId(existante.getId());
         demande.setEmailDemandeur(email);
-        demande.setNomDemandeur(d.nomComplet());
+        demande.setNomDemandeur(nomDemandeur);
         demandeSocieteConnueRepository.save(demande);
     }
 

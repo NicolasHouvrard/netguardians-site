@@ -10,6 +10,7 @@ import com.logicielpourtous.site.features.mail.MicrosoftMailService;
 import com.logicielpourtous.site.features.auth.InscriptionSocieteService.DemandeClient;
 import com.logicielpourtous.site.features.auth.InscriptionSocieteService.ResultatInscription;
 import com.logicielpourtous.site.features.identite.IdentiteInvalideException;
+import com.logicielpourtous.site.features.identite.IdentiteSociete;
 import com.logicielpourtous.site.features.registration.SubscriptionRequest;
 import com.logicielpourtous.site.features.registration.SubscriptionRequestRepository;
 import com.logicielpourtous.site.features.user.User;
@@ -107,7 +108,7 @@ public class AuthController {
                            Model model) {
 
         if ("ESN".equals(accountType)) {
-            return registerEsn(companyName, fullName, email, phone, plan, model);
+            return registerEsn(companyName, fullName, email, phone, plan, siren, siret, tva, model);
         } else {
             return registerClient(companyName, fullName, email, password, siren, siret, tva, model);
         }
@@ -187,13 +188,34 @@ public class AuthController {
     // ── Inscription ESN ────────────────────────────────────────────────────────
 
     private String registerEsn(String companyName, String contactName,
-                                String email, String phone, String planStr, Model model) {
+                                String email, String phone, String planStr,
+                                String siren, String siret, String tva, Model model) {
         if (email == null || email.isBlank() || companyName == null || companyName.isBlank()
                 || contactName == null || contactName.isBlank()) {
             model.addAttribute("error", "Tous les champs sont obligatoires.");
             model.addAttribute("activeType", "ESN");
             return formulaire(model);
         }
+        // Longueur maximale des champs libres (colonnes en 255) : refus clair au lieu d'une erreur 500
+        String champTropLong = champTropLong(companyName, contactName, email);
+        if (champTropLong != null) {
+            model.addAttribute("error", "Ce champ est trop long (255 caractères au maximum).");
+            model.addAttribute("champErreur", champTropLong);
+            model.addAttribute("activeType", "ESN");
+            return formulaire(model);
+        }
+
+        // Identite obligatoire : numeros controles et normalises ; seule une societe francaise peut s'inscrire
+        IdentiteSociete identite;
+        try {
+            identite = inscriptionSocieteService.controlerIdentitePartenaire(siren, siret, tva);
+        } catch (IdentiteInvalideException e) {
+            model.addAttribute("error", e.getMessage());
+            model.addAttribute("champErreur", e.champ());
+            model.addAttribute("activeType", "ESN");
+            return formulaire(model);
+        }
+
         if (subscriptionRequestRepository.existsByEmail(email)) {
             model.addAttribute("error", "Une demande existe déjà pour cet email.");
             model.addAttribute("activeType", "ESN");
@@ -205,11 +227,19 @@ public class AuthController {
             return formulaire(model);
         }
 
+        // Societe deja au registre : meme issue neutre que pour un client, aucune demande creee.
+        // Le registre n'est PAS ecrit ici : une demande refusee ne doit pas reserver la societe.
+        if (inscriptionSocieteService.refuserSiSocieteConnue(identite, email, contactName)) {
+            return "redirect:/register/societe-connue";
+        }
+
         SubscriptionRequest req = new SubscriptionRequest();
         req.setCompanyName(companyName);
         req.setContactName(contactName);
         req.setEmail(email);
         req.setPhone(phone);
+        req.setSiren(identite.siren());
+        req.setVatNumber(identite.tva());
 
         if (planStr != null && !planStr.isBlank()) {
             try { req.setPlan(SubscriptionRequest.SubscriptionPlan.valueOf(planStr)); }

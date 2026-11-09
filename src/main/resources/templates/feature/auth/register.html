@@ -99,24 +99,24 @@
                     <div class="row g-2">
                         <div class="col-sm-6">
                             <input type="text" name="siren" class="form-control" maxlength="20"
-                                   th:classappend="${champErreur == 'siren'} ? ' is-invalid'"
+                                   th:classappend="${activeType != 'ESN' and champErreur == 'siren'} ? ' is-invalid'"
                                    placeholder="SIREN (9 chiffres)" inputmode="numeric">
                         </div>
                         <div class="col-sm-6">
                             <input type="text" name="siret" class="form-control" maxlength="20"
-                                   th:classappend="${champErreur == 'siret'} ? ' is-invalid'"
+                                   th:classappend="${activeType != 'ESN' and champErreur == 'siret'} ? ' is-invalid'"
                                    placeholder="ou SIRET (14 chiffres)" inputmode="numeric">
                         </div>
                     </div>
-                    <div th:if="${champErreur == 'siren' or champErreur == 'siret'}"
+                    <div th:if="${activeType != 'ESN' and (champErreur == 'siren' or champErreur == 'siret')}"
                          class="text-danger small mt-1" th:text="${error}"></div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-semibold">N° de TVA intracommunautaire <span class="text-danger">*</span></label>
                     <input type="text" name="tva" class="form-control" maxlength="20"
-                           th:classappend="${champErreur == 'tva'} ? ' is-invalid'"
+                           th:classappend="${activeType != 'ESN' and champErreur == 'tva'} ? ' is-invalid'"
                            placeholder="FR12345678901" required>
-                    <div th:if="${champErreur == 'tva'}" class="text-danger small mt-1" th:text="${error}"></div>
+                    <div th:if="${activeType != 'ESN' and champErreur == 'tva'}" class="text-danger small mt-1" th:text="${error}"></div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Votre nom complet <span class="text-danger">*</span></label>
@@ -224,6 +224,31 @@
                         <label class="form-label fw-semibold">Société <span class="text-danger">*</span></label>
                         <input type="text" name="companyName" class="form-control"
                                placeholder="Nom de votre ESN" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">SIREN ou SIRET <span class="text-danger">*</span></label>
+                        <div class="row g-2">
+                            <div class="col-sm-6">
+                                <input type="text" name="siren" class="form-control" maxlength="20"
+                                       th:classappend="${activeType == 'ESN' and champErreur == 'siren'} ? ' is-invalid'"
+                                       placeholder="SIREN (9 chiffres)" inputmode="numeric">
+                            </div>
+                            <div class="col-sm-6">
+                                <input type="text" name="siret" class="form-control" maxlength="20"
+                                       th:classappend="${activeType == 'ESN' and champErreur == 'siret'} ? ' is-invalid'"
+                                       placeholder="ou SIRET (14 chiffres)" inputmode="numeric">
+                            </div>
+                        </div>
+                        <div th:if="${activeType == 'ESN' and (champErreur == 'siren' or champErreur == 'siret')}"
+                             class="text-danger small mt-1" th:text="${error}"></div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">N° de TVA intracommunautaire <span class="text-danger">*</span></label>
+                        <input type="text" name="tva" class="form-control" maxlength="20"
+                               th:classappend="${activeType == 'ESN' and champErreur == 'tva'} ? ' is-invalid'"
+                               placeholder="FR12345678901" required>
+                        <div th:if="${activeType == 'ESN' and champErreur == 'tva'}"
+                             class="text-danger small mt-1" th:text="${error}"></div>
                     </div>
                     <div class="col-sm-6">
                         <label class="form-label fw-semibold">Nom du contact <span class="text-danger">*</span></label>
