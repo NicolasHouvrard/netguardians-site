@@ -40,9 +40,11 @@ public class ChatWebSocketController {
         msg.setContent(payload.content());
 
         if (auth != null && auth.getPrincipal() instanceof CustomUserDetails user) {
-            boolean isAgent = conv.getType() == ConversationType.INTERNAL
+            // Un compte en attente de choix de societe a un customerId nul sans etre un compte interne :
+            // il n'est jamais un agent (ni prise de conversation, ni message en tant qu'agent).
+            boolean isAgent = !user.selectionRequise() && (conv.getType() == ConversationType.INTERNAL
                     || (conv.getAssignedUserId() != null && conv.getAssignedUserId().equals(user.getUserId()))
-                    || (conv.getStatus() == ConversationStatus.PENDING && user.getCustomerId() == null);
+                    || (conv.getStatus() == ConversationStatus.PENDING && user.getCustomerId() == null));
             if (isAgent) {
                 msg.setSenderType(SenderType.USER);
                 msg.setSenderId(user.getUserId());

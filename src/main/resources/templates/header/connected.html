@@ -74,6 +74,12 @@
                     <i class="fas fa-user-cog me-2 text-secondary"></i>Mon compte
                 </a>
             </li>
+            <!-- Personne rattachée à plusieurs sociétés : retour au sélecteur -->
+            <li sec:authorize="principal.plusieursSocietes()">
+                <a class="dropdown-item" href="/choisir-societe">
+                    <i class="fas fa-exchange-alt me-2 text-secondary"></i>Changer de société
+                </a>
+            </li>
 
             <li><hr class="dropdown-divider my-1"></li>
             <li>

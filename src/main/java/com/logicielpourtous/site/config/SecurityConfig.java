@@ -17,6 +17,7 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 import org.springframework.security.web.util.matcher.AndRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -26,6 +27,7 @@ import org.thymeleaf.extras.springsecurity6.dialect.SpringSecurityDialect;
 import com.logicielpourtous.site.features.auth.CustomTenantSuccessHandler;
 import com.logicielpourtous.site.features.auth.CustomUserDetailsService;
 import com.logicielpourtous.site.features.auth.OidcSocialLoginUserService;
+import com.logicielpourtous.site.features.auth.SelectionSocieteFilter;
 import com.logicielpourtous.site.features.auth.SocialLoginUserService;
 import com.logicielpourtous.site.features.licence.LicenceApiKeyAuthFilter;
 import com.logicielpourtous.site.features.licence.LicenceServeurRepository;
@@ -42,6 +44,12 @@ import java.util.Set;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    /**
+     * Cle du remember-me de la chaine web. Publique pour que le selecteur de societe puisse remplacer une
+     * authentification remember-me par une autre de meme nature (sans la promouvoir en authentification complete).
+     */
+    public static final String CLE_REMEMBER_ME = "Logi2025";
 
     private final CustomUserDetailsService customUserDetailsService;
     private final CustomTenantSuccessHandler successHandler;
@@ -223,8 +231,8 @@ public class SecurityConfig {
 
     /**
      * Requetes de la chaine web qui DOIVENT porter un jeton CSRF : methode modifiante (POST, PUT, PATCH,
-     * DELETE) sur la licence et la federation des serveurs, la gestion des ESN/tenants et le reglage de la
-     * societe. Chaque formulaire de ces ecrans doit etre ecrit avec {@code th:action} (Thymeleaf ajoute
+     * DELETE) sur la licence et la federation des serveurs, la gestion des ESN/tenants, le reglage de la
+     * societe et le selecteur de societe (choix de la societe active). Chaque formulaire de ces ecrans doit etre ecrit avec {@code th:action} (Thymeleaf ajoute
      * alors le jeton) ou porter un champ {@code _csrf} ; tout appel JavaScript y enverrait le jeton en
      * en-tete. Pour proteger un autre ecran, ajouter son chemin ici une fois ses formulaires verifies.
      */
@@ -233,7 +241,8 @@ public class SecurityConfig {
         RequestMatcher ecransSensibles = new OrRequestMatcher(
                 chemins.matcher("/intra/licence/**"),
                 chemins.matcher("/intra/esns/**"),
-                chemins.matcher("/intra/settings/company/**"));
+                chemins.matcher("/intra/settings/company/**"),
+                chemins.matcher(SelectionSocieteFilter.SELECTEUR));
         RequestMatcher methodeModifiante = request -> !METHODES_SANS_EFFET.contains(request.getMethod());
         return new AndRequestMatcher(methodeModifiante, ecransSensibles);
     }
@@ -251,6 +260,8 @@ public class SecurityConfig {
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/", "/register", "/register/confirm", "/register/email-sent", "/register/verify", "/register/resend", "/login", "/public/**", "/error", "/access-denied").permitAll()
                 .requestMatchers("/auth/session-token").permitAll()
+                // Selecteur de societe : avant la regle generique /{slug} (permitAll), qui l'ouvrirait aux anonymes.
+                .requestMatchers(SelectionSocieteFilter.SELECTEUR).authenticated()
                 // Controle de sante (agent de deploiement bleu-vert) : seul /actuator/health est expose.
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/reset-password", "/reset-password/**").permitAll()
@@ -268,6 +279,9 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .addFilterBefore(captchaFilter, UsernamePasswordAuthenticationFilter.class)
+            // Personne de plusieurs societes sans societe choisie : rien d'autre que le selecteur (voir le filtre).
+            // Avant l'autorisation pour rediriger plutot que refuser, apres toutes les authentifications.
+            .addFilterBefore(new SelectionSocieteFilter(), AuthorizationFilter.class)
             .formLogin(form -> form
                 .loginPage("/login")
                 .successHandler(successHandler)
@@ -283,7 +297,7 @@ public class SecurityConfig {
             )
             .logout(logout -> logout.permitAll())
             .rememberMe(remember -> remember
-                .key("Logi2025")
+                .key(CLE_REMEMBER_ME)
                 .tokenValiditySeconds(86400 * 30)
                 .userDetailsService(customUserDetailsService)
                 .rememberMeParameter("remember-me")

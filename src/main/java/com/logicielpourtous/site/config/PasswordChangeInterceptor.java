@@ -13,7 +13,11 @@ public class PasswordChangeInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws Exception {
         String uri = request.getRequestURI();
-        if (uri.startsWith("/change-password") || uri.startsWith("/logout") || uri.startsWith("/error")) {
+        // /choisir-societe : une personne de plusieurs societes choisit d'abord sa societe (seule page qui lui
+        // est ouverte tant qu'elle n'a pas choisi), puis le changement de mot de passe s'impose ; sans cette
+        // exception, les deux redirections boucleraient.
+        if (uri.startsWith("/change-password") || uri.startsWith("/logout") || uri.startsWith("/error")
+                || uri.equals("/choisir-societe")) {
             return true;
         }
         HttpSession session = request.getSession(false);

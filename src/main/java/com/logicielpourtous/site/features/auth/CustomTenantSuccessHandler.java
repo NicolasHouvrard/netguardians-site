@@ -10,8 +10,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContextHolderStrategy;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -25,6 +30,8 @@ public class CustomTenantSuccessHandler implements AuthenticationSuccessHandler 
     private final CustomUserDetailsService userDetailsService;
     private final JwtTokenProvider        jwtTokenProvider;
     private final AuditLogService         auditLogService;
+    private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
+    private final SecurityContextHolderStrategy holderStrategy = SecurityContextHolder.getContextHolderStrategy();
 
     /**
      * URL complète vers la page de login Angular.
@@ -65,16 +72,45 @@ public class CustomTenantSuccessHandler implements AuthenticationSuccessHandler 
         auditLogService.logLogin(user.getId(), user.getEmail(), ip,
                 request.getHeader("User-Agent"), true);
 
-        String schemaToSwitch = user.getTenant().getSchemaName();
+        boolean fromAngular = hasCookie(request, "oauth_origin", "angular");
+
+        // Compte rechargé (rôles complets, appartenances). Le principal de la session fait foi s'il connaît
+        // les appartenances (connexion par formulaire) ; un principal historique qui les ignore (OAuth2/OIDC)
+        // cède la place au compte rechargé dès que celui-ci est en attente de choix de société.
+        CustomUserDetails recharge = (CustomUserDetails) userDetailsService.loadUserByUsername(username);
+        CustomUserDetails principal =
+                authentication.getPrincipal() instanceof CustomUserDetails c && !c.appartenances().isEmpty()
+                        ? c : null;
+        CustomUserDetails userDetails = principal != null ? principal : recharge;
+
+        // ── Plusieurs sociétés, aucune choisie : sélecteur d'abord ─────────────
+        // Avant toute redirection par rôle, sans schéma de tenant ni jeton : la personne n'a encore aucun droit.
+        if (userDetails.selectionRequise()) {
+            if (!(authentication.getPrincipal() instanceof CustomUserDetails c && c.selectionRequise())) {
+                remplacerAuthentification(request, response,
+                        ChoixSocieteController.authentificationPour(authentication, userDetails));
+            }
+            request.getSession().removeAttribute("CURRENT_TENANT_ID");
+            TenantContext.clear();
+            if (fromAngular) {
+                clearCookie(response, "oauth_origin");
+            }
+            if (user.isMustChangePassword()) {
+                // L'obligation demeure : elle s'appliquera une fois la société choisie.
+                request.getSession().setAttribute("MUST_CHANGE_PASSWORD", Boolean.TRUE);
+            }
+            response.sendRedirect(SelectionSocieteFilter.SELECTEUR);
+            return;
+        }
+
+        // Schéma de la société du compte (société active s'il y en a une), et non plus celui de la fiche User.
+        String schemaToSwitch = userDetails.getTenant().getSchemaName();
         TenantContext.setCurrentTenant(schemaToSwitch);
         request.getSession().setAttribute("CURRENT_TENANT_ID", schemaToSwitch);
 
         // ── Détection origine Angular ──────────────────────────────────────────
-        boolean fromAngular = hasCookie(request, "oauth_origin", "angular");
         if (fromAngular) {
             clearCookie(response, "oauth_origin");
-            CustomUserDetails userDetails =
-                    (CustomUserDetails) userDetailsService.loadUserByUsername(username);
             String token = jwtTokenProvider.generate(userDetails);
             response.sendRedirect(angularLoginRedirect + "?token=" + token);
             return;
@@ -87,11 +123,8 @@ public class CustomTenantSuccessHandler implements AuthenticationSuccessHandler 
             return;
         }
 
-        // Charge les UserDetails complets pour accéder à hasEsnRole() et hasPortalRole()
-        // (couvre les rôles custom par tenant, pas seulement les noms hardcodés)
-        CustomUserDetails userDetails =
-                (CustomUserDetails) userDetailsService.loadUserByUsername(username);
-
+        // userDetails : UserDetails complets (rechargés, ou principal à appartenances) pour hasEsnRole()
+        // et hasPortalRole() (couvre les rôles custom par tenant, pas seulement les noms hardcodés).
         boolean isAdmin   = userDetails.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
         boolean isEsnUser = !isAdmin && userDetails.hasEsnRole();
@@ -109,6 +142,15 @@ public class CustomTenantSuccessHandler implements AuthenticationSuccessHandler 
         if (isAdmin)        response.sendRedirect("/admin/console");
         else if (isEsnUser) response.sendRedirect("/intra");
         else                response.sendRedirect("/espace");
+    }
+
+    /** Remplace l'authentification de la requête et de la session (survit à la requête suivante). */
+    private void remplacerAuthentification(HttpServletRequest request, HttpServletResponse response,
+                                           Authentication nouvelle) {
+        SecurityContext contexte = holderStrategy.createEmptyContext();
+        contexte.setAuthentication(nouvelle);
+        holderStrategy.setContext(contexte);
+        securityContextRepository.saveContext(contexte, request, response);
     }
 
     private boolean hasCookie(HttpServletRequest request, String name, String value) {
