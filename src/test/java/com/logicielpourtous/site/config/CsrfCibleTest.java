@@ -68,6 +68,12 @@ class CsrfCibleTest {
     }
 
     @Test
+    void postRepriseDuRegistreSansJeton_estRefuse() throws Exception {
+        mockMvc.perform(post("/intra/societes/reprise").with(user(admin())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void getRestePossibleSansJeton() throws Exception {
         mockMvc.perform(get("/intra/licence/federation").with(user(admin())))
                 .andExpect(status().isOk());
@@ -75,7 +81,8 @@ class CsrfCibleTest {
 
     @Test
     void pagesCibleesDonnentUnJetonAChaqueFormulairePost() throws Exception {
-        for (String page : new String[] {"/intra/licence/federation", "/intra/licence/comptes", "/intra/esns"}) {
+        for (String page : new String[] {"/intra/licence/federation", "/intra/licence/comptes", "/intra/esns",
+                "/intra/societes/reprise"}) {
             String html = mockMvc.perform(get(page).with(user(admin())))
                     .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
             int formulaires = compter(FORMULAIRE_POST, html);

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{intra-layout}">
+<head><title>Reprise des sociétés existantes</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <h4 class="mb-0"><i class="fas fa-database me-2 text-primary"></i>Reprise des sociétés existantes</h4>
+        <a th:href="@{/intra/societes/doublons}" class="btn btn-sm btn-outline-secondary ms-auto">
+            <i class="fas fa-clone me-1"></i>Doublons de sociétés
+        </a>
+    </div>
+
+    <p class="text-muted small">
+        Enregistre les clients et les ESN déjà présents dans le registre unique des sociétés, pour qu'une
+        inscription ne puisse pas recréer une société existante. Aucune fiche n'est modifiée ni fusionnée : les
+        sociétés en doublon ou aux numéros invalides sont ignorées et listées ci-dessous. La reprise peut être
+        relancée sans risque.
+    </p>
+
+    <div th:if="${simulation}" class="alert alert-info">Simulation : rien n'a été écrit.</div>
+    <div th:unless="${simulation}" class="alert alert-success">Reprise exécutée.</div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-body">
+            <div class="text-muted small" th:text="${simulation} ? 'À reprendre' : 'Reprises'">Reprises</div>
+            <div class="fs-3 fw-bold" th:text="${bilan.reprises}">0</div>
+        </div></div></div>
+        <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-body">
+            <div class="text-muted small">Ignorées (doublon)</div>
+            <div class="fs-3 fw-bold" th:text="${bilan.ignoreesDoublon}">0</div>
+        </div></div></div>
+        <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-body">
+            <div class="text-muted small">Ignorées (numéros invalides)</div>
+            <div class="fs-3 fw-bold" th:text="${bilan.ignoreesInvalides}">0</div>
+        </div></div></div>
+    </div>
+
+    <form th:if="${simulation}" th:action="@{/intra/societes/reprise}" method="post" class="mb-4">
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-play me-1"></i>Exécuter la reprise
+        </button>
+    </form>
+
+    <div th:if="${!#lists.isEmpty(bilan.details)}" class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 pt-3 pb-2"><h6 class="fw-bold mb-0">Fiches ignorées</h6></div>
+        <ul class="list-group list-group-flush">
+            <li th:each="d : ${bilan.details}" class="list-group-item small" th:text="${d}"></li>
+        </ul>
+    </div>
+
+</div>
+</body>
+</html>
