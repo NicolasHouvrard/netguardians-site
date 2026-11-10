@@ -10,7 +10,12 @@ import com.logicielpourtous.site.features.identite.SocieteIdentite;
 import com.logicielpourtous.site.features.identite.TypeSociete;
 import com.logicielpourtous.site.features.portal.PortalUserService;
 import com.logicielpourtous.site.features.user.UserRepository;
+import com.logicielpourtous.site.features.commun.ServerRole;
+import com.logicielpourtous.site.features.commun.ServerRoleProperties;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.ui.Model;
@@ -20,8 +25,14 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+/**
+ * Demandes d'inscription des ESN (Maitre uniquement, comme les autres ecrans du registre : 404 ailleurs).
+ * Reserve aux administrateurs et protege par CSRF (voir {@code csrfCible()}) : l'approbation ecrit au registre
+ * une ligne PARTENAIRE definitive, jamais liberee.
+ */
 @Controller
 @RequestMapping("/intra/registrations")
+@PreAuthorize("hasRole('ADMIN')")
 public class SubscriptionRequestController {
 
     private final SubscriptionRequestRepository repository;
@@ -32,6 +43,13 @@ public class SubscriptionRequestController {
     private final PortalUserService             portalUserService;
     private final RegistreSocietes              registre;
     private final TransactionTemplate           transaction;
+    private final ServerRoleProperties          serverRoleProperties;
+
+    private void requireMaster() {
+        if (serverRoleProperties.getRole() != ServerRole.MASTER) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+    }
 
     /** Type de fiche renseigne au registre pour la fiche creee a l'approbation. */
     private static final String FICHE_CUSTOMERS = "customers";
@@ -43,7 +61,9 @@ public class SubscriptionRequestController {
                                          UserRepository userRepository,
                                          PortalUserService portalUserService,
                                          RegistreSocietes registre,
-                                         PlatformTransactionManager transactionManager) {
+                                         PlatformTransactionManager transactionManager,
+                                         ServerRoleProperties serverRoleProperties) {
+        this.serverRoleProperties = serverRoleProperties;
         this.repository         = repository;
         this.customerRepository = customerRepository;
         this.siteRepository     = siteRepository;
@@ -56,6 +76,7 @@ public class SubscriptionRequestController {
 
     @GetMapping
     public String list(Model model) {
+        requireMaster();
         model.addAttribute("requests", repository.findAllByOrderByRequestedAtDesc());
         model.addAttribute("pending",  repository.countByStatus(SubscriptionRequest.SubscriptionRequestStatus.PENDING));
         return "intra/registrations/list";
@@ -74,6 +95,7 @@ public class SubscriptionRequestController {
     public String approve(@PathVariable Long id,
                           @RequestParam(required = false) String adminNotes,
                           RedirectAttributes ra) {
+        requireMaster();
         try {
             return transaction.execute(statut -> approuver(id, adminNotes, ra));
         } catch (SocieteDejaConnueException e) {
@@ -188,6 +210,7 @@ public class SubscriptionRequestController {
     public String reject(@PathVariable Long id,
                          @RequestParam(required = false) String adminNotes,
                          RedirectAttributes ra) {
+        requireMaster();
         repository.findById(id).ifPresent(r -> {
             r.setStatus(SubscriptionRequest.SubscriptionRequestStatus.REJECTED);
             r.setProcessedAt(LocalDateTime.now());

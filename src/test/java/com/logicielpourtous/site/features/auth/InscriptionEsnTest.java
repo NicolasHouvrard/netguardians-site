@@ -13,6 +13,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -119,8 +123,22 @@ class InscriptionEsnTest {
 
     private RedirectAttributesModelMap approuver(Long id) {
         RedirectAttributesModelMap ra = new RedirectAttributesModelMap();
-        approbation.approve(id, null, ra);
+        enAdmin(() -> approbation.approve(id, null, ra));
         return ra;
+    }
+
+    /** Appel direct du controleur (reserve aux administrateurs) sous une identite ADMIN. */
+    private static void enAdmin(Runnable appel) {
+        SecurityContext precedent = SecurityContextHolder.getContext();
+        SecurityContext admin = SecurityContextHolder.createEmptyContext();
+        admin.setAuthentication(UsernamePasswordAuthenticationToken.authenticated("admin-test", null,
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+        SecurityContextHolder.setContext(admin);
+        try {
+            appel.run();
+        } finally {
+            SecurityContextHolder.setContext(precedent);
+        }
     }
 
     // ── Soumission ───────────────────────────────────────────────────────
@@ -250,7 +268,7 @@ class InscriptionEsnTest {
                 .andExpect(redirectedUrl("/register/confirm"));
         SubscriptionRequest req = requeteDe(email);
 
-        approbation.reject(req.getId(), null, new RedirectAttributesModelMap());
+        enAdmin(() -> approbation.reject(req.getId(), null, new RedirectAttributesModelMap()));
 
         assertThat(requetes.findById(req.getId()).orElseThrow().getStatus())
                 .isEqualTo(SubscriptionRequestStatus.REJECTED);

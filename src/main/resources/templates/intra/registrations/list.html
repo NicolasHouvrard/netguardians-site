@@ -73,6 +73,8 @@
                     <thead class="table-light">
                     <tr>
                         <th>Société</th>
+                        <th>SIREN</th>
+                        <th>TVA</th>
                         <th>Contact</th>
                         <th>Email</th>
                         <th>Téléphone</th>
@@ -85,6 +87,8 @@
                     <tbody>
                     <tr th:each="r : ${requests}">
                         <td class="fw-semibold" th:text="${r.companyName}"></td>
+                        <td class="small font-monospace" th:text="${r.siren ?: '—'}"></td>
+                        <td class="small font-monospace" th:text="${r.vatNumber ?: '—'}"></td>
                         <td th:text="${r.contactName}"></td>
                         <td>
                             <a th:href="'mailto:' + ${r.email}" th:text="${r.email}"
@@ -110,6 +114,8 @@
                                 <button class="btn btn-sm btn-success"
                                         th:data-id="${r.id}"
                                         th:data-company="${r.companyName}"
+                                        th:data-siren="${r.siren ?: '—'}"
+                                        th:data-tva="${r.vatNumber ?: '—'}"
                                         onclick="openApprove(this)">
                                     <i class="fas fa-check me-1"></i>Approuver
                                 </button>
@@ -134,12 +140,15 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <form id="approveForm" method="post">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                     <div class="modal-header">
                         <h5 class="modal-title text-success"><i class="fas fa-check-circle me-2"></i>Approuver la demande</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <p>Vous approuvez la demande de <strong id="approveCompany"></strong>.</p>
+                        <p class="small mb-2">SIREN : <code id="approveSiren"></code> — TVA : <code id="approveTva"></code><br>
+                            <span class="text-muted">Cette société sera réservée définitivement au registre comme partenaire.</span></p>
                         <p class="text-muted small">Après approbation, créez manuellement le compte ESN depuis l'intranet ou contactez le demandeur pour finaliser son accès.</p>
                         <div>
                             <label class="form-label small fw-semibold">Note interne (optionnel)</label>
@@ -163,6 +172,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <form id="rejectForm" method="post">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                     <div class="modal-header">
                         <h5 class="modal-title text-danger"><i class="fas fa-times-circle me-2"></i>Refuser la demande</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -192,6 +202,8 @@ function openApprove(btn) {
     var id = btn.getAttribute('data-id');
     document.getElementById('approveForm').action = '/intra/registrations/' + id + '/approve';
     document.getElementById('approveCompany').textContent = btn.getAttribute('data-company');
+    document.getElementById('approveSiren').textContent = btn.getAttribute('data-siren');
+    document.getElementById('approveTva').textContent = btn.getAttribute('data-tva');
     new bootstrap.Modal(document.getElementById('modalApprove')).show();
 }
 function openReject(btn) {

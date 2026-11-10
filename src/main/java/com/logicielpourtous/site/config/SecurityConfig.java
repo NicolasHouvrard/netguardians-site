@@ -264,6 +264,8 @@ public class SecurityConfig {
                 chemins.matcher("/intra/settings/company/**"),
                 chemins.matcher("/intra/demandes-societe-connue/**"),
                 chemins.matcher("/intra/societes/reprise/**"),
+                // Approbation d'une ESN : ecrit au registre une ligne PARTENAIRE definitive.
+                chemins.matcher("/intra/registrations/**"),
                 chemins.matcher(SelectionSocieteFilter.SELECTEUR));
         RequestMatcher methodeModifiante = request -> !METHODES_SANS_EFFET.contains(request.getMethod());
         return new AndRequestMatcher(methodeModifiante, ecransSensibles);
