@@ -87,9 +87,48 @@ public class User implements java.io.Serializable {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
 
+    /**
+     * Date a laquelle l'e-mail du compte a ete verifie (ou le compte active par l'equipe). Jamais effacee : un
+     * compte verifie puis desactive reste verifie, meme s'il recoit un nouveau jeton de verification. Un compte
+     * enregistre ACTIF est considere verifie (voir {@link #marquerVerifieSiActif()}).
+     */
+    @Column(name = "email_verified_at")
+    private LocalDateTime emailVerifiedAt;
+
+    public LocalDateTime getEmailVerifiedAt() { return emailVerifiedAt; }
+
+    /** Marque l'e-mail verifie maintenant, sauf s'il l'etait deja (la premiere date est conservee). */
+    public void marquerEmailVerifie() {
+        if (emailVerifiedAt == null) {
+            emailVerifiedAt = LocalDateTime.now();
+        }
+    }
+
+    /**
+     * Annule la marque posee a la creation par {@link #marquerVerifieSiActif()} pour un compte qui nait en
+     * attente de verification (inscription autonome). A n'appeler QUE dans la transaction qui cree le compte.
+     */
+    public void creeNonVerifie() {
+        this.active = false;
+        this.emailVerifiedAt = null;
+    }
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+        marquerVerifieSiActif();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        marquerVerifieSiActif();
+    }
+
+    /** Tout compte enregistre actif (cree actif, verifie, active par l'equipe) est verifie. */
+    private void marquerVerifieSiActif() {
+        if (active) {
+            marquerEmailVerifie();
+        }
     }
 
     public void setRoles(Set<Role> roles) {

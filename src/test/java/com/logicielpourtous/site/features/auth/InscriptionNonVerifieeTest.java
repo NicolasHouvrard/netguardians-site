@@ -1,18 +1,28 @@
 package com.logicielpourtous.site.features.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -20,9 +30,17 @@ import com.logicielpourtous.site.features.auth.InscriptionSocieteService.Demande
 import com.logicielpourtous.site.features.auth.InscriptionSocieteService.ResultatInscription;
 import com.logicielpourtous.site.features.commun.Tenant;
 import com.logicielpourtous.site.features.commun.TenantRepository;
+import com.logicielpourtous.site.features.customers.ContactRepository;
+import com.logicielpourtous.site.features.customers.CustomerRepository;
+import com.logicielpourtous.site.features.customers.SiteRepository;
+import com.logicielpourtous.site.features.identite.IdentiteSociete;
 import com.logicielpourtous.site.features.identite.NumerosSociete;
+import com.logicielpourtous.site.features.identite.RegistreSocietes;
 import com.logicielpourtous.site.features.identite.SocieteIdentite;
 import com.logicielpourtous.site.features.identite.SocieteIdentiteRepository;
+import com.logicielpourtous.site.features.portal.PortalUserService;
+import com.logicielpourtous.site.features.user.AppartenanceRepository;
+import com.logicielpourtous.site.features.user.UserRepository;
 
 /**
  * Liberation des inscriptions jamais verifiees : seule une inscription autonome de client, appartenant au Maitre,
@@ -32,7 +50,17 @@ import com.logicielpourtous.site.features.identite.SocieteIdentiteRepository;
  * <p>SANS {@code @Transactional} (le service gere ses transactions) : numeros et e-mails aleatoires, nettoyes apres.
  */
 @SpringBootTest
+@AutoConfigureMockMvc
 class InscriptionNonVerifieeTest {
+
+    @Autowired private MockMvc mockMvc;
+    @Autowired private UserRepository userRepository;
+    @Autowired private CustomerRepository customerRepository;
+    @Autowired private SiteRepository siteRepository;
+    @Autowired private ContactRepository contactRepository;
+    @Autowired private PortalUserService portalUserService;
+    @Autowired private AppartenanceRepository appartenanceRepository;
+    @Autowired private DemandeSocieteConnueRepository demandes;
 
     @Autowired private InscriptionSocieteService service;
     @Autowired private NettoyageInscriptionsNonVerifiees nettoyage;
@@ -335,6 +363,155 @@ class InscriptionNonVerifieeTest {
         assertThat(empreinte(partenaire.getId(), partenaire.getFicheId(), emailPartenaire).registre()).isEqualTo(1);
         assertThat(compter("SELECT COUNT(*) FROM users WHERE email IN (?, ?, ?)",
                 emailRecente, emailActive, emailPartenaire)).isEqualTo(3);
+    }
+
+    // ── Revue 1 : compte verifie puis desactive (I1) ─────────────────────
+
+    private String jetonDe(String email) {
+        return jdbc.queryForObject("SELECT email_verification_token FROM users WHERE email = ?", String.class, email);
+    }
+
+    private void verifierParLeLien(String email) throws Exception {
+        mockMvc.perform(get("/register/verify").param("token", jetonDe(email)))
+                .andExpect(status().isFound())
+                .andExpect(redirectedUrl("/login?verified=true"));
+    }
+
+    @Test
+    void compteVerifiePuisDesactiveAvecNouveauJeton_jamaisLibere_niParLeNettoyage() throws Exception {
+        String email = nouvelEmail();
+        SocieteIdentite s = inscrire(email, nouveauSiren());
+        verifierParLeLien(email);
+        // Desactive par l'equipe, puis nouveau jeton (renvoi de verification par l'equipe)
+        jdbc.update("UPDATE users SET active = FALSE, email_verification_token = ? WHERE email = ?",
+                UUID.randomUUID().toString(), email);
+        vieillir(s, 200);
+
+        assertThat(service.liberer(s)).isFalse();
+        nettoyage.nettoyer();
+        assertThat(empreinte(s.getId(), s.getFicheId(), email).registre()).isEqualTo(1);
+        assertThat(compter("SELECT COUNT(*) FROM users WHERE email = ?", email)).isEqualTo(1);
+    }
+
+    @Test
+    void renvoiPublic_pourUnCompteVerifiePuisDesactive_neRegenerePasDeJeton_reponseNeutre() throws Exception {
+        String email = nouvelEmail();
+        inscrire(email, nouveauSiren());
+        verifierParLeLien(email);
+        jdbc.update("UPDATE users SET active = FALSE WHERE email = ?", email);
+
+        mockMvc.perform(post("/register/resend").param("email", email))
+                .andExpect(status().isFound())
+                .andExpect(redirectedUrlPattern("/register/email-sent?sent&email=*"));
+
+        assertThat(jetonDe(email)).isNull();
+    }
+
+    @Test
+    void renvoiPublic_pourUnCompteJamaisVerifie_renouvelleLeJeton() throws Exception {
+        String email = nouvelEmail();
+        inscrire(email, nouveauSiren());
+        String avant = jetonDe(email);
+
+        mockMvc.perform(post("/register/resend").param("email", email))
+                .andExpect(status().isFound())
+                .andExpect(redirectedUrlPattern("/register/email-sent?sent&email=*"));
+
+        assertThat(jetonDe(email)).isNotNull().isNotEqualTo(avant);
+    }
+
+    @Test
+    void dateDeVerification_videALInscription_renseigneeParLeLien_conserveeApresDesactivation() throws Exception {
+        String email = nouvelEmail();
+        inscrire(email, nouveauSiren());
+        assertThat(compter("SELECT COUNT(*) FROM users WHERE email = ? AND email_verified_at IS NULL", email))
+                .isEqualTo(1);
+
+        verifierParLeLien(email);
+        jdbc.update("UPDATE users SET active = FALSE WHERE email = ?", email);
+
+        assertThat(compter("SELECT COUNT(*) FROM users WHERE email = ? AND email_verified_at IS NOT NULL", email))
+                .isEqualTo(1);
+    }
+
+    // ── Revue 1 : compte actif avec un jeton encore present (M3) ─────────
+
+    @Test
+    void liberer_compteActifAvecJetonEnAttente_jamaisLibere() {
+        String email = nouvelEmail();
+        SocieteIdentite s = inscrire(email, nouveauSiren());
+        vieillir(s, 200);
+        jdbc.update("UPDATE users SET active = TRUE WHERE email = ?", email);
+        assertThat(jetonDe(email)).isNotNull();
+
+        assertThat(service.liberer(s)).isFalse();
+        assertThat(compter("SELECT COUNT(*) FROM users WHERE email = ?", email)).isEqualTo(1);
+    }
+
+    // ── Revue 1 : references sans le nom usuel (M1) ──────────────────────
+
+    @Test
+    void liberer_clientAvecUneIntegration_jamaisLibere() {
+        String email = nouvelEmail();
+        SocieteIdentite s = inscrire(email, nouveauSiren());
+        vieillir(s, 200);
+        Long id = jdbc.queryForObject("INSERT INTO client_integrations (customerid, enabled, servicetype) "
+                + "VALUES (?, FALSE, 'CUSTOM') RETURNING id", Long.class, s.getFicheId());
+        try {
+            assertThat(service.liberer(s)).isFalse();
+            assertThat(empreinte(s.getId(), s.getFicheId(), email).customers()).isEqualTo(1);
+        } finally {
+            jdbc.update("DELETE FROM client_integrations WHERE id = ?", id);
+        }
+    }
+
+    @Test
+    void liberer_compteCommercialDUneOpportunite_jamaisLibere() {
+        String email = nouvelEmail();
+        SocieteIdentite s = inscrire(email, nouveauSiren());
+        vieillir(s, 200);
+        Long id = jdbc.queryForObject("INSERT INTO crm_opportunities (name, assigned_commercial_id) "
+                + "VALUES ('Opportunite test liberation', ?) RETURNING id", Long.class, userIdDe(email));
+        try {
+            assertThat(service.liberer(s)).isFalse();
+            assertThat(compter("SELECT COUNT(*) FROM users WHERE email = ?", email)).isEqualTo(1);
+        } finally {
+            jdbc.update("DELETE FROM crm_opportunities WHERE id = ?", id);
+        }
+    }
+
+    // ── Revue 1 : liberation concurrente pendant une inscription (M2) ────
+
+    @Test
+    void ligneLibereeParAilleursPendantLInscription_inscriptionReussit_sansErreurDeCle() {
+        String siren = nouveauSiren();
+        String emailAncien = nouvelEmail();
+        SocieteIdentite perimee = inscrire(emailAncien, siren);
+        vieillir(perimee, 73);
+        AtomicBoolean premiereRecherche = new AtomicBoolean(true);
+        // L'inscription voit la ligne, puis le nettoyage (autre fil, autre transaction) la libere et valide.
+        RegistreSocietes registreEnRetard = new RegistreSocietes(identites) {
+            @Override
+            public Optional<SocieteIdentite> trouver(IdentiteSociete identite) {
+                if (premiereRecherche.getAndSet(false)) {
+                    assertThat(CompletableFuture.supplyAsync(() -> service.liberer(perimee)).join()).isTrue();
+                    return Optional.of(perimee);
+                }
+                return super.trouver(identite);
+            }
+        };
+        InscriptionSocieteService enRetard = new InscriptionSocieteService(userRepository, customerRepository,
+                siteRepository, contactRepository, portalUserService, registreEnRetard, appartenanceRepository,
+                demandes, transactionManager, jdbc, 72);
+
+        String email = nouvelEmail();
+        ResultatInscription resultat = enRetard.inscrireClient(demande(email, siren));
+
+        assertThat(resultat).isInstanceOf(ResultatInscription.Creee.class);
+        SocieteIdentite nouvelle = identites.findBySiren(siren).orElseThrow();
+        assertThat(nouvelle.getId()).isNotEqualTo(perimee.getId());
+        assertThat(compter("SELECT COUNT(*) FROM users WHERE email = ?", email)).isEqualTo(1);
+        assertThat(empreinte(perimee.getId(), perimee.getFicheId(), emailAncien).vide()).isTrue();
     }
 
     // ── Nettoyage des donnees de test ────────────────────────────────────

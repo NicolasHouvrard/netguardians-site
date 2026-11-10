@@ -191,12 +191,16 @@ public class InscriptionSocieteService {
         } catch (SocieteDejaConnueException e) {
             // Levee avant toute ecriture : la transaction reste utilisable.
             // Societe squattee par une inscription jamais verifiee et perimee : liberee, puis inscription normale.
+            // Sinon, la ligne vue peut avoir ete liberee entre-temps (nettoyage concurrent) : on la reverrouille
+            // avant d'y rattacher la demande ; si elle a disparu, la societe est libre.
             SocieteIdentite connue = e.existante();
+            boolean libre = connue != null && (liberer(connue) || !verrouillerSiPresente(connue.getId()));
             SocieteIdentite liberee = null;
-            if (liberer(connue)) {
+            if (libre) {
                 try {
                     liberee = registre.enregistrer(TypeSociete.CLIENT, identite, null);
                 } catch (SocieteDejaConnueException encore) {
+                    // Reprise entre-temps par une autre inscription : ligne lue dans cette transaction.
                     connue = encore.existante();
                 }
             }
@@ -245,7 +249,8 @@ public class InscriptionSocieteService {
         contactRepository.save(contact);
 
         String jeton = UUID.randomUUID().toString();
-        user.setActive(false);
+        // Le compte vient d'etre enregistre actif (donc marque verifie) : il nait en fait en attente de verification.
+        user.creeNonVerifie();
         user.setEmailVerificationToken(jeton);
         userRepository.save(user);
 
@@ -303,7 +308,8 @@ public class InscriptionSocieteService {
      *       l'existant ni un partenaire), de type client, appartenant au Maitre, liee a une fiche
      *       {@code customers}, creee depuis plus de {@code app.inscription.delai-verification-heures} ;</li>
      *   <li>client sans tenant (non rattache a un partenaire) ;</li>
-     *   <li>au moins un compte, et TOUS ses comptes inactifs, avec un jeton de verification en attente, crees
+     *   <li>au moins un compte, et TOUS ses comptes jamais verifies ({@code email_verified_at} nul : un compte
+     *       verifie puis desactive peut avoir recu un nouveau jeton), inactifs, avec un jeton en attente, crees
      *       depuis plus du delai, sans appartenance a une autre societe ;</li>
      *   <li>aucune autre donnee ne reference le client, ses sites, contacts, comptes ou sa ligne de registre :
      *       toutes les cles etrangeres de la base ET toutes les colonnes d'identifiant usuelles
@@ -324,11 +330,20 @@ public class InscriptionSocieteService {
         return Boolean.TRUE.equals(transactionRequise.execute(statut -> libererSousVerrou(s.getId())));
     }
 
+    /**
+     * Verrou partage sur une ligne du registre (une liberation concurrente attend alors la fin de cette
+     * transaction) ; {@code false} si la ligne n'existe plus.
+     */
+    private boolean verrouillerSiPresente(Long registreId) {
+        return !jdbc.queryForList("SELECT id FROM societes_identites WHERE id = ? FOR SHARE", Long.class, registreId)
+                .isEmpty();
+    }
+
     private record LigneRegistre(String type, Long proprietaire, String ficheType, Long ficheId, String origine,
                                  OffsetDateTime creeA) {
     }
 
-    private record Compte(long id, boolean actif, String jeton, LocalDateTime creeLe) {
+    private record Compte(long id, boolean actif, String jeton, LocalDateTime creeLe, LocalDateTime verifieLe) {
     }
 
     private boolean libererSousVerrou(long registreId) {
@@ -366,16 +381,17 @@ public class InscriptionSocieteService {
         // 3. Comptes, verrouilles : tous inactifs, en attente de verification, anciens
         LocalDateTime limiteLocale = LocalDateTime.ofInstant(limite, ZoneId.systemDefault());
         List<Compte> comptes = jdbc.query(
-                "SELECT id, active, email_verification_token, created_at FROM users WHERE customer_id = ? "
-                        + "ORDER BY id FOR UPDATE",
+                "SELECT id, active, email_verification_token, created_at, email_verified_at FROM users "
+                        + "WHERE customer_id = ? ORDER BY id FOR UPDATE",
                 (rs, i) -> new Compte(rs.getLong(1), rs.getBoolean(2), rs.getString(3),
-                        rs.getObject(4, LocalDateTime.class)),
+                        rs.getObject(4, LocalDateTime.class), rs.getObject(5, LocalDateTime.class)),
                 customerId);
         if (comptes.isEmpty()) {
             return false;
         }
         for (Compte c : comptes) {
-            if (c.actif() || c.jeton() == null || c.jeton().isBlank()
+            // Un compte verifie un jour (meme desactive depuis, meme avec un nouveau jeton) n'est jamais libere.
+            if (c.verifieLe() != null || c.actif() || c.jeton() == null || c.jeton().isBlank()
                     || c.creeLe() == null || !c.creeLe().isBefore(limiteLocale)) {
                 return false;
             }
@@ -479,8 +495,10 @@ public class InscriptionSocieteService {
                         + "JOIN information_schema.tables t ON t.table_schema = c.table_schema "
                         + "AND t.table_name = c.table_name AND t.table_type = 'BASE TABLE' "
                         + "WHERE c.table_schema = 'public' AND c.data_type IN ('bigint', 'integer') "
-                        + "AND (c.column_name IN ('customer_id', 'client_id', 'supplier_id', 'vendor_id', 'user_id', "
-                        + "'userid', 'site_id', 'contact_id', 'societe_identite_id') "
+                        + "AND (c.column_name IN ('customer_id', 'customerid', 'client_id', 'supplier_id', 'vendor_id', "
+                        + "'user_id', 'userid', 'author_id', 'created_by_id', 'assigned_to_id', 'technician_id', "
+                        + "'commercial_id', 'assigned_commercial_id', "
+                        + "'site_id', 'contact_id', 'societe_identite_id') "
                         + "OR c.column_name LIKE '%\\_user\\_id')",
                 (rs, i) -> {
                     String colonne = rs.getString(2);
@@ -491,7 +509,7 @@ public class InscriptionSocieteService {
 
     private static String cibleParNom(String colonne) {
         return switch (colonne) {
-            case "customer_id", "client_id", "supplier_id", "vendor_id" -> "customers";
+            case "customer_id", "customerid", "client_id", "supplier_id", "vendor_id" -> "customers";
             case "site_id" -> "sites";
             case "contact_id" -> "contacts";
             case "societe_identite_id" -> "societes_identites";

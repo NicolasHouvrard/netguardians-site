@@ -14,7 +14,7 @@ import com.logicielpourtous.site.features.identite.SocieteIdentiteRepository;
 /**
  * Nettoyage quotidien des inscriptions autonomes jamais verifiees : libere les societes qu'elles bloquent au
  * registre. Les candidates sont preselectionnees ici (origine « inscription client », Maitre, fiche client, plus
- * anciennes que le delai) ; TOUTES les conditions sont ensuite reverifiees sous verrou par
+ * anciennes que le delai, aucun compte jamais verifie) ; TOUTES les conditions sont ensuite reverifiees sous verrou par
  * {@link InscriptionSocieteService#liberer}, chaque liberation dans sa propre transaction (un echec n'arrete pas
  * le lot).
  *
@@ -47,8 +47,10 @@ public class NettoyageInscriptionsNonVerifiees {
     /** @return le nombre de societes liberees */
     public int nettoyer() {
         List<Long> candidates = jdbc.queryForList(
-                "SELECT id FROM societes_identites WHERE origine = ? AND proprietaire_tenant_id IS NULL "
-                        + "AND fiche_type = ? AND cree_a < ? ORDER BY id",
+                "SELECT si.id FROM societes_identites si WHERE si.origine = ? AND si.proprietaire_tenant_id IS NULL "
+                        + "AND si.fiche_type = ? AND si.cree_a < ? "
+                        + "AND NOT EXISTS (SELECT 1 FROM users u WHERE u.customer_id = si.fiche_id "
+                        + "AND u.email_verified_at IS NOT NULL) ORDER BY si.id",
                 Long.class, InscriptionSocieteService.ORIGINE_INSCRIPTION_CLIENT,
                 InscriptionSocieteService.FICHE_CUSTOMERS, Timestamp.from(inscription.limiteVerification()));
         int liberees = 0;

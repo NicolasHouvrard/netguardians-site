@@ -259,7 +259,8 @@ public class AuthController {
     @PostMapping("/register/resend")
     public String resendVerification(@RequestParam String email) {
         userRepository.findByEmail(email.trim().toLowerCase()).ifPresent(user -> {
-            if (!user.isActive()) {
+            // Jamais pour un compte deja verifie (puis desactive) : un jeton ne doit signifier « jamais verifie ».
+            if (!user.isActive() && user.getEmailVerifiedAt() == null) {
                 String token = UUID.randomUUID().toString();
                 user.setEmailVerificationToken(token);
                 userRepository.save(user);
@@ -280,6 +281,7 @@ public class AuthController {
         User user = opt.get();
         user.setActive(true);
         user.setEmailVerificationToken(null);
+        user.marquerEmailVerifie();
         userRepository.save(user);
         return "redirect:/login?verified=true";
     }
