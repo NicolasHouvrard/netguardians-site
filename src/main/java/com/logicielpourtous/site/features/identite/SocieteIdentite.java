@@ -47,6 +47,13 @@ public class SocieteIdentite {
     @Column(name = "fiche_id")
     private Long ficheId;
 
+    /**
+     * Origine de la ligne : {@code INSCRIPTION_CLIENT} pour un client inscrit seul (seul cas qu'un nettoyage peut
+     * liberer) ; {@code null} pour tout le reste (reprise de l'existant, partenaire approuve...).
+     */
+    @Column(name = "origine", length = 30)
+    private String origine;
+
     @Column(name = "cree_a", nullable = false)
     private Instant creeA;
 

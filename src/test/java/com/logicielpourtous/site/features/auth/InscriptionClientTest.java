@@ -295,7 +295,7 @@ class InscriptionClientTest {
         };
         InscriptionSocieteService enPanne = new InscriptionSocieteService(userRepository, customerRepository,
                 siteRepository, contactRepository, comptesEnPanne, registre, appartenanceRepository, demandes,
-                transactionManager);
+                transactionManager, jdbc, 72);
         String siren = nouveauSiren();
         String email = nouvelEmail();
 
@@ -367,7 +367,7 @@ class InscriptionClientTest {
         InscriptionSocieteService perdant = new InscriptionSocieteService(userRepository, customerRepository,
                 siteRepository, contactRepository, portalUserService,
                 registreAvecConcurrent(gagnant, appels, conflits, false),
-                appartenanceRepository, demandes, transactionManager);
+                appartenanceRepository, demandes, transactionManager, jdbc, 72);
 
         ResultatInscription resultat = perdant.inscrireClient(demande(email, siren, null, tva));
 
@@ -398,7 +398,7 @@ class InscriptionClientTest {
         InscriptionSocieteService perdant = new InscriptionSocieteService(userRepository, customerRepository,
                 siteRepository, contactRepository, portalUserService,
                 registreAvecConcurrent(gagnant, appels, conflits, true),
-                appartenanceRepository, demandes, transactionManager);
+                appartenanceRepository, demandes, transactionManager, jdbc, 72);
 
         ResultatInscription resultat = perdant.inscrireClient(demande(email, siren, null, tva));
 

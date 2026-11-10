@@ -1,11 +1,23 @@
 package com.logicielpourtous.site.features.auth;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -49,6 +61,11 @@ import com.logicielpourtous.site.features.user.UserRepository;
  * MEME issue ({@link ResultatInscription.DejaConnue}), par le meme chemin de code ; rien n'est cree hormis la
  * {@link DemandeSocieteConnue} destinee au proprietaire.
  *
+ * <p><b>Inscriptions jamais verifiees.</b> Une societe inscrite seule dont aucun compte n'a verifie son e-mail
+ * dans le delai {@code app.inscription.delai-verification-heures} (72 h par defaut) n'empeche pas une nouvelle
+ * inscription : {@link #liberer} la supprime (sous conditions strictes) et l'inscription continue comme pour une
+ * societe libre. {@link NettoyageInscriptionsNonVerifiees} fait de meme chaque nuit.
+ *
  * <p><b>Double envoi du formulaire</b> (connu, accepte) : le 2e envoi peut finir sur « Cet email est déjà
  * utilisé. » alors que l'inscription du 1er a reussi.
  *
@@ -66,6 +83,9 @@ public class InscriptionSocieteService {
 
     /** Type de fiche renseigne au registre pour une societe cliente. */
     static final String FICHE_CUSTOMERS = "customers";
+
+    /** Origine au registre d'un client inscrit seul : seul cas liberable par {@link #liberer}. */
+    static final String ORIGINE_INSCRIPTION_CLIENT = "INSCRIPTION_CLIENT";
 
     private static final String ROLE_GESTIONNAIRE = "GESTIONNAIRE";
 
@@ -94,7 +114,10 @@ public class InscriptionSocieteService {
     private final RegistreSocietes registre;
     private final AppartenanceRepository appartenanceRepository;
     private final DemandeSocieteConnueRepository demandeSocieteConnueRepository;
+    private final JdbcTemplate jdbc;
+    private final long delaiVerificationHeures;
     private final TransactionTemplate nouvelleTransaction;
+    private final TransactionTemplate transactionRequise;
 
     public InscriptionSocieteService(UserRepository userRepository,
                                      CustomerRepository customerRepository,
@@ -104,7 +127,18 @@ public class InscriptionSocieteService {
                                      RegistreSocietes registre,
                                      AppartenanceRepository appartenanceRepository,
                                      DemandeSocieteConnueRepository demandeSocieteConnueRepository,
-                                     PlatformTransactionManager transactionManager) {
+                                     PlatformTransactionManager transactionManager,
+                                     JdbcTemplate jdbc,
+                                     @Value("${app.inscription.delai-verification-heures:72}") long delaiVerificationHeures) {
+        if (delaiVerificationHeures < 1) {
+            throw new IllegalStateException(
+                    "app.inscription.delai-verification-heures doit valoir au moins 1 (heure) : " + delaiVerificationHeures);
+        }
+        this.jdbc = jdbc;
+        this.delaiVerificationHeures = delaiVerificationHeures;
+        // Transaction en cours (inscription), ou transaction propre s'il n'y en a pas (nettoyage).
+        this.transactionRequise = new TransactionTemplate(transactionManager);
+        this.transactionRequise.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
         this.userRepository = userRepository;
         this.customerRepository = customerRepository;
         this.siteRepository = siteRepository;
@@ -155,10 +189,24 @@ public class InscriptionSocieteService {
         try {
             societe = registre.enregistrer(TypeSociete.CLIENT, identite, null);
         } catch (SocieteDejaConnueException e) {
-            // Levee avant toute ecriture : la transaction reste utilisable pour enregistrer la demande.
-            enregistrerDemandeSocieteConnue(e.existante(), d);
-            return new ResultatInscription.DejaConnue();
+            // Levee avant toute ecriture : la transaction reste utilisable.
+            // Societe squattee par une inscription jamais verifiee et perimee : liberee, puis inscription normale.
+            SocieteIdentite connue = e.existante();
+            SocieteIdentite liberee = null;
+            if (liberer(connue)) {
+                try {
+                    liberee = registre.enregistrer(TypeSociete.CLIENT, identite, null);
+                } catch (SocieteDejaConnueException encore) {
+                    connue = encore.existante();
+                }
+            }
+            if (liberee == null) {
+                enregistrerDemandeSocieteConnue(connue, d);
+                return new ResultatInscription.DejaConnue();
+            }
+            societe = liberee;
         }
+        societe.setOrigine(ORIGINE_INSCRIPTION_CLIENT);
 
         // 3. Client
         Customer customer = new Customer();
@@ -234,6 +282,234 @@ public class InscriptionSocieteService {
         }
         enregistrerDemandeSocieteConnue(existante.get(), email, nomDemandeur);
         return true;
+    }
+
+    // ── Liberation des inscriptions jamais verifiees ─────────────────────
+
+    /** Limite d'anciennete : une inscription creee AVANT cet instant peut etre liberee. */
+    Instant limiteVerification() {
+        return Instant.now().minus(Duration.ofHours(delaiVerificationHeures));
+    }
+
+    /**
+     * Libere une societe squattee par une inscription jamais verifiee : supprime, dans UNE transaction, la ligne
+     * de registre, ses demandes « societe connue », le client, ses sites et contacts, ses comptes (roles et
+     * appartenances compris). Renvoie {@code true} si tout a ete supprime, {@code false} sinon (rien n'est
+     * alors modifie).
+     *
+     * <p>Ne libere QUE si toutes ces conditions sont reunies, relues en base sous verrou :
+     * <ul>
+     *   <li>ligne de registre d'origine {@value #ORIGINE_INSCRIPTION_CLIENT} (jamais une ligne reprise de
+     *       l'existant ni un partenaire), de type client, appartenant au Maitre, liee a une fiche
+     *       {@code customers}, creee depuis plus de {@code app.inscription.delai-verification-heures} ;</li>
+     *   <li>client sans tenant (non rattache a un partenaire) ;</li>
+     *   <li>au moins un compte, et TOUS ses comptes inactifs, avec un jeton de verification en attente, crees
+     *       depuis plus du delai, sans appartenance a une autre societe ;</li>
+     *   <li>aucune autre donnee ne reference le client, ses sites, contacts, comptes ou sa ligne de registre :
+     *       toutes les cles etrangeres de la base ET toutes les colonnes d'identifiant usuelles
+     *       ({@code customer_id}, {@code user_id}, {@code *_user_id}, {@code site_id}...) sont verifiees
+     *       (demandes, devis, factures, commandes, abonnements, tenants...). Seul le journal d'audit est ignore.</li>
+     * </ul>
+     *
+     * <p>Rejoint la transaction en cours ({@code REQUIRED}), sinon ouvre la sienne. Un refus ({@code false})
+     * n'ecrit rien et laisse la transaction utilisable. Une erreur INATTENDUE (base) remonte telle quelle et
+     * annule toute la transaction : pendant une inscription, l'inscription echoue sans rien laisser (le
+     * gestionnaire de transactions JPA n'autorise pas les points de sauvegarde, qui permettraient d'isoler
+     * la liberation).
+     */
+    public boolean liberer(SocieteIdentite s) {
+        if (s == null || s.getId() == null) {
+            return false;
+        }
+        return Boolean.TRUE.equals(transactionRequise.execute(statut -> libererSousVerrou(s.getId())));
+    }
+
+    private record LigneRegistre(String type, Long proprietaire, String ficheType, Long ficheId, String origine,
+                                 OffsetDateTime creeA) {
+    }
+
+    private record Compte(long id, boolean actif, String jeton, LocalDateTime creeLe) {
+    }
+
+    private boolean libererSousVerrou(long registreId) {
+        Instant limite = limiteVerification();
+
+        // 1. Ligne de registre, verrouillee
+        List<LigneRegistre> lignes = jdbc.query(
+                "SELECT type, proprietaire_tenant_id, fiche_type, fiche_id, origine, cree_a "
+                        + "FROM societes_identites WHERE id = ? FOR UPDATE",
+                (rs, i) -> new LigneRegistre(rs.getString(1), rs.getObject(2, Long.class), rs.getString(3),
+                        rs.getObject(4, Long.class), rs.getString(5), rs.getObject(6, OffsetDateTime.class)),
+                registreId);
+        if (lignes.isEmpty()) {
+            return false;
+        }
+        LigneRegistre ligne = lignes.get(0);
+        if (!ORIGINE_INSCRIPTION_CLIENT.equals(ligne.origine())
+                || !TypeSociete.CLIENT.name().equals(ligne.type())
+                || ligne.proprietaire() != null
+                || !FICHE_CUSTOMERS.equals(ligne.ficheType())
+                || ligne.ficheId() == null
+                || ligne.creeA() == null
+                || !ligne.creeA().toInstant().isBefore(limite)) {
+            return false;
+        }
+        long customerId = ligne.ficheId();
+
+        // 2. Client, verrouille : il doit exister et ne pas etre rattache a un partenaire
+        List<Long> tenantsClient = jdbc.query("SELECT tenant_id FROM customers WHERE id = ? FOR UPDATE",
+                (rs, i) -> rs.getObject(1, Long.class), customerId);
+        if (tenantsClient.size() != 1 || tenantsClient.get(0) != null) {
+            return false;
+        }
+
+        // 3. Comptes, verrouilles : tous inactifs, en attente de verification, anciens
+        LocalDateTime limiteLocale = LocalDateTime.ofInstant(limite, ZoneId.systemDefault());
+        List<Compte> comptes = jdbc.query(
+                "SELECT id, active, email_verification_token, created_at FROM users WHERE customer_id = ? "
+                        + "ORDER BY id FOR UPDATE",
+                (rs, i) -> new Compte(rs.getLong(1), rs.getBoolean(2), rs.getString(3),
+                        rs.getObject(4, LocalDateTime.class)),
+                customerId);
+        if (comptes.isEmpty()) {
+            return false;
+        }
+        for (Compte c : comptes) {
+            if (c.actif() || c.jeton() == null || c.jeton().isBlank()
+                    || c.creeLe() == null || !c.creeLe().isBefore(limiteLocale)) {
+                return false;
+            }
+        }
+        List<Long> users = comptes.stream().map(Compte::id).toList();
+
+        // 4. Rattachements propres a l'inscription
+        List<Long> sites = jdbc.queryForList("SELECT id FROM sites WHERE customer_id = ?", Long.class, customerId);
+        List<Long> contacts = jdbc.queryForList("SELECT id FROM contacts WHERE customer_id = ?", Long.class,
+                customerId);
+        List<Map<String, Object>> appartenancesComptes = jdbc.queryForList(
+                "SELECT id, customer_id FROM appartenances WHERE " + dans("user_id", users));
+        List<Long> appartenances = new ArrayList<>();
+        for (Map<String, Object> a : appartenancesComptes) {
+            Object fiche = a.get("customer_id");
+            if (!(fiche instanceof Number n) || n.longValue() != customerId) {
+                // Le compte appartient aussi a une autre societe
+                return false;
+            }
+            appartenances.add(((Number) a.get("id")).longValue());
+        }
+        Long autresLignes = jdbc.queryForObject("SELECT COUNT(*) FROM societes_identites "
+                + "WHERE fiche_type = ? AND fiche_id = ? AND id <> ?", Long.class, FICHE_CUSTOMERS, customerId, registreId);
+        if (autresLignes != null && autresLignes > 0) {
+            return false;
+        }
+
+        // 5. Aucune autre donnee ne doit referencer ce qui va etre supprime
+        Map<String, List<Long>> cibles = Map.of(
+                "customers", List.of(customerId),
+                "users", users,
+                "sites", sites,
+                "contacts", contacts,
+                "societes_identites", List.of(registreId));
+        Map<String, String> supprimees = Map.of(
+                "customers", dans("id", List.of(customerId)),
+                "societes_identites", dans("id", List.of(registreId)),
+                "demandes_societe_connue", dans("societe_identite_id", List.of(registreId)),
+                "sites", dans("id", sites),
+                "contacts", dans("id", contacts),
+                "users", dans("id", users),
+                "users_roles", dans("user_id", users),
+                "appartenances", dans("id", appartenances),
+                "appartenances_roles", dans("appartenance_id", appartenances));
+        for (Reference r : referencesPossibles()) {
+            List<Long> ids = cibles.get(r.cible());
+            if (ids == null || ids.isEmpty() || TABLES_IGNOREES.contains(r.table())) {
+                continue;
+            }
+            String sql = "SELECT EXISTS (SELECT 1 FROM public." + identifiant(r.table())
+                    + " WHERE " + dans(identifiant(r.colonne()), ids)
+                    + " AND NOT COALESCE(" + supprimees.getOrDefault(r.table(), "FALSE") + ", FALSE))";
+            if (Boolean.TRUE.equals(jdbc.queryForObject(sql, Boolean.class))) {
+                log.info("Societe du registre #{} non liberee : referencee par {}.{}", registreId, r.table(),
+                        r.colonne());
+                return false;
+            }
+        }
+
+        // 6. Suppression, des feuilles vers la racine
+        jdbc.update("DELETE FROM appartenances_roles WHERE " + dans("appartenance_id", appartenances));
+        jdbc.update("DELETE FROM appartenances WHERE " + dans("id", appartenances));
+        jdbc.update("DELETE FROM users_roles WHERE " + dans("user_id", users));
+        jdbc.update("DELETE FROM contacts WHERE " + dans("id", contacts));
+        jdbc.update("DELETE FROM users WHERE " + dans("id", users));
+        jdbc.update("DELETE FROM sites WHERE " + dans("id", sites));
+        jdbc.update("DELETE FROM demandes_societe_connue WHERE societe_identite_id = ?", registreId);
+        jdbc.update("DELETE FROM societes_identites WHERE id = ?", registreId);
+        jdbc.update("DELETE FROM customers WHERE id = ?", customerId);
+        log.info("Societe du registre #{} liberee : inscription jamais verifiee (client #{}, {} compte(s)) supprimee",
+                registreId, customerId, users.size());
+        return true;
+    }
+
+    /** Colonne pouvant designer une ligne supprimee par une liberation. */
+    private record Reference(String table, String colonne, String cible) {
+    }
+
+    /** Journal d'audit : trace historique (connexions, pages vues), ne rattache rien ; laisse tel quel. */
+    private static final Set<String> TABLES_IGNOREES = Set.of("audit_logs");
+
+    /**
+     * Toutes les colonnes du schema {@code public} pouvant designer une ligne supprimee : les cles etrangeres
+     * declarees vers ces tables, plus les colonnes d'identifiant usuelles sans contrainte (nombreuses dans le
+     * schema historique). Relu a chaque appel : une table ajoutee plus tard est couverte d'office.
+     */
+    private List<Reference> referencesPossibles() {
+        List<Reference> references = new ArrayList<>(jdbc.query(
+                "SELECT cl.relname, att.attname, ref.relname "
+                        + "FROM pg_constraint c "
+                        + "JOIN pg_class cl ON cl.oid = c.conrelid "
+                        + "JOIN pg_namespace n ON n.oid = cl.relnamespace "
+                        + "JOIN pg_class ref ON ref.oid = c.confrelid "
+                        + "JOIN pg_namespace rn ON rn.oid = ref.relnamespace "
+                        + "JOIN pg_attribute att ON att.attrelid = c.conrelid AND att.attnum = ANY (c.conkey) "
+                        + "WHERE c.contype = 'f' AND n.nspname = 'public' AND rn.nspname = 'public' "
+                        + "AND ref.relname IN ('customers', 'users', 'sites', 'contacts', 'societes_identites')",
+                (rs, i) -> new Reference(rs.getString(1), rs.getString(2), rs.getString(3))));
+        references.addAll(jdbc.query(
+                "SELECT c.table_name, c.column_name FROM information_schema.columns c "
+                        + "JOIN information_schema.tables t ON t.table_schema = c.table_schema "
+                        + "AND t.table_name = c.table_name AND t.table_type = 'BASE TABLE' "
+                        + "WHERE c.table_schema = 'public' AND c.data_type IN ('bigint', 'integer') "
+                        + "AND (c.column_name IN ('customer_id', 'client_id', 'supplier_id', 'vendor_id', 'user_id', "
+                        + "'userid', 'site_id', 'contact_id', 'societe_identite_id') "
+                        + "OR c.column_name LIKE '%\\_user\\_id')",
+                (rs, i) -> {
+                    String colonne = rs.getString(2);
+                    return new Reference(rs.getString(1), colonne, cibleParNom(colonne));
+                }));
+        return references;
+    }
+
+    private static String cibleParNom(String colonne) {
+        return switch (colonne) {
+            case "customer_id", "client_id", "supplier_id", "vendor_id" -> "customers";
+            case "site_id" -> "sites";
+            case "contact_id" -> "contacts";
+            case "societe_identite_id" -> "societes_identites";
+            default -> "users";
+        };
+    }
+
+    /** Identifiant SQL entre guillemets (noms lus dans le catalogue). */
+    private static String identifiant(String nom) {
+        return "\"" + nom.replace("\"", "\"\"") + "\"";
+    }
+
+    /** {@code colonne IN (ids)} ; {@code FALSE} si la liste est vide. Les ids sont des {@code long} lus en base. */
+    private static String dans(String colonne, List<Long> ids) {
+        if (ids.isEmpty()) {
+            return "FALSE";
+        }
+        return colonne + " IN (" + ids.stream().map(String::valueOf).collect(Collectors.joining(", ")) + ")";
     }
 
     private void enregistrerDemandeSocieteConnue(SocieteIdentite existante, DemandeClient d) {
