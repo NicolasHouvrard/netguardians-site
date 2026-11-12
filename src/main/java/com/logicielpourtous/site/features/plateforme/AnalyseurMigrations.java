@@ -18,8 +18,10 @@ public final class AnalyseurMigrations {
 	public record Constat(String regle, String extrait) {
 	}
 
-	private static final Pattern COMMENTAIRE_BLOC = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
-	private static final Pattern COMMENTAIRE_LIGNE = Pattern.compile("--[^\\n]*");
+	private static final Pattern PROCEDURAL = Pattern
+			.compile("^(?:do\\b|execute\\b|create (?:or replace )?(?:function|procedure)\\b)");
+	private static final String REGLE_PROCEDURAL = "sql-procedural-non-analysable";
+	private static final Pattern DOLLAR = Pattern.compile("\\$[A-Za-z_0-9]*\\$");
 	private static final Pattern ESPACES = Pattern.compile("\\s+");
 
 	private static final Pattern CREATE_TABLE = Pattern.compile(
@@ -47,7 +49,8 @@ public final class AnalyseurMigrations {
 		for (String t : tablesReferencees) {
 			referencees.add(nomSimple(t));
 		}
-		List<String> instructions = decouper(sql);
+		List<Constat> constats = new ArrayList<>();
+		List<String> instructions = decouper(sql, constats);
 
 		Set<String> creees = new HashSet<>();
 		for (String s : instructions) {
@@ -57,8 +60,11 @@ public final class AnalyseurMigrations {
 			}
 		}
 
-		List<Constat> constats = new ArrayList<>();
 		for (String s : instructions) {
+			if (PROCEDURAL.matcher(s).find()) {
+				constats.add(new Constat(REGLE_PROCEDURAL, extrait(s)));
+				continue;
+			}
 			Matcher drop = DROP_TABLE.matcher(s);
 			if (drop.matches()) {
 				constats.add(new Constat("DROP TABLE", extrait(s)));
@@ -105,19 +111,68 @@ public final class AnalyseurMigrations {
 		return constats;
 	}
 
-	/** Retire les commentaires, passe en minuscules, retire les guillemets, regroupe les espaces, découpe sur « ; ». */
-	private static List<String> decouper(String sql) {
-		String s = COMMENTAIRE_BLOC.matcher(sql).replaceAll(" ");
-		s = COMMENTAIRE_LIGNE.matcher(s).replaceAll(" ");
-		s = s.toLowerCase(Locale.ROOT).replace("\"", "");
+	/**
+	 * Retire les commentaires (hors littéraux), remplace chaque littéral entre apostrophes par {@code ''}, passe en
+	 * minuscules, retire les guillemets, regroupe les espaces, découpe sur « ; » hors littéraux. Un guillemet dollar
+	 * ({@code $$} ou {@code $tag$}) ajoute un constat prudent dans {@code constats}.
+	 */
+	private static List<String> decouper(String sql, List<Constat> constats) {
 		List<String> resultat = new ArrayList<>();
-		for (String brut : s.split(";")) {
-			String instruction = ESPACES.matcher(brut).replaceAll(" ").trim();
-			if (!instruction.isEmpty()) {
-				resultat.add(instruction);
+		StringBuilder courant = new StringBuilder();
+		boolean dollarSignale = false;
+		int n = sql.length();
+		int i = 0;
+		while (i < n) {
+			char c = sql.charAt(i);
+			if (c == '\'') {
+				int fin = i + 1;
+				while (fin < n && sql.charAt(fin) != '\'') {
+					fin++;
+				}
+				courant.append("''");
+				i = fin + 1;
+			}
+			else if (c == '"') {
+				int fin = sql.indexOf('"', i + 1);
+				fin = fin < 0 ? n : fin;
+				courant.append(sql, i + 1, fin);
+				i = fin + 1;
+			}
+			else if (c == '-' && i + 1 < n && sql.charAt(i + 1) == '-') {
+				while (i < n && sql.charAt(i) != '\n') {
+					i++;
+				}
+				courant.append(' ');
+			}
+			else if (c == '/' && i + 1 < n && sql.charAt(i + 1) == '*') {
+				int fin = sql.indexOf("*/", i + 2);
+				i = fin < 0 ? n : fin + 2;
+				courant.append(' ');
+			}
+			else if (c == ';') {
+				ajouter(resultat, courant);
+				i++;
+			}
+			else {
+				if (c == '$' && !dollarSignale && DOLLAR.matcher(sql).region(i, n).lookingAt()) {
+					dollarSignale = true;
+					String debut = ESPACES.matcher(sql.substring(i, Math.min(n, i + 120))).replaceAll(" ");
+					constats.add(new Constat(REGLE_PROCEDURAL, extrait(debut)));
+				}
+				courant.append(c);
+				i++;
 			}
 		}
+		ajouter(resultat, courant);
 		return resultat;
+	}
+
+	private static void ajouter(List<String> resultat, StringBuilder courant) {
+		String instruction = ESPACES.matcher(courant.toString().toLowerCase(Locale.ROOT)).replaceAll(" ").trim();
+		courant.setLength(0);
+		if (!instruction.isEmpty()) {
+			resultat.add(instruction);
+		}
 	}
 
 	/** Sépare le corps d'un ALTER TABLE sur les virgules de premier niveau (une action par segment). */

@@ -106,6 +106,66 @@ class AnalyseurMigrationsTest {
 	}
 
 	@Test
+	void do_dollar_avec_drop_column_a_l_interieur() {
+		var c = analyser("DO $$ BEGIN ALTER TABLE x DROP COLUMN y; END $$;");
+		assertThat(c).extracting(Constat::regle).contains("sql-procedural-non-analysable");
+	}
+
+	@Test
+	void do_avec_guillemet_dollar_nomme() {
+		var c = analyser("do $corps$ begin drop table x; end $corps$;");
+		assertThat(c).extracting(Constat::regle).contains("sql-procedural-non-analysable");
+	}
+
+	@Test
+	void execute_drop_table_dans_une_chaine() {
+		var c = analyser("EXECUTE 'DROP TABLE x';");
+		assertThat(c).extracting(Constat::regle).contains("sql-procedural-non-analysable");
+	}
+
+	@Test
+	void create_function_est_non_analysable() {
+		var c = analyser("CREATE OR REPLACE FUNCTION f() RETURNS void AS $$ BEGIN DROP TABLE x; END $$ LANGUAGE plpgsql;");
+		assertThat(c).extracting(Constat::regle).contains("sql-procedural-non-analysable");
+		var c2 = analyser("create procedure p() language sql as 'select 1';");
+		assertThat(c2).extracting(Constat::regle).containsExactly("sql-procedural-non-analysable");
+	}
+
+	@Test
+	void fichier_simple_sans_procedural_aucun_constat() {
+		assertThat(analyser("CREATE TABLE a (id int);\nINSERT INTO a VALUES (1);")).isEmpty();
+	}
+
+	@Test
+	void double_tiret_dans_un_litteral_ne_cache_pas_le_drop() {
+		var c = analyser("INSERT INTO t VALUES ('a--b'); DROP TABLE x;");
+		assertThat(c).extracting(Constat::regle).containsExactly("DROP TABLE");
+	}
+
+	@Test
+	void debut_de_commentaire_bloc_dans_un_litteral_ne_cache_pas_le_drop() {
+		var c = analyser("INSERT INTO t VALUES ('a/*b'); DROP TABLE x; INSERT INTO t VALUES ('*/');");
+		assertThat(c).extracting(Constat::regle).containsExactly("DROP TABLE");
+	}
+
+	@Test
+	void apostrophe_doublee_et_double_tiret_dans_un_litteral() {
+		assertThat(analyser("INSERT INTO t VALUES ('it''s -- ok');")).isEmpty();
+		var c = analyser("INSERT INTO t VALUES ('it''s -- ok'); DROP TABLE x;");
+		assertThat(c).extracting(Constat::regle).containsExactly("DROP TABLE");
+	}
+
+	@Test
+	void vrai_commentaire_de_ligne_reste_ignore() {
+		assertThat(analyser("INSERT INTO t VALUES (1);\n-- DROP TABLE x\nINSERT INTO t VALUES (2);")).isEmpty();
+	}
+
+	@Test
+	void point_virgule_dans_un_litteral_ne_coupe_pas() {
+		assertThat(analyser("INSERT INTO t VALUES ('a; DROP TABLE x');")).isEmpty();
+	}
+
+	@Test
 	void create_table_et_index_ok() {
 		var c = analyser("""
 				CREATE TABLE factures (id bigint primary key, montant numeric NOT NULL);
