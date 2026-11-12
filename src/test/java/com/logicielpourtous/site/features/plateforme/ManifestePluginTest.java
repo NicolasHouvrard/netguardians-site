@@ -51,6 +51,29 @@ class ManifestePluginTest {
 	}
 
 	@Test
+	void depuis_refuse_un_nom_qui_n_est_pas_un_identifiant_sur() {
+		for (String nom : List.of("Facturation", "factu-ration", "1facturation", "a;drop schema public", "a.b", "_a",
+				"a".repeat(41), "factur ation")) {
+			Properties p = completes();
+			p.setProperty("nom", nom);
+
+			assertThatThrownBy(() -> ManifestePlugin.depuis(p)).as(nom)
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("nom");
+		}
+	}
+
+	@Test
+	void depuis_accepte_un_nom_valide() {
+		for (String nom : List.of("a", "facturation_v2", "a".repeat(40), "x9")) {
+			Properties p = completes();
+			p.setProperty("nom", nom);
+
+			assertThat(ManifestePlugin.depuis(p).nom()).isEqualTo(nom);
+		}
+	}
+
+	@Test
 	void depuis_refuse_mise_a_jour_inconnue() {
 		Properties p = completes();
 		p.setProperty("mise-a-jour", "x");

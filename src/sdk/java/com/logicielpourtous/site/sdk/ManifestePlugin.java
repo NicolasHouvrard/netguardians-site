@@ -3,6 +3,7 @@ package com.logicielpourtous.site.sdk;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
+import java.util.regex.Pattern;
 
 /** Manifeste d'un plugin, lu depuis son fichier {@code plugin.properties}. */
 public record ManifestePlugin(
@@ -16,6 +17,9 @@ public record ManifestePlugin(
 		List<String> dependances,
 		List<String> tablesReferencees) {
 
+	/** Nom sûr : il sert tel quel dans {@code plugin_<nom>}, {@code flyway_schema_history_<nom>} et {@code /api/plugins/<nom>}. */
+	public static final Pattern NOM_VALIDE = Pattern.compile("^[a-z][a-z0-9_]{0,39}$");
+
 	public static ManifestePlugin depuis(Properties p) {
 		String miseAJour = obligatoire(p, "mise-a-jour");
 		ModeMiseAJour mode = switch (miseAJour.toLowerCase()) {
@@ -24,8 +28,14 @@ public record ManifestePlugin(
 			default -> throw new IllegalArgumentException(
 					"Valeur inconnue pour 'mise-a-jour' : " + miseAJour + " (attendu : chaud ou coeur)");
 		};
+		String nom = obligatoire(p, "nom");
+		if (!NOM_VALIDE.matcher(nom).matches()) {
+			throw new IllegalArgumentException("Nom de plugin invalide dans le manifeste : '" + nom
+					+ "' (attendu : " + NOM_VALIDE.pattern()
+					+ ", car le nom entre dans des noms de schéma et de table SQL et dans des URL)");
+		}
 		return new ManifestePlugin(
-				obligatoire(p, "nom"),
+				nom,
 				obligatoire(p, "version"),
 				obligatoire(p, "coeur-min"),
 				facultative(p, "coeur-max"),
