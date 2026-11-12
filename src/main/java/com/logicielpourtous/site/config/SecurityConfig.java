@@ -161,7 +161,7 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain angularApiFilterChain(HttpSecurity http) throws Exception {
         http
-            .securityMatcher("/api/auth/**", "/api/intra/**", "/api/espace/**")
+            .securityMatcher("/api/auth/**", "/api/intra/**", "/api/espace/**", "/api/plateforme/**", "/api/plugins/**")
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -170,6 +170,10 @@ public class SecurityConfig {
                 // Choix de la societe active : tout compte authentifie, y compris en attente de choix (seule
                 // route qu'ouvre le jeton de selection, voir JwtAuthenticationFilter).
                 .requestMatchers(HttpMethod.POST, JwtAuthenticationFilter.CHOIX_SOCIETE).authenticated()
+                // Plateforme de plugins : administration reservee a ADMIN ; API des plugins ouvertes a tout compte
+                // authentifie, sauf un jeton "choix de societe en attente".
+                .requestMatchers("/api/plateforme/**").hasRole("ADMIN")
+                .requestMatchers("/api/plugins/**").access(authentifieHorsSelection())
                 .requestMatchers("/api/intra/admin/**").hasRole("ADMIN")
                 // ESN_USER est une autorité synthétique posée par CustomUserDetails
                 // pour TOUS les rôles de type ESN (y compris les rôles custom par tenant).
@@ -177,6 +181,13 @@ public class SecurityConfig {
                 .requestMatchers("/api/espace/**").hasAnyRole("ADMIN","CLIENT","GESTIONNAIRE")
                 .anyRequest().access(authentifieHorsSelection())
             )
+            // API de la plateforme de plugins : 401 (et non redirection vers le login) sans jeton. Les autres routes
+            // de la chaine gardent leur comportement.
+            .exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(
+                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                new OrRequestMatcher(
+                    PathPatternRequestMatcher.pathPattern("/api/plateforme/**"),
+                    PathPatternRequestMatcher.pathPattern("/api/plugins/**"))))
             .addFilterBefore(
                 new JwtAuthenticationFilter(jwtTokenProvider, customUserDetailsService),
                 UsernamePasswordAuthenticationFilter.class
