@@ -32,8 +32,9 @@ public class DemarreurContexte {
 	}
 
 	/**
-	 * Applique les migrations du plugin dans son schéma {@code plugin_<nom>}. Une migration en échec est annulée par
-	 * PostgreSQL (DDL transactionnel) et l'exception de Flyway est propagée.
+	 * Applique les migrations du plugin dans son schéma {@code plugin_<nom>}. Les migrations en attente forment une
+	 * seule transaction : si l'une échoue, PostgreSQL (DDL transactionnel) les annule toutes et l'exception de Flyway
+	 * est propagée.
 	 */
 	public ResultatMigration migrer(PluginGeneration gen, ManifestePlugin m) {
 		Flyway flyway = Flyway.configure(gen.loader)
@@ -42,6 +43,9 @@ public class DemarreurContexte {
 			.createSchemas(true)
 			.table("flyway_schema_history_" + m.nom())
 			.locations("classpath:db/plugin/" + m.nom())
+			// Toutes les migrations en attente dans UNE transaction : une mise à jour qui en apporte plusieurs est
+			// appliquée en entier ou pas du tout (sinon les premières resteraient appliquées après un retour arrière).
+			.group(true)
 			.load();
 		MigrateResult resultat = flyway.migrate();
 		return new ResultatMigration(resultat.migrationsExecuted, resultat.targetSchemaVersion);
