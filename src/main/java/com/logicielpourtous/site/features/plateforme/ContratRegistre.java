@@ -34,7 +34,16 @@ public class ContratRegistre {
 	/** Renvoie toujours le même proxy pour un type donné. */
 	@SuppressWarnings("unchecked")
 	public <T> T obtenir(Class<T> type) {
+		verifierType(type);
 		return (T) proxies.computeIfAbsent(type, this::creerProxy);
+	}
+
+	/** Invariant : les types de contrat appartiennent au cœur ou au SDK, jamais à un plugin. */
+	private static void verifierType(Class<?> type) {
+		if (type.getClassLoader() instanceof PluginClassLoader) {
+			throw new IllegalArgumentException("Le type de contrat " + type.getName()
+					+ " est défini par un plugin : un contrat doit appartenir au cœur ou au SDK");
+		}
 	}
 
 	public void publier(Class<?> type, Object impl, PluginGeneration generation) {
@@ -57,19 +66,26 @@ public class ContratRegistre {
 					default -> throw new UnsupportedOperationException(methode.getName());
 				};
 			}
-			Fournisseur fournisseur = fournisseurs.get(type);
-			if (fournisseur == null) {
-				throw new ContratIndisponibleException(type.getName());
-			}
-			fournisseur.generation().enVol.incrementAndGet();
-			try {
-				return methode.invoke(fournisseur.impl(), args);
-			}
-			catch (InvocationTargetException e) {
-				throw e.getCause();
-			}
-			finally {
-				fournisseur.generation().enVol.decrementAndGet();
+			while (true) {
+				Fournisseur fournisseur = fournisseurs.get(type);
+				if (fournisseur == null) {
+					throw new ContratIndisponibleException(type.getName());
+				}
+				// On s'annonce AVANT de revérifier : un drainage qui voit enVol == 0 après retirer() est ainsi sûr
+				// qu'aucun appel ne partira vers cette génération.
+				fournisseur.generation().enVol.incrementAndGet();
+				try {
+					if (fournisseurs.get(type) != fournisseur) {
+						continue; // retiré ou remplacé entre-temps : on réessaie avec le fournisseur courant
+					}
+					return methode.invoke(fournisseur.impl(), args);
+				}
+				catch (InvocationTargetException e) {
+					throw e.getCause();
+				}
+				finally {
+					fournisseur.generation().enVol.decrementAndGet();
+				}
 			}
 		});
 	}
