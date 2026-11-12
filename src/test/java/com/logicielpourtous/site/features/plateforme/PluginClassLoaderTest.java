@@ -56,4 +56,32 @@ class PluginClassLoaderTest {
 		assertThat(jar).doesNotExist();
 	}
 
+	@Test
+	void close_libere_le_fichier_apres_ouverture_d_une_ressource() throws Exception {
+		Path jar = JarDePluginDeTest.creer(dossier, "a", "1", Map.of(), Map.of("V1__a.sql", "SELECT 1;"),
+				Map.of("x.Hello", source("jar")));
+		PluginClassLoader loader = new PluginClassLoader("a@1#1", jar.toUri().toURL(), getClass().getClassLoader());
+		URL url = loader.getResource("db/plugin/a/V1__a.sql");
+		try (java.io.InputStream in = url.openStream()) {
+			assertThat(new String(in.readAllBytes())).isEqualTo("SELECT 1;");
+		}
+		for (URL u : java.util.Collections.list(loader.getResources("db/plugin/a/V1__a.sql"))) {
+			u.openConnection().getInputStream().close();
+		}
+		loader.close();
+		Files.delete(jar);
+		assertThat(jar).doesNotExist();
+	}
+
+	@Test
+	void close_libere_le_fichier_apres_un_scan_spring() throws Exception {
+		Path jar = JarDePluginDeTest.creer(dossier, "a", "1", Map.of(), Map.of(), Map.of("x.Hello", source("jar")));
+		PluginClassLoader loader = new PluginClassLoader("a@1#1", jar.toUri().toURL(), getClass().getClassLoader());
+		var resolveur = new org.springframework.core.io.support.PathMatchingResourcePatternResolver(loader);
+		assertThat(resolveur.getResources("classpath*:x/**/*.class")).hasSize(1);
+		loader.close();
+		Files.delete(jar);
+		assertThat(jar).doesNotExist();
+	}
+
 }

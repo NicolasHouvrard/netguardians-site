@@ -70,12 +70,12 @@ class DemarreurContexteIT {
 		}
 	}
 
-	/** Un jar chargé reste parfois verrouillé sous Windows : suppression au mieux, sans faire échouer le test. */
-	private void supprimerDossier() {
+	/** Après fermeture des contextes et des chargeurs, chaque copie de jar doit pouvoir être supprimée (pas de fuite). */
+	private void supprimerDossier() throws java.io.IOException {
 		try (java.util.stream.Stream<Path> s = Files.walk(dossier)) {
-			s.sorted(java.util.Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
-		}
-		catch (java.io.IOException ignore) {
+			for (Path p : s.sorted(java.util.Comparator.reverseOrder()).toList()) {
+				Files.delete(p);
+			}
 		}
 	}
 

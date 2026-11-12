@@ -2,6 +2,8 @@ package com.logicielpourtous.site.features.plateforme;
 
 import java.io.IOException;
 import java.net.URL;
+import java.net.URLConnection;
+import java.net.URLStreamHandler;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -60,6 +62,45 @@ public class PluginClassLoader extends URLClassLoader {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Les URL {@code jar:} du plugin sont rendues sans cache : par défaut, {@code JarURLConnection} garde le
+	 * {@code JarFile} ouvert dans un cache global de la JVM que {@link #close()} ne libère pas, ce qui verrouille le
+	 * jar (Windows) ou fuit un descripteur (Linux). Sans cache, chaque connexion ouvre et ferme son propre JarFile.
+	 * Seules les URL de ce chargeur sont concernées, le cache global de la JVM reste inchangé.
+	 */
+	@Override
+	public URL findResource(String nom) {
+		return sansCache(super.findResource(nom));
+	}
+
+	@Override
+	public Enumeration<URL> findResources(String nom) throws IOException {
+		List<URL> urls = new ArrayList<>();
+		for (URL url : Collections.list(super.findResources(nom))) {
+			urls.add(sansCache(url));
+		}
+		return Collections.enumeration(urls);
+	}
+
+	private static URL sansCache(URL url) {
+		if (url == null || !"jar".equals(url.getProtocol())) {
+			return url;
+		}
+		try {
+			return URL.of(url.toURI(), new URLStreamHandler() {
+				@Override
+				protected URLConnection openConnection(URL u) throws IOException {
+					URLConnection connexion = new URL(u.toExternalForm()).openConnection();
+					connexion.setUseCaches(false);
+					return connexion;
+				}
+			});
+		}
+		catch (java.net.URISyntaxException | java.net.MalformedURLException e) {
+			throw new IllegalStateException("URL de ressource invalide : " + url, e);
+		}
 	}
 
 	@Override
