@@ -293,4 +293,51 @@ class RoutagePluginsTest {
 		assertThat(gen.enVol.get()).isZero();
 	}
 
+	@Test
+	void ecouteur_async_ne_decremente_qu_a_on_complete_et_une_seule_fois() throws Exception {
+		PluginGeneration gen = demarrerGeneration("1.0.0");
+		routage.router("testnotes", gen);
+		org.springframework.test.web.servlet.MvcResult resultat = mvc
+			.perform(get("/api/plugins/testnotes/notes/async").param("ms", "100"))
+			.andReturn();
+		assertThat(gen.enVol.get()).isEqualTo(1);
+		org.springframework.mock.web.MockAsyncContext contexte = (org.springframework.mock.web.MockAsyncContext) resultat
+			.getRequest()
+			.getAsyncContext();
+		jakarta.servlet.AsyncListener ecouteur = contexte.getListeners()
+			.stream()
+			.filter(l -> l instanceof FiltreEnVol.EcouteurFinAsync)
+			.findFirst()
+			.orElseThrow();
+		jakarta.servlet.AsyncEvent evenement = new jakarta.servlet.AsyncEvent(contexte);
+		TenantContext.setCurrentTenant("schema_en_cours");
+
+		ecouteur.onTimeout(evenement);
+		ecouteur.onError(evenement);
+
+		assertThat(gen.enVol.get()).isEqualTo(1);
+		assertThat(TenantContext.getCurrentTenant()).isEqualTo("schema_en_cours");
+
+		ecouteur.onComplete(evenement);
+		ecouteur.onComplete(evenement);
+
+		assertThat(gen.enVol.get()).isZero();
+		assertThat(TenantContext.getCurrentTenant()).isNull();
+	}
+
+	@Test
+	void cycle_async_deja_termine_a_l_enregistrement_decremente_tout_de_suite() throws Exception {
+		PluginGeneration gen = demarrerGeneration("1.0.0");
+		// Cycle deja termine : comme un conteneur reel, getAsyncContext() leve IllegalStateException.
+		org.springframework.mock.web.MockHttpServletRequest requete = new org.springframework.mock.web.MockHttpServletRequest(
+				"GET", "/api/plugins/testnotes/notes") {
+			@Override
+			public jakarta.servlet.AsyncContext getAsyncContext() {
+				throw new IllegalStateException("cycle asynchrone termine");
+			}
+		};
+
+		assertThat(FiltreEnVol.differerJusquALaFinAsynchrone(requete, gen)).isFalse();
+	}
+
 }

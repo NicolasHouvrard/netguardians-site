@@ -84,42 +84,56 @@ public class FiltreEnVol extends OncePerRequestFilter {
 	 * Reporte le décrément à la fin du cycle asynchrone. Renvoie {@code false} si le cycle s'est déjà terminé entre-temps
 	 * (l'appelant décrémente alors lui-même).
 	 */
-	private static boolean differerJusquALaFinAsynchrone(HttpServletRequest requete, PluginGeneration gen) {
-		AtomicBoolean fait = new AtomicBoolean();
-		Runnable fin = () -> {
-			if (fait.compareAndSet(false, true)) {
-				gen.enVol.decrementAndGet();
-				TenantContext.clear();
-			}
-		};
+	static boolean differerJusquALaFinAsynchrone(HttpServletRequest requete, PluginGeneration gen) {
 		try {
-			requete.getAsyncContext().addListener(new AsyncListener() {
-				@Override
-				public void onComplete(AsyncEvent event) {
-					fin.run();
-				}
-
-				@Override
-				public void onTimeout(AsyncEvent event) {
-					fin.run();
-				}
-
-				@Override
-				public void onError(AsyncEvent event) {
-					fin.run();
-				}
-
-				@Override
-				public void onStartAsync(AsyncEvent event) {
-					// Un nouveau cycle asynchrone réutilise le même écouteur.
-					event.getAsyncContext().addListener(this);
-				}
-			});
+			requete.getAsyncContext().addListener(new EcouteurFinAsync(gen));
 			return true;
 		}
 		catch (IllegalStateException dejaTermine) {
 			return false;
 		}
+	}
+
+	/**
+	 * Décrémente {@code enVol} et nettoie le {@link TenantContext} uniquement à {@code onComplete}, que le conteneur
+	 * déclenche toujours en fin de cycle (y compris après un timeout ou une erreur). Sur timeout ou erreur, Spring
+	 * (dont l'écouteur passe avant le nôtre) exécute encore les rappels du plugin puis redistribue : la requête reste
+	 * donc en vol jusqu'à {@code onComplete}.
+	 */
+	static final class EcouteurFinAsync implements AsyncListener {
+
+		private final PluginGeneration gen;
+
+		private final AtomicBoolean fait = new AtomicBoolean();
+
+		EcouteurFinAsync(PluginGeneration gen) {
+			this.gen = gen;
+		}
+
+		@Override
+		public void onComplete(AsyncEvent event) {
+			if (fait.compareAndSet(false, true)) {
+				gen.enVol.decrementAndGet();
+				TenantContext.clear();
+			}
+		}
+
+		@Override
+		public void onTimeout(AsyncEvent event) {
+			// Volontairement rien : onComplete suivra.
+		}
+
+		@Override
+		public void onError(AsyncEvent event) {
+			// Volontairement rien : onComplete suivra.
+		}
+
+		@Override
+		public void onStartAsync(AsyncEvent event) {
+			// Un nouveau cycle asynchrone réutilise le même écouteur.
+			event.getAsyncContext().addListener(this);
+		}
+
 	}
 
 }
