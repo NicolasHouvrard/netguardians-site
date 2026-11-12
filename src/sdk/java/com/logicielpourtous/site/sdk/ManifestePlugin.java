@@ -20,6 +20,15 @@ public record ManifestePlugin(
 	/** Nom sûr : il sert tel quel dans {@code plugin_<nom>}, {@code flyway_schema_history_<nom>} et {@code /api/plugins/<nom>}. */
 	public static final Pattern NOM_VALIDE = Pattern.compile("^[a-z][a-z0-9_]{0,39}$");
 
+	/** Le nom est validé quelle que soit la façon de construire le manifeste (il entre dans du SQL et des URL). */
+	public ManifestePlugin {
+		if (nom == null || !NOM_VALIDE.matcher(nom).matches()) {
+			throw new IllegalArgumentException("Nom de plugin invalide dans le manifeste : '" + nom
+					+ "' (attendu : " + NOM_VALIDE.pattern()
+					+ ", car le nom entre dans des noms de schéma et de table SQL et dans des URL)");
+		}
+	}
+
 	public static ManifestePlugin depuis(Properties p) {
 		String miseAJour = obligatoire(p, "mise-a-jour");
 		ModeMiseAJour mode = switch (miseAJour.toLowerCase()) {
@@ -28,14 +37,8 @@ public record ManifestePlugin(
 			default -> throw new IllegalArgumentException(
 					"Valeur inconnue pour 'mise-a-jour' : " + miseAJour + " (attendu : chaud ou coeur)");
 		};
-		String nom = obligatoire(p, "nom");
-		if (!NOM_VALIDE.matcher(nom).matches()) {
-			throw new IllegalArgumentException("Nom de plugin invalide dans le manifeste : '" + nom
-					+ "' (attendu : " + NOM_VALIDE.pattern()
-					+ ", car le nom entre dans des noms de schéma et de table SQL et dans des URL)");
-		}
 		return new ManifestePlugin(
-				nom,
+				obligatoire(p, "nom"),
 				obligatoire(p, "version"),
 				obligatoire(p, "coeur-min"),
 				facultative(p, "coeur-max"),

@@ -21,6 +21,9 @@ public class ContratRegistre {
 
 	private final Map<Class<?>, Object> proxies = new ConcurrentHashMap<>();
 
+	/** Générations démarrées qui peuvent fournir des contrats (voir {@link #activer}). */
+	private final Set<PluginGeneration> actives = ConcurrentHashMap.newKeySet();
+
 	/** Déclare un contrat (sans fournisseur pour l'instant). */
 	public void declarer(Class<?> type) {
 		obtenir(type);
@@ -51,9 +54,60 @@ public class ContratRegistre {
 		fournisseurs.put(type, new Fournisseur(impl, generation));
 	}
 
+	/**
+	 * Déclare une génération démarrée comme fournisseur potentiel : ses beans qui implémentent un contrat déjà connu
+	 * sont publiés tout de suite, et un contrat demandé plus tard sera cherché parmi les générations actives (le
+	 * fournisseur peut donc démarrer avant que quiconque ait demandé le type).
+	 */
+	public synchronized void activer(PluginGeneration generation) {
+		actives.add(generation);
+		for (Class<?> type : proxies.keySet()) {
+			Object impl = chercher(type, generation);
+			if (impl != null) {
+				fournisseurs.put(type, new Fournisseur(impl, generation));
+			}
+		}
+	}
+
 	/** Retire les fournisseurs de cette génération seulement (pas ceux d'une génération plus récente). */
-	public void retirer(PluginGeneration generation) {
+	public synchronized void retirer(PluginGeneration generation) {
+		actives.remove(generation);
 		fournisseurs.entrySet().removeIf(e -> e.getValue().generation() == generation);
+	}
+
+	/**
+	 * Cherche un fournisseur du type parmi les générations actives (la plus récente d'abord) et le publie. Verrou commun
+	 * avec {@link #retirer} : une génération retirée ne peut pas être republiée après coup (son drainage serait faux).
+	 */
+	private synchronized Fournisseur resoudre(Class<?> type) {
+		Fournisseur courant = fournisseurs.get(type);
+		if (courant != null) {
+			return courant;
+		}
+		PluginGeneration choisie = null;
+		Object impl = null;
+		for (PluginGeneration gen : actives) {
+			Object candidat = chercher(type, gen);
+			if (candidat != null && (choisie == null || gen.seq > choisie.seq)) {
+				choisie = gen;
+				impl = candidat;
+			}
+		}
+		if (choisie == null) {
+			return null;
+		}
+		Fournisseur f = new Fournisseur(impl, choisie);
+		fournisseurs.put(type, f);
+		return f;
+	}
+
+	/** Premier bean du type défini dans le contexte propre de la génération (pas dans le cœur), ou {@code null}. */
+	private static Object chercher(Class<?> type, PluginGeneration generation) {
+		var contexte = generation.contexte;
+		if (contexte == null || !contexte.isActive()) {
+			return null;
+		}
+		return contexte.getBeanFactory().getBeansOfType(type, false, false).values().stream().findFirst().orElse(null);
 	}
 
 	private Object creerProxy(Class<?> type) {
@@ -68,6 +122,9 @@ public class ContratRegistre {
 			}
 			while (true) {
 				Fournisseur fournisseur = fournisseurs.get(type);
+				if (fournisseur == null) {
+					fournisseur = resoudre(type);
+				}
 				if (fournisseur == null) {
 					throw new ContratIndisponibleException(type.getName());
 				}

@@ -36,6 +36,45 @@ class LecteurManifesteTest {
 		assertThat(migrations.get("V1__init.sql")).isEqualTo("CREATE TABLE t (id int);");
 	}
 
+	private Path jarAvecMigrations(Map<String, String> migrations) {
+		return JarDePluginDeTest.creer(dossier, "facturation", "1.2.0",
+				Map.of("coeur-min", "0.0.1", "mise-a-jour", "chaud", "paquet", "com.exemple", "configuration",
+						"com.exemple.Config"),
+				migrations);
+	}
+
+	@Test
+	void migration_repetable_refusee() {
+		Path jar = jarAvecMigrations(Map.of("V1__init.sql", "CREATE TABLE t (id int);", "R__vues.sql",
+				"CREATE OR REPLACE VIEW v AS SELECT 1;"));
+
+		assertThatThrownBy(() -> LecteurManifeste.migrations(jar, "facturation"))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("R__vues.sql");
+	}
+
+	@Test
+	void migration_dans_un_sous_dossier_refusee() {
+		Path jar = jarAvecMigrations(
+				Map.of("V1__init.sql", "CREATE TABLE t (id int);", "x/V3__drop.sql", "DROP TABLE t;"));
+
+		assertThatThrownBy(() -> LecteurManifeste.migrations(jar, "facturation"))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("x/V3__drop.sql");
+	}
+
+	@Test
+	void migrations_annulation_et_ligne_de_base_refusees() {
+		for (String fichier : java.util.List.of("U2__annule.sql", "B1__base.sql", "V2_sans_double_tiret.sql",
+				"beforeMigrate.sql")) {
+			Path jar = jarAvecMigrations(Map.of("V1__init.sql", "CREATE TABLE t (id int);", fichier, "SELECT 1;"));
+
+			assertThatThrownBy(() -> LecteurManifeste.migrations(jar, "facturation")).as(fichier)
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining(fichier);
+		}
+	}
+
 	@Test
 	void jar_sans_plugin_properties_refuse_proprement() throws IOException {
 		Path sans = dossier.resolve("vide.jar");

@@ -99,7 +99,17 @@ public class PluginManager {
 	 * l'ordre alphabétique).
 	 */
 	@EventListener(ApplicationReadyEvent.class)
-	public void demarrer() {
+	public synchronized void demarrer() {
+		// Une exception qui sortirait de cet écouteur arrêterait l'application : rien ne doit s'échapper.
+		try {
+			demarrerTousLesJars();
+		}
+		catch (Throwable e) {
+			log.error("Démarrage des plugins interrompu : le cœur continue sans les plugins restants", e);
+		}
+	}
+
+	private void demarrerTousLesJars() {
 		Path repertoire = repertoire();
 		if (!Files.isDirectory(repertoire)) {
 			log.info("Répertoire des plugins absent ({}) : aucun plugin à démarrer", repertoire);
@@ -126,7 +136,7 @@ public class PluginManager {
 				try {
 					r = installer(jar);
 				}
-				catch (RuntimeException e) {
+				catch (Throwable e) {
 					log.error("Démarrage du plugin {} impossible", jar.getFileName(), e);
 					r = new ResultatInstallation(Statut.ECHEC, null, null, List.of(messageRacine(e)), 0);
 				}
@@ -203,20 +213,38 @@ public class PluginManager {
 		return true;
 	}
 
+	/**
+	 * Une erreur de la machine virtuelle (mémoire, pile) n'est pas un échec du plugin : elle est propagée après
+	 * nettoyage. Toute autre erreur ({@code NoClassDefFoundError}, {@code LinkageError}... fréquentes avec un jar de
+	 * plugin) est traitée comme un échec de la version.
+	 */
+	private static void propagerSiFatale(Throwable e) {
+		if (e instanceof VirtualMachineError fatale) {
+			throw fatale;
+		}
+	}
+
 	private ResultatInstallation premiereInstallation(Path jar, Path copie, ManifestePlugin m) {
 		PluginGeneration gen = new PluginGeneration(m.nom(), m.version(), copie);
 		gen.source = jar.toAbsolutePath();
+		boolean active = false;
 		try {
 			demarrerGeneration(gen, m);
+			basculer(gen, m);
+			active = true;
+			log.info("Plugin {} installé", gen.etiquette());
+			return new ResultatInstallation(Statut.OK, m.nom(), m.version(), List.of(), 0);
 		}
-		catch (Exception e) {
+		catch (Throwable e) {
+			propagerSiFatale(e);
 			log.error("Première installation de {} en échec", gen.etiquette(), e);
-			fermer(gen, true);
 			return new ResultatInstallation(Statut.ECHEC, m.nom(), m.version(), List.of(messageRacine(e)), 0);
 		}
-		basculer(gen, m);
-		log.info("Plugin {} installé", gen.etiquette());
-		return new ResultatInstallation(Statut.OK, m.nom(), m.version(), List.of(), 0);
+		finally {
+			if (!active) {
+				fermer(gen, true); // aucune génération à demi démarrée, copie supprimée
+			}
+		}
 	}
 
 	/** Port de {@code deployMaintenance} du prototype (stratégie maintenance seulement). */
@@ -224,7 +252,7 @@ public class PluginManager {
 		String nom = m.nom();
 		ManifestePlugin manifesteAncien = manifestes.get(nom);
 		long debut = System.nanoTime();
-		Statut statut;
+		Statut statut = Statut.ECHEC;
 		List<String> raisons = new ArrayList<>();
 		routage.maintenance(nom, true); // à partir d'ici : 503 + Retry-After sur /api/plugins/<nom>/**
 		try {
@@ -241,17 +269,26 @@ public class PluginManager {
 
 			PluginGeneration gen = new PluginGeneration(nom, m.version(), copie);
 			gen.source = jar.toAbsolutePath();
+			boolean nouvelleActive = false;
 			try {
 				demarrerGeneration(gen, m);
 				basculer(gen, m);
+				nouvelleActive = true;
 				statut = Statut.OK;
 				log.info("Plugin {} mis à jour vers {}", ancienne.etiquette(), gen.etiquette());
 			}
-			catch (Exception e) {
+			catch (Throwable e) {
+				propagerSiFatale(e);
 				log.error("Mise à jour de {} vers {} en échec : retour à l'ancienne version", ancienne.etiquette(),
 						gen.etiquette(), e);
-				fermer(gen, true);
 				raisons.add(messageRacine(e));
+			}
+			finally {
+				if (!nouvelleActive) {
+					fermer(gen, true);
+				}
+			}
+			if (!nouvelleActive) {
 				statut = relancer(ancienne, manifesteAncien, raisons);
 			}
 		}
@@ -266,22 +303,27 @@ public class PluginManager {
 	/** Relance l'ancienne version depuis sa copie de travail conservée : {@code ANNULE}, ou {@code ECHEC} si ça rate. */
 	private Statut relancer(PluginGeneration ancienne, ManifestePlugin m, List<String> raisons) {
 		PluginGeneration retour = null;
+		boolean relancee = false;
 		try {
 			Path copie = copier(ancienne.jarCopie, m);
 			retour = new PluginGeneration(m.nom(), m.version(), copie);
 			retour.source = ancienne.source;
 			demarrerGeneration(retour, m);
 			basculer(retour, m);
+			relancee = true;
 			log.warn("Plugin {} relancé après l'échec de la mise à jour", retour.etiquette());
 			return Statut.ANNULE;
 		}
-		catch (Exception e) {
+		catch (Throwable e) {
+			propagerSiFatale(e);
 			log.error("Retour arrière de {} impossible : le plugin n'est plus actif", ancienne.etiquette(), e);
-			if (retour != null) {
-				fermer(retour, true);
-			}
 			raisons.add("Retour arrière impossible : " + messageRacine(e));
 			return Statut.ECHEC;
+		}
+		finally {
+			if (!relancee && retour != null) {
+				fermer(retour, true);
+			}
 		}
 	}
 
@@ -294,12 +336,12 @@ public class PluginManager {
 		RoutagePlugins.creerMapping(gen);
 	}
 
-	/** Publie les contrats fournis par la génération, puis la rend active et routée. */
+	/**
+	 * Déclare la génération au registre de contrats (publication immédiate des contrats déjà connus, résolution
+	 * paresseuse des autres), puis la rend active et routée.
+	 */
 	private void basculer(PluginGeneration gen, ManifestePlugin m) {
-		for (Class<?> type : contrats.types()) {
-			Map<String, ?> impls = gen.contexte.getBeanFactory().getBeansOfType(type, false, false);
-			impls.values().stream().findFirst().ifPresent(impl -> contrats.publier(type, impl, gen));
-		}
+		contrats.activer(gen);
 		actifs.put(m.nom(), gen);
 		manifestes.put(m.nom(), m);
 		routage.router(m.nom(), gen);
@@ -333,6 +375,9 @@ public class PluginManager {
 	 * nettoyage des caches, fermeture du chargeur, copie du jar supprimée (si demandé), références coupées.
 	 */
 	private void fermer(PluginGeneration gen, boolean supprimerJar) {
+		if (actifs.remove(gen.nom, gen)) {
+			manifestes.remove(gen.nom); // échec après une bascule partielle
+		}
 		routage.retirerRoute(gen.nom, gen);
 		contrats.retirer(gen);
 		ConfigurableApplicationContext contexte = gen.contexte;
@@ -395,7 +440,7 @@ public class PluginManager {
 	}
 
 	/** Supprime les copies laissées par un arrêt brutal (au démarrage, aucune n'est chargée). */
-	private void purgerTravail() {
+	private synchronized void purgerTravail() {
 		Path travail = repertoire().resolve(TRAVAIL);
 		if (!Files.isDirectory(travail)) {
 			return;

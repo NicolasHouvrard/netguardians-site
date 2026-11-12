@@ -146,6 +146,59 @@ class ContratRegistreTest {
 		};
 	}
 
+	/** Génération dont le contexte (démarré) contient un bean {@link Salut} répondant {@code prefixe + nom}. */
+	private static PluginGeneration generationActive(String nom, String prefixe) {
+		PluginGeneration gen = generation(nom);
+		org.springframework.context.support.GenericApplicationContext ctx = new org.springframework.context.support.GenericApplicationContext();
+		ctx.registerBean(Salut.class, () -> n -> prefixe + n);
+		ctx.refresh();
+		gen.contexte = ctx;
+		return gen;
+	}
+
+	@Test
+	void fournisseur_active_avant_toute_demande_du_type_est_resolu() {
+		PluginGeneration gen = generationActive("a", "bonjour ");
+		registre.activer(gen);
+
+		Salut proxy = registre.obtenir(Salut.class);
+
+		assertThat(proxy.dire("x")).isEqualTo("bonjour x");
+		assertThat(gen.enVol.get()).isZero();
+	}
+
+	@Test
+	void fournisseur_active_apres_la_demande_du_type_est_publie() {
+		Salut proxy = registre.obtenir(Salut.class);
+		registre.activer(generationActive("a", "bonjour "));
+
+		assertThat(proxy.dire("x")).isEqualTo("bonjour x");
+	}
+
+	@Test
+	void generation_activee_puis_retiree_n_est_plus_resolue() {
+		PluginGeneration gen = generationActive("a", "bonjour ");
+		registre.activer(gen);
+		registre.retirer(gen);
+
+		Salut proxy = registre.obtenir(Salut.class);
+
+		assertThatThrownBy(() -> proxy.dire("x")).isInstanceOf(ContratIndisponibleException.class);
+	}
+
+	@Test
+	void remplacement_d_une_generation_activee_avant_la_demande() {
+		PluginGeneration ancienne = generationActive("a", "ancien ");
+		registre.activer(ancienne);
+		Salut proxy = registre.obtenir(Salut.class);
+		assertThat(proxy.dire("x")).isEqualTo("ancien x");
+
+		registre.retirer(ancienne);
+		registre.activer(generationActive("b", "nouveau "));
+
+		assertThat(proxy.dire("x")).isEqualTo("nouveau x");
+	}
+
 	@Test
 	void compteur_en_vol_revient_a_zero_apres_appel_qui_leve() {
 		PluginGeneration gen = generation("a");

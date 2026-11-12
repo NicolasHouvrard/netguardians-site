@@ -82,7 +82,33 @@ class PluginManagerIT {
 
 	private PluginManager manager;
 
+	private ContratRegistre contrats;
+
+	private DemarreurPiege demarreur;
+
 	private MockMvc mvc;
+
+	/** Démarreur qui lève une erreur choisie au démarrage du contexte d'une version donnée. */
+	static class DemarreurPiege extends DemarreurContexte {
+
+		volatile String versionPiegee;
+
+		volatile Error erreur;
+
+		DemarreurPiege(javax.sql.DataSource ds, org.springframework.context.ApplicationContext coeur) {
+			super(ds, coeur);
+		}
+
+		@Override
+		public org.springframework.context.ConfigurableApplicationContext demarrer(PluginGeneration gen,
+				com.logicielpourtous.site.sdk.ManifestePlugin m) {
+			if (gen.version.equals(versionPiegee)) {
+				throw erreur;
+			}
+			return super.demarrer(gen, m);
+		}
+
+	}
 
 	@BeforeEach
 	void preparer() throws Exception {
@@ -108,8 +134,9 @@ class PluginManagerIT {
 		proprietes.setRepertoirePlugins(repertoirePlugins.toString());
 		proprietes.setVersionCoeur("1.0.0");
 		proprietes.setDelaiDrainageMs(10_000);
-		manager = new PluginManager(proprietes, new DemarreurContexte(ds, coeur), routage, new ContratRegistre(),
-				new ReferencesEntrantes(ds), ds);
+		contrats = new ContratRegistre();
+		demarreur = new DemarreurPiege(ds, coeur);
+		manager = new PluginManager(proprietes, demarreur, routage, contrats, new ReferencesEntrantes(ds), ds);
 		mvc = MockMvcBuilders.webAppContextSetup(coeur).addFilters(new FiltreEnVol(routage)).build();
 	}
 
@@ -138,6 +165,27 @@ class PluginManagerIT {
 	private void nettoyerBase() {
 		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testnotes CASCADE");
 		jdbc.execute("DROP SCHEMA IF EXISTS plugin_dependant CASCADE");
+		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testfourni CASCADE");	}
+
+	/** Plugin « testfourni » sans table, dont un bean implémente {@link ContratDeTest} (réponse « v<version> nom »). */
+	private Path pluginFournisseur(String version) {
+		return JarDePluginDeTest.creer(dossier.resolve("fourni-" + version), "testfourni", version,
+				Map.of("coeur-min", "0.0.0", "mise-a-jour", "chaud", "paquet", "fourni", "configuration",
+						"fourni.FourniConfiguration"),
+				Map.of(),
+				Map.of("fourni.FourniConfiguration", """
+						package fourni;
+						@org.springframework.context.annotation.Configuration
+						@org.springframework.context.annotation.ComponentScan("fourni")
+						public class FourniConfiguration {
+						}
+						""", "fourni.Salueur", """
+						package fourni;
+						@org.springframework.stereotype.Component
+						public class Salueur implements com.logicielpourtous.site.features.plateforme.ContratDeTest {
+						    public String saluer(String nom) { return "v%s " + nom; }
+						}
+						""".formatted(version)));
 	}
 
 	/** Suppression réelle (pas « au mieux ») : un jar encore verrouillé ferait échouer le test. */
@@ -477,6 +525,83 @@ class PluginManagerIT {
 		assertThat(ancienne.raisons()).anyMatch(raison -> raison.contains("testnotes") && raison.contains("1.0.0"));
 		assertThat(manager.actifs()).containsOnlyKeys("testnotes");
 		assertThat(compter("SELECT count(*) FROM pg_namespace WHERE nspname = 'plugin_dependant'")).isZero();
+	}
+
+	@Test
+	void contrat_fourni_avant_toute_demande_puis_mis_a_jour_a_chaud() throws Exception {
+		installerOk(pluginFournisseur("1.0.0"));
+
+		// Consommateur arrivé après le fournisseur : personne n'avait demandé le type avant l'installation.
+		ContratDeTest proxy = contrats.obtenir(ContratDeTest.class);
+
+		assertThat(proxy.saluer("x")).isEqualTo("v1.0.0 x");
+
+		installerOk(pluginFournisseur("1.1.0"));
+
+		assertThat(contrats.obtenir(ContratDeTest.class)).isSameAs(proxy);
+		assertThat(proxy.saluer("x")).isEqualTo("v1.1.0 x");
+		assertThat(manager.actifs().get("testfourni").enVol.get()).isZero();
+	}
+
+	@Test
+	void migration_hors_v_de_premier_niveau_refusee() throws Exception {
+		Path repetable = JarDePluginDeTest.pluginNotes(dossier.resolve("repetable"), "1.0.0",
+				Map.of("V1__note.sql", V1, "R__vues.sql", "CREATE OR REPLACE VIEW plugin_testnotes.v AS SELECT 1;"));
+		Path sousDossier = JarDePluginDeTest.pluginNotes(dossier.resolve("sous-dossier"), "1.0.0",
+				Map.of("V1__note.sql", V1, "x/V3__drop.sql", "DROP TABLE plugin_testnotes.note;"));
+
+		for (Path jar : List.of(repetable, sousDossier)) {
+			ResultatInstallation r = manager.installer(jar);
+
+			assertThat(r.statut()).isEqualTo(ResultatInstallation.Statut.REFUSE);
+			assertThat(r.raisons()).anyMatch(raison -> raison.contains("R__vues.sql") || raison.contains("x/V3__drop.sql"));
+		}
+		assertThat(manager.actifs()).isEmpty();
+		assertThat(copiesDeTravail()).isEmpty();
+		assertThat(compter("SELECT count(*) FROM pg_namespace WHERE nspname = 'plugin_testnotes'")).isZero();
+	}
+
+	@Test
+	void erreur_de_liaison_pendant_la_mise_a_jour_relance_l_ancienne_version() throws Exception {
+		installerOk(jarV1());
+		demarreur.versionPiegee = "1.1.0";
+		demarreur.erreur = new NoClassDefFoundError("classe/Simulee");
+
+		ResultatInstallation r = manager.installer(jarV2());
+
+		assertThat(r.statut()).isEqualTo(ResultatInstallation.Statut.ANNULE);
+		assertThat(r.raisons()).anyMatch(raison -> raison.contains("classe/Simulee"));
+		assertThat(routage.enMaintenance("testnotes")).isFalse();
+		assertThat(lister().getHeader("X-Plugin")).startsWith("testnotes@1.0.0#");
+		assertThat(copiesDeTravail()).hasSize(1);
+	}
+
+	@Test
+	void erreur_de_liaison_a_la_premiere_installation_nettoie_la_copie() throws Exception {
+		demarreur.versionPiegee = "1.0.0";
+		demarreur.erreur = new NoClassDefFoundError("classe/Simulee");
+
+		ResultatInstallation r = manager.installer(jarV1());
+
+		assertThat(r.statut()).isEqualTo(ResultatInstallation.Statut.ECHEC);
+		assertThat(manager.actifs()).isEmpty();
+		assertThat(copiesDeTravail()).isEmpty();
+	}
+
+	@Test
+	void erreur_inattendue_au_demarrage_ne_bloque_pas_les_autres_jars() throws Exception {
+		Files.createDirectories(repertoirePlugins);
+		Files.copy(jar("v0", "0.9.0", Map.of("V1__note.sql", V1)), repertoirePlugins.resolve("a-testnotes-0.9.0.jar"));
+		Files.copy(jarV1(), repertoirePlugins.resolve("b-testnotes-1.0.0.jar"));
+		demarreur.versionPiegee = "0.9.0";
+		demarreur.erreur = new AssertionError("erreur inattendue simulée");
+
+		manager.demarrer();
+
+		assertThat(manager.actifs()).containsOnlyKeys("testnotes");
+		assertThat(manager.actifs().get("testnotes").version).isEqualTo("1.0.0");
+		assertThat(lister().getStatus()).isEqualTo(200);
+		assertThat(copiesDeTravail()).hasSize(1);
 	}
 
 	@Test

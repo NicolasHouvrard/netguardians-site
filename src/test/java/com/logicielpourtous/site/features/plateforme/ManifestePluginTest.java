@@ -64,6 +64,17 @@ class ManifestePluginTest {
 	}
 
 	@Test
+	void constructeur_refuse_aussi_un_nom_invalide() {
+		assertThatThrownBy(() -> new ManifestePlugin("Mauvais-Nom", "1.0.0", "0.0.0", null, ModeMiseAJour.CHAUD, "p",
+				"p.C", List.of(), List.of()))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("Mauvais-Nom");
+		assertThatThrownBy(() -> new ManifestePlugin(null, "1.0.0", "0.0.0", null, ModeMiseAJour.CHAUD, "p", "p.C",
+				List.of(), List.of()))
+			.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
 	void depuis_accepte_un_nom_valide() {
 		for (String nom : List.of("a", "facturation_v2", "a".repeat(40), "x9")) {
 			Properties p = completes();

@@ -35,6 +35,13 @@ public class DemarreurContexte {
 	 * Applique les migrations du plugin dans son schéma {@code plugin_<nom>}. Les migrations en attente forment une
 	 * seule transaction : si l'une échoue, PostgreSQL (DDL transactionnel) les annule toutes et l'exception de Flyway
 	 * est propagée.
+	 * <p>
+	 * Conséquence de {@code group(true)} pour les auteurs de plugins : une instruction qui ne peut pas tourner dans une
+	 * transaction ({@code CREATE INDEX CONCURRENTLY}, {@code DROP INDEX CONCURRENTLY}, {@code REINDEX ... CONCURRENTLY},
+	 * {@code VACUUM}...) ne doit jamais être mélangée à des migrations transactionnelles dans un même lot en attente :
+	 * Flyway refuse alors le lot (« both transactional and non-transactional migrations ») et la mise à jour est
+	 * annulée (ANNULE, ancienne version relancée). Une telle migration doit être livrée seule, dans une version à elle,
+	 * et seule dans son fichier.
 	 */
 	public ResultatMigration migrer(PluginGeneration gen, ManifestePlugin m) {
 		Flyway flyway = Flyway.configure(gen.loader)
