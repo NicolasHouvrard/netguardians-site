@@ -28,6 +28,9 @@ public class RoutagePlugins implements HandlerMapping, Ordered {
 	/** Attribut de requête : génération annoncée par {@link FiltreEnVol} (celle qui sera réellement servie). */
 	static final String ATTRIBUT_GENERATION = RoutagePlugins.class.getName() + ".generation";
 
+	/** Valeur de l'attribut quand le filtre n'a trouvé aucune génération active : le routage répond 404. */
+	static final Object AUCUNE_GENERATION = new Object();
+
 	private static final HttpRequestHandler MAINTENANCE = (requete, reponse) -> {
 		reponse.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
 		reponse.setHeader("Retry-After", "2");
@@ -98,9 +101,11 @@ public class RoutagePlugins implements HandlerMapping, Ordered {
 		if (maintenance.contains(nom)) {
 			return new HandlerExecutionChain(MAINTENANCE);
 		}
-		// La génération comptée par le filtre prime : c'est elle qu'un drainage attend.
+		// Seule la génération annoncée (et donc comptée) par FiltreEnVol peut servir la requête : jamais de nouvelle
+		// consultation des routes ici, sinon une génération non comptée pourrait être drainée en pleine requête.
+		// Attribut absent ou AUCUNE_GENERATION : 404.
 		PluginGeneration gen = requete.getAttribute(ATTRIBUT_GENERATION) instanceof PluginGeneration annoncee
-				&& annoncee.nom.equals(nom) ? annoncee : routes.get(nom);
+				&& annoncee.nom.equals(nom) ? annoncee : null;
 		if (gen == null || gen.mapping == null) {
 			return null;
 		}

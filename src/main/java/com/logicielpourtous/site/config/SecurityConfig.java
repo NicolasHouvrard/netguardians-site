@@ -40,7 +40,11 @@ import com.logicielpourtous.site.features.sync.SecondaryServerRepository;
 import com.logicielpourtous.site.features.sync.SyncApiKeyAuthFilter;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.authentication.DelegatingAuthenticationEntryPoint;
+import org.springframework.security.web.authentication.Http403ForbiddenEntryPoint;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import java.util.LinkedHashMap;
 
 import java.util.List;
 import java.util.Set;
@@ -181,18 +185,27 @@ public class SecurityConfig {
                 .requestMatchers("/api/espace/**").hasAnyRole("ADMIN","CLIENT","GESTIONNAIRE")
                 .anyRequest().access(authentifieHorsSelection())
             )
-            // API de la plateforme de plugins : 401 (et non redirection vers le login) sans jeton. Les autres routes
-            // de la chaine gardent leur comportement.
-            .exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(
-                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
-                new OrRequestMatcher(
-                    PathPatternRequestMatcher.pathPattern("/api/plateforme/**"),
-                    PathPatternRequestMatcher.pathPattern("/api/plugins/**"))))
+            // 401 sans jeton pour les API de la plateforme de plugins uniquement. Toutes les autres routes de la
+            // chaine gardent le comportement precedent (Http403ForbiddenEntryPoint, 403) : le point d'entree par
+            // defaut est donc rendu explicite, car un delegue a un seul mapping serait applique a toute la chaine.
+            .exceptionHandling(ex -> ex.authenticationEntryPoint(pointEntreeAngularApi()))
             .addFilterBefore(
                 new JwtAuthenticationFilter(jwtTokenProvider, customUserDetailsService),
                 UsernamePasswordAuthenticationFilter.class
             );
         return http.build();
+    }
+
+    private static AuthenticationEntryPoint pointEntreeAngularApi() {
+        LinkedHashMap<RequestMatcher, AuthenticationEntryPoint> parChemin = new LinkedHashMap<>();
+        parChemin.put(
+            new OrRequestMatcher(
+                PathPatternRequestMatcher.pathPattern("/api/plateforme/**"),
+                PathPatternRequestMatcher.pathPattern("/api/plugins/**")),
+            new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED));
+        DelegatingAuthenticationEntryPoint delegue = new DelegatingAuthenticationEntryPoint(parChemin);
+        delegue.setDefaultEntryPoint(new Http403ForbiddenEntryPoint());
+        return delegue;
     }
 
     // ── Mobile REST API chain (stateless JWT) ─────────────────────────────────

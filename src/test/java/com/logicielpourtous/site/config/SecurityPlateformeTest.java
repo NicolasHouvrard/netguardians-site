@@ -61,6 +61,23 @@ class SecurityPlateformeTest {
         assertThat(statut).isNotIn(401, 403);
     }
 
+    @Test
+    void plugins_en_attente_de_choix_de_societe_refuse_403() throws Exception {
+        mockMvc.perform(get("/api/plugins/testnotes/notes")
+                        .with(user("en-attente").authorities(
+                                new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_SELECTION_SOCIETE"))))
+                .andExpect(status().isForbidden());
+    }
+
+    // Non-regression : le comportement sans jeton des routes EXISTANTES de la chaine ne change pas (403, comme avant
+    // l'ajout des API de plateforme), alors que les deux nouvelles familles repondent 401.
+    @Test
+    void routes_existantes_sans_jeton_gardent_leur_statut() throws Exception {
+        mockMvc.perform(get("/api/intra/customers")).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/espace/demandes")).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/auth/me")).andExpect(status().isForbidden());
+    }
+
     private CustomUserDetails compte(String role) {
         Tenant tenant = new Tenant();
         tenant.setName("Test Tenant");

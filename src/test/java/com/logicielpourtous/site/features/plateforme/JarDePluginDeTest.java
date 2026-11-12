@@ -142,6 +142,17 @@ public final class JarDePluginDeTest {
 			        Thread.sleep(ms);
 			        return "ok";
 			    }
+			    @GetMapping("/async")
+			    public org.springframework.web.context.request.async.DeferredResult<String> asynchrone(@RequestParam("ms") long ms) {
+			        org.springframework.web.context.request.async.DeferredResult<String> resultat = new org.springframework.web.context.request.async.DeferredResult<>();
+			        Thread t = new Thread(() -> {
+			            try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+			            resultat.setResult("ok");
+			        });
+			        t.setDaemon(true);
+			        t.start();
+			        return resultat;
+			    }
 			    @GetMapping("/boom")
 			    public String boom() { throw new RuntimeException("boom"); }
 			}

@@ -2,10 +2,12 @@ package com.logicielpourtous.site.features.plateforme;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.logicielpourtous.site.features.commun.TenantContext;
 import com.logicielpourtous.site.sdk.ManifestePlugin;
 import jakarta.servlet.ServletException;
 import java.io.InputStream;
@@ -235,6 +237,60 @@ class RoutagePluginsTest {
 		routage.router("testnotes", gen);
 
 		mvc.perform(get("/notes")).andExpect(status().isNotFound());
+	}
+
+	@Test
+	void sans_generation_annoncee_par_le_filtre_la_requete_n_est_jamais_servie() throws Exception {
+		PluginGeneration gen = demarrerGeneration("1.0.0");
+		routage.router("testnotes", gen);
+
+		// Fenetre de course : le filtre n'avait trouve aucune generation (marqueur), puis router() a lieu.
+		org.springframework.mock.web.MockHttpServletRequest marquee = new org.springframework.mock.web.MockHttpServletRequest(
+				"GET", "/api/plugins/testnotes/notes");
+		marquee.setAttribute(RoutagePlugins.ATTRIBUT_GENERATION, RoutagePlugins.AUCUNE_GENERATION);
+		assertThat(routage.getHandler(marquee)).isNull();
+
+		// Meme resultat sans aucun attribut : le routage ne consulte jamais lui-meme la table des routes.
+		assertThat(routage.getHandler(new org.springframework.mock.web.MockHttpServletRequest("GET",
+				"/api/plugins/testnotes/notes")))
+			.isNull();
+		assertThat(gen.enVol.get()).isZero();
+	}
+
+	@Test
+	void le_contexte_de_tenant_est_nettoye_apres_une_requete_de_plugin() throws Exception {
+		PluginGeneration gen = demarrerGeneration("1.0.0");
+		routage.router("testnotes", gen);
+
+		TenantContext.setCurrentTenant("schema_fuyant");
+		mvc.perform(get("/api/plugins/testnotes/notes")).andExpect(status().isOk());
+		assertThat(TenantContext.getCurrentTenant()).isNull();
+
+		TenantContext.setCurrentTenant("schema_fuyant");
+		assertThatThrownBy(() -> mvc.perform(get("/api/plugins/testnotes/notes/boom")))
+			.isInstanceOf(ServletException.class);
+		assertThat(TenantContext.getCurrentTenant()).isNull();
+	}
+
+	@Test
+	void en_vol_reste_a_un_pendant_un_traitement_asynchrone_puis_revient_a_zero() throws Exception {
+		PluginGeneration gen = demarrerGeneration("1.0.0");
+		routage.router("testnotes", gen);
+
+		org.springframework.test.web.servlet.MvcResult resultat = mvc
+			.perform(get("/api/plugins/testnotes/notes/async").param("ms", "300"))
+			.andReturn();
+
+		// Le premier dispatch est termine mais le traitement asynchrone est en cours : toujours en vol.
+		assertThat(resultat.getRequest().isAsyncStarted()).isTrue();
+		assertThat(gen.enVol.get()).isEqualTo(1);
+
+		resultat.getAsyncResult(10_000);
+		mvc.perform(asyncDispatch(resultat)).andExpect(status().isOk());
+		// Le conteneur termine le cycle asynchrone apres la redistribution.
+		resultat.getRequest().getAsyncContext().complete();
+
+		assertThat(gen.enVol.get()).isZero();
 	}
 
 }
