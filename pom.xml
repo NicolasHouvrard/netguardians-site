@@ -275,6 +275,23 @@
 					</excludes>
 				</configuration>
 			</plugin>
+			<!-- SDK partagé avec les plugins (aussi compilé seul dans plugins-sdk/) -->
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>build-helper-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>add-sdk-source</id>
+						<phase>generate-sources</phase>
+						<goals><goal>add-source</goal></goals>
+						<configuration>
+							<sources>
+								<source>src/sdk/java</source>
+							</sources>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 		<!-- ── Build Angular + copie dans le JAR ── -->
 		<plugin>
 			<groupId>com.github.eirslett</groupId>
