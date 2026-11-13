@@ -147,6 +147,12 @@ gemini.api-key=${GEMINI_API_KEY:CHANGEME}
 # ── Plateforme de plugins (voir docs/plateforme-plugins-local.md) ─────────────
 # Desactivee par defaut : sans app.plateforme.actif=true, aucun bean, aucune route
 # /api/plateforme/** ni /api/plugins/** n'est servie (le coeur se comporte comme avant).
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !! ATTENTION : les jars de plugins NE SONT PAS SIGNES (signature = sous-projet 2). Tout jar
+# !! depose dans le repertoire des plugins s'execute dans le processus du coeur avec TOUS les
+# !! privileges de la JVM (base, secrets, fichiers, reseau). Ne pas activer en production avant
+# !! la liste « Avant de l'activer en production » de docs/plateforme-plugins-local.md.
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 app.plateforme.actif=${PLATEFORME_ACTIF:false}
 # Repertoire des jars de plugins (relatif au repertoire de lancement, ou absolu). Chaque .jar
 # y est installe au demarrage ; un sous-dossier .work/ y recoit les copies chargees.
