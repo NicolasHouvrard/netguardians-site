@@ -140,6 +140,23 @@ class SignatureJarTest {
 	}
 
 	@Test
+	void raison_ne_garde_que_l_ascii_imprimable() throws Exception {
+		String b64 = extraireSignature(SignatureJar.signer(jar, paire.getPrivate(), "cle-1"));
+		String bs = "\\";
+		// RLO, espace de largeur nulle, NEL (C1), ESC, substitut isolé, lettre accentuée (hors ASCII)
+		for (String hex : List.of("202e", "200b", "0085", "001b", "d800", "00e9")) {
+			String echappe = bs + "u" + hex;
+			SignatureJar.Verdict v = SignatureJar.verifier(jar, "{\"keyId\":\"a" + echappe + "b\",\"algo\":\"Ed25519\","
+					+ "\"signature\":\"" + b64 + "\"}", cles());
+			assertThat(v.valide()).isFalse();
+			assertThat(v.raison()).as("keyId %s", hex).endsWith("clé inconnue : a?b");
+			SignatureJar.Verdict w = SignatureJar.verifier(jar, "{\"keyId\":\"cle-1\",\"algo\":\"a" + echappe
+					+ "b\",\"signature\":\"" + b64 + "\"}", cles());
+			assertThat(w.raison()).as("algo %s", hex).endsWith("algorithme non supporté : a?b");
+		}
+	}
+
+	@Test
 	void signature_d_une_autre_cle_sous_un_keyId_de_confiance_est_refusee() throws Exception {
 		KeyPair attaquant = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
 		String sig = SignatureJar.signer(jar, attaquant.getPrivate(), "cle-1");

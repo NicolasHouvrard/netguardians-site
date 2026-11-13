@@ -98,7 +98,7 @@ public final class SignatureJar {
 			return refus("jar illisible");
 		}
 		catch (IllegalArgumentException e) {
-			return refus("JSON invalide : " + net(e.getMessage()));
+			return refus("JSON invalide : " + e.getMessage());
 		}
 		catch (Exception | LinkageError e) {
 			return refus("vérification impossible : " + e.getClass().getSimpleName());
@@ -129,7 +129,7 @@ public final class SignatureJar {
 
 	private static final int LONGUEUR_MAX_ECHO = 64;
 
-	/** Texte venant de la signature : sans caractère de contrôle et tronqué, avant d'entrer dans une raison. */
+	/** Texte venant de la signature : ASCII imprimable seulement et tronqué, avant d'entrer dans une raison. */
 	static String net(String texte) {
 		if (texte == null) {
 			return "";
@@ -137,7 +137,8 @@ public final class SignatureJar {
 		StringBuilder sb = new StringBuilder();
 		for (int i = 0; i < texte.length() && sb.length() < LONGUEUR_MAX_ECHO; i++) {
 			char c = texte.charAt(i);
-			sb.append(c < 0x20 || c == 0x7f ? '?' : c);
+			// liste blanche : ASCII imprimable uniquement (le reste, y compris contrôles C1, bidi, substituts, devient ?)
+			sb.append(c >= 0x20 && c <= 0x7e ? c : '?');
 		}
 		return texte.length() > LONGUEUR_MAX_ECHO ? sb + "..." : sb.toString();
 	}
@@ -185,10 +186,10 @@ public final class SignatureJar {
 			blancs(json, pos);
 			String valeur = chaine(json, pos);
 			if (!nom.equals("keyId") && !nom.equals("algo") && !nom.equals("signature")) {
-				throw new IllegalArgumentException("champ inattendu : " + nom);
+				throw new IllegalArgumentException("champ inattendu : " + net(nom));
 			}
 			if (res.put(nom, valeur) != null) {
-				throw new IllegalArgumentException("champ dupliqué : " + nom);
+				throw new IllegalArgumentException("champ dupliqué : " + net(nom));
 			}
 		}
 		attendre(json, pos, '}');
