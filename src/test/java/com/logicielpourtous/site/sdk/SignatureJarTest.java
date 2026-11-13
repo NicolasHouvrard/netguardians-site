@@ -6,8 +6,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.stream.Stream;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,30 +70,101 @@ class SignatureJarTest {
 	@Test
 	void json_malforme_champs_manquants_ou_base64_invalide_sont_refuses_sans_exception() throws Exception {
 		String bonne = SignatureJar.signer(jar, paire.getPrivate(), "cle-1");
-		String b64 = bonne.replaceAll(".*\"signature\"\s*:\s*\"([^\"]*)\".*", "$1");
-		List<String> cas = List.of(
-				"", "   ", "{", "pas du json", "[]", "null", "{}",
-				"{\"keyId\":\"cle-1\",\"algo\":\"Ed25519\"}",
-				"{\"keyId\":\"cle-1\",\"signature\":\"" + b64 + "\"}",
-				"{\"algo\":\"Ed25519\",\"signature\":\"" + b64 + "\"}",
-				"{\"keyId\":\"cle-1\",\"algo\":\"Ed25519\",\"signature\":\"@@pas base64@@\"}",
-				"{\"keyId\":\"cle-1\",\"algo\":\"Ed25519\",\"signature\":\"\"}",
-				"{\"keyId\":\"cle-1\",\"algo\":\"Ed25519\",\"signature\":\"" + b64 + "\"} xx",
-				"{\"keyId\":\"cle-1\",\"keyId\":\"cle-1\",\"algo\":\"Ed25519\",\"signature\":\"" + b64 + "\"}",
-				"{\"keyId\":\"cle-1\",\"algo\":\"Ed25519\",\"signature\":\"" + b64 + "\",\"extra\":1}",
-				"{\"keyId\":1,\"algo\":\"Ed25519\",\"signature\":\"" + b64 + "\"}",
-				"{\"keyId\":\"cle-1\",\"algo\":\"Ed25519\",\"signature\":\"" + b64 + "\"");
-		for (String c : cas) {
-			SignatureJar.Verdict v = SignatureJar.verifier(jar, c, cles());
-			assertThat(v.valide()).as("cas : %s", c).isFalse();
-			assertThat(v.raison()).as("raison : %s", c).isNotBlank();
+		String b64 = extraireSignature(bonne);
+		String ok = "\"keyId\":\"cle-1\",\"algo\":\"Ed25519\"";
+		Map<String, String> cas = new LinkedHashMap<>();
+		cas.put("", "JSON tronqué");
+		cas.put("   ", "JSON tronqué");
+		cas.put("{", "JSON tronqué");
+		cas.put("pas du json", "JSON invalide");
+		cas.put("[]", "JSON invalide");
+		cas.put("null", "JSON invalide");
+		cas.put("{}", "JSON invalide");
+		cas.put("{" + ok + "}", "champ manquant");
+		cas.put("{\"keyId\":\"cle-1\",\"signature\":\"" + b64 + "\"}", "champ manquant");
+		cas.put("{\"algo\":\"Ed25519\",\"signature\":\"" + b64 + "\"}", "champ manquant");
+		cas.put("{" + ok + ",\"signature\":\"@@pas base64@@\"}", "base64 invalide");
+		cas.put("{" + ok + ",\"signature\":\"\"}", "champ vide");
+		cas.put("{" + ok + ",\"signature\":\"" + b64 + "\"} xx", "contenu après");
+		cas.put("{\"keyId\":\"cle-1\",\"keyId\":\"cle-1\",\"algo\":\"Ed25519\",\"signature\":\"" + b64 + "\"}",
+				"champ dupliqué");
+		cas.put("{" + ok + ",\"signature\":\"" + b64 + "\",\"extra\":\"1\"}", "champ inattendu");
+		cas.put("{\"keyId\":1,\"algo\":\"Ed25519\",\"signature\":\"" + b64 + "\"}", "JSON invalide");
+		cas.put("{" + ok + ",\"signature\":\"" + b64 + "\"", "JSON tronqué");
+		cas.put("{\"keyId\":\"cle-1\",\"algo\":\"RSA\",\"signature\":\"" + b64 + "\"}", "algorithme non supporté");
+		for (Map.Entry<String, String> c : cas.entrySet()) {
+			SignatureJar.Verdict v = SignatureJar.verifier(jar, c.getKey(), cles());
+			assertThat(v.valide()).as("cas : %s", c.getKey()).isFalse();
+			assertThat(v.keyId()).isNull();
+			assertThat(v.raison()).as("raison : %s", c.getKey()).contains(c.getValue());
 		}
 		assertThat(SignatureJar.verifier(jar, null, cles()).valide()).isFalse();
 		assertThat(SignatureJar.verifier(jar, bonne, null).valide()).isFalse();
 		assertThat(SignatureJar.verifier(dossier.resolve("absent.jar"), bonne, cles()).valide()).isFalse();
 		assertThat(SignatureJar.verifier(null, bonne, cles()).valide()).isFalse();
-		// le cas valide reste valide
 		assertThat(SignatureJar.verifier(jar, bonne, cles()).valide()).isTrue();
+	}
+
+	private static String extraireSignature(String json) {
+		return json.replaceAll(".*\"signature\"\s*:\s*\"([^\"]*)\".*", "$1");
+	}
+
+	@Test
+	void echappement_unicode_exige_exactement_quatre_chiffres_hexadecimaux() throws Exception {
+		String b64 = extraireSignature(SignatureJar.signer(jar, paire.getPrivate(), "cle-1"));
+		String fin = ",\"algo\":\"Ed25519\",\"signature\":\"" + b64 + "\"}";
+		String u = "\\" + "u"; // barre oblique inverse + u, sans échappement Java
+		// u0065 = 'e' : accepté
+		assertThat(SignatureJar.verifier(jar, "{\"keyId\":\"cl" + u + "0065-1\"" + fin, cles()).valide()).isTrue();
+		for (String mauvais : List.of(u + "+065", u + "-065", u + " 065", u + "00zz", u + "006")) {
+			SignatureJar.Verdict v = SignatureJar.verifier(jar, "{\"keyId\":\"cl" + mauvais + "-1\"" + fin, cles());
+			assertThat(v.valide()).as(mauvais).isFalse();
+		}
+	}
+
+	@Test
+	void raison_ne_contient_ni_controle_ni_texte_demesure() throws Exception {
+		String b64 = extraireSignature(SignatureJar.signer(jar, paire.getPrivate(), "cle-1"));
+		String bs = "\\";
+		// échappements JSON : saut de ligne et ESC dans la valeur lue
+		String vilain = "x" + bs + "ny" + bs + "u001b[31m" + "z".repeat(500);
+		SignatureJar.Verdict v = SignatureJar.verifier(jar,
+				"{\"keyId\":\"" + vilain + "\",\"algo\":\"Ed25519\",\"signature\":\"" + b64 + "\"}", cles());
+		assertThat(v.valide()).isFalse();
+		assertThat(v.raison()).doesNotContain("\n").doesNotContain(String.valueOf((char) 27));
+		assertThat(v.raison().length()).isLessThan(120);
+		SignatureJar.Verdict w = SignatureJar.verifier(jar,
+				"{\"keyId\":\"cle-1\",\"algo\":\"" + vilain + "\",\"signature\":\"" + b64 + "\"}", cles());
+		assertThat(w.raison()).doesNotContain("\n").doesNotContain(String.valueOf((char) 27));
+		assertThat(w.raison().length()).isLessThan(120);
+	}
+
+	@Test
+	void signature_d_une_autre_cle_sous_un_keyId_de_confiance_est_refusee() throws Exception {
+		KeyPair attaquant = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+		String sig = SignatureJar.signer(jar, attaquant.getPrivate(), "cle-1");
+		SignatureJar.Verdict v = SignatureJar.verifier(jar, sig, cles());
+		assertThat(v.valide()).isFalse();
+		assertThat(v.keyId()).isNull();
+	}
+
+	@Test
+	void jar_zip_reel_modifie_au_premier_ou_au_dernier_octet_est_refuse() throws Exception {
+		Path zip = dossier.resolve("reel.jar");
+		try (java.util.zip.ZipOutputStream z = new java.util.zip.ZipOutputStream(Files.newOutputStream(zip))) {
+			z.putNextEntry(new java.util.zip.ZipEntry("a.txt"));
+			z.write("bonjour".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+			z.closeEntry();
+		}
+		String sig = SignatureJar.signer(zip, paire.getPrivate(), "cle-1");
+		assertThat(SignatureJar.verifier(zip, sig, cles()).valide()).isTrue();
+		byte[] original = Files.readAllBytes(zip);
+		for (int index : new int[] { 0, original.length - 1 }) {
+			byte[] copie = original.clone();
+			copie[index] ^= 1;
+			Files.write(zip, copie);
+			assertThat(SignatureJar.verifier(zip, sig, cles()).valide()).as("octet %d", index).isFalse();
+		}
 	}
 
 	@Test

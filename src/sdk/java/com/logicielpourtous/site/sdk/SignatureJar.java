@@ -63,7 +63,7 @@ public final class SignatureJar {
 				return refus("champ manquant dans la signature");
 			}
 			if (!ALGO.equals(algo)) {
-				return refus("algorithme non supporté : " + algo);
+				return refus("algorithme non supporté : " + net(algo));
 			}
 			if (keyId.isEmpty() || b64.isEmpty()) {
 				return refus("champ vide dans la signature");
@@ -76,7 +76,7 @@ public final class SignatureJar {
 				}
 			}
 			if (publique == null) {
-				return refus("clé inconnue : " + keyId);
+				return refus("clé inconnue : " + net(keyId));
 			}
 			byte[] sig;
 			try {
@@ -96,6 +96,9 @@ public final class SignatureJar {
 		}
 		catch (IOException e) {
 			return refus("jar illisible");
+		}
+		catch (IllegalArgumentException e) {
+			return refus("JSON invalide : " + net(e.getMessage()));
 		}
 		catch (Exception | LinkageError e) {
 			return refus("vérification impossible : " + e.getClass().getSimpleName());
@@ -122,6 +125,21 @@ public final class SignatureJar {
 			}
 		}
 		return res;
+	}
+
+	private static final int LONGUEUR_MAX_ECHO = 64;
+
+	/** Texte venant de la signature : sans caractère de contrôle et tronqué, avant d'entrer dans une raison. */
+	static String net(String texte) {
+		if (texte == null) {
+			return "";
+		}
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < texte.length() && sb.length() < LONGUEUR_MAX_ECHO; i++) {
+			char c = texte.charAt(i);
+			sb.append(c < 0x20 || c == 0x7f ? '?' : c);
+		}
+		return texte.length() > LONGUEUR_MAX_ECHO ? sb + "..." : sb.toString();
 	}
 
 	private static Verdict refus(String raison) {
@@ -228,9 +246,17 @@ public final class SignatureJar {
 				case 'f' -> sb.append('\f');
 				case 'u' -> {
 					if (pos[0] + 4 > s.length()) {
-						throw new IllegalArgumentException("échappement \\u tronqué");
+						throw new IllegalArgumentException("échappement unicode tronqué");
 					}
-					sb.append((char) Integer.parseInt(s.substring(pos[0], pos[0] + 4), 16));
+					int code = 0;
+					for (int k = 0; k < 4; k++) {
+						int d = Character.digit(s.charAt(pos[0] + k), 16);
+						if (d < 0 || s.charAt(pos[0] + k) > 'f') {
+							throw new IllegalArgumentException("échappement unicode invalide");
+						}
+						code = code * 16 + d;
+					}
+					sb.append((char) code);
 					pos[0] += 4;
 				}
 				default -> throw new IllegalArgumentException("échappement inconnu");

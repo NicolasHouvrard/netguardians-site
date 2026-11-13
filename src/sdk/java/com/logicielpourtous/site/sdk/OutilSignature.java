@@ -1,15 +1,32 @@
 package com.logicielpourtous.site.sdk;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.nio.file.attribute.UserPrincipal;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Properties;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Outil en ligne de commande : {@code generer-cles <dossier> <keyId>}, {@code signer <jar> <cle-privee> <keyId>},
@@ -56,29 +73,91 @@ public final class OutilSignature {
 		return 1;
 	}
 
+	private static final Pattern KEY_ID = Pattern.compile("[A-Za-z0-9._-]{1,64}");
+
+	private static boolean keyIdValide(String keyId) {
+		return keyId != null && KEY_ID.matcher(keyId).matches();
+	}
+
 	private static int generer(Path dossier, String keyId) throws Exception {
-		if (keyId.isEmpty() || keyId.contains("/") || keyId.contains("\\") || keyId.contains("..")) {
-			System.err.println("keyId invalide");
+		if (!keyIdValide(keyId)) {
+			System.err.println("keyId invalide : attendu [A-Za-z0-9._-]{1,64}");
 			return 1;
 		}
-		Files.createDirectories(dossier);
+		boolean posix = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
+		if (!Files.exists(dossier)) {
+			if (posix) {
+				Files.createDirectories(dossier, PosixFilePermissions
+						.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+			}
+			else {
+				Files.createDirectories(dossier);
+			}
+		}
 		Path prive = dossier.resolve(keyId + ".prive");
 		Path publique = dossier.resolve(keyId + ".public");
-		if (Files.exists(prive) || Files.exists(publique)) {
-			System.err.println("Fichiers de clés déjà présents, rien n'est écrasé");
+		if (existe(prive) || existe(publique)) {
+			System.err.println("Fichiers de clés déjà présents (ou lien symbolique), rien n'est écrasé");
 			return 1;
 		}
 		KeyPair paire = KeyPairGenerator.getInstance(SignatureJar.ALGO).generateKeyPair();
-		Files.writeString(prive, Base64.getEncoder().encodeToString(paire.getPrivate().getEncoded()) + "\n",
-				StandardCharsets.UTF_8);
-		Files.writeString(publique, Base64.getEncoder().encodeToString(paire.getPublic().getEncoded()) + "\n",
-				StandardCharsets.UTF_8);
+		byte[] contenuPrive = (Base64.getEncoder().encodeToString(paire.getPrivate().getEncoded()) + "\n")
+				.getBytes(StandardCharsets.UTF_8);
+		ecrirePrive(prive, contenuPrive, posix);
+		try {
+			Files.write(publique, (Base64.getEncoder().encodeToString(paire.getPublic().getEncoded()) + "\n")
+					.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+		}
+		catch (Exception e) {
+			Files.deleteIfExists(prive);
+			throw e;
+		}
 		System.out.println("Clés écrites : " + prive.getFileName() + " (SECRÈTE, à ne jamais publier) et "
 				+ publique.getFileName());
 		return 0;
 	}
 
+	private static boolean existe(Path p) {
+		return Files.exists(p, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(p);
+	}
+
+	/** Crée le fichier de clé privée (jamais écrasé) avec des droits réservés au propriétaire avant d'y écrire. */
+	private static void ecrirePrive(Path prive, byte[] contenu, boolean posix) throws Exception {
+		Set<OpenOption> options = Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+		try {
+			if (posix) {
+				try (SeekableByteChannel canal = Files.newByteChannel(prive, options,
+						PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")))) {
+					canal.write(ByteBuffer.wrap(contenu));
+				}
+				return;
+			}
+			// Fichier créé vide, restreint au propriétaire, PUIS rempli.
+			Files.newByteChannel(prive, options).close();
+			AclFileAttributeView vue = Files.getFileAttributeView(prive, AclFileAttributeView.class,
+					LinkOption.NOFOLLOW_LINKS);
+			if (vue == null) {
+				throw new IOException("impossible de restreindre les droits du fichier de clé privée");
+			}
+			UserPrincipal proprietaire = vue.getOwner();
+			vue.setAcl(List.of(AclEntry.newBuilder().setType(AclEntryType.ALLOW).setPrincipal(proprietaire)
+					.setPermissions(EnumSet.allOf(AclEntryPermission.class)).build()));
+			try (SeekableByteChannel canal = Files.newByteChannel(prive, StandardOpenOption.WRITE,
+					LinkOption.NOFOLLOW_LINKS)) {
+				canal.write(ByteBuffer.wrap(contenu));
+			}
+		}
+		catch (Exception e) {
+			Files.deleteIfExists(prive);
+			throw e;
+		}
+	}
+
 	private static int signer(Path jar, Path fichierPrive, String keyId) throws Exception {
+		if (!keyIdValide(keyId)) {
+			System.err.println("keyId invalide : attendu [A-Za-z0-9._-]{1,64}");
+			return 1;
+		}
 		byte[] der = Base64.getDecoder().decode(Files.readString(fichierPrive, StandardCharsets.UTF_8).trim());
 		PrivateKey cle = KeyFactory.getInstance(SignatureJar.ALGO).generatePrivate(new PKCS8EncodedKeySpec(der));
 		String json = SignatureJar.signer(jar, cle, keyId);
