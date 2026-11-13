@@ -143,3 +143,21 @@ captcha.secret-key=${TURNSTILE_SECRET_KEY:CHANGEME}
 
 # ── Gemini AI (chat bot + résumé) ──────────────────────────────────────────────
 gemini.api-key=${GEMINI_API_KEY:CHANGEME}
+
+# ── Plateforme de plugins (voir docs/plateforme-plugins-local.md) ─────────────
+# Desactivee par defaut : sans app.plateforme.actif=true, aucun bean, aucune route
+# /api/plateforme/** ni /api/plugins/** n'est servie (le coeur se comporte comme avant).
+app.plateforme.actif=${PLATEFORME_ACTIF:false}
+# Repertoire des jars de plugins (relatif au repertoire de lancement, ou absolu). Chaque .jar
+# y est installe au demarrage ; un sous-dossier .work/ y recoit les copies chargees.
+app.plateforme.repertoire-plugins=${PLATEFORME_REPERTOIRE_PLUGINS:plugins}
+# Delai maximal de drainage des requetes en vol avant fermeture d'une version (ms).
+app.plateforme.delai-drainage-ms=${PLATEFORME_DELAI_DRAINAGE_MS:30000}
+# Version du coeur, comparee aux bornes coeur-min / coeur-max des manifestes de plugin.
+app.plateforme.version-coeur=${PLATEFORME_VERSION_COEUR:0.0.0}
+# Purge des caches qui retiennent une version retiree. TOUJOURS true en production
+# (false ne sert qu'au test qui prouve que la mesure de fuite detecte une fuite).
+app.plateforme.nettoyage-actif=true
+# Autorise GET /api/plateforme/fuites?pression=true a remplir le tas jusqu'a OutOfMemoryError
+# (mesure exacte). Brutal pour les autres threads : diagnostic/tests uniquement, false en production.
+app.plateforme.diagnostic-fuites=false

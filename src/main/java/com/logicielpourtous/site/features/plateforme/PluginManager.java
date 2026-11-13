@@ -79,6 +79,12 @@ public class PluginManager {
 	/** Manifeste de chaque génération active (même clé que {@link #actifs}). */
 	private final Map<String, ManifestePlugin> manifestes = new ConcurrentHashMap<>();
 
+	/**
+	 * Version en cours de remplacement de chaque plugin en mise à jour : pendant le drainage et le démarrage de la
+	 * nouvelle version, le plugin n'est plus dans {@link #actifs} mais doit rester visible (état MAINTENANCE).
+	 */
+	private final Map<String, String> enMiseAJour = new ConcurrentHashMap<>();
+
 	public PluginManager(PlateformeProperties proprietes, DemarreurContexte demarreur, RoutagePlugins routage,
 			ContratRegistre contrats, ReferencesEntrantes references, DataSource dataSource,
 			Consumer<ClassLoader> nettoyage) {
@@ -94,6 +100,19 @@ public class PluginManager {
 	/** Générations actives par nom de plugin (instantané non modifiable). */
 	public Map<String, PluginGeneration> actifs() {
 		return Map.copyOf(actifs);
+	}
+
+	/**
+	 * État de chaque plugin, trié par nom : {@link EtatPlugin.Etat#MAINTENANCE} pendant une mise à jour (route en 503),
+	 * sinon {@link EtatPlugin.Etat#ACTIF}. Non sérialisé avec les installations : répond pendant une mise à jour.
+	 */
+	public List<EtatPlugin> etats() {
+		Map<String, EtatPlugin> etats = new java.util.TreeMap<>();
+		actifs.forEach((nom, gen) -> etats.put(nom, new EtatPlugin(nom, gen.version,
+				routage.enMaintenance(nom) ? EtatPlugin.Etat.MAINTENANCE : EtatPlugin.Etat.ACTIF)));
+		enMiseAJour.forEach((nom, version) -> etats.putIfAbsent(nom,
+				new EtatPlugin(nom, version, EtatPlugin.Etat.MAINTENANCE)));
+		return List.copyOf(etats.values());
 	}
 
 	/**
@@ -258,6 +277,7 @@ public class PluginManager {
 		long debut = System.nanoTime();
 		Statut statut = Statut.ECHEC;
 		List<String> raisons = new ArrayList<>();
+		enMiseAJour.put(nom, ancienne.version);
 		routage.maintenance(nom, true); // à partir d'ici : 503 + Retry-After sur /api/plugins/<nom>/**
 		try {
 			// Retrait de la route : le filtre ne compte plus de nouvelle requête sur l'ancienne génération (le routage
@@ -299,6 +319,7 @@ public class PluginManager {
 		finally {
 			supprimerCopie(ancienne.jarCopie);
 			routage.maintenance(nom, false);
+			enMiseAJour.remove(nom);
 		}
 		long interruptionMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - debut);
 		return new ResultatInstallation(statut, nom, m.version(), raisons, interruptionMs);

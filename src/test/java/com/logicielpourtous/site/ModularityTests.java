@@ -10,7 +10,8 @@ import org.springframework.modulith.core.ApplicationModule;
 import org.springframework.modulith.core.ApplicationModules;
 
 /**
- * Verifie les frontieres Spring Modulith des modules {@code commun}, {@code request} et {@code sync}.
+ * Verifie les frontieres Spring Modulith des modules {@code commun}, {@code request}, {@code sync},
+ * {@code licence} et {@code plateforme}.
  *
  * <p>La racine de scan est le package {@code features} (et non {@code SiteApplication}),
  * pour que chaque sous-package de {@code features} soit un module, au lieu que
@@ -39,7 +40,7 @@ import org.springframework.modulith.core.ApplicationModules;
 class ModularityTests {
 
     private static final String FEATURES_PACKAGE = "com.logicielpourtous.site.features";
-    private static final List<String> MODULES_VERIFIES = List.of("commun", "request", "sync", "licence");
+    private static final List<String> MODULES_VERIFIES = List.of("commun", "request", "sync", "licence", "plateforme");
 
     @Test
     void verifiesModuleStructure() {
