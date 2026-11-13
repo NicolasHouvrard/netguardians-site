@@ -136,7 +136,8 @@ class PluginManagerIT {
 		proprietes.setDelaiDrainageMs(10_000);
 		contrats = new ContratRegistre();
 		demarreur = new DemarreurPiege(ds, coeur);
-		manager = new PluginManager(proprietes, demarreur, routage, contrats, new ReferencesEntrantes(ds), ds);
+		manager = new PluginManager(proprietes, demarreur, routage, contrats, new ReferencesEntrantes(ds), ds,
+				new NettoyeurFuites(coeur, proprietes));
 		mvc = MockMvcBuilders.webAppContextSetup(coeur).addFilters(new FiltreEnVol(routage)).build();
 	}
 

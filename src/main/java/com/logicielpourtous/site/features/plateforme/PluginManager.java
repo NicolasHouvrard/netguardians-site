@@ -3,6 +3,8 @@ package com.logicielpourtous.site.features.plateforme;
 import com.logicielpourtous.site.features.plateforme.ResultatInstallation.Statut;
 import com.logicielpourtous.site.sdk.ManifestePlugin;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,13 +18,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -60,20 +62,22 @@ public class PluginManager {
 
 	private final JdbcTemplate jdbc;
 
-	/** Nettoyage des caches qui retiennent un chargeur retiré (tâche 7 : NettoyeurFuites). */
+	/** Nettoyage des caches qui retiennent un chargeur retiré ({@link NettoyeurFuites}). */
 	private final Consumer<ClassLoader> nettoyage;
+
+	/**
+	 * Chargeur de chaque génération fermée, en référence FAIBLE seulement (mesure des fuites) : le gestionnaire ne
+	 * doit jamais retenir lui-même un chargeur retiré.
+	 */
+	private final List<Retire> retires = new CopyOnWriteArrayList<>();
+
+	private record Retire(String etiquette, WeakReference<ClassLoader> chargeur) {
+	}
 
 	private final Map<String, PluginGeneration> actifs = new ConcurrentHashMap<>();
 
 	/** Manifeste de chaque génération active (même clé que {@link #actifs}). */
 	private final Map<String, ManifestePlugin> manifestes = new ConcurrentHashMap<>();
-
-	@Autowired
-	public PluginManager(PlateformeProperties proprietes, DemarreurContexte demarreur, RoutagePlugins routage,
-			ContratRegistre contrats, ReferencesEntrantes references, DataSource dataSource) {
-		this(proprietes, demarreur, routage, contrats, references, dataSource, chargeur -> {
-		});
-	}
 
 	public PluginManager(PlateformeProperties proprietes, DemarreurContexte demarreur, RoutagePlugins routage,
 			ContratRegistre contrats, ReferencesEntrantes references, DataSource dataSource,
@@ -411,10 +415,59 @@ public class PluginManager {
 			catch (IOException e) {
 				log.warn("Fermeture du chargeur de {} en erreur", gen.etiquette(), e);
 			}
+			retires.add(new Retire(gen.etiquette(), new WeakReference<>(loader)));
 		}
 		gen.loader = null;
 		if (supprimerJar) {
 			supprimerCopie(gen.jarCopie);
+		}
+	}
+
+	/**
+	 * Combien de générations fermées sont encore en mémoire (port de {@code leakReport} du prototype). Avec
+	 * {@code pressionSouple}, la mémoire est d'abord remplie jusqu'à {@code OutOfMemoryError} : la JVM garantit
+	 * d'effacer toutes les {@code SoftReference} avant, sans quoi les caches « souples » de Spring fausseraient la
+	 * mesure. Puis plusieurs GC. Coûteux et brutal pour les autres threads : réservé aux tests et au diagnostic.
+	 */
+	public RapportFuites rapportFuites(boolean pressionSouple) {
+		if (pressionSouple) {
+			exercerPressionMemoire();
+		}
+		for (int i = 0; i < 5; i++) {
+			System.gc();
+			try {
+				Thread.sleep(100);
+			}
+			catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				break;
+			}
+		}
+		List<String> vivants = new ArrayList<>();
+		for (Retire r : retires) {
+			if (r.chargeur().get() != null) {
+				vivants.add(r.etiquette());
+			}
+		}
+		long metaspaceMo = ManagementFactory.getMemoryPoolMXBeans()
+			.stream()
+			.filter(p -> p.getName().equals("Metaspace"))
+			.findFirst()
+			.map(p -> p.getUsage().getUsed() / (1024 * 1024))
+			.orElse(-1L);
+		return new RapportFuites(retires.size(), vivants.size(), vivants, metaspaceMo);
+	}
+
+	@SuppressWarnings({ "unused", "UnusedAssignment" })
+	private static void exercerPressionMemoire() {
+		List<byte[]> blocs = new ArrayList<>();
+		try {
+			while (true) {
+				blocs.add(new byte[8 * 1024 * 1024]);
+			}
+		}
+		catch (OutOfMemoryError attendue) {
+			blocs = null; // libère tout de suite : les SoftReference ont été effacées avant l'erreur
 		}
 	}
 
