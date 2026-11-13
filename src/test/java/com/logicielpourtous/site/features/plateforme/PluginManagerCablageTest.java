@@ -24,6 +24,7 @@ class PluginManagerCablageTest {
 				assertThat(contexte).hasSingleBean(ContratRegistre.class);
 				assertThat(contexte).hasSingleBean(NettoyeurFuites.class);
 				assertThat(contexte.getBean(PlateformeProperties.class).isNettoyageActif()).isTrue();
+				assertThat(contexte.getBean(PlateformeProperties.class).isDiagnosticFuites()).isFalse();
 				assertThat(contexte.getBean(PlateformeProperties.class).getDelaiDrainageMs()).isEqualTo(1234);
 				assertThat(contexte.getBean(PluginManager.class).actifs()).isEmpty();
 			});

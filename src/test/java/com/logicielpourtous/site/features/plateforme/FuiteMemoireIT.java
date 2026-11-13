@@ -87,6 +87,7 @@ class FuiteMemoireIT {
 		proprietes.setRepertoirePlugins(dossier.resolve("plugins").toString());
 		proprietes.setVersionCoeur("1.0.0");
 		proprietes.setDelaiDrainageMs(10_000);
+		proprietes.setDiagnosticFuites(true); // autorise la pression mémoire de rapportFuites(true)
 		manager = new PluginManager(proprietes, new DemarreurContexte(ds, coeur), routage, new ContratRegistre(),
 				new ReferencesEntrantes(ds), ds, new NettoyeurFuites(coeur, proprietes));
 		mvc = MockMvcBuilders.webAppContextSetup(coeur).addFilters(new FiltreEnVol(routage)).build();

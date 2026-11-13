@@ -7,15 +7,19 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import java.lang.reflect.Field;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.support.StaticApplicationContext;
+import org.springframework.data.core.TypeInformation;
 import org.springframework.util.ConcurrentLruCache;
 
 /** Nettoyage des caches : robuste à un changement d'interne d'une bibliothèque (avertissement, jamais d'exception). */
@@ -77,6 +81,40 @@ class NettoyeurFuitesTest {
 		try (URLClassLoader chargeur = new URLClassLoader(new URL[0], null)) {
 			assertThatCode(() -> nettoyeur.nettoyer(chargeur)).doesNotThrowAnyException();
 		}
+	}
+
+	/** Taille du cache statique {@code ClassTypeInformation.resolvableTypeCache} de Spring Data (vidé en bloc). */
+	private static int tailleCacheSpringData() throws Exception {
+		Field f = Class.forName("org.springframework.data.core.ClassTypeInformation").getDeclaredField("resolvableTypeCache");
+		f.setAccessible(true);
+		return ((ConcurrentLruCache<?, ?>) f.get(null)).size();
+	}
+
+	@Test
+	void chargeur_nul_ou_du_coeur_refuse_sans_rien_purger() throws Exception {
+		TypeInformation.of(NettoyeurFuitesTest.class);
+		TypeInformation.of(String.class);
+		int avant = tailleCacheSpringData();
+		assertThat(avant).isPositive();
+		MAP_DE_TEST.put("cle", "valeur");
+		MAP_DE_TEST.put(NettoyeurFuitesTest.class, "classe du coeur");
+
+		ClassLoader coeurChargeur = NettoyeurFuites.class.getClassLoader();
+		List<ClassLoader> interdits = new ArrayList<>();
+		interdits.add(null);
+		for (ClassLoader c = coeurChargeur; c != null; c = c.getParent()) {
+			interdits.add(c); // chargeur de l'application, plateforme...
+		}
+		interdits.add(ClassLoader.getSystemClassLoader());
+		for (ClassLoader interdit : interdits) {
+			assertThatCode(() -> nettoyeur.nettoyer(interdit)).doesNotThrowAnyException();
+		}
+
+		assertThat(tailleCacheSpringData()).as("cache du cœur intact").isEqualTo(avant);
+		assertThat(MAP_DE_TEST).containsEntry("cle", "valeur").containsEntry(NettoyeurFuitesTest.class, "classe du coeur");
+		assertThat(avertissements()).isEqualTo(interdits.size());
+		assertThat(capture.list).filteredOn(e -> e.getLevel() == Level.INFO).isEmpty();
+		MAP_DE_TEST.clear();
 	}
 
 	@Test

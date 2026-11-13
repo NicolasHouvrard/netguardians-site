@@ -427,10 +427,15 @@ public class PluginManager {
 	 * Combien de générations fermées sont encore en mémoire (port de {@code leakReport} du prototype). Avec
 	 * {@code pressionSouple}, la mémoire est d'abord remplie jusqu'à {@code OutOfMemoryError} : la JVM garantit
 	 * d'effacer toutes les {@code SoftReference} avant, sans quoi les caches « souples » de Spring fausseraient la
-	 * mesure. Puis plusieurs GC. Coûteux et brutal pour les autres threads : réservé aux tests et au diagnostic.
+	 * mesure. Puis plusieurs GC. Coûteux et brutal pour les autres threads : réservé aux tests et au diagnostic, donc
+	 * n'a lieu que si {@code app.plateforme.diagnostic-fuites=true} ; sinon la demande est ignorée (avertissement).
 	 */
 	public RapportFuites rapportFuites(boolean pressionSouple) {
-		if (pressionSouple) {
+		if (pressionSouple && !proprietes.isDiagnosticFuites()) {
+			log.warn("Pression mémoire demandée mais app.plateforme.diagnostic-fuites=false : ignorée, rapport avec de "
+					+ "simples GC (les caches en références souples peuvent compter des générations comme vivantes)");
+		}
+		else if (pressionSouple) {
 			exercerPressionMemoire();
 		}
 		for (int i = 0; i < 5; i++) {

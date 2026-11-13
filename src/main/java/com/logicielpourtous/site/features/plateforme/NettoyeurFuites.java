@@ -77,6 +77,13 @@ public class NettoyeurFuites implements Consumer<ClassLoader> {
 					chargeur);
 			return;
 		}
+		if (estChargeurDuCoeur(chargeur)) {
+			// Les purges retirent tout ce qui « désigne » le chargeur : avec celui du cœur (ou null = amorçage), elles
+			// videraient les caches du cœur lui-même.
+			log.warn("Nettoyage des fuites refusé : {} n'est pas le chargeur d'un plugin (chargeur du cœur ou ancêtre)",
+					chargeur);
+			return;
+		}
 		int[] purges = { 0 };
 
 		// Spring (API publiques)
@@ -132,6 +139,20 @@ public class NettoyeurFuites implements Consumer<ClassLoader> {
 		etape("parcours générique", () -> purges[0] += parcoursGenerique(chargeur));
 
 		log.info("Nettoyage des fuites de {} : {} entrée(s) de cache purgée(s)", chargeur, purges[0]);
+	}
+
+	/** {@code null} (amorçage), le chargeur du cœur ou l'un de ses ancêtres (plateforme, système). */
+	private static boolean estChargeurDuCoeur(ClassLoader chargeur) {
+		if (chargeur == null || chargeur == ClassLoader.getSystemClassLoader()
+				|| chargeur == ClassLoader.getPlatformClassLoader()) {
+			return true;
+		}
+		for (ClassLoader c = NettoyeurFuites.class.getClassLoader(); c != null; c = c.getParent()) {
+			if (c == chargeur) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	@FunctionalInterface
@@ -379,7 +400,8 @@ public class NettoyeurFuites implements Consumer<ClassLoader> {
 
 	private <T> Collection<T> beans(Class<T> type) {
 		try {
-			return coeur.getBeansOfType(type).values();
+			// Ni prototypes ni initialisation anticipée de beans paresseux : on ne purge que ce qui existe déjà.
+			return coeur.getBeansOfType(type, false, false).values();
 		}
 		catch (RuntimeException e) {
 			log.warn("Nettoyage des fuites : beans {} illisibles : {}", type.getSimpleName(), e.toString());

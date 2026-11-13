@@ -24,6 +24,21 @@ public class PlateformeProperties {
 	 */
 	private boolean nettoyageActif = true;
 
+	/**
+	 * Autorise {@code rapportFuites(true)} à remplir le tas jusqu'à {@code OutOfMemoryError} pour effacer les
+	 * références souples. Brutal pour les autres threads : réservé aux tests et au diagnostic ; désactivé, une demande
+	 * de pression est ignorée (avertissement) et le rapport se fait avec de simples GC.
+	 */
+	private boolean diagnosticFuites = false;
+
+	public boolean isDiagnosticFuites() {
+		return diagnosticFuites;
+	}
+
+	public void setDiagnosticFuites(boolean diagnosticFuites) {
+		this.diagnosticFuites = diagnosticFuites;
+	}
+
 	public boolean isNettoyageActif() {
 		return nettoyageActif;
 	}
