@@ -55,6 +55,17 @@ class PluginManagerIT {
 			return new RoutagePlugins();
 		}
 
+		/** Registre du cœur : les plugins consommateurs l'injectent depuis le contexte parent. */
+		@Bean
+		ContratRegistre contratRegistre() {
+			return new ContratRegistre();
+		}
+
+		@Bean
+		ContratIndisponibleAdvice contratIndisponibleAdvice() {
+			return new ContratIndisponibleAdvice();
+		}
+
 	}
 
 	private static final String V1 = JarDePluginDeTest.MIGRATION_NOTES_V1;
@@ -134,7 +145,7 @@ class PluginManagerIT {
 		proprietes.setRepertoirePlugins(repertoirePlugins.toString());
 		proprietes.setVersionCoeur("1.0.0");
 		proprietes.setDelaiDrainageMs(10_000);
-		contrats = new ContratRegistre();
+		contrats = coeur.getBean(ContratRegistre.class);
 		demarreur = new DemarreurPiege(ds, coeur);
 		manager = new PluginManager(proprietes, demarreur, routage, contrats, new ReferencesEntrantes(ds), ds,
 				new NettoyeurFuites(coeur, proprietes));
@@ -166,7 +177,44 @@ class PluginManagerIT {
 	private void nettoyerBase() {
 		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testnotes CASCADE");
 		jdbc.execute("DROP SCHEMA IF EXISTS plugin_dependant CASCADE");
-		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testfourni CASCADE");	}
+		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testfourni CASCADE");
+		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testconso CASCADE");
+		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testcoeur CASCADE");
+	}
+
+	/**
+	 * Plugin « testconso » sans table : il expose le proxy du registre comme bean {@link ContratDeTest} et le sert en
+	 * {@code GET /salut}.
+	 */
+	private Path pluginConsommateur() {
+		return JarDePluginDeTest.creer(dossier.resolve("conso"), "testconso", "1.0.0",
+				Map.of("coeur-min", "0.0.0", "mise-a-jour", "chaud", "paquet", "conso", "configuration",
+						"conso.ConsoConfiguration"),
+				Map.of(),
+				Map.of("conso.ConsoConfiguration", """
+						package conso;
+						import com.logicielpourtous.site.features.plateforme.ContratDeTest;
+						import com.logicielpourtous.site.features.plateforme.ContratRegistre;
+						@org.springframework.context.annotation.Configuration
+						@org.springframework.context.annotation.ComponentScan("conso")
+						public class ConsoConfiguration {
+						    @org.springframework.context.annotation.Bean
+						    ContratDeTest contratDeTest(ContratRegistre registre) {
+						        return registre.obtenir(ContratDeTest.class);
+						    }
+						}
+						""", "conso.SalutController", """
+						package conso;
+						import com.logicielpourtous.site.features.plateforme.ContratDeTest;
+						@org.springframework.web.bind.annotation.RestController
+						public class SalutController {
+						    private final ContratDeTest contrat;
+						    public SalutController(ContratDeTest contrat) { this.contrat = contrat; }
+						    @org.springframework.web.bind.annotation.GetMapping("/salut")
+						    public String salut() { return contrat.saluer("conso"); }
+						}
+						"""));
+	}
 
 	/** Plugin « testfourni » sans table, dont un bean implémente {@link ContratDeTest} (réponse « v<version> nom »). */
 	private Path pluginFournisseur(String version) {
@@ -592,7 +640,8 @@ class PluginManagerIT {
 	@Test
 	void erreur_inattendue_au_demarrage_ne_bloque_pas_les_autres_jars() throws Exception {
 		Files.createDirectories(repertoirePlugins);
-		Files.copy(jar("v0", "0.9.0", Map.of("V1__note.sql", V1)), repertoirePlugins.resolve("a-testnotes-0.9.0.jar"));
+		// Deux plugins distincts (un seul jar par plugin est démarré) : le premier lève une erreur inattendue.
+		Files.copy(pluginFournisseur("0.9.0"), repertoirePlugins.resolve("a-testfourni-0.9.0.jar"));
 		Files.copy(jarV1(), repertoirePlugins.resolve("b-testnotes-1.0.0.jar"));
 		demarreur.versionPiegee = "0.9.0";
 		demarreur.erreur = new AssertionError("erreur inattendue simulée");
@@ -603,6 +652,99 @@ class PluginManagerIT {
 		assertThat(manager.actifs().get("testnotes").version).isEqualTo("1.0.0");
 		assertThat(lister().getStatus()).isEqualTo(200);
 		assertThat(copiesDeTravail()).hasSize(1);
+	}
+
+	@Test
+	void consommateur_exposant_le_proxy_recoit_503_puis_le_fournisseur() throws Exception {
+		installerOk(pluginConsommateur());
+
+		MockHttpServletResponse sansFournisseur = mvc.perform(get("/api/plugins/testconso/salut"))
+			.andReturn()
+			.getResponse();
+
+		assertThat(sansFournisseur.getStatus()).isEqualTo(503);
+		assertThat(sansFournisseur.getHeader("Retry-After")).isEqualTo("2");
+
+		installerOk(pluginFournisseur("1.0.0"));
+
+		MockHttpServletResponse avecFournisseur = mvc.perform(get("/api/plugins/testconso/salut"))
+			.andReturn()
+			.getResponse();
+		assertThat(avecFournisseur.getStatus()).isEqualTo(200);
+		assertThat(avecFournisseur.getContentAsString()).isEqualTo("v1.0.0 conso");
+	}
+
+	@Test
+	void paquet_du_coeur_refuse() throws Exception {
+		Path jar = JarDePluginDeTest.creer(dossier.resolve("paquet-coeur"), "testcoeur", "1.0.0",
+				Map.of("coeur-min", "0.0.0", "mise-a-jour", "chaud", "paquet", "com.logicielpourtous.site.features",
+						"configuration", "com.logicielpourtous.site.features.plateforme.PlateformeConfiguration"),
+				Map.of());
+
+		ResultatInstallation r = manager.installer(jar);
+
+		assertThat(r.statut()).isEqualTo(ResultatInstallation.Statut.REFUSE);
+		assertThat(r.raisons()).anyMatch(raison -> raison.contains("com.logicielpourtous.site.plugins."));
+		assertThat(manager.actifs()).isEmpty();
+		assertThat(compter("SELECT count(*) FROM pg_namespace WHERE nspname = 'plugin_testcoeur'")).isZero();
+	}
+
+	@Test
+	void demarrage_ne_lance_que_la_plus_haute_version_meme_majeure() throws Exception {
+		Files.createDirectories(repertoirePlugins);
+		Files.copy(jar("v150", "1.5.0", Map.of("V1__note.sql", V1)), repertoirePlugins.resolve("testnotes-1.5.0.jar"));
+		Files.copy(jar("v200", "2.0.0", Map.of("V1__note.sql", V1, "V2__titre.sql", V2)),
+				repertoirePlugins.resolve("testnotes-2.0.0.jar"));
+
+		manager.demarrer();
+
+		assertThat(manager.actifs().get("testnotes").version).isEqualTo("2.0.0");
+		assertThat(colonne("titre")).isTrue();
+		assertThat(copiesDeTravail()).hasSize(1);
+	}
+
+	@Test
+	void demarrage_compare_les_versions_numeriquement_pas_les_noms_de_fichier() throws Exception {
+		Files.createDirectories(repertoirePlugins);
+		// L'ordre alphabétique des fichiers mettrait 1.9.0 en dernier : seule la version du manifeste compte.
+		Files.copy(jar("v1100", "1.10.0", Map.of("V1__note.sql", V1)), repertoirePlugins.resolve("a-notes.jar"));
+		Files.copy(jar("v190", "1.9.0", Map.of("V1__note.sql", V1)), repertoirePlugins.resolve("b-notes.jar"));
+		Logger journal = (Logger) LoggerFactory.getLogger(PluginManager.class);
+		ListAppender<ILoggingEvent> capture = new ListAppender<>();
+		capture.start();
+		journal.addAppender(capture);
+		try {
+			manager.demarrer();
+		}
+		finally {
+			journal.detachAppender(capture);
+		}
+
+		assertThat(manager.actifs().get("testnotes").version).isEqualTo("1.10.0");
+		// Une seule génération démarrée : la version inférieure n'est jamais chargée.
+		assertThat(capture.list).noneMatch(e -> e.getFormattedMessage().contains("mis à jour"));
+	}
+
+	@Test
+	void demarrage_deux_jars_de_meme_plus_haute_version_ignores_avec_avertissement() throws Exception {
+		Files.createDirectories(repertoirePlugins);
+		Path v1 = jarV1();
+		Files.copy(v1, repertoirePlugins.resolve("a-notes.jar"));
+		Files.copy(v1, repertoirePlugins.resolve("b-notes.jar"));
+		Logger journal = (Logger) LoggerFactory.getLogger(PluginManager.class);
+		ListAppender<ILoggingEvent> capture = new ListAppender<>();
+		capture.start();
+		journal.addAppender(capture);
+		try {
+			manager.demarrer();
+		}
+		finally {
+			journal.detachAppender(capture);
+		}
+
+		assertThat(manager.actifs()).isEmpty();
+		assertThat(capture.list).anyMatch(e -> e.getLevel() == Level.WARN
+				&& e.getFormattedMessage().contains("a-notes.jar") && e.getFormattedMessage().contains("b-notes.jar"));
 	}
 
 	@Test

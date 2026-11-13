@@ -47,7 +47,18 @@ public class RoutagePlugins implements HandlerMapping, Ordered {
 	 * Le mapping résout lui-même les beans dans le contexte du plugin (pas dans celui du cœur).
 	 */
 	public static RequestMappingHandlerMapping creerMapping(PluginGeneration gen) {
-		RequestMappingHandlerMapping mapping = new RequestMappingHandlerMapping();
+		ClassLoader chargeurDuPlugin = gen.loader;
+		RequestMappingHandlerMapping mapping = new RequestMappingHandlerMapping() {
+			/**
+			 * Seules les classes chargées par le chargeur de la génération deviennent des routes du plugin : un
+			 * contrôleur du cœur (importé ou scanné par le contexte du plugin) n'est jamais exposé sous
+			 * {@code /api/plugins/<nom>}. Une sous-classe CGLIB d'une classe du plugin garde le chargeur du plugin.
+			 */
+			@Override
+			protected boolean isHandler(Class<?> beanType) {
+				return beanType.getClassLoader() == chargeurDuPlugin && super.isHandler(beanType);
+			}
+		};
 		mapping.setApplicationContext(gen.contexte);
 		mapping.setPathPrefixes(Map.of(PREFIXE + gen.nom, c -> true));
 		mapping.afterPropertiesSet();

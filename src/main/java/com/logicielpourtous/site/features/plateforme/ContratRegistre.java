@@ -51,6 +51,10 @@ public class ContratRegistre {
 
 	public void publier(Class<?> type, Object impl, PluginGeneration generation) {
 		obtenir(type);
+		if (estUnProxyDuRegistre(impl)) {
+			throw new IllegalArgumentException("Le proxy du registre ne peut pas être publié comme fournisseur de "
+					+ type.getName());
+		}
 		fournisseurs.put(type, new Fournisseur(impl, generation));
 	}
 
@@ -101,13 +105,35 @@ public class ContratRegistre {
 		return f;
 	}
 
-	/** Premier bean du type défini dans le contexte propre de la génération (pas dans le cœur), ou {@code null}. */
-	private static Object chercher(Class<?> type, PluginGeneration generation) {
+	/**
+	 * Premier bean du type défini dans le contexte propre de la génération (pas dans le cœur), ou {@code null}. Les
+	 * proxies de ce registre ne sont jamais des fournisseurs : un plugin consommateur qui expose le proxy comme bean
+	 * du type contrat le ferait sinon s'appeler lui-même (récursion infinie).
+	 */
+	private Object chercher(Class<?> type, PluginGeneration generation) {
 		var contexte = generation.contexte;
 		if (contexte == null || !contexte.isActive()) {
 			return null;
 		}
-		return contexte.getBeanFactory().getBeansOfType(type, false, false).values().stream().findFirst().orElse(null);
+		return contexte.getBeanFactory()
+			.getBeansOfType(type, false, false)
+			.values()
+			.stream()
+			.filter(bean -> !estUnProxyDuRegistre(bean))
+			.findFirst()
+			.orElse(null);
+	}
+
+	private boolean estUnProxyDuRegistre(Object bean) {
+		if (!Proxy.isProxyClass(bean.getClass())) {
+			return false;
+		}
+		for (Object proxy : proxies.values()) {
+			if (proxy == bean) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private Object creerProxy(Class<?> type) {

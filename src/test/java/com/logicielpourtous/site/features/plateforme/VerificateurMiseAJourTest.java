@@ -147,6 +147,41 @@ class VerificateurMiseAJourTest {
 			.contains("Contacts=>1");
 	}
 
+	private static ManifestePlugin avecPaquet(String paquet, String configuration) {
+		return new ManifestePlugin("p", "1.0.0", "0.0.0", null, ModeMiseAJour.CHAUD, paquet, configuration, List.of(),
+				List.of());
+	}
+
+	@Test
+	void paquet_du_coeur_ou_englobant_refuse() {
+		for (String paquet : List.of("com.logicielpourtous.site", "com.logicielpourtous.site.features",
+				"com.logicielpourtous.site.features.facturation", "com.logicielpourtous.site.sdk", "com.logicielpourtous",
+				"com", "com.logicielpourtous.site.plugins")) {
+			assertThat(VerificateurMiseAJour.verifierPaquets(avecPaquet(paquet, "ext.Config"))).as(paquet)
+				.singleElement()
+				.asString()
+				.contains(paquet)
+				.contains("com.logicielpourtous.site.plugins.");
+		}
+	}
+
+	@Test
+	void configuration_dans_le_paquet_du_coeur_refusee() {
+		assertThat(VerificateurMiseAJour
+			.verifierPaquets(avecPaquet("ext", "com.logicielpourtous.site.SiteApplication"))).singleElement()
+			.asString()
+			.contains("com.logicielpourtous.site.SiteApplication");
+	}
+
+	@Test
+	void paquet_reserve_aux_plugins_ou_externe_accepte() {
+		assertThat(VerificateurMiseAJour.verifierPaquets(avecPaquet("com.logicielpourtous.site.plugins.facturation",
+				"com.logicielpourtous.site.plugins.facturation.Config"))).isEmpty();
+		assertThat(VerificateurMiseAJour.verifierPaquets(avecPaquet("notes", "notes.NotesConfiguration"))).isEmpty();
+		assertThat(VerificateurMiseAJour.verifierPaquets(avecPaquet("com.logicielpourtous.sitex", "x.C"))).isEmpty();
+		assertThat(VerificateurMiseAJour.verifierPaquets(avecPaquet("com.exemple", "com.exemple.C"))).isEmpty();
+	}
+
 	@Test
 	void coeur_max_egal_accepte() {
 		var v = VerificateurMiseAJour.verifier(manifeste(ModeMiseAJour.COEUR, "1.0.0", "1.5.0"), Map.of(), Set.of(),

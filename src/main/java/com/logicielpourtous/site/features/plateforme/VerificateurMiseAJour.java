@@ -66,6 +66,44 @@ public final class VerificateurMiseAJour {
 		return new Verdict(raisons.isEmpty(), List.copyOf(raisons));
 	}
 
+	/** Racine des paquets du cœur. */
+	static final String RACINE_COEUR = "com.logicielpourtous.site";
+
+	/** Seul espace de nommage admis sous la racine du cœur : un sous-paquet par plugin. */
+	static final String ESPACE_PLUGINS = RACINE_COEUR + ".plugins.";
+
+	/**
+	 * Le {@code paquet} scanné par le plugin et le paquet de sa classe {@code configuration} ne doivent ni être dans
+	 * les paquets du cœur, ni les englober (un scan ou une classe de configuration du cœur se retrouverait dans le
+	 * contexte du plugin, avec ses contrôleurs et ses beans). Seul l'espace {@value #ESPACE_PLUGINS}{@code <plugin>}
+	 * est admis sous la racine du cœur.
+	 */
+	public static List<String> verifierPaquets(ManifestePlugin m) {
+		List<String> raisons = new ArrayList<>();
+		if (empieteSurLeCoeur(m.paquet())) {
+			raisons.add("Paquet '" + m.paquet() + "' refusé : il appartient au cœur ou l'englobe ; utiliser un paquet "
+					+ "propre au plugin, par exemple " + ESPACE_PLUGINS + m.nom());
+		}
+		int point = m.configuration().lastIndexOf('.');
+		String paquetConfiguration = point < 0 ? "" : m.configuration().substring(0, point);
+		if (empieteSurLeCoeur(paquetConfiguration)) {
+			raisons.add("Classe de configuration '" + m.configuration() + "' refusée : elle est dans un paquet du "
+					+ "cœur ; utiliser un paquet propre au plugin, par exemple " + ESPACE_PLUGINS + m.nom());
+		}
+		return List.copyOf(raisons);
+	}
+
+	private static boolean empieteSurLeCoeur(String paquet) {
+		if (paquet.isEmpty()) {
+			return false;
+		}
+		if (paquet.startsWith(ESPACE_PLUGINS)) {
+			return false;
+		}
+		return paquet.equals(RACINE_COEUR) || paquet.startsWith(RACINE_COEUR + ".")
+				|| RACINE_COEUR.startsWith(paquet + ".");
+	}
+
 	/**
 	 * Vérifie les dépendances du manifeste ({@code nom} ou {@code nom>=version}) contre les versions des plugins actifs
 	 * (nom vers version). Renvoie une raison par dépendance mal formée, absente ou trop ancienne.

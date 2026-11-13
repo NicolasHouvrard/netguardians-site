@@ -13,7 +13,7 @@ class PluginManagerCablageTest {
 	private final ApplicationContextRunner runner = new ApplicationContextRunner()
 		.withBean(DataSource.class, () -> new DriverManagerDataSource("jdbc:postgresql://localhost:1/inutilisee"))
 		.withUserConfiguration(PlateformeConfiguration.class, PluginManager.class, DemarreurContexte.class,
-				RoutagePlugins.class, ReferencesEntrantes.class, NettoyeurFuites.class);
+				RoutagePlugins.class, ReferencesEntrantes.class, NettoyeurFuites.class, ContratIndisponibleAdvice.class);
 
 	@Test
 	void plateforme_active_cree_le_gestionnaire_et_lie_les_proprietes() {
@@ -39,7 +39,29 @@ class PluginManagerCablageTest {
 			assertThat(contexte).doesNotHaveBean(PlateformeProperties.class);
 			assertThat(contexte).doesNotHaveBean(ReferencesEntrantes.class);
 			assertThat(contexte).doesNotHaveBean(NettoyeurFuites.class);
+			assertThat(contexte).doesNotHaveBean(ContratIndisponibleAdvice.class);
 		});
+	}
+
+	@Test
+	void plateforme_active_avertit_que_les_jars_ne_sont_pas_signes() {
+		ch.qos.logback.classic.Logger journal = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory
+			.getLogger(PluginManager.class);
+		ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> capture = new ch.qos.logback.core.read.ListAppender<>();
+		capture.start();
+		journal.addAppender(capture);
+		try {
+			runner.withPropertyValues("app.plateforme.actif=true").run(contexte -> {
+				assertThat(contexte).hasNotFailed();
+				assertThat(contexte).hasSingleBean(ContratIndisponibleAdvice.class);
+			});
+		}
+		finally {
+			journal.detachAppender(capture);
+		}
+		assertThat(capture.list).anyMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN
+				&& e.getFormattedMessage().contains("non signés")
+				&& e.getFormattedMessage().contains("sous-projet 2"));
 	}
 
 }

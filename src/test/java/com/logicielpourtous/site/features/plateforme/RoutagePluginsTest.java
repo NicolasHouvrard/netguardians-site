@@ -139,6 +139,50 @@ class RoutagePluginsTest {
 			.andExpect(header().string("X-Plugin", gen.etiquette()));
 	}
 
+	/** Contrôleur chargé par le chargeur du cœur : ne doit jamais devenir une route de plugin. */
+	@org.springframework.web.bind.annotation.RestController
+	public static class ControleurDuCoeur {
+
+		@org.springframework.web.bind.annotation.GetMapping("/fuite-du-coeur")
+		public String fuite() {
+			return "coeur";
+		}
+
+	}
+
+	@Test
+	void un_controleur_charge_par_le_coeur_n_est_jamais_route_par_le_plugin() throws Exception {
+		Path jar = JarDePluginDeTest.creer(dossier.resolve("mixte"), "mixte", "1.0.0", Map.of(), Map.of(),
+				Map.of("x.Bonjour", """
+						package x;
+						@org.springframework.web.bind.annotation.RestController
+						public class Bonjour {
+						    @org.springframework.web.bind.annotation.GetMapping("/bonjour")
+						    public String bonjour() { return "plugin"; }
+						}
+						"""));
+		Path copie = Files.createTempFile(dossier, "gen-", ".jar");
+		Files.copy(jar, copie, StandardCopyOption.REPLACE_EXISTING);
+		PluginGeneration gen = new PluginGeneration("mixte", "1.0.0", copie);
+		gen.loader = new PluginClassLoader(gen.etiquette(), copie.toUri().toURL(), getClass().getClassLoader());
+		loaders.add(gen.loader);
+		org.springframework.context.annotation.AnnotationConfigApplicationContext ctx = new org.springframework.context.annotation.AnnotationConfigApplicationContext();
+		ctx.setParent(coeur);
+		ctx.setClassLoader(gen.loader);
+		ctx.register(gen.loader.loadClass("x.Bonjour"), ControleurDuCoeur.class);
+		ctx.refresh();
+		contextes.add(ctx);
+		gen.contexte = ctx;
+
+		RoutagePlugins.creerMapping(gen);
+		routage.router("mixte", gen);
+
+		assertThat(gen.mapping.getHandlerMethods().values())
+			.allSatisfy(h -> assertThat(h.getBeanType().getClassLoader()).isSameAs(gen.loader));
+		mvc.perform(get("/api/plugins/mixte/bonjour")).andExpect(status().isOk());
+		mvc.perform(get("/api/plugins/mixte/fuite-du-coeur")).andExpect(status().isNotFound());
+	}
+
 	@Test
 	void plugin_inconnu_donne_404() throws Exception {
 		mvc.perform(get("/api/plugins/inconnu/notes")).andExpect(status().isNotFound());

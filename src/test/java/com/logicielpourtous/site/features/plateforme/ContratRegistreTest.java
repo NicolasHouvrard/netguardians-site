@@ -199,6 +199,39 @@ class ContratRegistreTest {
 		assertThat(proxy.dire("x")).isEqualTo("nouveau x");
 	}
 
+	/** Génération consommatrice : elle expose le proxy du registre comme bean du type contrat (cas fréquent). */
+	private PluginGeneration generationConsommatrice(String nom) {
+		PluginGeneration gen = generation(nom);
+		org.springframework.context.support.GenericApplicationContext ctx = new org.springframework.context.support.GenericApplicationContext();
+		ctx.registerBean(Salut.class, () -> registre.obtenir(Salut.class));
+		ctx.refresh();
+		gen.contexte = ctx;
+		return gen;
+	}
+
+	@Test
+	void le_proxy_du_registre_expose_par_un_consommateur_n_est_jamais_un_fournisseur() {
+		PluginGeneration consommateur = generationConsommatrice("conso");
+		registre.activer(consommateur);
+		Salut proxy = registre.obtenir(Salut.class);
+
+		assertThatThrownBy(() -> proxy.dire("x")).isInstanceOf(ContratIndisponibleException.class);
+
+		registre.activer(generationActive("fourni", "bonjour "));
+
+		assertThat(proxy.dire("x")).isEqualTo("bonjour x");
+		assertThat(((Salut) consommateur.contexte.getBean(Salut.class)).dire("y")).isEqualTo("bonjour y");
+	}
+
+	@Test
+	void consommateur_active_apres_le_fournisseur_ne_le_remplace_pas() {
+		Salut proxy = registre.obtenir(Salut.class);
+		registre.activer(generationActive("fourni", "bonjour "));
+		registre.activer(generationConsommatrice("conso"));
+
+		assertThat(proxy.dire("x")).isEqualTo("bonjour x");
+	}
+
 	@Test
 	void compteur_en_vol_revient_a_zero_apres_appel_qui_leve() {
 		PluginGeneration gen = generation("a");

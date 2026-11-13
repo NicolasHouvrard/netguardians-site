@@ -95,6 +95,12 @@ public class PluginManager {
 		this.references = references;
 		this.jdbc = new JdbcTemplate(dataSource);
 		this.nettoyage = nettoyage;
+		log.warn("""
+				*****************************************************************************************
+				PLATEFORME DE PLUGINS ACTIVE : jars non signés exécutés avec tous les privilèges JVM \
+				(base, secrets, fichiers, réseau) — signature = sous-projet 2. \
+				Voir docs/plateforme-plugins-local.md, « Avant de l'activer en production ».
+				*****************************************************************************************""");
 	}
 
 	/** Générations actives par nom de plugin (instantané non modifiable). */
@@ -116,7 +122,8 @@ public class PluginManager {
 	}
 
 	/**
-	 * Installe chaque {@code .jar} du répertoire des plugins, par ordre alphabétique. Un jar refusé ou en échec est
+	 * Installe, pour chaque plugin, le {@code .jar} de plus haute version du répertoire des plugins (voir
+	 * {@link #plusHautesVersions}), par ordre alphabétique de fichier. Un jar refusé ou en échec est
 	 * journalisé et ignoré, jamais bloquant ; les autres fichiers et le sous-dossier {@code .work} sont ignorés. Les
 	 * jars refusés sont retentés tant qu'un passage installe quelque chose (dépendance installée plus loin dans
 	 * l'ordre alphabétique).
@@ -150,6 +157,7 @@ public class PluginManager {
 			log.error("Lecture du répertoire des plugins impossible : {}", repertoire, e);
 			return;
 		}
+		restants = plusHautesVersions(restants);
 		Map<Path, ResultatInstallation> derniers = new LinkedHashMap<>();
 		boolean progres = true;
 		while (progres && !restants.isEmpty()) {
@@ -182,6 +190,49 @@ public class PluginManager {
 	}
 
 	/**
+	 * Un seul jar par plugin au démarrage : celui de plus haute version (semver, version du manifeste ; le nom de
+	 * fichier ne compte pas). Démarrer les versions dans l'ordre des fichiers ferait des mises à jour à chaud
+	 * successives, refusées pour une montée majeure ou {@code mise-a-jour=coeur}, et pourrait laisser une version
+	 * inférieure active. Un jar illisible, ou deux jars de même plus haute version, sont journalisés et ignorés.
+	 */
+	private List<Path> plusHautesVersions(List<Path> jars) {
+		Map<String, List<Path>> parNom = new LinkedHashMap<>();
+		Map<Path, String> versions = new HashMap<>();
+		for (Path jar : jars) {
+			try {
+				ManifestePlugin m = LecteurManifeste.lire(jar);
+				parNom.computeIfAbsent(m.nom(), n -> new ArrayList<>()).add(jar);
+				versions.put(jar, m.version());
+			}
+			catch (RuntimeException e) {
+				log.warn("Plugin ignoré au démarrage : {} illisible ({})", jar.getFileName(), e.getMessage());
+			}
+		}
+		List<Path> retenus = new ArrayList<>();
+		parNom.forEach((nom, candidats) -> {
+			String plusHaute = candidats.stream()
+				.map(versions::get)
+				.max(VerificateurMiseAJour::comparer)
+				.orElseThrow();
+			List<Path> meilleurs = candidats.stream()
+				.filter(j -> VerificateurMiseAJour.comparer(versions.get(j), plusHaute) == 0)
+				.toList();
+			if (meilleurs.size() > 1) {
+				log.warn("Plugin {} ignoré au démarrage : plusieurs jars de même plus haute version {} : {}", nom,
+						plusHaute, meilleurs.stream().map(p -> p.getFileName().toString()).toList());
+				return;
+			}
+			retenus.add(meilleurs.get(0));
+			candidats.stream()
+				.filter(j -> j != meilleurs.get(0))
+				.forEach(j -> log.info("Plugin {} {} ignoré au démarrage : version {} présente ({})", nom,
+						versions.get(j), plusHaute, j.getFileName()));
+		});
+		retenus.sort((a, b) -> a.getFileName().toString().compareTo(b.getFileName().toString()));
+		return retenus;
+	}
+
+	/**
 	 * Installe ou met à jour le plugin contenu dans {@code jar}. Le jar n'est jamais chargé directement : une copie
 	 * dans {@code <repertoire>/.work/} est chargée (sous Windows un jar ouvert est verrouillé).
 	 */
@@ -198,8 +249,8 @@ public class PluginManager {
 		}
 		PluginGeneration active = actifs.get(m.nom());
 
-		List<String> raisons = new ArrayList<>(VerificateurMiseAJour.verifierDependances(m.dependances(),
-				versionsActives(m.nom())));
+		List<String> raisons = new ArrayList<>(VerificateurMiseAJour.verifierPaquets(m));
+		raisons.addAll(VerificateurMiseAJour.verifierDependances(m.dependances(), versionsActives(m.nom())));
 		VerificateurMiseAJour.Verdict verdict = active == null
 				? VerificateurMiseAJour.verifier(m, Map.of(), Set.of(), proprietes.getVersionCoeur(), null)
 				: VerificateurMiseAJour.verifier(m, nonAppliquees(m.nom(), migrations), tablesReferencees(m.nom()),
