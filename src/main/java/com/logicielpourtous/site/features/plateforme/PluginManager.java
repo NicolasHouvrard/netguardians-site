@@ -12,20 +12,11 @@ import java.net.MalformedURLException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.attribute.AclEntry;
-import java.nio.file.attribute.AclEntryFlag;
-import java.nio.file.attribute.AclEntryPermission;
-import java.nio.file.attribute.AclEntryType;
-import java.nio.file.attribute.AclFileAttributeView;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -848,11 +839,16 @@ public class PluginManager {
 	 * {@code <repertoire-plugins>.work} (hors du répertoire de dépôt). Chemin absolu normalisé.
 	 */
 	Path repertoireTravail() {
+		return repertoireTravail(proprietes);
+	}
+
+	/** Règle de {@link #repertoireTravail()}, partagée avec le dépôt du Maître (qui doit s'en tenir à l'écart). */
+	static Path repertoireTravail(PlateformeProperties proprietes) {
 		String configure = proprietes.getRepertoireTravail();
 		if (configure != null && !configure.isBlank()) {
 			return Path.of(configure).toAbsolutePath().normalize();
 		}
-		Path repertoire = repertoire();
+		Path repertoire = Path.of(proprietes.getRepertoirePlugins()).toAbsolutePath().normalize();
 		return repertoire.getFileName() == null ? repertoire.resolve(SUFFIXE_TRAVAIL)
 				: repertoire.resolveSibling(repertoire.getFileName() + SUFFIXE_TRAVAIL);
 	}
@@ -871,28 +867,23 @@ public class PluginManager {
 		this.proprietaireAttendu = proprietaire;
 	}
 
-	/** Utilisateur propriétaire des fichiers créés par ce processus (fichier témoin temporaire). */
+	/** Utilisateur propriétaire des fichiers créés par ce processus. */
 	private UserPrincipal proprietaireAttendu() throws IOException {
 		UserPrincipal attendu = proprietaireAttendu;
 		if (attendu == null) {
-			Path temoin = Files.createTempFile("plateforme-proprietaire", ".tmp");
-			try {
-				attendu = Files.getOwner(temoin, LinkOption.NOFOLLOW_LINKS);
-			}
-			finally {
-				Files.deleteIfExists(temoin);
-			}
+			attendu = DossierPrive.utilisateurDuProcessus();
 			proprietaireAttendu = attendu;
 		}
 		return attendu;
 	}
 
 	/**
-	 * Crée ou contrôle le dossier de travail privé et le renvoie : créé réservé au propriétaire ; existant, il doit être
-	 * un vrai dossier (ni lien symbolique, ni jonction) appartenant à l'utilisateur du processus, et ses droits sont
-	 * (re)restreints à ce seul utilisateur. Il ne doit être ni le répertoire des plugins ni l'un de ses ancêtres (la
-	 * purge y effacerait les jars déposés, les droits restreints s'y appliqueraient). Sinon {@link IOException} : rien
-	 * n'est copié, rien n'est chargé, rien n'est purgé.
+	 * Crée ou contrôle le dossier de travail privé et le renvoie (règle commune {@link DossierPrive} : réservé au
+	 * propriétaire, ni lien ni jonction, appartenant à l'utilisateur du processus). Il ne doit être ni le répertoire des
+	 * plugins ni l'un de ses ancêtres (la purge y effacerait les jars déposés, les droits restreints s'y appliqueraient),
+	 * ni chevaucher le dépôt du Maître {@code app.plateforme.depot-maitre}, dans un sens ou dans l'autre (la purge
+	 * effacerait les versions publiées). Sinon {@link IOException} : rien n'est copié, rien n'est chargé, rien n'est
+	 * purgé.
 	 */
 	private Path travailPrive() throws IOException {
 		Path travail = repertoireTravail();
@@ -901,55 +892,30 @@ public class PluginManager {
 			throw new IOException("dossier de travail refusé (égal au répertoire des plugins ou le contient) : "
 					+ travail);
 		}
-		boolean posix = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
-		if (!Files.exists(travail, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(travail)) {
-			Path parent = travail.getParent();
-			if (parent != null) {
-				Files.createDirectories(parent);
-			}
-			if (posix) {
-				Files.createDirectory(travail,
-						PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
-			}
-			else {
-				Files.createDirectory(travail);
-			}
+		Path depot = depotMaitre();
+		if (depot != null && (depot.startsWith(travail) || travail.startsWith(depot))) {
+			throw new IOException("dossier de travail refusé (confondu avec le dépôt du Maître) : " + travail);
 		}
-		BasicFileAttributes attributs = Files.readAttributes(travail, BasicFileAttributes.class,
-				LinkOption.NOFOLLOW_LINKS);
-		if (attributs.isSymbolicLink() || attributs.isOther() || !attributs.isDirectory()) {
-			throw new IOException("dossier de travail refusé (lien, jonction ou pas un dossier) : " + travail);
-		}
-		// Même contrôle sur les chemins réels (répertoire des plugins atteint par un lien, casse...).
-		if (Files.exists(plugins) && plugins.toRealPath().startsWith(travail.toRealPath(LinkOption.NOFOLLOW_LINKS))) {
+		DossierPrive.preparer(travail, proprietaireAttendu(), "dossier de travail refusé");
+		// Mêmes contrôles sur les chemins réels (répertoire atteint par un lien, casse...).
+		Path reelTravail = travail.toRealPath(LinkOption.NOFOLLOW_LINKS);
+		if (Files.exists(plugins) && plugins.toRealPath().startsWith(reelTravail)) {
 			throw new IOException("dossier de travail refusé (égal au répertoire des plugins ou le contient) : "
 					+ travail);
 		}
-		UserPrincipal proprietaire = Files.getOwner(travail, LinkOption.NOFOLLOW_LINKS);
-		if (!proprietaire.equals(proprietaireAttendu())) {
-			throw new IOException("dossier de travail refusé (n'appartient pas à l'utilisateur du processus) : "
-					+ travail);
-		}
-		if (posix) {
-			Files.setPosixFilePermissions(travail, PosixFilePermissions.fromString("rwx------"));
-		}
-		else {
-			AclFileAttributeView vue = Files.getFileAttributeView(travail, AclFileAttributeView.class,
-					LinkOption.NOFOLLOW_LINKS);
-			if (vue == null) {
-				throw new IOException("dossier de travail : droits non restreignables sur ce système : " + travail);
-			}
-			List<AclEntry> proprietaireSeul = List.of(AclEntry.newBuilder()
-				.setType(AclEntryType.ALLOW)
-				.setPrincipal(proprietaire)
-				.setPermissions(EnumSet.allOf(AclEntryPermission.class))
-				.setFlags(AclEntryFlag.FILE_INHERIT, AclEntryFlag.DIRECTORY_INHERIT)
-				.build());
-			if (!vue.getAcl().equals(proprietaireSeul)) {
-				vue.setAcl(proprietaireSeul);
+		if (depot != null && Files.exists(depot)) {
+			Path reelDepot = depot.toRealPath();
+			if (reelDepot.startsWith(reelTravail) || reelTravail.startsWith(reelDepot)) {
+				throw new IOException("dossier de travail refusé (confondu avec le dépôt du Maître) : " + travail);
 			}
 		}
 		return travail;
+	}
+
+	/** Dépôt du Maître configuré (chemin absolu normalisé), ou {@code null} s'il n'est pas renseigné. */
+	private Path depotMaitre() {
+		String depot = proprietes.getDepotMaitre();
+		return depot == null || depot.isBlank() ? null : Path.of(depot).toAbsolutePath().normalize();
 	}
 
 	private Map<String, String> versionsActives(String saufNom) {

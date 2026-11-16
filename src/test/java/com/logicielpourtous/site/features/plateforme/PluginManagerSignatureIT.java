@@ -592,6 +592,42 @@ class PluginManagerSignatureIT {
 		}
 	}
 
+	/** T4-M2 : la purge du dossier de travail ne peut jamais atteindre le dépôt du Maître (dans les deux sens). */
+	@Test
+	void depot_du_maitre_confondu_avec_le_dossier_de_travail_n_est_jamais_purge() throws Exception {
+		Path jar = JarDePluginDeTest.signer(deposer("1.0.0"));
+		Path travail = manager.repertoireTravail();
+		Files.createDirectories(travail);
+		Path publie = Files.writeString(travail.resolve("alpha-1.0.0.jar"), "publié");
+		Path ailleurs = dossier.resolve("depot-x");
+		Path publieAilleurs = Files.writeString(Files.createDirectories(ailleurs).resolve("beta-1.0.0.jar"), "publié");
+		try {
+			// 1. Dépôt = dossier de travail (défaut <plugins>.work).
+			proprietes.setDepotMaitre(travail.toString());
+			manager.demarrer();
+			assertThat(publie).exists();
+			ResultatInstallation r = manager.installer(jar);
+			assertThat(r.statut()).isEqualTo(Statut.ECHEC);
+			assertThat(r.raisons()).anyMatch(x -> x.contains("dossier de travail refusé"));
+			// 2. Dépôt DANS le dossier de travail.
+			proprietes.setDepotMaitre(travail.resolve("depot").toString());
+			assertThat(manager.installer(jar).statut()).isEqualTo(Statut.ECHEC);
+			// 3. Dossier de travail DANS le dépôt.
+			proprietes.setDepotMaitre(ailleurs.toString());
+			proprietes.setRepertoireTravail(ailleurs.resolve("travail").toString());
+			manager.demarrer();
+			assertThat(publieAilleurs).exists();
+			assertThat(manager.installer(jar).statut()).isEqualTo(Statut.ECHEC);
+			assertThat(manager.actifs()).isEmpty();
+			assertThat(schemaExiste()).isFalse();
+		}
+		finally {
+			proprietes.setDepotMaitre("depot-plugins");
+			proprietes.setRepertoireTravail("");
+			Files.deleteIfExists(publie);
+		}
+	}
+
 	@Test
 	void signature_obligatoire_n_avertit_pas_de_jars_non_signes_au_demarrage() {
 		assertThat(capture.list).noneMatch(e -> e.getFormattedMessage().contains("signature-obligatoire=false"));

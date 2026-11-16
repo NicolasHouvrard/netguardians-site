@@ -368,6 +368,91 @@ class DepotPluginsTest {
 		}
 	}
 
+	// ---- Correctifs de revue (tour 1) ----
+
+	/** M1 : pré-version en minuscules seulement (un système de fichiers insensible à la casse confondrait RC1 et rc1). */
+	@Test
+	void pre_version_en_majuscules_refusee() throws Exception {
+		assertThatThrownBy(() -> depot.ouvrir("alpha", "1.0.0-RC1", "jar")).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> depot.ouvrir("alpha", "1.0.0-rc.A", "jar")).isInstanceOf(IllegalArgumentException.class);
+		Path majuscules = jarSigne("alpha", "1.0.0-RC1");
+		assertThatThrownBy(() -> publier(majuscules)).isInstanceOf(DepotPlugins.DepotRefuse.class)
+			.hasMessageContaining("version");
+		assertThat(publier(jarSigne("alpha", "1.0.0-rc-1.2")).version()).isEqualTo("1.0.0-rc-1.2");
+	}
+
+	/** M2 : dépôt confondu avec le dossier de travail du cœur (dans les deux sens, défaut compris). */
+	@Test
+	void depot_confondu_avec_le_dossier_de_travail_refuse() throws Exception {
+		Path travail = racine.resolve("travail");
+		List<Runnable> configurations = List.of(
+				() -> proprietes.setRepertoireTravail(dossierDepot.toString()),
+				() -> proprietes.setRepertoireTravail(dossierDepot.resolve("sous").toString()),
+				() -> {
+					proprietes.setRepertoireTravail(travail.toString());
+					proprietes.setDepotMaitre(travail.resolve("depot").toString());
+				},
+				() -> {
+					proprietes.setRepertoireTravail("");
+					proprietes.setDepotMaitre(racine.resolve("plugins.work").toString());
+				});
+		for (Runnable configurer : configurations) {
+			proprietes.setDepotMaitre(dossierDepot.toString());
+			configurer.run();
+			assertThatThrownBy(() -> publier(jarSigne("alpha", "1.0.0"))).isInstanceOf(IOException.class)
+				.hasMessageContaining("dépôt refusé");
+		}
+		assertThat(fichiersDuDepot()).isEmpty();
+		assertThat(Files.exists(racine.resolve("plugins.work"))).isFalse();
+	}
+
+	/** M3 : une SecurityException à la lecture du manifeste (jar signé JAR cassé) n'est ni un 500 ni une panne du catalogue. */
+	@Test
+	void securityexception_a_la_lecture_du_manifeste_est_controlee() throws Exception {
+		publier(jarSigne("alpha", "1.0.0"));
+		publier(jarSigne("beta", "1.0.0"));
+		DepotPlugins neuf = new DepotPlugins(proprietes, new ClesPubliques(JarDePluginDeTest.clesDeTest()));
+		neuf.lecteurManifeste(jar -> {
+			if (jar.getFileName().toString().startsWith("beta") || jar.getFileName().toString().startsWith("publication")) {
+				throw new SecurityException("SHA-256 digest error for x.class");
+			}
+			return LecteurManifeste.lire(jar);
+		});
+
+		assertThat(neuf.catalogue()).extracting(EntreeCatalogue::nom).containsExactly("alpha");
+		Path gamma = jarSigne("gamma", "1.0.0");
+		assertThatThrownBy(() -> neuf.publier(Files.newInputStream(gamma),
+				Files.newInputStream(JarDePluginDeTest.sig(gamma))))
+			.isInstanceOf(DepotPlugins.DepotRefuse.class)
+			.hasMessageContaining("manifeste")
+			.satisfies(e -> assertThat(((DepotPlugins.DepotRefuse) e).motif()).isEqualTo(DepotPlugins.Motif.INVALIDE));
+	}
+
+	/** M10 : un refus de la .sig (trop volumineuse, UTF-8 invalide) est journalisé comme les autres refus. */
+	@Test
+	void refus_de_signature_journalise() throws Exception {
+		ch.qos.logback.classic.Logger journal = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory
+			.getLogger(DepotPlugins.class);
+		ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> capture = new ch.qos.logback.core.read.ListAppender<>();
+		capture.start();
+		journal.addAppender(capture);
+		try {
+			Path jar = jarSigne("alpha", "1.0.0");
+			assertThatThrownBy(() -> depot.publier(Files.newInputStream(jar), texte("x".repeat(20_000))))
+				.isInstanceOf(DepotPlugins.DepotRefuse.class);
+			assertThatThrownBy(() -> depot.publier(Files.newInputStream(jar),
+					new ByteArrayInputStream(new byte[] { (byte) 0xff, (byte) 0xfe })))
+				.isInstanceOf(DepotPlugins.DepotRefuse.class);
+		}
+		finally {
+			journal.detachAppender(capture);
+		}
+		assertThat(capture.list).filteredOn(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN
+				&& e.getFormattedMessage().contains("publication refusée"))
+			.hasSize(2);
+		assertThat(fichiersDuDepot()).isEmpty();
+	}
+
 	@Test
 	void nom_et_version_ne_viennent_que_du_manifeste_verifie() throws Exception {
 		// Le jar est construit sous un nom de fichier trompeur : seul le manifeste vérifié décide du nom stocké.

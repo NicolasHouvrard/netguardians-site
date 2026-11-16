@@ -489,10 +489,16 @@ class PluginManagerIT {
 		ResultatInstallation ra = a.get(60, TimeUnit.SECONDS);
 		ResultatInstallation rb = b.get(60, TimeUnit.SECONDS);
 
-		assertThat(ra.statut()).as(ra.raisons().toString()).isEqualTo(ResultatInstallation.Statut.OK);
+		// L'ordre n'est pas maîtrisé : v1 puis v2 = deux OK ; v2 puis v1 = v1 refusée comme rétrogradation (Task 3).
+		// Dans les deux cas l'installation est sérialisée et la v2 (1.1.0) finit active.
 		assertThat(rb.statut()).as(rb.raisons().toString()).isEqualTo(ResultatInstallation.Statut.OK);
+		if (ra.statut() != ResultatInstallation.Statut.OK) {
+			assertThat(ra.statut()).as(ra.raisons().toString()).isEqualTo(ResultatInstallation.Statut.REFUSE);
+			assertThat(ra.raisons()).anyMatch(r -> r.contains("rétrogradation refusée"));
+		}
 		assertThat(manager.actifs()).hasSize(1);
 		PluginGeneration active = manager.actifs().get("testnotes");
+		assertThat(active.version).isEqualTo("1.1.0");
 		assertThat(routage.generationActive("testnotes")).isSameAs(active);
 		assertThat(copiesDeTravail()).hasSize(1);
 		assertThat(lister().getHeader("X-Plugin")).isEqualTo(active.etiquette());

@@ -173,15 +173,22 @@ app.plateforme.diagnostic-fuites=false
 # true sans aucune cle publique lisible : la plateforme refuse de demarrer.
 app.plateforme.signature-obligatoire=${PLATEFORME_SIGNATURE_OBLIGATOIRE:true}
 # Taille maximale d'un jar de plugin (Mo, entre 1 et 1024) : au-dela, il est refuse avant toute
-# verification. Hors bornes : la plateforme refuse de demarrer.
+# verification. Hors bornes : la plateforme refuse de demarrer. (A la publication sur le depot du
+# Maitre, la limite multipart de 10 Mo s'applique d'abord : voir depot-maitre ci-dessous.)
 app.plateforme.taille-max-jar-mo=${PLATEFORME_TAILLE_MAX_JAR_MO:100}
 # Dossier de travail PRIVE ou chaque jar est copie, verifie puis charge. Vide = <repertoire-plugins>.work
 # (frere du repertoire des plugins). Doit appartenir a l'utilisateur du processus (droits reduits a
 # lui seul automatiquement) ; refuse si c'est un lien. Son dossier parent ne doit pas etre modifiable
 # par d'autres utilisateurs.
 app.plateforme.repertoire-travail=${PLATEFORME_REPERTOIRE_TRAVAIL:}
-# Depot du Maitre (seulement avec app.role=MASTER) : jars publies par POST /api/plateforme/depot
-# (signature toujours exigee, quel que soit signature-obligatoire) et leurs .sig. Dossier PRIVE (memes
-# regles que repertoire-travail), distinct du repertoire des plugins. Pour publier des jars de plus de
-# 10 Mo, relever aussi spring.servlet.multipart.max-file-size / max-request-size (en tete de fichier).
+# Depot du Maitre (seulement avec app.role=MASTER ; app.role absent = MASTER, avec avertissement) :
+# jars publies par POST /api/plateforme/depot (multipart jar + sig ; signature toujours exigee, quel que
+# soit signature-obligatoire) et leurs .sig. Dossier PRIVE (memes regles que repertoire-travail), qui ne
+# doit ni contenir ni etre contenu dans le repertoire des plugins ou le dossier de travail.
+# LIMITE EFFECTIVE DE PUBLICATION = 10 Mo par jar : spring.servlet.multipart.max-file-size=10MB (en tete
+# de fichier) coupe la requete AVANT le depot, sans corps {"erreur":...} (connexion parfois coupee). La
+# borne taille-max-jar-mo (100 par defaut) ne joue donc a la publication que si elle est INFERIEURE a
+# 10 ; elle reste la borne des jars installes par le coeur. Choix assume : les jars de plugin sont
+# minces (bibliotheques partagees dans le coeur). Ne pas relever max-file-size pour cela seul : la
+# limite vaut pour tous les envois multipart de l'application.
 app.plateforme.depot-maitre=${PLATEFORME_DEPOT_MAITRE:depot-plugins}

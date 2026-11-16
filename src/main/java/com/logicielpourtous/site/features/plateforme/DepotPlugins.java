@@ -1,5 +1,6 @@
 package com.logicielpourtous.site.features.plateforme;
 
+import com.logicielpourtous.site.features.commun.ServerRole;
 import com.logicielpourtous.site.sdk.ManifestePlugin;
 import com.logicielpourtous.site.sdk.SignatureJar;
 import java.io.IOException;
@@ -27,12 +28,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Conditional;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
@@ -64,9 +68,13 @@ public class DepotPlugins {
 
 	private static final Logger log = LoggerFactory.getLogger(DepotPlugins.class);
 
-	/** Version semver stricte (sans métadonnées {@code +build}) : elle entre telle quelle dans un nom de fichier. */
+	/**
+	 * Version semver stricte (sans métadonnées {@code +build}) : elle entre telle quelle dans un nom de fichier.
+	 * Pré-version en MINUSCULES seulement : sur un système de fichiers insensible à la casse, {@code 1.0.0-RC1} et
+	 * {@code 1.0.0-rc1} désigneraient le même fichier.
+	 */
 	static final Pattern VERSION_STRICTE = Pattern
-		.compile("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$");
+		.compile("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9a-z-]+(\\.[0-9a-z-]+)*)?$");
 
 	static final int LONGUEUR_MAX_VERSION = 64;
 
@@ -128,6 +136,18 @@ public class DepotPlugins {
 		this.cles = cles;
 	}
 
+	/** Constructeur Spring : avertit si le dépôt n'est actif que par le repli {@code app.role} absent ou invalide. */
+	@Autowired
+	public DepotPlugins(PlateformeProperties proprietes, ClesPubliques cles, Environment environnement) {
+		this(proprietes, cles);
+		String role = environnement.getProperty("app.role");
+		if (role == null || role.isBlank() || !role.trim().equalsIgnoreCase(ServerRole.MASTER.name())) {
+			log.warn("Dépôt du Maître actif par repli : app.role {} est traité comme MASTER. Renseigner app.role=MASTER "
+					+ "sur le Maître (et PARTNER/CLIENT ailleurs) pour lever toute ambiguïté.",
+					role == null || role.isBlank() ? "absent" : "invalide ('" + net(role) + "')");
+		}
+	}
+
 	/**
 	 * Publie une version : voir la description de la classe.
 	 *
@@ -140,11 +160,11 @@ public class DepotPlugins {
 		}
 		Path depot = depotPrive();
 		Path temporaire = temporairePrive(depot);
-		byte[] octetsSig = lireSignature(sig);
-		String jsonSig = texteUtf8(octetsSig);
 		Path copieJar = Files.createTempFile(temporaire, "publication-", ".jar");
 		Path copieSig = null;
 		try {
+			byte[] octetsSig = lireSignature(sig);
+			String jsonSig = texteUtf8(octetsSig);
 			copierBorne(jar, copieJar);
 			SignatureJar.Verdict verdict = SignatureJar.verifier(copieJar, jsonSig, cles.cles());
 			if (!verdict.valide()) {
@@ -266,6 +286,14 @@ public class DepotPlugins {
 		return extension.equals("jar") ? jar : jar.resolveSibling(fichierJar + ".sig");
 	}
 
+	/** Lecture du manifeste (remplaçable en test pour simuler une erreur non contrôlée de {@code JarFile}). */
+	private volatile Function<Path, ManifestePlugin> lecteurManifeste = LecteurManifeste::lire;
+
+	/** Pour les tests : remplace la lecture du manifeste. */
+	void lecteurManifeste(Function<Path, ManifestePlugin> lecteur) {
+		this.lecteurManifeste = lecteur;
+	}
+
 	/** Pour les tests : simule un dépôt appartenant à un autre utilisateur. */
 	void proprietaireAttendu(UserPrincipal proprietaire) {
 		this.proprietaireAttendu = proprietaire;
@@ -284,12 +312,23 @@ public class DepotPlugins {
 		if (plugins.startsWith(depot) || depot.startsWith(plugins)) {
 			throw new IOException("dépôt refusé (confondu avec le répertoire des plugins) : " + depot);
 		}
+		// Le dossier de travail du cœur est purgé au démarrage : le dépôt ne doit jamais le chevaucher.
+		Path travail = PluginManager.repertoireTravail(proprietes);
+		if (travail.startsWith(depot) || depot.startsWith(travail)) {
+			throw new IOException("dépôt refusé (confondu avec le dossier de travail des plugins) : " + depot);
+		}
 		DossierPrive.preparer(depot, proprietaireAttendu(), "dépôt refusé");
+		Path reelDepot = depot.toRealPath(LinkOption.NOFOLLOW_LINKS);
 		if (Files.exists(plugins)) {
 			Path reelPlugins = plugins.toRealPath();
-			Path reelDepot = depot.toRealPath(LinkOption.NOFOLLOW_LINKS);
 			if (reelPlugins.startsWith(reelDepot) || reelDepot.startsWith(reelPlugins)) {
 				throw new IOException("dépôt refusé (confondu avec le répertoire des plugins) : " + depot);
+			}
+		}
+		if (Files.exists(travail)) {
+			Path reelTravail = travail.toRealPath();
+			if (reelTravail.startsWith(reelDepot) || reelDepot.startsWith(reelTravail)) {
+				throw new IOException("dépôt refusé (confondu avec le dossier de travail des plugins) : " + depot);
 			}
 		}
 		return depot;
@@ -359,13 +398,17 @@ public class DepotPlugins {
 	}
 
 	/** Manifeste de la copie VÉRIFIÉE ; nom validé par le manifeste, version par le motif strict. */
-	private static ManifestePlugin manifeste(Path copieVerifiee) {
+	private ManifestePlugin manifeste(Path copieVerifiee) {
 		ManifestePlugin m;
 		try {
-			m = LecteurManifeste.lire(copieVerifiee);
+			m = lecteurManifeste.apply(copieVerifiee);
 		}
 		catch (IllegalArgumentException e) {
 			throw refus(Motif.INVALIDE, "manifeste invalide : " + e.getMessage());
+		}
+		catch (RuntimeException e) {
+			// Ex. SecurityException de JarFile (META-INF/*.SF cassé) : un refus, jamais une erreur non contrôlée.
+			throw refus(Motif.INVALIDE, "manifeste illisible : " + e.getClass().getSimpleName());
 		}
 		if (!versionValide(m.version())) {
 			throw refus(Motif.INVALIDE, "version invalide dans le manifeste (semver strict attendu) : " + m.version());
@@ -417,8 +460,9 @@ public class DepotPlugins {
 					entree));
 			return entree;
 		}
-		catch (IOException e) {
-			log.warn("Dépôt : {} illisible : {}", net(nomFichier), e.getMessage());
+		catch (IOException | RuntimeException e) {
+			// Un jar défaillant est écarté seul : le catalogue reste servi.
+			log.warn("Dépôt : {} illisible : {}", net(nomFichier), e.getClass().getSimpleName());
 			return null;
 		}
 	}

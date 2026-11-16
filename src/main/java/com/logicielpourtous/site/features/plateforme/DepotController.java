@@ -31,8 +31,13 @@ import org.springframework.web.multipart.MultipartFile;
  * différent, 413 au-delà de {@code app.plateforme.taille-max-jar-mo}, 500 dépôt inutilisable. Corps d'erreur
  * {@code {"erreur": "..."}} au texte nettoyé. {@code GET} renvoie le catalogue.
  * <p>
- * Attention : le multipart Spring ({@code spring.servlet.multipart.max-file-size}, 10 Mo dans la configuration
- * actuelle) coupe avant ce contrôleur ; il doit être relevé au niveau voulu pour publier de plus gros jars.
+ * <b>Limite effective de publication : 10 Mo par jar.</b> Le multipart Spring
+ * ({@code spring.servlet.multipart.max-file-size=10MB}, réglage global de l'application) rejette une requête plus
+ * grosse AVANT ce contrôleur, sans corps {@code {"erreur": ...}} (le client peut même voir la connexion coupée). La
+ * borne {@code app.plateforme.taille-max-jar-mo} (défaut 100) n'agit donc ici que si elle est inférieure à 10 ; elle
+ * reste la borne des jars installés par le cœur. Choix assumé : les jars de plugin sont minces (bibliothèques
+ * partagées dans le cœur) ; publier plus gros demanderait un autre contrat (corps brut en flux) plutôt que de relever
+ * la limite globale.
  */
 @RestController
 @RequestMapping("/api/plateforme/depot")

@@ -99,6 +99,40 @@ class PluginManagerCablageTest {
 			.noneMatch(e -> e.getFormattedMessage().contains("non signés"));
 	}
 
+	/** T4-M6 : dépôt actif par repli (app.role absent ou invalide = MASTER) : avertissement au démarrage. */
+	@Test
+	void depot_actif_par_repli_du_role_avertit_au_demarrage() {
+		ch.qos.logback.classic.Logger journal = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory
+			.getLogger(DepotPlugins.class);
+		ApplicationContextRunner avecDepot = runner.withUserConfiguration(DepotPlugins.class);
+		java.util.Map<String, Boolean> attendu = new java.util.LinkedHashMap<>();
+		attendu.put("", true);
+		attendu.put("app.role=", true);
+		attendu.put("app.role=maitre", true);
+		attendu.put("app.role=MASTER", false);
+		attendu.put("app.role=master", false);
+		attendu.forEach((role, avertit) -> {
+			ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> capture = new ch.qos.logback.core.read.ListAppender<>();
+			capture.start();
+			journal.addAppender(capture);
+			try {
+				ApplicationContextRunner r = avecDepot.withPropertyValues("app.plateforme.actif=true");
+				if (!role.isEmpty()) {
+					r = r.withPropertyValues(role);
+				}
+				r.run(contexte -> assertThat(contexte).hasSingleBean(DepotPlugins.class));
+			}
+			finally {
+				journal.detachAppender(capture);
+			}
+			boolean vu = capture.list.stream()
+				.anyMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN
+						&& e.getFormattedMessage().contains("app.role")
+						&& e.getFormattedMessage().contains("MASTER"));
+			assertThat(vu).as("avertissement pour '%s'", role).isEqualTo(avertit);
+		});
+	}
+
 	/** Dépôt du Maître : plateforme active ET rôle MASTER (absent ou invalide = MASTER, comme ServerRoleProperties). */
 	@Test
 	void depot_seulement_si_plateforme_active_et_role_master() {
