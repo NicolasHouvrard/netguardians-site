@@ -38,8 +38,31 @@ public class PlateformeProperties {
 	 */
 	private boolean signatureObligatoire = true;
 
-	/** Taille maximale d'un jar de plugin, en Mo : au-delà, il est refusé avant toute vérification. */
+	/** Bornes de {@link #tailleMaxJarMo} (la vérification lit le jar en mémoire : pas plus de 1 Gio). */
+	static final long TAILLE_MAX_JAR_MO_MIN = 1;
+
+	static final long TAILLE_MAX_JAR_MO_MAX = 1024;
+
+	/**
+	 * Taille maximale d'un jar de plugin, en Mo, entre {@value #TAILLE_MAX_JAR_MO_MIN} et
+	 * {@value #TAILLE_MAX_JAR_MO_MAX} : au-delà, il est refusé avant toute vérification.
+	 */
 	private long tailleMaxJarMo = 100;
+
+	/**
+	 * Dossier de travail privé du cœur, où chaque jar est copié, vérifié puis chargé. Vide (défaut) : dossier frère
+	 * du répertoire des plugins, {@code <repertoire-plugins>.work}, hors du répertoire de dépôt. Il doit appartenir à
+	 * l'utilisateur du processus ; il est restreint à ce seul utilisateur, et refusé s'il est un lien.
+	 */
+	private String repertoireTravail = "";
+
+	public String getRepertoireTravail() {
+		return repertoireTravail;
+	}
+
+	public void setRepertoireTravail(String repertoireTravail) {
+		this.repertoireTravail = repertoireTravail == null ? "" : repertoireTravail;
+	}
 
 	public boolean isSignatureObligatoire() {
 		return signatureObligatoire;
@@ -53,7 +76,12 @@ public class PlateformeProperties {
 		return tailleMaxJarMo;
 	}
 
+	/** @throws IllegalArgumentException hors bornes : la plateforme ne démarre pas, avec ce message. */
 	public void setTailleMaxJarMo(long tailleMaxJarMo) {
+		if (tailleMaxJarMo < TAILLE_MAX_JAR_MO_MIN || tailleMaxJarMo > TAILLE_MAX_JAR_MO_MAX) {
+			throw new IllegalArgumentException("app.plateforme.taille-max-jar-mo doit être compris entre "
+					+ TAILLE_MAX_JAR_MO_MIN + " et " + TAILLE_MAX_JAR_MO_MAX + " (Mo) : " + tailleMaxJarMo);
+		}
 		this.tailleMaxJarMo = tailleMaxJarMo;
 	}
 

@@ -172,5 +172,11 @@ app.plateforme.diagnostic-fuites=false
 # installes SANS verification (developpement local, tests), avec un avertissement au demarrage.
 # true sans aucune cle publique lisible : la plateforme refuse de demarrer.
 app.plateforme.signature-obligatoire=${PLATEFORME_SIGNATURE_OBLIGATOIRE:true}
-# Taille maximale d'un jar de plugin (Mo) : au-dela, il est refuse avant toute verification.
+# Taille maximale d'un jar de plugin (Mo, entre 1 et 1024) : au-dela, il est refuse avant toute
+# verification. Hors bornes : la plateforme refuse de demarrer.
 app.plateforme.taille-max-jar-mo=${PLATEFORME_TAILLE_MAX_JAR_MO:100}
+# Dossier de travail PRIVE ou chaque jar est copie, verifie puis charge. Vide = <repertoire-plugins>.work
+# (frere du repertoire des plugins). Doit appartenir a l'utilisateur du processus (droits reduits a
+# lui seul automatiquement) ; refuse si c'est un lien. Son dossier parent ne doit pas etre modifiable
+# par d'autres utilisateurs.
+app.plateforme.repertoire-travail=${PLATEFORME_REPERTOIRE_TRAVAIL:}

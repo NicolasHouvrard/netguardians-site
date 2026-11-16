@@ -249,7 +249,7 @@ class PluginManagerIT {
 	}
 
 	private List<Path> copiesDeTravail() throws IOException {
-		Path travail = repertoirePlugins.resolve(".work");
+		Path travail = manager.repertoireTravail();
 		if (!Files.isDirectory(travail)) {
 			return List.of();
 		}
@@ -509,7 +509,8 @@ class PluginManagerIT {
 
 	@Test
 	void repertoire_avec_fichier_non_jar_et_jar_invalide_ne_bloque_pas_le_demarrage() throws Exception {
-		Files.createDirectories(repertoirePlugins.resolve(".work"));
+		Files.createDirectories(repertoirePlugins);
+		Files.createDirectories(manager.repertoireTravail());
 		Files.writeString(repertoirePlugins.resolve("lisezmoi.txt"), "pas un plugin");
 		Files.writeString(repertoirePlugins.resolve("a-invalide.jar"), "ceci n'est pas un zip");
 		try (JarOutputStream vide = new JarOutputStream(
@@ -520,13 +521,13 @@ class PluginManagerIT {
 				Map.of("coeur-min", "0.0.0", "mise-a-jour", "chaud", "paquet", "x", "configuration", "x.C"), Map.of()),
 				repertoirePlugins.resolve("c-nom-invalide.jar"));
 		Files.copy(jarV1(), repertoirePlugins.resolve("testnotes-1.0.0.jar"));
-		Files.writeString(repertoirePlugins.resolve(".work").resolve("reste-d-un-arret-brutal.jar"), "vieux");
+		Files.writeString(manager.repertoireTravail().resolve("reste-d-un-arret-brutal.jar"), "vieux");
 
 		manager.demarrer();
 
 		assertThat(manager.actifs()).containsOnlyKeys("testnotes");
 		assertThat(lister().getStatus()).isEqualTo(200);
-		// Les restes de .work sont purgés ; seule la copie de la génération active demeure.
+		// Les restes du dossier de travail sont purgés ; seule la copie de la génération active demeure.
 		assertThat(copiesDeTravail()).hasSize(1)
 			.noneMatch(f -> f.getFileName().toString().equals("reste-d-un-arret-brutal.jar"));
 	}

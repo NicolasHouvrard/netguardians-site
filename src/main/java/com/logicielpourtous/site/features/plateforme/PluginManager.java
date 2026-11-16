@@ -12,9 +12,20 @@ import java.net.MalformedURLException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryFlag;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -49,7 +60,12 @@ import org.springframework.stereotype.Component;
  * <p>
  * Signature ({@code app.plateforme.signature-obligatoire}, vrai par défaut) : un jar n'est installé que si sa
  * {@code <jar>.sig} est valide pour une des {@link ClesPubliques}. La vérification porte sur la copie privée qui sera
- * chargée, avant toute lecture du manifeste ou ouverture par un chargeur de classes.
+ * chargée, avant toute lecture du manifeste ou ouverture par un chargeur de classes. Cette copie vit dans un dossier
+ * de travail PRIVÉ ({@link #repertoireTravail()}, hors du répertoire de dépôt par défaut) : appartenant à
+ * l'utilisateur du processus, restreint à lui seul (POSIX {@code rwx------}, ACL Windows propriétaire seul), refusé
+ * s'il est un lien ou s'il appartient à un autre. C'est cette privauté qui garantit qu'entre la vérification et
+ * l'ouverture par le chargeur (paresseuse) personne d'autre ne peut remplacer les octets vérifiés ; le dossier parent
+ * ne doit pas non plus être modifiable par d'autres. Un retour arrière revérifie sa recopie avant de la charger.
  */
 @Component
 @ConditionalOnProperty(name = "app.plateforme.actif", havingValue = "true")
@@ -57,7 +73,14 @@ public class PluginManager {
 
 	private static final Logger log = LoggerFactory.getLogger(PluginManager.class);
 
-	static final String TRAVAIL = ".work";
+	/** Suffixe du dossier de travail par défaut, frère du répertoire des plugins : {@code <repertoire>.work}. */
+	static final String SUFFIXE_TRAVAIL = ".work";
+
+	/**
+	 * Propriétaire attendu du dossier de travail : celui des fichiers que crée ce processus (calculé au premier
+	 * usage ; remplaçable par les tests pour simuler un dossier étranger).
+	 */
+	private volatile UserPrincipal proprietaireAttendu;
 
 	/** Taille maximale lue d'une {@code .sig} (le JSON attendu fait une centaine d'octets). */
 	static final int TAILLE_MAX_SIG = 16 * 1024;
@@ -155,7 +178,7 @@ public class PluginManager {
 	/**
 	 * Installe, pour chaque plugin, le {@code .jar} de plus haute version du répertoire des plugins (voir
 	 * {@link #plusHautesVersions}), par ordre alphabétique de fichier. Un jar refusé ou en échec est
-	 * journalisé et ignoré, jamais bloquant ; les autres fichiers et le sous-dossier {@code .work} sont ignorés. Les
+	 * journalisé et ignoré, jamais bloquant ; les autres fichiers et sous-dossiers sont ignorés. Les
 	 * jars refusés sont retentés tant qu'un passage installe quelque chose (dépendance installée plus loin dans
 	 * l'ordre alphabétique). Avec la signature obligatoire, les jars sans signature valide sont écartés d'abord
 	 * (avertissement), avant toute lecture de leur manifeste.
@@ -227,27 +250,30 @@ public class PluginManager {
 	/**
 	 * Signature obligatoire : écarte (avertissement) les jars sans signature valide AVANT toute lecture de leur
 	 * manifeste, pour que le choix de la plus haute version ne porte que sur des jars signés. {@link #installer} refait
-	 * la vérification sur la copie privée qu'il chargera : ce tri n'est qu'un filtre, pas la garantie.
+	 * la vérification sur la copie privée qu'il chargera : ce tri n'est qu'un filtre, pas la garantie. La vérification
+	 * porte sur une copie bornée (octets réellement lus, au plus {@code taille-max-jar-mo}), supprimée aussitôt.
 	 */
 	private List<Path> signesSeulement(List<Path> jars) {
 		List<Path> signes = new ArrayList<>();
 		for (Path jar : jars) {
 			String raison;
+			Path copie = null;
 			try {
-				if (Files.size(jar) > proprietes.getTailleMaxJarMo() * 1024 * 1024) {
-					raison = "jar trop volumineux : plus de " + proprietes.getTailleMaxJarMo()
-							+ " Mo (app.plateforme.taille-max-jar-mo)";
-				}
-				else {
-					SignatureJar.Verdict verdict = SignatureJar.verifier(jar, lireSignature(jar), cles.cles());
-					raison = verdict.valide() ? null : "signature invalide : " + verdict.raison();
-				}
+				String signature = lireSignature(jar);
+				copie = copier(jar, prefixeCopie(jar));
+				SignatureJar.Verdict verdict = SignatureJar.verifier(copie, signature, cles.cles());
+				raison = verdict.valide() ? null : "signature invalide : " + verdict.raison();
 			}
-			catch (SignatureIllisible e) {
+			catch (SignatureIllisible | JarTropVolumineux e) {
 				raison = e.getMessage();
 			}
 			catch (IOException e) {
 				raison = "jar illisible : " + messageRacine(e);
+			}
+			finally {
+				if (copie != null) {
+					supprimerCopie(copie);
+				}
 			}
 			if (raison == null) {
 				signes.add(jar);
@@ -304,8 +330,9 @@ public class PluginManager {
 
 	/**
 	 * Installe ou met à jour le plugin contenu dans {@code jar}. Le jar n'est jamais chargé directement : il est d'abord
-	 * copié (taille bornée) dans {@code <repertoire>/.work/}, et c'est cette copie privée qui est vérifiée puis chargée
-	 * (aucune fenêtre entre vérification et usage sur le fichier déposé ; sous Windows un jar ouvert est verrouillé).
+	 * copié (taille bornée) dans le dossier de travail privé ({@link #repertoireTravail()}), et c'est cette copie
+	 * qui est vérifiée puis chargée : le fichier déposé peut changer ensuite sans effet, et personne d'autre ne peut
+	 * modifier la copie (dossier privé, voir la Javadoc de la classe). Sous Windows un jar ouvert est verrouillé.
 	 * Avec la signature obligatoire, la {@code <jar>.sig} adjacente est lue une fois en mémoire et vérifiée sur la copie
 	 * AVANT toute lecture du manifeste ; un refus ne laisse aucune copie ni aucun schéma.
 	 */
@@ -372,7 +399,8 @@ public class PluginManager {
 				return new ResultatInstallation(Statut.REFUSE, m.nom(), m.version(), raisons, 0);
 			}
 			copieConfiee = true; // désormais à la charge de la génération (supprimée à sa fermeture)
-			return active == null ? premiereInstallation(jar, copie, m) : miseAJour(jar, copie, m, active);
+			return active == null ? premiereInstallation(jar, copie, m, signature)
+					: miseAJour(jar, copie, m, active, signature);
 		}
 		finally {
 			if (!copieConfiee) {
@@ -406,14 +434,15 @@ public class PluginManager {
 	/** Lit {@code <jar>.sig} une seule fois, en mémoire, taille bornée (texte UTF-8 strict). */
 	private static String lireSignature(Path jar) throws SignatureIllisible {
 		Path sig = jar.resolveSibling(jar.getFileName() + ".sig");
-		if (Files.notExists(sig)) {
+		if (!Files.exists(sig, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(sig)) {
 			throw new SignatureIllisible("signature absente");
 		}
-		if (!Files.isRegularFile(sig)) {
-			throw new SignatureIllisible("signature illisible : la .sig n'est pas un fichier");
+		// Fichier ordinaire, sans suivre de lien : ni lien, ni dossier, ni tube (qui bloquerait la lecture).
+		if (!Files.isRegularFile(sig, LinkOption.NOFOLLOW_LINKS)) {
+			throw new SignatureIllisible("signature illisible : la .sig n'est pas un fichier ordinaire");
 		}
 		byte[] octets;
-		try (InputStream in = Files.newInputStream(sig)) {
+		try (InputStream in = Files.newInputStream(sig, LinkOption.NOFOLLOW_LINKS)) {
 			octets = in.readNBytes(TAILLE_MAX_SIG + 1);
 		}
 		catch (IOException e) {
@@ -465,9 +494,10 @@ public class PluginManager {
 		}
 	}
 
-	private ResultatInstallation premiereInstallation(Path jar, Path copie, ManifestePlugin m) {
+	private ResultatInstallation premiereInstallation(Path jar, Path copie, ManifestePlugin m, String signature) {
 		PluginGeneration gen = new PluginGeneration(m.nom(), m.version(), copie);
 		gen.source = jar.toAbsolutePath();
+		gen.signature = signature;
 		boolean active = false;
 		try {
 			demarrerGeneration(gen, m);
@@ -489,7 +519,8 @@ public class PluginManager {
 	}
 
 	/** Port de {@code deployMaintenance} du prototype (stratégie maintenance seulement). */
-	private ResultatInstallation miseAJour(Path jar, Path copie, ManifestePlugin m, PluginGeneration ancienne) {
+	private ResultatInstallation miseAJour(Path jar, Path copie, ManifestePlugin m, PluginGeneration ancienne,
+			String signature) {
 		String nom = m.nom();
 		ManifestePlugin manifesteAncien = manifestes.get(nom);
 		long debut = System.nanoTime();
@@ -511,6 +542,7 @@ public class PluginManager {
 
 			PluginGeneration gen = new PluginGeneration(nom, m.version(), copie);
 			gen.source = jar.toAbsolutePath();
+			gen.signature = signature;
 			boolean nouvelleActive = false;
 			try {
 				demarrerGeneration(gen, m);
@@ -551,6 +583,14 @@ public class PluginManager {
 			Path copie = copier(ancienne.jarCopie, m.nom() + "-" + m.version() + "-");
 			retour = new PluginGeneration(m.nom(), m.version(), copie);
 			retour.source = ancienne.source;
+			retour.signature = ancienne.signature;
+			// La copie conservée a quitté le contrôle d'un chargeur ouvert : la recopie est revérifiée avant chargement.
+			if (proprietes.isSignatureObligatoire()) {
+				SignatureJar.Verdict verdict = SignatureJar.verifier(copie, ancienne.signature, cles.cles());
+				if (!verdict.valide()) {
+					throw new IOException("signature invalide : " + verdict.raison());
+				}
+			}
 			demarrerGeneration(retour, m);
 			basculer(retour, m);
 			relancee = true;
@@ -735,11 +775,15 @@ public class PluginManager {
 	 */
 	private Path copier(Path source, String prefixe) throws IOException {
 		long max = proprietes.getTailleMaxJarMo() * 1024 * 1024;
-		Path travail = repertoire().resolve(TRAVAIL);
-		Files.createDirectories(travail);
+		Path travail = travailPrive();
+		// Fichier ordinaire seulement (un tube bloquerait la lecture sous le verrou de l'installation).
+		if (!Files.isRegularFile(source)) {
+			throw new IOException("jar illisible : pas un fichier ordinaire");
+		}
 		Path copie = Files.createTempFile(travail, prefixe, ".jar");
 		boolean ok = false;
-		try (InputStream in = Files.newInputStream(source); OutputStream out = Files.newOutputStream(copie)) {
+		try (InputStream in = Files.newInputStream(source);
+				OutputStream out = Files.newOutputStream(copie, LinkOption.NOFOLLOW_LINKS)) {
 			byte[] tampon = new byte[64 * 1024];
 			long total = 0;
 			int lus;
@@ -763,16 +807,111 @@ public class PluginManager {
 
 	/** Supprime les copies laissées par un arrêt brutal (au démarrage, aucune n'est chargée). */
 	private synchronized void purgerTravail() {
-		Path travail = repertoire().resolve(TRAVAIL);
-		if (!Files.isDirectory(travail)) {
+		Path travail = repertoireTravail();
+		if (!Files.exists(travail, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(travail)) {
+			return;
+		}
+		try {
+			travail = travailPrive(); // jamais de purge à travers un lien ou dans un dossier étranger
+		}
+		catch (IOException e) {
+			log.error("Purge du dossier de travail refusée : {}", e.getMessage());
 			return;
 		}
 		try (Stream<Path> fichiers = Files.list(travail)) {
-			fichiers.filter(Files::isRegularFile).forEach(this::supprimerCopie);
+			fichiers.filter(f -> Files.isRegularFile(f, LinkOption.NOFOLLOW_LINKS)).forEach(this::supprimerCopie);
 		}
 		catch (IOException e) {
 			log.warn("Purge de {} impossible", travail, e);
 		}
+	}
+
+	/**
+	 * Dossier de travail : {@code app.plateforme.repertoire-travail}, ou par défaut le frère
+	 * {@code <repertoire-plugins>.work} (hors du répertoire de dépôt).
+	 */
+	Path repertoireTravail() {
+		String configure = proprietes.getRepertoireTravail();
+		if (configure != null && !configure.isBlank()) {
+			return Path.of(configure).toAbsolutePath();
+		}
+		Path repertoire = repertoire();
+		return repertoire.getFileName() == null ? repertoire.resolve(SUFFIXE_TRAVAIL)
+				: repertoire.resolveSibling(repertoire.getFileName() + SUFFIXE_TRAVAIL);
+	}
+
+	/** Pour les tests : simule un dossier de travail appartenant à un autre utilisateur. */
+	void proprietaireAttendu(UserPrincipal proprietaire) {
+		this.proprietaireAttendu = proprietaire;
+	}
+
+	/** Utilisateur propriétaire des fichiers créés par ce processus (fichier témoin temporaire). */
+	private UserPrincipal proprietaireAttendu() throws IOException {
+		UserPrincipal attendu = proprietaireAttendu;
+		if (attendu == null) {
+			Path temoin = Files.createTempFile("plateforme-proprietaire", ".tmp");
+			try {
+				attendu = Files.getOwner(temoin, LinkOption.NOFOLLOW_LINKS);
+			}
+			finally {
+				Files.deleteIfExists(temoin);
+			}
+			proprietaireAttendu = attendu;
+		}
+		return attendu;
+	}
+
+	/**
+	 * Crée ou contrôle le dossier de travail privé et le renvoie : créé réservé au propriétaire ; existant, il doit être
+	 * un vrai dossier (ni lien symbolique, ni jonction) appartenant à l'utilisateur du processus, et ses droits sont
+	 * (re)restreints à ce seul utilisateur. Sinon {@link IOException} : rien n'est copié, rien n'est chargé.
+	 */
+	private Path travailPrive() throws IOException {
+		Path travail = repertoireTravail();
+		boolean posix = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
+		if (!Files.exists(travail, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(travail)) {
+			Path parent = travail.getParent();
+			if (parent != null) {
+				Files.createDirectories(parent);
+			}
+			if (posix) {
+				Files.createDirectory(travail,
+						PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+			}
+			else {
+				Files.createDirectory(travail);
+			}
+		}
+		BasicFileAttributes attributs = Files.readAttributes(travail, BasicFileAttributes.class,
+				LinkOption.NOFOLLOW_LINKS);
+		if (attributs.isSymbolicLink() || attributs.isOther() || !attributs.isDirectory()) {
+			throw new IOException("dossier de travail refusé (lien, jonction ou pas un dossier) : " + travail);
+		}
+		UserPrincipal proprietaire = Files.getOwner(travail, LinkOption.NOFOLLOW_LINKS);
+		if (!proprietaire.equals(proprietaireAttendu())) {
+			throw new IOException("dossier de travail refusé (n'appartient pas à l'utilisateur du processus) : "
+					+ travail);
+		}
+		if (posix) {
+			Files.setPosixFilePermissions(travail, PosixFilePermissions.fromString("rwx------"));
+		}
+		else {
+			AclFileAttributeView vue = Files.getFileAttributeView(travail, AclFileAttributeView.class,
+					LinkOption.NOFOLLOW_LINKS);
+			if (vue == null) {
+				throw new IOException("dossier de travail : droits non restreignables sur ce système : " + travail);
+			}
+			List<AclEntry> proprietaireSeul = List.of(AclEntry.newBuilder()
+				.setType(AclEntryType.ALLOW)
+				.setPrincipal(proprietaire)
+				.setPermissions(EnumSet.allOf(AclEntryPermission.class))
+				.setFlags(AclEntryFlag.FILE_INHERIT, AclEntryFlag.DIRECTORY_INHERIT)
+				.build());
+			if (!vue.getAcl().equals(proprietaireSeul)) {
+				vue.setAcl(proprietaireSeul);
+			}
+		}
+		return travail;
 	}
 
 	private Map<String, String> versionsActives(String saufNom) {

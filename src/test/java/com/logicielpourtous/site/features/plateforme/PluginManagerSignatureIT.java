@@ -12,8 +12,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.KeyPair;
 import java.util.Comparator;
 import java.util.List;
@@ -83,9 +89,35 @@ class PluginManagerSignatureIT {
 		manager = gestionnaire();
 	}
 
+	/** Démarreur qui, pour {@link #versionPiegee}, exécute {@link #piege} puis échoue (déclenche le retour arrière). */
+	private final class DemarreurPiege extends DemarreurContexte {
+
+		volatile String versionPiegee;
+
+		volatile Runnable piege;
+
+		DemarreurPiege() {
+			super(ds, coeur);
+		}
+
+		@Override
+		public org.springframework.context.ConfigurableApplicationContext demarrer(PluginGeneration gen,
+				com.logicielpourtous.site.sdk.ManifestePlugin m) {
+			if (gen.version.equals(versionPiegee)) {
+				piege.run();
+				throw new IllegalStateException("démarrage piégé");
+			}
+			return super.demarrer(gen, m);
+		}
+
+	}
+
+	private DemarreurPiege demarreur;
+
 	private PluginManager gestionnaire() {
+		demarreur = new DemarreurPiege();
 		return new PluginManager(proprietes, new ClesPubliques(JarDePluginDeTest.clesDeTest()),
-				new DemarreurContexte(ds, coeur), coeur.getBean(RoutagePlugins.class),
+				demarreur, coeur.getBean(RoutagePlugins.class),
 				coeur.getBean(ContratRegistre.class), new ReferencesEntrantes(ds), ds,
 				new NettoyeurFuites(coeur, proprietes));
 	}
@@ -121,7 +153,7 @@ class PluginManagerSignatureIT {
 	}
 
 	private List<Path> copiesDeTravail() throws IOException {
-		Path travail = repertoirePlugins.resolve(PluginManager.TRAVAIL);
+		Path travail = manager.repertoireTravail();
 		if (!Files.isDirectory(travail)) {
 			return List.of();
 		}
@@ -154,7 +186,8 @@ class PluginManagerSignatureIT {
 		assertThat(manager.actifs()).containsOnlyKeys("testnotes");
 		// La génération charge la copie vérifiée, dans le dossier de travail privé, jamais le jar déposé.
 		Path copie = manager.actifs().get("testnotes").jarCopie;
-		assertThat(copie.getParent()).isEqualTo(repertoirePlugins.resolve(PluginManager.TRAVAIL).toAbsolutePath());
+		assertThat(copie.getParent()).isEqualTo(manager.repertoireTravail());
+		assertThat(manager.repertoireTravail()).isEqualTo(dossier.resolve("plugins.work").toAbsolutePath());
 		assertThat(Files.readAllBytes(copie)).isEqualTo(Files.readAllBytes(jar));
 	}
 
@@ -252,7 +285,28 @@ class PluginManagerSignatureIT {
 	@Test
 	void jar_trop_volumineux_est_refuse_avant_verification() throws Exception {
 		proprietes.setTailleMaxJarMo(1);
-		Path jar = dossier.resolve("gros").resolve("testnotes-1.0.0.jar");
+		Path jar = grosJarSigne(dossier.resolve("gros"));
+
+		refusSansTrace(manager.installer(jar), "trop volumineux");
+	}
+
+	@Test
+	void demarrage_ecarte_un_jar_trop_volumineux_sur_les_octets_lus() throws Exception {
+		proprietes.setTailleMaxJarMo(1);
+		grosJarSigne(repertoirePlugins);
+
+		manager.demarrer();
+
+		assertThat(manager.actifs()).isEmpty();
+		assertThat(copiesDeTravail()).isEmpty();
+		assertThat(capture.list).anyMatch(e -> e.getLevel() == Level.WARN
+				&& e.getFormattedMessage().contains("testnotes-1.0.0.jar")
+				&& e.getFormattedMessage().contains("trop volumineux"));
+	}
+
+	/** Jar signé d'environ 2 Mo (entrée stockée sans compression) : {@code <dossier>/testnotes-1.0.0.jar}. */
+	private static Path grosJarSigne(Path dossierJar) throws IOException {
+		Path jar = dossierJar.resolve("testnotes-1.0.0.jar");
 		Files.createDirectories(jar.getParent());
 		byte[] alea = new byte[2 * 1024 * 1024];
 		new Random(42).nextBytes(alea);
@@ -271,9 +325,111 @@ class PluginManagerSignatureIT {
 			jos.write(alea);
 			jos.closeEntry();
 		}
-		JarDePluginDeTest.signer(jar);
+		return JarDePluginDeTest.signer(jar);
+	}
 
-		refusSansTrace(manager.installer(jar), "trop volumineux");
+	@Test
+	void sig_lien_symbolique_est_refusee() throws Exception {
+		Path jar = JarDePluginDeTest.signer(jarNotes("v1", "1.0.0"));
+		Path vraie = dossier.resolve("ailleurs.sig");
+		Files.move(JarDePluginDeTest.sig(jar), vraie);
+		Files.createSymbolicLink(JarDePluginDeTest.sig(jar), vraie); // signature valide, mais à travers un lien
+
+		refusSansTrace(manager.installer(jar), "pas un fichier ordinaire");
+	}
+
+	@Test
+	void dossier_de_travail_hors_du_depot_et_reserve_au_proprietaire() throws Exception {
+		manager.installer(JarDePluginDeTest.signer(jarNotes("v1", "1.0.0")));
+
+		Path travail = manager.repertoireTravail();
+		assertThat(travail.startsWith(repertoirePlugins.toAbsolutePath())).isFalse();
+		if (FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
+			assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(travail, LinkOption.NOFOLLOW_LINKS)))
+				.isEqualTo("rwx------");
+		}
+		else {
+			List<AclEntry> acl = Files
+				.getFileAttributeView(travail, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS)
+				.getAcl();
+			assertThat(acl).hasSize(1);
+			assertThat(acl.get(0).principal()).isEqualTo(Files.getOwner(travail, LinkOption.NOFOLLOW_LINKS));
+		}
+	}
+
+	@Test
+	void dossier_de_travail_lien_symbolique_est_refuse() throws Exception {
+		Path cible = Files.createDirectories(dossier.resolve("cible-du-lien"));
+		Path temoin = Files.writeString(cible.resolve("a-garder.jar"), "pas à moi");
+		Files.createSymbolicLink(manager.repertoireTravail(), cible);
+		Path jar = JarDePluginDeTest.signer(jarNotes("v1", "1.0.0"));
+		try {
+			ResultatInstallation r = manager.installer(jar);
+
+			assertThat(r.statut()).isEqualTo(Statut.ECHEC);
+			assertThat(r.raisons()).anyMatch(x -> x.contains("dossier de travail refusé"));
+			assertThat(manager.actifs()).isEmpty();
+			assertThat(schemaExiste()).isFalse();
+			// Ni copie écrite à travers le lien, ni purge à travers lui au démarrage.
+			Path depose = repertoirePlugins.resolve("testnotes-1.0.0.jar");
+			Files.createDirectories(repertoirePlugins);
+			Files.copy(jar, depose);
+			Files.copy(JarDePluginDeTest.sig(jar), JarDePluginDeTest.sig(depose));
+			manager.demarrer();
+			assertThat(manager.actifs()).isEmpty();
+			try (Stream<Path> s = Files.list(cible)) {
+				assertThat(s.toList()).containsExactly(temoin);
+			}
+		}
+		finally {
+			Files.delete(manager.repertoireTravail()); // le lien seul, avant le nettoyage de apres()
+		}
+	}
+
+	@Test
+	void dossier_de_travail_d_un_autre_utilisateur_est_refuse() throws Exception {
+		Files.createDirectories(manager.repertoireTravail());
+		manager.proprietaireAttendu(() -> "un-autre-utilisateur");
+
+		ResultatInstallation r = manager.installer(JarDePluginDeTest.signer(jarNotes("v1", "1.0.0")));
+
+		assertThat(r.statut()).isEqualTo(Statut.ECHEC);
+		assertThat(r.raisons()).anyMatch(x -> x.contains("appartient pas"));
+		assertThat(manager.actifs()).isEmpty();
+		assertThat(schemaExiste()).isFalse();
+		try (Stream<Path> s = Files.list(manager.repertoireTravail())) {
+			assertThat(s.toList()).isEmpty();
+		}
+	}
+
+	@Test
+	void retour_arriere_reverifie_la_copie_conservee_avant_de_la_charger() throws Exception {
+		assertThat(manager.installer(JarDePluginDeTest.signer(jarNotes("v1", "1.0.0"))).statut()).isEqualTo(Statut.OK);
+		Path ancienneCopie = manager.actifs().get("testnotes").jarCopie;
+		// Jar 1.0.0 chargeable mais NON signé (une migration en plus) : substitué à la copie conservée pendant la
+		// mise à jour, après la fermeture de l'ancienne génération et avant le retour arrière.
+		Path substitut = JarDePluginDeTest.pluginNotes(dossier.resolve("substitut"), "1.0.0",
+				Map.of("V1__note.sql", JarDePluginDeTest.MIGRATION_NOTES_V1, "V2__intrus.sql",
+						"CREATE TABLE intrus (id int)"));
+		demarreur.versionPiegee = "1.1.0";
+		demarreur.piege = () -> {
+			try {
+				Files.copy(substitut, ancienneCopie, StandardCopyOption.REPLACE_EXISTING);
+			}
+			catch (IOException e) {
+				throw new java.io.UncheckedIOException(e);
+			}
+		};
+
+		ResultatInstallation r = manager.installer(JarDePluginDeTest.signer(jarNotes("v2", "1.1.0")));
+
+		assertThat(r.statut()).as("%s", r.raisons()).isEqualTo(Statut.ECHEC);
+		assertThat(r.raisons())
+			.anyMatch(x -> x.startsWith("Retour arrière impossible") && x.contains("signature invalide"));
+		assertThat(manager.actifs()).isEmpty();
+		assertThat(copiesDeTravail()).isEmpty();
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM information_schema.tables "
+				+ "WHERE table_schema = 'plugin_testnotes' AND table_name = 'intrus'", Integer.class)).isZero();
 	}
 
 	@Test

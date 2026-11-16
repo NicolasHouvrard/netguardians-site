@@ -23,6 +23,12 @@ public class PluginGeneration {
 	/** Jar d'origine (pour un retour arrière). */
 	Path source;
 
+	/**
+	 * Signature ({@code .sig}, JSON) vérifiée à l'installation, conservée pour revérifier une recopie de
+	 * {@link #jarCopie} avant de la recharger (retour arrière) ; {@code null} si la signature n'est pas obligatoire.
+	 */
+	String signature;
+
 	PluginClassLoader loader;
 
 	ConfigurableApplicationContext contexte;

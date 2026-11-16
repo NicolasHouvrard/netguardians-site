@@ -48,6 +48,24 @@ class PluginManagerCablageTest {
 		});
 	}
 
+	@Test
+	void taille_max_jar_hors_bornes_empeche_le_demarrage_avec_un_message_clair() {
+		for (String valeur : java.util.List.of("0", "-5", "1025", "9223372036854775807")) {
+			runner.withPropertyValues("app.plateforme.actif=true", "app.plateforme.taille-max-jar-mo=" + valeur)
+				.run(contexte -> {
+					assertThat(contexte).hasFailed();
+					Throwable cause = contexte.getStartupFailure();
+					while (cause.getCause() != null) {
+						cause = cause.getCause();
+					}
+					assertThat(cause).isInstanceOf(IllegalArgumentException.class)
+						.hasMessageContaining("app.plateforme.taille-max-jar-mo doit être compris entre 1 et 1024");
+				});
+		}
+		runner.withPropertyValues("app.plateforme.actif=true", "app.plateforme.taille-max-jar-mo=1024")
+			.run(contexte -> assertThat(contexte).hasNotFailed());
+	}
+
 	/** Journal du gestionnaire capturé pendant le démarrage d'un contexte avec les propriétés données. */
 	private java.util.List<ch.qos.logback.classic.spi.ILoggingEvent> journalAuDemarrage(String... proprietes) {
 		ch.qos.logback.classic.Logger journal = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory
