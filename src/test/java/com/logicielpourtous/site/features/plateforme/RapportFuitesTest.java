@@ -39,8 +39,9 @@ class RapportFuitesTest {
 		coeur.refresh();
 		DataSource ds = new DriverManagerDataSource("jdbc:postgresql://localhost:1/inutilisee");
 		proprietes = new PlateformeProperties();
-		manager = new PluginManager(proprietes, new DemarreurContexte(ds, coeur), new RoutagePlugins(),
-				new ContratRegistre(), new ReferencesEntrantes(ds), ds, chargeur -> {
+		manager = new PluginManager(proprietes, new ClesPubliques(JarDePluginDeTest.clesDeTest()),
+				new DemarreurContexte(ds, coeur), new RoutagePlugins(), new ContratRegistre(),
+				new ReferencesEntrantes(ds), ds, chargeur -> {
 				});
 	}
 

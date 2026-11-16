@@ -88,8 +88,11 @@ class FuiteMemoireIT {
 		proprietes.setVersionCoeur("1.0.0");
 		proprietes.setDelaiDrainageMs(10_000);
 		proprietes.setDiagnosticFuites(true); // autorise la pression mémoire de rapportFuites(true)
-		manager = new PluginManager(proprietes, new DemarreurContexte(ds, coeur), routage, new ContratRegistre(),
-				new ReferencesEntrantes(ds), ds, new NettoyeurFuites(coeur, proprietes));
+		// La signature n'est pas l'objet de ces tests (voir PluginManagerSignatureIT) : jars de test non signés.
+		proprietes.setSignatureObligatoire(false);
+		manager = new PluginManager(proprietes, new ClesPubliques(JarDePluginDeTest.clesDeTest()),
+				new DemarreurContexte(ds, coeur), routage, new ContratRegistre(), new ReferencesEntrantes(ds), ds,
+				new NettoyeurFuites(coeur, proprietes));
 		mvc = MockMvcBuilders.webAppContextSetup(coeur).addFilters(new FiltreEnVol(routage)).build();
 	}
 

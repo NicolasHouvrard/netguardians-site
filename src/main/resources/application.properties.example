@@ -148,10 +148,11 @@ gemini.api-key=${GEMINI_API_KEY:CHANGEME}
 # Desactivee par defaut : sans app.plateforme.actif=true, aucun bean, aucune route
 # /api/plateforme/** ni /api/plugins/** n'est servie (le coeur se comporte comme avant).
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !! ATTENTION : les jars de plugins NE SONT PAS SIGNES (signature = sous-projet 2). Tout jar
-# !! depose dans le repertoire des plugins s'execute dans le processus du coeur avec TOUS les
-# !! privileges de la JVM (base, secrets, fichiers, reseau). Ne pas activer en production avant
-# !! la liste « Avant de l'activer en production » de docs/plateforme-plugins-local.md.
+# !! Un jar de plugin s'execute dans le processus du coeur avec TOUS les privileges de la JVM
+# !! (base, secrets, fichiers, reseau). Seuls les jars signes (<jar>.sig) par une cle de
+# !! src/main/resources/plateforme/cles-publiques.properties sont installes. Les cles livrees
+# !! sont des cles de DEVELOPPEMENT sans cle privee : remplacer par les cles de production avant
+# !! d'activer en production (voir docs/plateforme-plugins-local.md).
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 app.plateforme.actif=${PLATEFORME_ACTIF:false}
 # Repertoire des jars de plugins (relatif au repertoire de lancement, ou absolu). Chaque .jar
@@ -167,3 +168,9 @@ app.plateforme.nettoyage-actif=true
 # Autorise GET /api/plateforme/fuites?pression=true a remplir le tas jusqu'a OutOfMemoryError
 # (mesure exacte). Brutal pour les autres threads : diagnostic/tests uniquement, false en production.
 app.plateforme.diagnostic-fuites=false
+# Signature obligatoire des jars (Ed25519, <jar>.sig). TOUJOURS true en production. false = jars
+# installes SANS verification (developpement local, tests), avec un avertissement au demarrage.
+# true sans aucune cle publique lisible : la plateforme refuse de demarrer.
+app.plateforme.signature-obligatoire=${PLATEFORME_SIGNATURE_OBLIGATOIRE:true}
+# Taille maximale d'un jar de plugin (Mo) : au-dela, il est refuse avant toute verification.
+app.plateforme.taille-max-jar-mo=${PLATEFORME_TAILLE_MAX_JAR_MO:100}

@@ -2,13 +2,18 @@ package com.logicielpourtous.site.features.plateforme;
 
 import com.logicielpourtous.site.features.plateforme.ResultatInstallation.Statut;
 import com.logicielpourtous.site.sdk.ManifestePlugin;
+import com.logicielpourtous.site.sdk.SignatureJar;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,6 +46,10 @@ import org.springframework.stereotype.Component;
  * schéma en avance, d'où la règle « l'ancienne version doit tourner sur le nouveau schéma »).
  * <p>
  * Toutes les opérations qui changent l'ensemble des générations sont sérialisées ({@code synchronized}).
+ * <p>
+ * Signature ({@code app.plateforme.signature-obligatoire}, vrai par défaut) : un jar n'est installé que si sa
+ * {@code <jar>.sig} est valide pour une des {@link ClesPubliques}. La vérification porte sur la copie privée qui sera
+ * chargée, avant toute lecture du manifeste ou ouverture par un chargeur de classes.
  */
 @Component
 @ConditionalOnProperty(name = "app.plateforme.actif", havingValue = "true")
@@ -50,7 +59,13 @@ public class PluginManager {
 
 	static final String TRAVAIL = ".work";
 
+	/** Taille maximale lue d'une {@code .sig} (le JSON attendu fait une centaine d'octets). */
+	static final int TAILLE_MAX_SIG = 16 * 1024;
+
 	private final PlateformeProperties proprietes;
+
+	/** Clés de confiance pour la signature des jars. */
+	private final ClesPubliques cles;
 
 	private final DemarreurContexte demarreur;
 
@@ -85,22 +100,38 @@ public class PluginManager {
 	 */
 	private final Map<String, String> enMiseAJour = new ConcurrentHashMap<>();
 
-	public PluginManager(PlateformeProperties proprietes, DemarreurContexte demarreur, RoutagePlugins routage,
-			ContratRegistre contrats, ReferencesEntrantes references, DataSource dataSource,
+	/**
+	 * @param cles clés de confiance : le bean lu dans la ressource du cœur, ou des clés de test injectées
+	 * @throws IllegalStateException si la signature est obligatoire et qu'aucune clé n'est disponible (jamais de cœur
+	 * qui accepterait tout jar)
+	 */
+	public PluginManager(PlateformeProperties proprietes, ClesPubliques cles, DemarreurContexte demarreur,
+			RoutagePlugins routage, ContratRegistre contrats, ReferencesEntrantes references, DataSource dataSource,
 			Consumer<ClassLoader> nettoyage) {
+		if (proprietes.isSignatureObligatoire() && (cles == null || cles.cles().isEmpty())) {
+			throw new IllegalStateException("Plateforme de plugins : aucune clé publique de confiance alors que "
+					+ "app.plateforme.signature-obligatoire=true : la plateforme refuse de démarrer");
+		}
 		this.proprietes = proprietes;
+		this.cles = cles == null ? new ClesPubliques(List.of()) : cles;
 		this.demarreur = demarreur;
 		this.routage = routage;
 		this.contrats = contrats;
 		this.references = references;
 		this.jdbc = new JdbcTemplate(dataSource);
 		this.nettoyage = nettoyage;
-		log.warn("""
-				*****************************************************************************************
-				PLATEFORME DE PLUGINS ACTIVE : jars non signés exécutés avec tous les privilèges JVM \
-				(base, secrets, fichiers, réseau) — signature = sous-projet 2. \
-				Voir docs/plateforme-plugins-local.md, « Avant de l'activer en production ».
-				*****************************************************************************************""");
+		if (proprietes.isSignatureObligatoire()) {
+			log.info("Plateforme de plugins active : signature obligatoire ({} clé(s) de confiance)",
+					this.cles.cles().size());
+		}
+		else {
+			log.warn("""
+					*****************************************************************************************
+					PLATEFORME DE PLUGINS ACTIVE avec app.plateforme.signature-obligatoire=false : jars non signés \
+					(signature non vérifiée) exécutés avec tous les privilèges JVM (base, secrets, fichiers, \
+					réseau). Réservé au développement local et aux tests, JAMAIS en production.
+					*****************************************************************************************""");
+		}
 	}
 
 	/** Générations actives par nom de plugin (instantané non modifiable). */
@@ -126,7 +157,8 @@ public class PluginManager {
 	 * {@link #plusHautesVersions}), par ordre alphabétique de fichier. Un jar refusé ou en échec est
 	 * journalisé et ignoré, jamais bloquant ; les autres fichiers et le sous-dossier {@code .work} sont ignorés. Les
 	 * jars refusés sont retentés tant qu'un passage installe quelque chose (dépendance installée plus loin dans
-	 * l'ordre alphabétique).
+	 * l'ordre alphabétique). Avec la signature obligatoire, les jars sans signature valide sont écartés d'abord
+	 * (avertissement), avant toute lecture de leur manifeste.
 	 */
 	@EventListener(ApplicationReadyEvent.class)
 	public synchronized void demarrer() {
@@ -156,6 +188,9 @@ public class PluginManager {
 		catch (IOException e) {
 			log.error("Lecture du répertoire des plugins impossible : {}", repertoire, e);
 			return;
+		}
+		if (proprietes.isSignatureObligatoire()) {
+			restants = signesSeulement(restants);
 		}
 		restants = plusHautesVersions(restants);
 		Map<Path, ResultatInstallation> derniers = new LinkedHashMap<>();
@@ -187,6 +222,41 @@ public class PluginManager {
 				log.warn("Plugin ignoré au démarrage : {} -> {} {}", jar.getFileName(), r.statut(), r.raisons());
 			}
 		});
+	}
+
+	/**
+	 * Signature obligatoire : écarte (avertissement) les jars sans signature valide AVANT toute lecture de leur
+	 * manifeste, pour que le choix de la plus haute version ne porte que sur des jars signés. {@link #installer} refait
+	 * la vérification sur la copie privée qu'il chargera : ce tri n'est qu'un filtre, pas la garantie.
+	 */
+	private List<Path> signesSeulement(List<Path> jars) {
+		List<Path> signes = new ArrayList<>();
+		for (Path jar : jars) {
+			String raison;
+			try {
+				if (Files.size(jar) > proprietes.getTailleMaxJarMo() * 1024 * 1024) {
+					raison = "jar trop volumineux : plus de " + proprietes.getTailleMaxJarMo()
+							+ " Mo (app.plateforme.taille-max-jar-mo)";
+				}
+				else {
+					SignatureJar.Verdict verdict = SignatureJar.verifier(jar, lireSignature(jar), cles.cles());
+					raison = verdict.valide() ? null : "signature invalide : " + verdict.raison();
+				}
+			}
+			catch (SignatureIllisible e) {
+				raison = e.getMessage();
+			}
+			catch (IOException e) {
+				raison = "jar illisible : " + messageRacine(e);
+			}
+			if (raison == null) {
+				signes.add(jar);
+			}
+			else {
+				log.warn("Plugin ignoré au démarrage : {} -> {}", jar.getFileName(), raison);
+			}
+		}
+		return signes;
 	}
 
 	/**
@@ -233,43 +303,140 @@ public class PluginManager {
 	}
 
 	/**
-	 * Installe ou met à jour le plugin contenu dans {@code jar}. Le jar n'est jamais chargé directement : une copie
-	 * dans {@code <repertoire>/.work/} est chargée (sous Windows un jar ouvert est verrouillé).
+	 * Installe ou met à jour le plugin contenu dans {@code jar}. Le jar n'est jamais chargé directement : il est d'abord
+	 * copié (taille bornée) dans {@code <repertoire>/.work/}, et c'est cette copie privée qui est vérifiée puis chargée
+	 * (aucune fenêtre entre vérification et usage sur le fichier déposé ; sous Windows un jar ouvert est verrouillé).
+	 * Avec la signature obligatoire, la {@code <jar>.sig} adjacente est lue une fois en mémoire et vérifiée sur la copie
+	 * AVANT toute lecture du manifeste ; un refus ne laisse aucune copie ni aucun schéma.
 	 */
 	public synchronized ResultatInstallation installer(Path jar) {
-		ManifestePlugin m;
-		Map<String, String> migrations;
-		try {
-			m = LecteurManifeste.lire(jar);
-			migrations = LecteurManifeste.migrations(jar, m.nom());
+		String signature = null;
+		if (proprietes.isSignatureObligatoire()) {
+			try {
+				signature = lireSignature(jar);
+			}
+			catch (SignatureIllisible e) {
+				log.warn("Plugin refusé ({}) : {}", jar.getFileName(), e.getMessage());
+				return refusAnonyme(e.getMessage());
+			}
 		}
-		catch (IllegalArgumentException e) {
-			log.warn("Plugin refusé ({}) : {}", jar.getFileName(), e.getMessage());
-			return new ResultatInstallation(Statut.REFUSE, null, null, List.of(e.getMessage()), 0);
-		}
-		PluginGeneration active = actifs.get(m.nom());
-
-		List<String> raisons = new ArrayList<>(VerificateurMiseAJour.verifierPaquets(m));
-		raisons.addAll(VerificateurMiseAJour.verifierDependances(m.dependances(), versionsActives(m.nom())));
-		VerificateurMiseAJour.Verdict verdict = active == null
-				? VerificateurMiseAJour.verifier(m, Map.of(), Set.of(), proprietes.getVersionCoeur(), null)
-				: VerificateurMiseAJour.verifier(m, nonAppliquees(m.nom(), migrations), tablesReferencees(m.nom()),
-						proprietes.getVersionCoeur(), active.version);
-		raisons.addAll(verdict.raisons());
-		if (!raisons.isEmpty()) {
-			log.warn("Plugin {} {} refusé : {}", m.nom(), m.version(), raisons);
-			return new ResultatInstallation(Statut.REFUSE, m.nom(), m.version(), raisons, 0);
-		}
-
 		Path copie;
 		try {
-			copie = copier(jar, m);
+			copie = copier(jar, prefixeCopie(jar));
+		}
+		catch (JarTropVolumineux e) {
+			log.warn("Plugin refusé ({}) : {}", jar.getFileName(), e.getMessage());
+			return refusAnonyme(e.getMessage());
 		}
 		catch (IOException e) {
 			log.error("Copie de travail de {} impossible", jar.getFileName(), e);
-			return new ResultatInstallation(Statut.ECHEC, m.nom(), m.version(), List.of(messageRacine(e)), 0);
+			return new ResultatInstallation(Statut.ECHEC, null, null, List.of(messageRacine(e)), 0);
 		}
-		return active == null ? premiereInstallation(jar, copie, m) : miseAJour(jar, copie, m, active);
+		boolean copieConfiee = false;
+		try {
+			if (proprietes.isSignatureObligatoire()) {
+				SignatureJar.Verdict verdict = SignatureJar.verifier(copie, signature, cles.cles());
+				if (!verdict.valide()) {
+					String raison = "signature invalide : " + verdict.raison();
+					log.warn("Plugin refusé ({}) : {}", jar.getFileName(), raison);
+					return refusAnonyme(raison);
+				}
+				log.info("Signature de {} valide (clé {})", jar.getFileName(), verdict.keyId());
+			}
+			else {
+				log.warn("Plugin {} : signature non vérifiée (app.plateforme.signature-obligatoire=false)",
+						jar.getFileName());
+			}
+
+			ManifestePlugin m;
+			Map<String, String> migrations;
+			try {
+				m = LecteurManifeste.lire(copie);
+				migrations = LecteurManifeste.migrations(copie, m.nom());
+			}
+			catch (IllegalArgumentException e) {
+				log.warn("Plugin refusé ({}) : {}", jar.getFileName(), e.getMessage());
+				return refusAnonyme(e.getMessage());
+			}
+			PluginGeneration active = actifs.get(m.nom());
+
+			List<String> raisons = new ArrayList<>(VerificateurMiseAJour.verifierPaquets(m));
+			raisons.addAll(VerificateurMiseAJour.verifierDependances(m.dependances(), versionsActives(m.nom())));
+			VerificateurMiseAJour.Verdict verdict = active == null
+					? VerificateurMiseAJour.verifier(m, Map.of(), Set.of(), proprietes.getVersionCoeur(), null)
+					: VerificateurMiseAJour.verifier(m, nonAppliquees(m.nom(), migrations),
+							tablesReferencees(m.nom()), proprietes.getVersionCoeur(), active.version);
+			raisons.addAll(verdict.raisons());
+			if (!raisons.isEmpty()) {
+				log.warn("Plugin {} {} refusé : {}", m.nom(), m.version(), raisons);
+				return new ResultatInstallation(Statut.REFUSE, m.nom(), m.version(), raisons, 0);
+			}
+			copieConfiee = true; // désormais à la charge de la génération (supprimée à sa fermeture)
+			return active == null ? premiereInstallation(jar, copie, m) : miseAJour(jar, copie, m, active);
+		}
+		finally {
+			if (!copieConfiee) {
+				supprimerCopie(copie);
+			}
+		}
+	}
+
+	private static ResultatInstallation refusAnonyme(String raison) {
+		return new ResultatInstallation(Statut.REFUSE, null, null, List.of(raison), 0);
+	}
+
+	/** Signature adjacente absente, illisible ou trop grosse : refus sans rien copier ni lire du jar. */
+	private static final class SignatureIllisible extends Exception {
+
+		SignatureIllisible(String message) {
+			super(message, null, false, false);
+		}
+
+	}
+
+	/** Jar au-delà de {@code app.plateforme.taille-max-jar-mo} : refus avant toute vérification. */
+	private static final class JarTropVolumineux extends IOException {
+
+		JarTropVolumineux(String message) {
+			super(message);
+		}
+
+	}
+
+	/** Lit {@code <jar>.sig} une seule fois, en mémoire, taille bornée (texte UTF-8 strict). */
+	private static String lireSignature(Path jar) throws SignatureIllisible {
+		Path sig = jar.resolveSibling(jar.getFileName() + ".sig");
+		if (Files.notExists(sig)) {
+			throw new SignatureIllisible("signature absente");
+		}
+		if (!Files.isRegularFile(sig)) {
+			throw new SignatureIllisible("signature illisible : la .sig n'est pas un fichier");
+		}
+		byte[] octets;
+		try (InputStream in = Files.newInputStream(sig)) {
+			octets = in.readNBytes(TAILLE_MAX_SIG + 1);
+		}
+		catch (IOException e) {
+			throw new SignatureIllisible("signature illisible : lecture impossible");
+		}
+		if (octets.length > TAILLE_MAX_SIG) {
+			throw new SignatureIllisible("signature illisible : plus de " + TAILLE_MAX_SIG + " octets");
+		}
+		try {
+			return StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(octets)).toString();
+		}
+		catch (CharacterCodingException e) {
+			throw new SignatureIllisible("signature illisible : texte UTF-8 invalide");
+		}
+	}
+
+	/** Préfixe lisible de la copie de travail, tiré du nom du fichier déposé (caractères sûrs seulement). */
+	private static String prefixeCopie(Path jar) {
+		String nom = jar.getFileName().toString().replaceFirst("(?i)\\.jar$", "").replaceAll("[^A-Za-z0-9._-]", "_");
+		if (nom.length() > 60) {
+			nom = nom.substring(0, 60);
+		}
+		return (nom.isEmpty() ? "plugin" : nom) + "-";
 	}
 
 	/** Retire le plugin (route, contrats, drainage, fermeture). Le schéma {@code plugin_<nom>} est conservé. */
@@ -381,7 +548,7 @@ public class PluginManager {
 		PluginGeneration retour = null;
 		boolean relancee = false;
 		try {
-			Path copie = copier(ancienne.jarCopie, m);
+			Path copie = copier(ancienne.jarCopie, m.nom() + "-" + m.version() + "-");
 			retour = new PluginGeneration(m.nom(), m.version(), copie);
 			retour.source = ancienne.source;
 			demarrerGeneration(retour, m);
@@ -561,12 +728,37 @@ public class PluginManager {
 		return Path.of(proprietes.getRepertoirePlugins()).toAbsolutePath();
 	}
 
-	private Path copier(Path jar, ManifestePlugin m) throws IOException {
+	/**
+	 * Copie {@code source} dans le dossier de travail privé en lisant au plus {@code taille-max-jar-mo} : au-delà, la
+	 * copie partielle est supprimée et {@link JarTropVolumineux} levée (la borne vaut pour les octets réellement lus,
+	 * pas pour une taille annoncée qui pourrait changer entre-temps).
+	 */
+	private Path copier(Path source, String prefixe) throws IOException {
+		long max = proprietes.getTailleMaxJarMo() * 1024 * 1024;
 		Path travail = repertoire().resolve(TRAVAIL);
 		Files.createDirectories(travail);
-		Path copie = Files.createTempFile(travail, m.nom() + "-" + m.version() + "-", ".jar");
-		Files.copy(jar, copie, StandardCopyOption.REPLACE_EXISTING);
-		return copie;
+		Path copie = Files.createTempFile(travail, prefixe, ".jar");
+		boolean ok = false;
+		try (InputStream in = Files.newInputStream(source); OutputStream out = Files.newOutputStream(copie)) {
+			byte[] tampon = new byte[64 * 1024];
+			long total = 0;
+			int lus;
+			while ((lus = in.read(tampon)) != -1) {
+				total += lus;
+				if (total > max) {
+					throw new JarTropVolumineux("jar trop volumineux : plus de " + proprietes.getTailleMaxJarMo()
+							+ " Mo (app.plateforme.taille-max-jar-mo)");
+				}
+				out.write(tampon, 0, lus);
+			}
+			ok = true;
+			return copie;
+		}
+		finally {
+			if (!ok) {
+				supprimerCopie(copie);
+			}
+		}
 	}
 
 	/** Supprime les copies laissées par un arrêt brutal (au démarrage, aucune n'est chargée). */

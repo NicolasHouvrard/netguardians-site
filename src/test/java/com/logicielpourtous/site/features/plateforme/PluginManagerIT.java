@@ -145,10 +145,12 @@ class PluginManagerIT {
 		proprietes.setRepertoirePlugins(repertoirePlugins.toString());
 		proprietes.setVersionCoeur("1.0.0");
 		proprietes.setDelaiDrainageMs(10_000);
+		// La signature n'est pas l'objet de ces tests (voir PluginManagerSignatureIT) : jars de test non signés.
+		proprietes.setSignatureObligatoire(false);
 		contrats = coeur.getBean(ContratRegistre.class);
 		demarreur = new DemarreurPiege(ds, coeur);
-		manager = new PluginManager(proprietes, demarreur, routage, contrats, new ReferencesEntrantes(ds), ds,
-				new NettoyeurFuites(coeur, proprietes));
+		manager = new PluginManager(proprietes, new ClesPubliques(JarDePluginDeTest.clesDeTest()), demarreur, routage,
+				contrats, new ReferencesEntrantes(ds), ds, new NettoyeurFuites(coeur, proprietes));
 		mvc = MockMvcBuilders.webAppContextSetup(coeur).addFilters(new FiltreEnVol(routage)).build();
 	}
 

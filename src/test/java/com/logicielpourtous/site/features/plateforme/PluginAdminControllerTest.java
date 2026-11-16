@@ -61,6 +61,8 @@ class PluginAdminControllerTest {
 		registre.add("app.plateforme.actif", () -> "true");
 		registre.add("app.plateforme.repertoire-plugins", REPERTOIRE::toString);
 		registre.add("app.plateforme.delai-drainage-ms", () -> "5000");
+		// La signature n'est pas l'objet de ces tests (voir PluginManagerSignatureIT) : jars de test non signés.
+		registre.add("app.plateforme.signature-obligatoire", () -> "false");
 	}
 
 	@Autowired

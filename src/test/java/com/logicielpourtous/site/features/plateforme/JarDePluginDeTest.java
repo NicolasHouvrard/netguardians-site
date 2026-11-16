@@ -6,6 +6,10 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -16,10 +20,54 @@ import java.util.stream.Stream;
 import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
 
+import com.logicielpourtous.site.sdk.ClePublique;
+import com.logicielpourtous.site.sdk.SignatureJar;
+
 /** Aide de test : fabrique un jar de plugin minimal (manifeste + migrations, et classes compilées à la volée). */
 public final class JarDePluginDeTest {
 
 	private JarDePluginDeTest() {
+	}
+
+	/** keyId de la paire de test (générée en mémoire à chaque exécution, jamais écrite sur disque). */
+	public static final String KEY_ID_TEST = "test-1";
+
+	private static final KeyPair PAIRE_DE_TEST = nouvellePaire();
+
+	/** Nouvelle paire Ed25519 en mémoire. */
+	public static KeyPair nouvellePaire() {
+		try {
+			return KeyPairGenerator.getInstance(SignatureJar.ALGO).generateKeyPair();
+		}
+		catch (NoSuchAlgorithmException e) {
+			throw new IllegalStateException(e);
+		}
+	}
+
+	/** Clés de confiance des tests : la seule clé publique de la paire de test ({@link #KEY_ID_TEST}). */
+	public static List<ClePublique> clesDeTest() {
+		return List.of(new ClePublique(KEY_ID_TEST, PAIRE_DE_TEST.getPublic()));
+	}
+
+	/** Signe {@code jar} avec la paire de test : écrit {@code <jar>.sig} à côté et renvoie le jar. */
+	public static Path signer(Path jar) {
+		return signer(jar, PAIRE_DE_TEST.getPrivate(), KEY_ID_TEST);
+	}
+
+	/** Signe {@code jar} avec la clé et le keyId donnés : écrit {@code <jar>.sig} à côté et renvoie le jar. */
+	public static Path signer(Path jar, PrivateKey cle, String keyId) {
+		try {
+			Files.writeString(sig(jar), SignatureJar.signer(jar, cle, keyId), StandardCharsets.UTF_8);
+			return jar;
+		}
+		catch (Exception e) {
+			throw new IllegalStateException("Signature du jar de test impossible : " + jar, e);
+		}
+	}
+
+	/** Chemin de la signature adjacente : {@code <jar>.sig}. */
+	public static Path sig(Path jar) {
+		return jar.resolveSibling(jar.getFileName() + ".sig");
 	}
 
 	/**

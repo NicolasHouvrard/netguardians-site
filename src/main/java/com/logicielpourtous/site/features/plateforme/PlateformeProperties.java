@@ -31,6 +31,32 @@ public class PlateformeProperties {
 	 */
 	private boolean diagnosticFuites = false;
 
+	/**
+	 * Exige une signature valide ({@code <jar>.sig}, clé de {@code plateforme/cles-publiques.properties}) pour
+	 * installer un jar. {@code false} seulement pour le développement local et les tests : aucun jar n'est alors
+	 * vérifié (avertissement au démarrage et à chaque installation).
+	 */
+	private boolean signatureObligatoire = true;
+
+	/** Taille maximale d'un jar de plugin, en Mo : au-delà, il est refusé avant toute vérification. */
+	private long tailleMaxJarMo = 100;
+
+	public boolean isSignatureObligatoire() {
+		return signatureObligatoire;
+	}
+
+	public void setSignatureObligatoire(boolean signatureObligatoire) {
+		this.signatureObligatoire = signatureObligatoire;
+	}
+
+	public long getTailleMaxJarMo() {
+		return tailleMaxJarMo;
+	}
+
+	public void setTailleMaxJarMo(long tailleMaxJarMo) {
+		this.tailleMaxJarMo = tailleMaxJarMo;
+	}
+
 	public boolean isDiagnosticFuites() {
 		return diagnosticFuites;
 	}
