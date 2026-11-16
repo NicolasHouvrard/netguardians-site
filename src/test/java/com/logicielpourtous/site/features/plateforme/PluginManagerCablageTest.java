@@ -99,4 +99,28 @@ class PluginManagerCablageTest {
 			.noneMatch(e -> e.getFormattedMessage().contains("non signés"));
 	}
 
+	/** Dépôt du Maître : plateforme active ET rôle MASTER (absent ou invalide = MASTER, comme ServerRoleProperties). */
+	@Test
+	void depot_seulement_si_plateforme_active_et_role_master() {
+		ApplicationContextRunner avecDepot = runner.withUserConfiguration(DepotPlugins.class);
+		avecDepot.withPropertyValues("app.plateforme.actif=true").run(contexte -> {
+			assertThat(contexte).hasNotFailed();
+			assertThat(contexte).hasSingleBean(DepotPlugins.class);
+			assertThat(contexte.getBean(PlateformeProperties.class).getDepotMaitre()).isEqualTo("depot-plugins");
+		});
+		avecDepot.withPropertyValues("app.plateforme.actif=true", "app.role=master")
+			.run(contexte -> assertThat(contexte).hasSingleBean(DepotPlugins.class));
+		for (String role : java.util.List.of("partner", "CLIENT", "public")) {
+			avecDepot.withPropertyValues("app.plateforme.actif=true", "app.role=" + role).run(contexte -> {
+				assertThat(contexte).hasNotFailed();
+				assertThat(contexte).hasSingleBean(PluginManager.class);
+				assertThat(contexte).doesNotHaveBean(DepotPlugins.class);
+			});
+		}
+		avecDepot.withPropertyValues("app.role=MASTER").run(contexte -> {
+			assertThat(contexte).hasNotFailed();
+			assertThat(contexte).doesNotHaveBean(DepotPlugins.class);
+		});
+	}
+
 }

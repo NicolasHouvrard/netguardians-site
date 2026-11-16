@@ -29,14 +29,18 @@ class PlateformeDesactiveeTest {
 		assertThat(context.getBeansOfType(RoutagePlugins.class)).isEmpty();
 		assertThat(context.getBeansOfType(FiltreEnVol.class)).isEmpty();
 		assertThat(context.getBeansOfType(PlateformeProperties.class)).isEmpty();
+		assertThat(context.getBeansOfType(DepotPlugins.class)).isEmpty();
+		assertThat(context.getBeansOfType(DepotController.class)).isEmpty();
 
-		int sansJeton = mvc.perform(get("/api/plateforme/plugins")).andReturn().getResponse().getStatus();
-		int admin = mvc.perform(get("/api/plateforme/plugins").with(user("admin").roles("ADMIN")))
-			.andReturn()
-			.getResponse()
-			.getStatus();
-		assertThat(sansJeton).isIn(401, 404);
-		assertThat(admin).isIn(401, 404);
+		for (String route : java.util.List.of("/api/plateforme/plugins", "/api/plateforme/depot")) {
+			int sansJeton = mvc.perform(get(route)).andReturn().getResponse().getStatus();
+			int admin = mvc.perform(get(route).with(user("admin").roles("ADMIN")))
+				.andReturn()
+				.getResponse()
+				.getStatus();
+			assertThat(sansJeton).isIn(401, 404);
+			assertThat(admin).isIn(401, 404);
+		}
 	}
 
 }

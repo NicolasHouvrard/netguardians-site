@@ -49,6 +49,17 @@ class SecurityPlateformeTest {
         assertThat(statut).isNotIn(401, 403);
     }
 
+    // Depot du Maitre : couvert par la meme regle /api/plateforme/** (ADMIN), sans configuration propre.
+    @Test
+    void depot_sans_jeton_401_et_non_admin_403() throws Exception {
+        mockMvc.perform(get("/api/plateforme/depot")).andExpect(status().isUnauthorized());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .multipart("/api/plateforme/depot"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/plateforme/depot").with(user(compte("COMMERCIAL"))))
+                .andExpect(status().isForbidden());
+    }
+
     @Test
     void plugins_sans_jeton_refuses_401() throws Exception {
         mockMvc.perform(get("/api/plugins/testnotes/notes")).andExpect(status().isUnauthorized());

@@ -180,3 +180,8 @@ app.plateforme.taille-max-jar-mo=${PLATEFORME_TAILLE_MAX_JAR_MO:100}
 # lui seul automatiquement) ; refuse si c'est un lien. Son dossier parent ne doit pas etre modifiable
 # par d'autres utilisateurs.
 app.plateforme.repertoire-travail=${PLATEFORME_REPERTOIRE_TRAVAIL:}
+# Depot du Maitre (seulement avec app.role=MASTER) : jars publies par POST /api/plateforme/depot
+# (signature toujours exigee, quel que soit signature-obligatoire) et leurs .sig. Dossier PRIVE (memes
+# regles que repertoire-travail), distinct du repertoire des plugins. Pour publier des jars de plus de
+# 10 Mo, relever aussi spring.servlet.multipart.max-file-size / max-request-size (en tete de fichier).
+app.plateforme.depot-maitre=${PLATEFORME_DEPOT_MAITRE:depot-plugins}

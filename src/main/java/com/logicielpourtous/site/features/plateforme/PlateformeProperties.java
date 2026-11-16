@@ -56,6 +56,20 @@ public class PlateformeProperties {
 	 */
 	private String repertoireTravail = "";
 
+	/**
+	 * Dépôt du Maître (seulement avec {@code app.role=MASTER}) : jars publiés et leurs {@code .sig}. Dossier privé du
+	 * processus (réservé à son propriétaire, refusé s'il est un lien), distinct du répertoire des plugins.
+	 */
+	private String depotMaitre = "depot-plugins";
+
+	public String getDepotMaitre() {
+		return depotMaitre;
+	}
+
+	public void setDepotMaitre(String depotMaitre) {
+		this.depotMaitre = depotMaitre;
+	}
+
 	public String getRepertoireTravail() {
 		return repertoireTravail;
 	}
