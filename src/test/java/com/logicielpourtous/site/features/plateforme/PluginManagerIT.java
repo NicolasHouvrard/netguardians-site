@@ -559,6 +559,37 @@ class PluginManagerIT {
 	}
 
 	@Test
+	void retrogradation_refusee() throws Exception {
+		installerOk(jar("v120", "1.2.0", Map.of("V1__note.sql", V1)));
+
+		ResultatInstallation r = manager.installer(jar("v110", "1.1.0", Map.of("V1__note.sql", V1)));
+
+		assertThat(r.statut()).isEqualTo(ResultatInstallation.Statut.REFUSE);
+		assertThat(r.raisons()).contains("rétrogradation refusée : v.1.1.0 < v.1.2.0");
+		assertThat(manager.actifs().get("testnotes").version).isEqualTo("1.2.0");
+		assertThat(lister().getHeader("X-Plugin")).startsWith("testnotes@1.2.0#");
+		assertThat(routage.enMaintenance("testnotes")).isFalse();
+		assertThat(copiesDeTravail()).hasSize(1);
+	}
+
+	@Test
+	void version_de_18_chiffres_n_arrete_pas_les_autres_plugins() throws Exception {
+		Files.createDirectories(repertoirePlugins);
+		// Deux jars du même plugin dont un à version de 20 chiffres (au-delà d'un long) : la comparaison des versions
+		// de ce plugin ne doit pas interrompre le démarrage des autres.
+		Files.copy(jar("v100", "1.0.0", Map.of("V1__note.sql", V1)), repertoirePlugins.resolve("a-notes.jar"));
+		Files.copy(jar("enorme", "99999999999999999999.0.0", Map.of("V1__note.sql", V1)),
+				repertoirePlugins.resolve("b-notes.jar"));
+		Files.copy(pluginFournisseur("1.0.0"), repertoirePlugins.resolve("c-fourni.jar"));
+
+		manager.demarrer();
+
+		assertThat(manager.actifs()).containsKey("testfourni");
+		assertThat(manager.actifs().get("testfourni").version).isEqualTo("1.0.0");
+		assertThat(manager.actifs().get("testnotes").version).isEqualTo("99999999999999999999.0.0");
+	}
+
+	@Test
 	void dependance_absente_ou_trop_ancienne_refusee() throws Exception {
 		Path dependant = JarDePluginDeTest.creer(dossier.resolve("dependant"), "dependant", "1.0.0",
 				Map.of("coeur-min", "0.0.0", "mise-a-jour", "chaud", "paquet", "dep", "configuration", "dep.C",

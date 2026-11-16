@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -30,6 +32,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -328,12 +331,28 @@ class PluginManagerSignatureIT {
 		return JarDePluginDeTest.signer(jar);
 	}
 
+	/**
+	 * Crée un lien symbolique, ou saute le test (pas d'erreur) si le système ne le permet pas : sous Windows, il faut le
+	 * privilège de création de liens (mode développeur ou administrateur).
+	 */
+	private static void lienSymbolique(Path lien, Path cible) throws IOException {
+		try {
+			Files.createSymbolicLink(lien, cible);
+		}
+		catch (FileAlreadyExistsException e) {
+			throw e;
+		}
+		catch (UnsupportedOperationException | FileSystemException e) {
+			Assumptions.assumeTrue(false, "liens symboliques indisponibles ici : " + e.getMessage());
+		}
+	}
+
 	@Test
 	void sig_lien_symbolique_est_refusee() throws Exception {
 		Path jar = JarDePluginDeTest.signer(jarNotes("v1", "1.0.0"));
 		Path vraie = dossier.resolve("ailleurs.sig");
 		Files.move(JarDePluginDeTest.sig(jar), vraie);
-		Files.createSymbolicLink(JarDePluginDeTest.sig(jar), vraie); // signature valide, mais à travers un lien
+		lienSymbolique(JarDePluginDeTest.sig(jar), vraie); // signature valide, mais à travers un lien
 
 		refusSansTrace(manager.installer(jar), "pas un fichier ordinaire");
 	}
@@ -361,7 +380,7 @@ class PluginManagerSignatureIT {
 	void dossier_de_travail_lien_symbolique_est_refuse() throws Exception {
 		Path cible = Files.createDirectories(dossier.resolve("cible-du-lien"));
 		Path temoin = Files.writeString(cible.resolve("a-garder.jar"), "pas à moi");
-		Files.createSymbolicLink(manager.repertoireTravail(), cible);
+		lienSymbolique(manager.repertoireTravail(), cible);
 		Path jar = JarDePluginDeTest.signer(jarNotes("v1", "1.0.0"));
 		try {
 			ResultatInstallation r = manager.installer(jar);
@@ -471,6 +490,106 @@ class PluginManagerSignatureIT {
 		assertThat(capture.list).anyMatch(e -> e.getLevel() == Level.WARN
 				&& e.getFormattedMessage().contains("testnotes-1.2.0.jar")
 				&& e.getFormattedMessage().contains("signature invalide"));
+	}
+
+	/** Dépose {@code testnotes-<version>.jar} (migration V1) dans le répertoire des plugins. */
+	private Path deposer(String version) {
+		return JarDePluginDeTest.pluginNotes(repertoirePlugins, version,
+				Map.of("V1__note.sql", JarDePluginDeTest.MIGRATION_NOTES_V1));
+	}
+
+	@Test
+	void un_jar_plus_haut_mais_mal_signe_ne_gagne_pas_au_demarrage() throws Exception {
+		KeyPair attaquant = JarDePluginDeTest.nouvellePaire();
+		JarDePluginDeTest.signer(deposer("2.0.0"), attaquant.getPrivate(), JarDePluginDeTest.KEY_ID_TEST);
+		JarDePluginDeTest.signer(deposer("1.5.0"));
+
+		manager.demarrer();
+
+		assertThat(manager.actifs()).containsOnlyKeys("testnotes");
+		assertThat(manager.actifs().get("testnotes").version).isEqualTo("1.5.0");
+		assertThat(capture.list).anyMatch(e -> e.getLevel() == Level.WARN
+				&& e.getFormattedMessage().contains("testnotes-2.0.0.jar")
+				&& e.getFormattedMessage().contains("signature invalide"));
+	}
+
+	@Test
+	void jar_plus_haut_signe_gagne() throws Exception {
+		JarDePluginDeTest.signer(deposer("1.5.0"));
+		JarDePluginDeTest.signer(deposer("2.0.0"));
+
+		manager.demarrer();
+
+		assertThat(manager.actifs()).containsOnlyKeys("testnotes");
+		assertThat(manager.actifs().get("testnotes").version).isEqualTo("2.0.0");
+		// Démarrage direct de la plus haute : jamais de 1.5.0 chargée puis mise à jour.
+		assertThat(capture.list).noneMatch(e -> e.getFormattedMessage().contains("mis à jour"));
+	}
+
+	@Test
+	void version_choisie_au_demarrage_lue_dans_la_copie_verifiee_pas_dans_le_jar_depose() throws Exception {
+		Path a = JarDePluginDeTest.signer(deposer("1.0.0"));
+		JarDePluginDeTest.signer(deposer("1.5.0"));
+		Path substitut = jarNotes("substitut", "9.0.0"); // non signé, version plus haute
+		// Juste après la vérification de la copie de a, le jar déposé est remplacé : le choix de version ne doit pas
+		// relire le fichier déposé (il y trouverait 9.0.0, gagnerait, puis serait refusé à l'installation).
+		manager.apresVerificationAuDemarrage(jar -> {
+			if (jar.getFileName().equals(a.getFileName())) {
+				try {
+					Files.copy(substitut, jar, StandardCopyOption.REPLACE_EXISTING);
+				}
+				catch (IOException e) {
+					throw new java.io.UncheckedIOException(e);
+				}
+			}
+		});
+
+		manager.demarrer();
+
+		assertThat(manager.actifs()).containsOnlyKeys("testnotes");
+		assertThat(manager.actifs().get("testnotes").version).isEqualTo("1.5.0");
+	}
+
+	@Test
+	void dossier_de_travail_egal_au_repertoire_des_plugins_est_refuse_sans_rien_supprimer() throws Exception {
+		Path jar = JarDePluginDeTest.signer(deposer("1.0.0"));
+		proprietes.setRepertoireTravail(repertoirePlugins.toString());
+		try {
+			manager.demarrer(); // la purge du dossier de travail effacerait les jars déposés
+
+			assertThat(jar).exists();
+			assertThat(JarDePluginDeTest.sig(jar)).exists();
+			assertThat(manager.actifs()).isEmpty();
+
+			ResultatInstallation r = manager.installer(jar);
+
+			assertThat(r.statut()).isEqualTo(Statut.ECHEC);
+			assertThat(r.raisons()).anyMatch(x -> x.contains("dossier de travail refusé"));
+			assertThat(manager.actifs()).isEmpty();
+			assertThat(schemaExiste()).isFalse();
+			assertThat(jar).exists();
+		}
+		finally {
+			proprietes.setRepertoireTravail("");
+		}
+	}
+
+	@Test
+	void dossier_de_travail_contenant_le_repertoire_des_plugins_est_refuse() throws Exception {
+		Path jar = JarDePluginDeTest.signer(deposer("1.0.0"));
+		// Parent écrit avec « .. » : la comparaison se fait sur des chemins normalisés.
+		proprietes.setRepertoireTravail(repertoirePlugins.resolve("sous").resolve("..").resolve("..").toString());
+		try {
+			ResultatInstallation r = manager.installer(jar);
+
+			assertThat(r.statut()).isEqualTo(Statut.ECHEC);
+			assertThat(r.raisons()).anyMatch(x -> x.contains("dossier de travail refusé"));
+			assertThat(manager.actifs()).isEmpty();
+			assertThat(schemaExiste()).isFalse();
+		}
+		finally {
+			proprietes.setRepertoireTravail("");
+		}
 	}
 
 	@Test

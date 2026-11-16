@@ -140,15 +140,21 @@ class FuiteMemoireIT {
 		assertThatThrownBy(() -> mvc.perform(get("/api/plugins/testnotes/notes/boom"))).hasRootCauseMessage("boom");
 	}
 
-	/** Installe v1 puis enchaîne {@code n} mises à jour alternées v2 / v1, avec des requêtes entre chacune. */
+	/**
+	 * Installe v1 puis enchaîne {@code n} mises à jour, avec des requêtes entre chacune : v2 (1.1.0), puis
+	 * réinstallations alternées de deux jars distincts de même version 1.1.0 (une rétrogradation vers v1 serait
+	 * refusée ; à version égale, chaque installation remplace bien la génération).
+	 */
 	private void miseAJourEnBoucle(int n) throws Exception {
 		Path v1 = JarDePluginDeTest.pluginNotes(dossier.resolve("v1"), "1.0.0", Map.of("V1__note.sql", V1));
 		Path v2 = JarDePluginDeTest.pluginNotes(dossier.resolve("v2"), "1.1.0",
 				Map.of("V1__note.sql", V1, "V2__titre.sql", V2));
+		Path v2bis = JarDePluginDeTest.pluginNotes(dossier.resolve("v2bis"), "1.1.0",
+				Map.of("V1__note.sql", V1, "V2__titre.sql", V2));
 		installerOk(v1);
 		solliciter();
 		for (int i = 0; i < n; i++) {
-			installerOk(i % 2 == 0 ? v2 : v1);
+			installerOk(i % 2 == 0 ? v2 : v2bis);
 			solliciter();
 		}
 	}

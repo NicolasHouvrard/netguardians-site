@@ -2,6 +2,7 @@ package com.logicielpourtous.site.features.plateforme;
 
 import com.logicielpourtous.site.sdk.ManifestePlugin;
 import com.logicielpourtous.site.sdk.ModeMiseAJour;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -43,7 +44,8 @@ public final class VerificateurMiseAJour {
 	/**
 	 * Comme {@link #verifier(ManifestePlugin, Map, Set, String)}, pour une mise à jour à chaud quand une version est
 	 * déjà installée ({@code versionInstallee} non nulle) : un changement de version majeure, ou un manifeste qui
-	 * déclare {@code mise-a-jour=coeur}, impose une mise à jour du cœur (redémarrage) et est donc refusé à chaud.
+	 * déclare {@code mise-a-jour=coeur}, impose une mise à jour du cœur (redémarrage) et est donc refusé à chaud ; une
+	 * version strictement inférieure à l'installée est refusée (« rétrogradation refusée »).
 	 * Avec {@code versionInstallee} nulle (première installation), seules les règles de base s'appliquent.
 	 */
 	public static Verdict verifier(ManifestePlugin m, Map<String, String> migrations, Set<String> tablesReferencees,
@@ -53,15 +55,18 @@ public final class VerificateurMiseAJour {
 			return base;
 		}
 		List<String> raisons = new ArrayList<>(base.raisons());
-		long majeureInstallee = majeure(versionInstallee);
-		long majeureProposee = majeure(m.version());
-		if (majeureInstallee != majeureProposee) {
+		if (!majeure(versionInstallee).equals(majeure(m.version()))) {
 			raisons.add(0, "Changement de version majeure (" + versionInstallee + " -> " + m.version()
 					+ ") : mise à jour du cœur requise, même si le manifeste déclare 'chaud'");
 		}
 		if (m.miseAJour() == ModeMiseAJour.COEUR) {
 			raisons.add(0, "Le manifeste déclare mise-a-jour=coeur : mise à jour du cœur requise (redémarrage), "
 					+ "pas de mise à jour à chaud");
+		}
+		// Une version signée plus ancienne reste authentique : seul ce contrôle empêche de revenir en arrière (version
+		// vulnérable). À égalité, la réinstallation reste admise.
+		if (comparer(m.version(), versionInstallee) < 0) {
+			raisons.add(0, "rétrogradation refusée : v." + m.version() + " < v." + versionInstallee);
 		}
 		return new Verdict(raisons.isEmpty(), List.copyOf(raisons));
 	}
@@ -131,8 +136,8 @@ public final class VerificateurMiseAJour {
 	}
 
 	/**
-	 * Compare deux versions semver : noyau numérique segment par segment (un segment non numérique compte pour ses
-	 * chiffres de tête, sinon 0), puis pré-version ({@code 1.5.0-rc1 < 1.5.0}) ; les métadonnées {@code +build} sont
+	 * Compare deux versions semver : noyau numérique segment par segment, en entiers de taille quelconque (un segment
+	 * non numérique compte pour ses chiffres de tête, sinon 0), puis pré-version ({@code 1.5.0-rc1 < 1.5.0}) ; les métadonnées {@code +build} sont
 	 * ignorées.
 	 */
 	static int comparer(String a, String b) {
@@ -141,7 +146,7 @@ public final class VerificateurMiseAJour {
 		String[] sa = va[0].split("\\.");
 		String[] sb = vb[0].split("\\.");
 		for (int i = 0; i < Math.max(sa.length, sb.length); i++) {
-			int c = Long.compare(segment(sa, i), segment(sb, i));
+			int c = segment(sa, i).compareTo(segment(sb, i));
 			if (c != 0) {
 				return c;
 			}
@@ -187,15 +192,16 @@ public final class VerificateurMiseAJour {
 		return Integer.compare(ia.length, ib.length);
 	}
 
-	private static long majeure(String version) {
+	private static BigInteger majeure(String version) {
 		return segment(scinder(version)[0].split("\\."), 0);
 	}
 
-	private static long segment(String[] segments, int i) {
+	/** Segment numérique de taille quelconque (un {@code long} débordait au-delà de 18 chiffres). */
+	private static BigInteger segment(String[] segments, int i) {
 		if (i >= segments.length) {
-			return 0;
+			return BigInteger.ZERO;
 		}
 		String chiffres = segments[i].trim().replaceFirst("^(\\d*).*$", "$1");
-		return chiffres.isEmpty() ? 0 : Long.parseLong(chiffres);
+		return chiffres.isEmpty() ? BigInteger.ZERO : new BigInteger(chiffres);
 	}
 }

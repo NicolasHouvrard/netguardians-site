@@ -181,7 +181,8 @@ public class PluginManager {
 	 * journalisé et ignoré, jamais bloquant ; les autres fichiers et sous-dossiers sont ignorés. Les
 	 * jars refusés sont retentés tant qu'un passage installe quelque chose (dépendance installée plus loin dans
 	 * l'ordre alphabétique). Avec la signature obligatoire, les jars sans signature valide sont écartés d'abord
-	 * (avertissement), avant toute lecture de leur manifeste.
+	 * (avertissement), avant toute lecture de leur manifeste : la plus haute version retenue est la plus haute
+	 * VALIDEMENT SIGNÉE, lue dans la copie vérifiée ({@link #candidats}).
 	 */
 	@EventListener(ApplicationReadyEvent.class)
 	public synchronized void demarrer() {
@@ -212,10 +213,7 @@ public class PluginManager {
 			log.error("Lecture du répertoire des plugins impossible : {}", repertoire, e);
 			return;
 		}
-		if (proprietes.isSignatureObligatoire()) {
-			restants = signesSeulement(restants);
-		}
-		restants = plusHautesVersions(restants);
+		restants = plusHautesVersions(candidats(restants));
 		Map<Path, ResultatInstallation> derniers = new LinkedHashMap<>();
 		boolean progres = true;
 		while (progres && !restants.isEmpty()) {
@@ -247,22 +245,37 @@ public class PluginManager {
 		});
 	}
 
+	/** Jar déposé retenu au démarrage, avec le manifeste lu dans SA copie vérifiée (jamais dans le fichier déposé). */
+	private record Candidat(Path jar, ManifestePlugin manifeste) {
+	}
+
 	/**
-	 * Signature obligatoire : écarte (avertissement) les jars sans signature valide AVANT toute lecture de leur
-	 * manifeste, pour que le choix de la plus haute version ne porte que sur des jars signés. {@link #installer} refait
-	 * la vérification sur la copie privée qu'il chargera : ce tri n'est qu'un filtre, pas la garantie. La vérification
-	 * porte sur une copie bornée (octets réellement lus, au plus {@code taille-max-jar-mo}), supprimée aussitôt.
+	 * Lit chaque jar déposé dans une copie privée bornée (octets réellement lus, au plus {@code taille-max-jar-mo}),
+	 * supprimée aussitôt : signature vérifiée sur cette copie (si obligatoire), PUIS manifeste lu dans cette même
+	 * copie. Le choix de version ne porte donc que sur des jars à signature valide, et sur les octets vérifiés : un
+	 * remplacement du fichier déposé après la vérification ne peut pas fausser le choix. Un jar refusé, illisible ou de
+	 * version non comparable est écarté seul (avertissement). {@link #installer} refait la vérification sur la copie
+	 * qu'il chargera : ce tri n'est qu'un filtre, pas la garantie.
 	 */
-	private List<Path> signesSeulement(List<Path> jars) {
-		List<Path> signes = new ArrayList<>();
+	private List<Candidat> candidats(List<Path> jars) {
+		List<Candidat> candidats = new ArrayList<>();
 		for (Path jar : jars) {
-			String raison;
+			String raison = null;
+			ManifestePlugin m = null;
 			Path copie = null;
 			try {
-				String signature = lireSignature(jar);
+				String signature = proprietes.isSignatureObligatoire() ? lireSignature(jar) : null;
 				copie = copier(jar, prefixeCopie(jar));
-				SignatureJar.Verdict verdict = SignatureJar.verifier(copie, signature, cles.cles());
-				raison = verdict.valide() ? null : "signature invalide : " + verdict.raison();
+				if (proprietes.isSignatureObligatoire()) {
+					SignatureJar.Verdict verdict = SignatureJar.verifier(copie, signature, cles.cles());
+					raison = verdict.valide() ? null : "signature invalide : " + verdict.raison();
+				}
+				if (raison == null) {
+					apresVerificationAuDemarrage.accept(jar);
+					m = LecteurManifeste.lire(copie);
+					// Version comparable, sinon seul ce jar est écarté (jamais tout le démarrage).
+					VerificateurMiseAJour.comparer(m.version(), m.version());
+				}
 			}
 			catch (SignatureIllisible | JarTropVolumineux e) {
 				raison = e.getMessage();
@@ -270,59 +283,61 @@ public class PluginManager {
 			catch (IOException e) {
 				raison = "jar illisible : " + messageRacine(e);
 			}
+			catch (RuntimeException e) {
+				raison = "illisible (" + e.getMessage() + ")";
+			}
 			finally {
 				if (copie != null) {
 					supprimerCopie(copie);
 				}
 			}
 			if (raison == null) {
-				signes.add(jar);
+				candidats.add(new Candidat(jar, m));
 			}
 			else {
 				log.warn("Plugin ignoré au démarrage : {} -> {}", jar.getFileName(), raison);
 			}
 		}
-		return signes;
+		return candidats;
 	}
 
 	/**
-	 * Un seul jar par plugin au démarrage : celui de plus haute version (semver, version du manifeste ; le nom de
-	 * fichier ne compte pas). Démarrer les versions dans l'ordre des fichiers ferait des mises à jour à chaud
-	 * successives, refusées pour une montée majeure ou {@code mise-a-jour=coeur}, et pourrait laisser une version
-	 * inférieure active. Un jar illisible, ou deux jars de même plus haute version, sont journalisés et ignorés.
+	 * Un seul jar par plugin au démarrage : celui de plus haute version (semver, version du manifeste vérifié ; le nom
+	 * de fichier ne compte pas). Démarrer les versions dans l'ordre des fichiers ferait des mises à jour à chaud
+	 * successives, refusées pour une montée majeure, {@code mise-a-jour=coeur} ou une rétrogradation, et pourrait
+	 * laisser une version inférieure active. Deux jars de même plus haute version sont journalisés et ignorés ; une
+	 * erreur de comparaison n'écarte que le plugin concerné.
 	 */
-	private List<Path> plusHautesVersions(List<Path> jars) {
-		Map<String, List<Path>> parNom = new LinkedHashMap<>();
-		Map<Path, String> versions = new HashMap<>();
-		for (Path jar : jars) {
-			try {
-				ManifestePlugin m = LecteurManifeste.lire(jar);
-				parNom.computeIfAbsent(m.nom(), n -> new ArrayList<>()).add(jar);
-				versions.put(jar, m.version());
-			}
-			catch (RuntimeException e) {
-				log.warn("Plugin ignoré au démarrage : {} illisible ({})", jar.getFileName(), e.getMessage());
-			}
+	private List<Path> plusHautesVersions(List<Candidat> candidats) {
+		Map<String, List<Candidat>> parNom = new LinkedHashMap<>();
+		for (Candidat c : candidats) {
+			parNom.computeIfAbsent(c.manifeste().nom(), n -> new ArrayList<>()).add(c);
 		}
 		List<Path> retenus = new ArrayList<>();
-		parNom.forEach((nom, candidats) -> {
-			String plusHaute = candidats.stream()
-				.map(versions::get)
-				.max(VerificateurMiseAJour::comparer)
-				.orElseThrow();
-			List<Path> meilleurs = candidats.stream()
-				.filter(j -> VerificateurMiseAJour.comparer(versions.get(j), plusHaute) == 0)
-				.toList();
-			if (meilleurs.size() > 1) {
-				log.warn("Plugin {} ignoré au démarrage : plusieurs jars de même plus haute version {} : {}", nom,
-						plusHaute, meilleurs.stream().map(p -> p.getFileName().toString()).toList());
-				return;
+		parNom.forEach((nom, liste) -> {
+			try {
+				String plusHaute = liste.stream()
+					.map(c -> c.manifeste().version())
+					.max(VerificateurMiseAJour::comparer)
+					.orElseThrow();
+				List<Candidat> meilleurs = liste.stream()
+					.filter(c -> VerificateurMiseAJour.comparer(c.manifeste().version(), plusHaute) == 0)
+					.toList();
+				if (meilleurs.size() > 1) {
+					log.warn("Plugin {} ignoré au démarrage : plusieurs jars de même plus haute version {} : {}", nom,
+							plusHaute, meilleurs.stream().map(c -> c.jar().getFileName().toString()).toList());
+					return;
+				}
+				Candidat retenu = meilleurs.get(0);
+				retenus.add(retenu.jar());
+				liste.stream()
+					.filter(c -> c != retenu)
+					.forEach(c -> log.info("Plugin {} {} ignoré au démarrage : version {} présente ({})", nom,
+							c.manifeste().version(), plusHaute, c.jar().getFileName()));
 			}
-			retenus.add(meilleurs.get(0));
-			candidats.stream()
-				.filter(j -> j != meilleurs.get(0))
-				.forEach(j -> log.info("Plugin {} {} ignoré au démarrage : version {} présente ({})", nom,
-						versions.get(j), plusHaute, j.getFileName()));
+			catch (RuntimeException e) {
+				log.warn("Plugin {} ignoré au démarrage : versions non comparables ({})", nom, e.getMessage());
+			}
 		});
 		retenus.sort((a, b) -> a.getFileName().toString().compareTo(b.getFileName().toString()));
 		return retenus;
@@ -334,7 +349,9 @@ public class PluginManager {
 	 * qui est vérifiée puis chargée : le fichier déposé peut changer ensuite sans effet, et personne d'autre ne peut
 	 * modifier la copie (dossier privé, voir la Javadoc de la classe). Sous Windows un jar ouvert est verrouillé.
 	 * Avec la signature obligatoire, la {@code <jar>.sig} adjacente est lue une fois en mémoire et vérifiée sur la copie
-	 * AVANT toute lecture du manifeste ; un refus ne laisse aucune copie ni aucun schéma.
+	 * AVANT toute lecture du manifeste ; un refus ne laisse aucune copie ni aucun schéma. Une version strictement
+	 * inférieure à la version active est refusée ({@code REFUSE}, « rétrogradation refusée ») ; à égalité, la
+	 * réinstallation reste admise.
 	 */
 	public synchronized ResultatInstallation installer(Path jar) {
 		String signature = null;
@@ -765,7 +782,7 @@ public class PluginManager {
 	}
 
 	private Path repertoire() {
-		return Path.of(proprietes.getRepertoirePlugins()).toAbsolutePath();
+		return Path.of(proprietes.getRepertoirePlugins()).toAbsolutePath().normalize();
 	}
 
 	/**
@@ -828,16 +845,25 @@ public class PluginManager {
 
 	/**
 	 * Dossier de travail : {@code app.plateforme.repertoire-travail}, ou par défaut le frère
-	 * {@code <repertoire-plugins>.work} (hors du répertoire de dépôt).
+	 * {@code <repertoire-plugins>.work} (hors du répertoire de dépôt). Chemin absolu normalisé.
 	 */
 	Path repertoireTravail() {
 		String configure = proprietes.getRepertoireTravail();
 		if (configure != null && !configure.isBlank()) {
-			return Path.of(configure).toAbsolutePath();
+			return Path.of(configure).toAbsolutePath().normalize();
 		}
 		Path repertoire = repertoire();
 		return repertoire.getFileName() == null ? repertoire.resolve(SUFFIXE_TRAVAIL)
 				: repertoire.resolveSibling(repertoire.getFileName() + SUFFIXE_TRAVAIL);
+	}
+
+	/** Appelé au démarrage avec le jar déposé, juste après la vérification de sa copie (tests seulement). */
+	private volatile Consumer<Path> apresVerificationAuDemarrage = jar -> {
+	};
+
+	/** Pour les tests : agit sur le jar déposé entre la vérification de sa copie et la suite du démarrage. */
+	void apresVerificationAuDemarrage(Consumer<Path> action) {
+		this.apresVerificationAuDemarrage = action;
 	}
 
 	/** Pour les tests : simule un dossier de travail appartenant à un autre utilisateur. */
@@ -864,10 +890,17 @@ public class PluginManager {
 	/**
 	 * Crée ou contrôle le dossier de travail privé et le renvoie : créé réservé au propriétaire ; existant, il doit être
 	 * un vrai dossier (ni lien symbolique, ni jonction) appartenant à l'utilisateur du processus, et ses droits sont
-	 * (re)restreints à ce seul utilisateur. Sinon {@link IOException} : rien n'est copié, rien n'est chargé.
+	 * (re)restreints à ce seul utilisateur. Il ne doit être ni le répertoire des plugins ni l'un de ses ancêtres (la
+	 * purge y effacerait les jars déposés, les droits restreints s'y appliqueraient). Sinon {@link IOException} : rien
+	 * n'est copié, rien n'est chargé, rien n'est purgé.
 	 */
 	private Path travailPrive() throws IOException {
 		Path travail = repertoireTravail();
+		Path plugins = repertoire();
+		if (plugins.startsWith(travail)) {
+			throw new IOException("dossier de travail refusé (égal au répertoire des plugins ou le contient) : "
+					+ travail);
+		}
 		boolean posix = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
 		if (!Files.exists(travail, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(travail)) {
 			Path parent = travail.getParent();
@@ -886,6 +919,11 @@ public class PluginManager {
 				LinkOption.NOFOLLOW_LINKS);
 		if (attributs.isSymbolicLink() || attributs.isOther() || !attributs.isDirectory()) {
 			throw new IOException("dossier de travail refusé (lien, jonction ou pas un dossier) : " + travail);
+		}
+		// Même contrôle sur les chemins réels (répertoire des plugins atteint par un lien, casse...).
+		if (Files.exists(plugins) && plugins.toRealPath().startsWith(travail.toRealPath(LinkOption.NOFOLLOW_LINKS))) {
+			throw new IOException("dossier de travail refusé (égal au répertoire des plugins ou le contient) : "
+					+ travail);
 		}
 		UserPrincipal proprietaire = Files.getOwner(travail, LinkOption.NOFOLLOW_LINKS);
 		if (!proprietaire.equals(proprietaireAttendu())) {

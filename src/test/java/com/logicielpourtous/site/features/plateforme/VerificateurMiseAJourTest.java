@@ -101,6 +101,35 @@ class VerificateurMiseAJourTest {
 	}
 
 	@Test
+	void retrogradation_refusee() {
+		var v = VerificateurMiseAJour.verifier(chaud("1.1.0"), Map.of(), Set.of(), "1.0.0", "1.2.0");
+		assertThat(v.accepte()).isFalse();
+		assertThat(v.raisons()).contains("rétrogradation refusée : v.1.1.0 < v.1.2.0");
+	}
+
+	@Test
+	void retrogradation_de_pre_version_refusee_et_meme_version_acceptee() {
+		assertThat(VerificateurMiseAJour.verifier(chaud("1.2.0-rc1"), Map.of(), Set.of(), "1.0.0", "1.2.0").raisons())
+			.anyMatch(r -> r.startsWith("rétrogradation refusée"));
+		// À égalité : comportement SP1 conservé (réinstallation de la même version).
+		assertThat(VerificateurMiseAJour.verifier(chaud("1.2.0"), Map.of(), Set.of(), "1.0.0", "1.2.0").accepte())
+			.isTrue();
+	}
+
+	@Test
+	void comparaison_de_versions_de_plus_de_18_chiffres_sans_exception() {
+		assertThat(VerificateurMiseAJour.comparer("99999999999999999999.0.0", "1.0.0")).isPositive();
+		assertThat(VerificateurMiseAJour.comparer("1.0.12345678901234567890123", "1.0.12345678901234567890124"))
+			.isNegative();
+		var v = VerificateurMiseAJour.verifier(chaud("99999999999999999999.0.0"), Map.of(), Set.of(), "1.0.0",
+				"99999999999999999998.0.0");
+		assertThat(v.raisons()).singleElement().asString().contains("majeure");
+		var mineure = VerificateurMiseAJour.verifier(chaud("1.99999999999999999999.0"), Map.of(), Set.of(), "1.0.0",
+				"1.99999999999999999998.0");
+		assertThat(mineure.accepte()).as("%s", mineure.raisons()).isTrue();
+	}
+
+	@Test
 	void premiere_installation_sans_version_installee_ignore_le_majeur() {
 		var v = VerificateurMiseAJour.verifier(chaud("2.0.0"), Map.of(), Set.of(), "1.0.0", null);
 		assertThat(v.accepte()).isTrue();
