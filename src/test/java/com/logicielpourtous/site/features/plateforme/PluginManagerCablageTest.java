@@ -133,6 +133,56 @@ class PluginManagerCablageTest {
 		});
 	}
 
+	/** Tireur : dépôt local (sans HTTP) sur le Maître, Maître par HTTP ailleurs ; rien sans la plateforme. */
+	@Test
+	void tireur_tire_du_depot_local_sur_le_maitre_et_du_maitre_par_http_ailleurs() {
+		ApplicationContextRunner avecTireur = runner.withUserConfiguration(TireurPlugins.class, SourceDepotLocal.class,
+				DepotPlugins.class);
+		for (String role : java.util.List.of("app.role=MASTER", "app.role=master")) {
+			avecTireur.withPropertyValues("app.plateforme.actif=true", role).run(contexte -> {
+				assertThat(contexte).hasNotFailed();
+				assertThat(contexte).hasSingleBean(TireurPlugins.class);
+				assertThat(contexte.getBean(SourcePlugins.class)).isInstanceOf(SourceDepotLocal.class);
+				assertThat(contexte).doesNotHaveBean(SourceMaitreHttp.class);
+				assertThat(contexte.getBean(PlateformeProperties.class).getIntervalleTirageMs()).isEqualTo(600_000);
+			});
+		}
+		for (String role : java.util.List.of("partner", "CLIENT", "public")) {
+			avecTireur
+				.withPropertyValues("app.plateforme.actif=true", "app.role=" + role,
+						"app.licence.master-url=http://maitre.exemple:8091")
+				.run(contexte -> {
+					assertThat(contexte).hasNotFailed();
+					assertThat(contexte).hasSingleBean(TireurPlugins.class);
+					assertThat(contexte.getBean(SourcePlugins.class)).isInstanceOf(SourceMaitreHttp.class);
+					assertThat(contexte).doesNotHaveBean(SourceDepotLocal.class);
+					assertThat(contexte.getBean(SourceMaitreHttp.class).urlMaitre())
+						.isEqualTo("http://maitre.exemple:8091");
+				});
+		}
+		// URL propre à la plateforme : prioritaire sur celle de la licence.
+		avecTireur
+			.withPropertyValues("app.plateforme.actif=true", "app.role=CLIENT",
+					"app.licence.master-url=http://maitre.exemple:8091",
+					"app.plateforme.master-url=https://autre.exemple/")
+			.run(contexte -> assertThat(contexte.getBean(SourceMaitreHttp.class).urlMaitre())
+				.isEqualTo("https://autre.exemple"));
+		avecTireur.withPropertyValues("app.role=CLIENT").run(contexte -> {
+			assertThat(contexte).hasNotFailed();
+			assertThat(contexte).doesNotHaveBean(TireurPlugins.class);
+			assertThat(contexte).doesNotHaveBean(SourcePlugins.class);
+		});
+		avecTireur.withPropertyValues("app.plateforme.actif=true", "app.role=CLIENT",
+				"app.plateforme.intervalle-tirage-ms=5000").run(contexte -> {
+					assertThat(contexte).hasFailed();
+					Throwable cause = contexte.getStartupFailure();
+					while (cause.getCause() != null) {
+						cause = cause.getCause();
+					}
+					assertThat(cause).hasMessageContaining("app.plateforme.intervalle-tirage-ms doit valoir au moins");
+				});
+	}
+
 	/** Dépôt du Maître : plateforme active ET rôle MASTER (absent ou invalide = MASTER, comme ServerRoleProperties). */
 	@Test
 	void depot_seulement_si_plateforme_active_et_role_master() {

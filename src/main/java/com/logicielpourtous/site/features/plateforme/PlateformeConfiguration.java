@@ -1,6 +1,11 @@
 package com.logicielpourtous.site.features.plateforme;
 
+import com.logicielpourtous.site.features.commun.CleMaitre;
+import java.util.Optional;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Conditional;
+import org.springframework.core.env.Environment;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,6 +31,23 @@ public class PlateformeConfiguration {
 	@Bean
 	ClesPubliques clesPubliques(PlateformeProperties proprietes) {
 		return ClesPubliques.depuisRessource(proprietes.isSignatureObligatoire());
+	}
+
+	/**
+	 * Source du tireur hors du Maître : le Maître par HTTP. URL : {@code app.plateforme.master-url}, sinon celle de la
+	 * licence ({@code app.licence.master-url}) ; clé : {@link CleMaitre} (module {@code licence}, lue à chaque appel ;
+	 * absente = installation non enrôlée, le tirage ne fait rien). Sur le Maître, c'est {@link SourceDepotLocal}.
+	 */
+	@Bean
+	@Conditional(HorsServeurMaitre.class)
+	SourceMaitreHttp sourceMaitreHttp(PlateformeProperties proprietes, Environment environnement,
+			ObjectProvider<CleMaitre> cle) {
+		String url = proprietes.getMasterUrl().isBlank() ? environnement.getProperty("app.licence.master-url", "")
+				: proprietes.getMasterUrl();
+		return new SourceMaitreHttp(url, () -> {
+			CleMaitre c = cle.getIfAvailable();
+			return c == null ? Optional.empty() : c.cle();
+		});
 	}
 
 }

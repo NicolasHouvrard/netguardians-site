@@ -192,3 +192,13 @@ app.plateforme.repertoire-travail=${PLATEFORME_REPERTOIRE_TRAVAIL:}
 # minces (bibliotheques partagees dans le coeur). Ne pas relever max-file-size pour cela seul : la
 # limite vaut pour tous les envois multipart de l'application.
 app.plateforme.depot-maitre=${PLATEFORME_DEPOT_MAITRE:depot-plugins}
+# Tireur : toutes les intervalle-tirage-ms (10 min par defaut, 10 s minimum ; premier tirage un intervalle
+# apres le demarrage), chaque serveur installe la plus haute version publiee superieure a l'active et
+# compatible avec version-coeur. Le Maitre tire de son propre depot (sans HTTP) ; PARTNER/CLIENT tirent du
+# Maitre (GET /api/licence/plugins/**, cle API de licence de l'installation enrolee) et lui rapportent le
+# statut de chaque installation. Telechargement dans <repertoire-plugins>/.tirage (prive), controle
+# (taille, sha256, signature, manifeste) puis depot <nom>-<version>.jar + .sig ; versions refusees mises de
+# cote jusqu'a une version plus haute ; on garde l'active et la precedente, les plus vieilles sont supprimees.
+app.plateforme.intervalle-tirage-ms=${PLATEFORME_INTERVALLE_TIRAGE_MS:600000}
+# URL du Maitre pour le tirage (PARTNER/CLIENT). Vide = app.licence.master-url.
+app.plateforme.master-url=${PLATEFORME_MASTER_URL:}

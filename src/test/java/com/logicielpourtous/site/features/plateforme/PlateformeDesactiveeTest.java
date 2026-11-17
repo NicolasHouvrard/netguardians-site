@@ -33,6 +33,8 @@ class PlateformeDesactiveeTest {
 		assertThat(context.getBeansOfType(DepotController.class)).isEmpty();
 		assertThat(context.getBeansOfType(DistributionController.class)).isEmpty();
 		assertThat(context.getBeansOfType(EtatPluginServeurRepository.class)).isEmpty();
+		assertThat(context.getBeansOfType(TireurPlugins.class)).isEmpty();
+		assertThat(context.getBeansOfType(SourcePlugins.class)).isEmpty();
 
 		for (String route : java.util.List.of("/api/plateforme/plugins", "/api/plateforme/depot",
 				"/api/plateforme/serveurs-etat")) {

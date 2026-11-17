@@ -62,6 +62,42 @@ public class PlateformeProperties {
 	 */
 	private String depotMaitre = "depot-plugins";
 
+	/**
+	 * URL du Maître d'où un serveur PARTNER/CLIENT tire ses plugins. Vide (défaut) : celle de la licence,
+	 * {@code app.licence.master-url}. Sans effet sur le Maître (il tire de son propre dépôt).
+	 */
+	private String masterUrl = "";
+
+	/** Borne basse de {@link #intervalleTirageMs}. */
+	static final long INTERVALLE_TIRAGE_MS_MIN = 10_000;
+
+	/**
+	 * Intervalle entre deux tirages de plugins, en millisecondes (10 min par défaut ; au moins
+	 * {@value #INTERVALLE_TIRAGE_MS_MIN}). Le premier tirage a lieu un intervalle après le démarrage.
+	 */
+	private long intervalleTirageMs = 600_000;
+
+	public String getMasterUrl() {
+		return masterUrl;
+	}
+
+	public void setMasterUrl(String masterUrl) {
+		this.masterUrl = masterUrl == null ? "" : masterUrl.trim();
+	}
+
+	public long getIntervalleTirageMs() {
+		return intervalleTirageMs;
+	}
+
+	/** @throws IllegalArgumentException sous la borne : la plateforme ne démarre pas, avec ce message. */
+	public void setIntervalleTirageMs(long intervalleTirageMs) {
+		if (intervalleTirageMs < INTERVALLE_TIRAGE_MS_MIN) {
+			throw new IllegalArgumentException("app.plateforme.intervalle-tirage-ms doit valoir au moins "
+					+ INTERVALLE_TIRAGE_MS_MIN + " : " + intervalleTirageMs);
+		}
+		this.intervalleTirageMs = intervalleTirageMs;
+	}
+
 	public String getDepotMaitre() {
 		return depotMaitre;
 	}
