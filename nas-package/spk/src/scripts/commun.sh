@@ -112,7 +112,7 @@ _exec_log_dsm() {
 
 charger_bibliotheques() {
   local lib
-  for lib in role headscale maitre ports postgres_bootstrap nginx_bascule agent_service docker_bootstrap mise_a_jour vps; do
+  for lib in role headscale maitre ports postgres_bootstrap nginx_bascule agent_service docker_bootstrap mise_a_jour redemarrage_nuit vps; do
     if [ ! -r "$NAS_PKG_DIR/lib/$lib.sh" ]; then
       printf 'Bibliotheque manquante : %s\n' "$NAS_PKG_DIR/lib/$lib.sh" >&2
       return 1

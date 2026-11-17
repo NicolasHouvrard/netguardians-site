@@ -147,5 +147,13 @@ if ! demarrer_premiere_instance "$IMAGE_APPLICATION" "$PORT_INITIAL" "$PORT_POST
   exit 1
 fi
 
+# --- 9. Maitre seulement : minuteur de redemarrage de nuit ----------------------
+# Le Maitre est le seul a charger des plugins (Metaspace) ; un echec ici n'empeche pas l'installation.
+if nas_est_maitre; then
+  if ! installer_minuteur_redemarrage_nuit "$(cd "$(dirname "$0")" && pwd)/redemarrage-nuit.sh" "$SITE_NAS_DOSSIER_SYSTEMD"; then
+    avertir_utilisateur "Le minuteur de redemarrage de nuit du Maitre n'a pas pu etre installe (non bloquant)."
+  fi
+fi
+
 avertir_utilisateur "Installation terminee. Ports non standard utilises par ce paquet : $PORT_APP_BLEU/$PORT_APP_VERT (application, local uniquement), $PORT_POSTGRES (Postgres, local uniquement), $PORT_AGENT (Agent) et $PORT_NGINX_ECOUTE (Nginx), ces deux derniers sur l'adresse Headscale $ADRESSE_HEADSCALE uniquement. Donnees : $SITE_NAS_RACINE_DONNEES (conservees en cas de mise a jour ou de desinstallation). L'application reste inaccessible tant que vous ne vous etes pas connecte avec un compte licence dont l'abonnement est valide."
 exit 0

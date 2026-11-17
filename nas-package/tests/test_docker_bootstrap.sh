@@ -178,3 +178,14 @@ test_preparer_options_application_suit_port_agent_quand_il_change() {
   preparer_options_application 15432 "$dir/postgres" || return 1
   [[ "$OPTIONS_APPLICATION" == *"-e AGENT_PORT=19999"* && "$OPTIONS_APPLICATION" != *"AGENT_PORT=18090"* ]]
 }
+
+test_preparer_options_application_monte_le_dossier_du_repere_seulement_sur_le_maitre() {
+  _preparer
+  source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
+  nas_est_maitre() { return 0; }
+  preparer_options_application 15432 "$dir/postgres"; sur_maitre="$OPTIONS_APPLICATION"
+  nas_est_maitre() { return 1; }
+  preparer_options_application 15432 "$dir/postgres"; sur_client="$OPTIONS_APPLICATION"
+  [[ "$sur_maitre" == *"-v $dir/plateforme:/var/lib/site/plateforme "* && "$sur_maitre" == *"-e APP_PLATEFORME_REPERTOIREDONNEES=/var/lib/site/plateforme"* \
+     && "$sur_client" != *plateforme* ]] && [ -d "$dir/plateforme" ]
+}

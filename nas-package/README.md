@@ -11,6 +11,7 @@ instance Docker de l'application. Design : `docs/superpowers/specs/2026-11-04-pa
 |---|---|
 | `lib/*.sh` | Bibliothèques testées (Tasks 2-9), sourcées par les scripts DSM. |
 | `systemd/site-agent.service.template` | Gabarit de l'unité systemd de l'Agent (Task 8). |
+| `lib/redemarrage_nuit.sh`, `systemd/site-redemarrage-nuit.{service,timer}.template`, `spk/src/scripts/redemarrage-nuit.sh` | Redémarrage de nuit du Maître (voir ci-dessous). |
 | `tests/` | Harnais shell maison + tests unitaires des bibliothèques. |
 | `spk/Makefile`, `spk/INFO.sh`, `spk/build-spk.sh` | Construction du `.spk`. |
 | `spk/src/scripts/` | Scripts de cycle de vie DSM (+ `commun.sh`, `prestart.sh`). |
@@ -178,3 +179,23 @@ compile rien (comme l'exemple Docker officiel Synology). L'empaquetage est fait 
   `/volume1` requis.
 - Aucune installation sur un vrai DSM n'a encore été faite : la vérification a été
   structurelle (archive) + simulation des scripts avec commandes externes simulées.
+
+## Redémarrage de nuit du Maître (plateforme de plugins, SP2 Task 9)
+
+Chaque rechargement de plugin laisse des classes dans le Metaspace ; seul un redémarrage les libère.
+Au-dessus du seuil, l'application écrit le repère `redemarrage-recommande` (JSON `metaspaceMo`, `seuilMo`,
+`depuis`) dans `app.plateforme.repertoire-donnees`. Sur le Maître, ce dossier est monté depuis l'hôte
+(`<données>/plateforme` -> `/var/lib/site/plateforme`, variable `APP_PLATEFORME_REPERTOIREDONNEES`, voir
+`preparer_options_application`), donc le repère est visible du NAS et survit aux bascules.
+
+- **Minuteur** : `site-redemarrage-nuit.timer` (toutes les 10 minutes, 10 minutes après le démarrage) lance
+  `redemarrage-nuit.sh`. Installé par `postinst` / `postupgrade` **uniquement si `nas_est_maitre`** (nom
+  d'hôte `logipourtous`), retiré par `preuninst`. Un échec d'installation du minuteur n'est pas bloquant.
+- **Décision dans le script** : sans repère, ou hors de la fenêtre locale `[REDEMARRAGE_HEURE_DEBUT,
+  REDEMARRAGE_HEURE_FIN[` (défaut 3 -> 4, heures entières 0-23, fenêtre à cheval sur minuit acceptée, ex.
+  23 -> 2 ; valeur invalide = rien et avertissement), rien n'est fait. Ces variables sont surchargeables
+  dans l'environnement de l'unité (drop-in systemd).
+- **Action** : lit le tag de l'image du conteneur actif (`docker inspect`), appelle `mettre_a_jour_maitre <tag>`
+  (bascule bleu-vert : la nouvelle instance doit être saine avant la bascule Nginx), puis supprime le repère
+  **seulement en cas de succès**. En cas d'échec l'ancienne instance sert toujours et le repère reste.
+- **Verrou** : répertoire `<données>/.redemarrage-nuit.lock` (pid dedans ; un verrou d'un processus mort est repris).

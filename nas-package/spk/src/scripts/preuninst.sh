@@ -35,6 +35,12 @@ rm -f "$FICHIER_UNITE_AGENT" "$FICHIER_DROPIN_AGENT"
 rmdir "$DOSSIER_DROPIN_AGENT" 2>/dev/null || true
 _exec_systemctl daemon-reload >/dev/null 2>&1 || true
 
+# Minuteur de redemarrage de nuit (Maitre)
+_exec_systemctl stop site-redemarrage-nuit.timer >/dev/null 2>&1 || true
+_exec_systemctl disable site-redemarrage-nuit.timer >/dev/null 2>&1 || true
+rm -f "$SITE_NAS_DOSSIER_SYSTEMD/site-redemarrage-nuit.timer" "$SITE_NAS_DOSSIER_SYSTEMD/site-redemarrage-nuit.service"
+_exec_systemctl daemon-reload >/dev/null 2>&1 || true
+
 # Conteneurs (jamais de "docker volume rm" ni de suppression du dossier monte)
 _exec_docker rm -f "site-$PORT_APP_BLEU" "site-$PORT_APP_VERT" site-postgres >/dev/null 2>&1 || true
 

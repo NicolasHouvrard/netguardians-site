@@ -1,0 +1,7 @@
+[Unit]
+Description=Redemarrage de nuit du Maitre si l'application le recommande (Metaspace)
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash __SCRIPT__

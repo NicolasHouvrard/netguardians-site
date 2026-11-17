@@ -78,6 +78,17 @@ preparer_options_application() {
     OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $dossier_parent/agent-cle:/var/lib/site/agent"
     OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e AGENT_CLE_API_FILE_PATH=/var/lib/site/agent/cle-api-licence"
   fi
+  # Maitre seulement : dossier ou l'application ecrit le repere "redemarrage-recommande" (Metaspace),
+  # lu depuis le NAS par redemarrage_nuit.sh. Sans ce montage le repere resterait dans le systeme de
+  # fichiers du conteneur, invisible de l'hote, et serait perdu a chaque bascule. Appartient a
+  # l'utilisateur de l'application (seul dossier qu'elle peut ecrire, comme agent-cle).
+  if declare -F nas_est_maitre >/dev/null && nas_est_maitre; then
+    mkdir -p "$dossier_parent/plateforme" || return 1
+    _exec_chown "$UID_APPLICATION:$UID_APPLICATION" "$dossier_parent/plateforme" || return 1
+    chmod 700 "$dossier_parent/plateforme" || return 1
+    OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $dossier_parent/plateforme:/var/lib/site/plateforme"
+    OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e APP_PLATEFORME_REPERTOIREDONNEES=/var/lib/site/plateforme"
+  fi
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e SPRING_CONFIG_IMPORT=configtree:/run/secrets-app/"
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e SPRING_PROFILES_ACTIVE=prod"
   OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e DATABASE_URL=jdbc:postgresql://127.0.0.1:$port_postgres/site"

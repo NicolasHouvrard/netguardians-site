@@ -1,0 +1,9 @@
+[Unit]
+Description=Controle du repere de redemarrage de nuit (la fenetre horaire est decidee par le script)
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=10min
+
+[Install]
+WantedBy=timers.target

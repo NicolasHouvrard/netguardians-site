@@ -35,6 +35,12 @@ if [ ! -d "$DOSSIER_DONNEES_POSTGRES" ]; then
   fi
 fi
 
+# Maitre : minuteur de redemarrage de nuit (gabarits eventuellement renouvelles), non bloquant.
+if nas_est_maitre; then
+  installer_minuteur_redemarrage_nuit "$(cd "$(dirname "$0")" && pwd)/redemarrage-nuit.sh" "$SITE_NAS_DOSSIER_SYSTEMD" \
+    || avertir_utilisateur "Le minuteur de redemarrage de nuit du Maitre n'a pas pu etre rafraichi (non bloquant)."
+fi
+
 # Agent : necessite l'adresse Headscale (liaison de son port). Si Headscale est
 # momentanement indisponible, on garde l'unite deja installee (elle pointe deja
 # vers le meme jar, remplace par la mise a jour) plutot que d'echouer : la
