@@ -31,8 +31,11 @@ class PlateformeDesactiveeTest {
 		assertThat(context.getBeansOfType(PlateformeProperties.class)).isEmpty();
 		assertThat(context.getBeansOfType(DepotPlugins.class)).isEmpty();
 		assertThat(context.getBeansOfType(DepotController.class)).isEmpty();
+		assertThat(context.getBeansOfType(DistributionController.class)).isEmpty();
+		assertThat(context.getBeansOfType(EtatPluginServeurRepository.class)).isEmpty();
 
-		for (String route : java.util.List.of("/api/plateforme/plugins", "/api/plateforme/depot")) {
+		for (String route : java.util.List.of("/api/plateforme/plugins", "/api/plateforme/depot",
+				"/api/plateforme/serveurs-etat")) {
 			int sansJeton = mvc.perform(get(route)).andReturn().getResponse().getStatus();
 			int admin = mvc.perform(get(route).with(user("admin").roles("ADMIN")))
 				.andReturn()
@@ -41,6 +44,9 @@ class PlateformeDesactiveeTest {
 			assertThat(sansJeton).isIn(401, 404);
 			assertThat(admin).isIn(401, 404);
 		}
+		// Routes serveur -> Maitre : sans cle 401, et rien derriere.
+		assertThat(mvc.perform(get("/api/licence/plugins/catalogue")).andReturn().getResponse().getStatus())
+			.isEqualTo(401);
 	}
 
 }

@@ -148,6 +148,12 @@ public class SecurityConfig {
                 // Task 3 : l'Agent de deploiement (via la cle API de CE serveur) sonde son ordre de
                 // deploiement en attente — meme garde que les autres routes reservees aux cles actives.
                 .requestMatchers(HttpMethod.GET, "/api/licence/ordre-deploiement").hasRole(LicenceApiKeyAuthFilter.ROLE)
+                // Plateforme de plugins (SP2) : un serveur tire le catalogue et les paires jar + .sig du Maitre et
+                // rapporte l'etat de chaque installation. Le controleur (plateforme.DistributionController) n'existe
+                // que sur un Maitre a plateforme active ; ailleurs ces routes repondent 404 apres authentification.
+                .requestMatchers(HttpMethod.GET, "/api/licence/plugins/catalogue").hasRole(LicenceApiKeyAuthFilter.ROLE)
+                .requestMatchers(HttpMethod.GET, "/api/licence/plugins/*/*/jar", "/api/licence/plugins/*/*/sig").hasRole(LicenceApiKeyAuthFilter.ROLE)
+                .requestMatchers(HttpMethod.POST, "/api/licence/plugins/etat").hasRole(LicenceApiKeyAuthFilter.ROLE)
                 .anyRequest().denyAll()
             )
             .exceptionHandling(ex -> ex
