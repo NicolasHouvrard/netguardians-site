@@ -3,13 +3,13 @@
 Note courte pour essayer la plateforme de plugins (sous-projet 1) sur un poste de dev. Spec :
 `docs/superpowers/specs/2026-11-12-plugins-design.md`.
 
-> ## ⚠ JARS NON SIGNÉS : CODE EXÉCUTÉ AVEC TOUS LES PRIVILÈGES DE LA JVM
+> ## ⚠ UN JAR DE PLUGIN S'EXÉCUTE AVEC TOUS LES PRIVILÈGES DE LA JVM
 >
-> Dans ce sous-projet 1, **aucune signature n'est vérifiée**. Tout `.jar` déposé dans le répertoire des plugins
-> (ou installé par l'API d'administration) est chargé dans le processus du cœur et s'exécute **avec tous ses
-> privilèges** : accès à la base (DataSource du cœur), aux secrets, au système de fichiers, au réseau. Déposer un
-> jar équivaut à déployer du code dans le cœur. La vérification de signature est l'objet du **sous-projet 2**.
-> Au démarrage, quand la plateforme est active, le cœur journalise un avertissement (WARN) qui le rappelle.
+> Tout `.jar` chargé est exécuté dans le processus du cœur **avec tous ses privilèges** : base (DataSource du cœur),
+> secrets, système de fichiers, réseau. Depuis le sous-projet 2, **seuls les jars signés** (`<jar>.sig`, Ed25519) par
+> une clé de `src/main/resources/plateforme/cles-publiques.properties` sont installés (installation, démarrage,
+> tirage). Le mode `signature-obligatoire=false` (ci-dessous) désactive cette protection : développement seulement.
+> Procédure de signature et de publication : `docs/plateforme-plugins-publication.md`.
 
 ## Activer
 
@@ -23,7 +23,16 @@ app.plateforme.actif=true
 app.plateforme.repertoire-plugins=plugins        # relatif au répertoire de lancement
 app.plateforme.delai-drainage-ms=30000
 app.plateforme.version-coeur=0.0.0               # comparée à coeur-min / coeur-max des manifestes
+app.plateforme.signature-obligatoire=false       # DEVELOPPEMENT LOCAL SEULEMENT, voir ci-dessous
 ```
+
+### Mode `signature-obligatoire=false` (développement seulement)
+
+Par défaut (`true`) un jar sans `.sig` valide d'une clé du cœur est `REFUSE`. Les clés livrées dans le dépôt sont des
+clés de développement sans clé privée : **aucun jar réel n'est donc acceptable en local** sans passer en `false`.
+Avec `false`, les jars sont installés **sans aucune vérification** et le cœur journalise un avertissement net au
+démarrage. Ne **jamais** le mettre à `false` en production. (Le dépôt du Maître, lui, vérifie toujours la signature à
+la publication, quelle que soit cette propriété.) Pour signer pour de vrai : `docs/plateforme-plugins-publication.md`.
 
 `nettoyage-actif` (toujours `true`) et `diagnostic-fuites` (voir plus bas) sont décrits dans
 `application.properties.example`.
@@ -37,7 +46,8 @@ app.plateforme.version-coeur=0.0.0               # comparée à coeur-min / coeu
    démarrée ; les versions inférieures sont ignorées (INFO). Deux jars portant la même plus haute version, ou un jar
    illisible, sont journalisés (WARN) et ignorés. Un jar refusé ou en échec n'est jamais bloquant ; un refus pour
    dépendance pas encore active est retenté après les autres. Les copies réellement chargées sont dans
-   `plugins/.work/` (purgé au démarrage).
+   `<repertoire-plugins>.work` (dossier frère du répertoire des plugins, privé, purgé au démarrage ; avant le
+   sous-projet 2 c'était `plugins/.work/` : l'ancien dossier est à supprimer à la main).
 
 **Désinstaller n'est pas persistant** : `DELETE /api/plateforme/plugins/{nom}` arrête le plugin mais **laisse son
 jar** dans `plugins/`. Au prochain redémarrage, le plugin revient. Pour le retirer durablement, supprimer (ou
@@ -62,6 +72,10 @@ l'API d'administration.
 | `POST` | `/api/plateforme/plugins/installer` corps `{"fichier":"mon-plugin-1.2.0.jar"}` | installe / met à jour ; renvoie `{statut, plugin, version, raisons, interruptionMs}` (`statut` : `OK`, `REFUSE`, `ECHEC`, `ANNULE`) |
 | `DELETE` | `/api/plateforme/plugins/{nom}` | désinstalle (204 ; 404 si inconnu) ; le schéma `plugin_<nom>` est conservé |
 | `GET` | `/api/plateforme/fuites[?pression=true]` | `{retires, toujoursVivants, etiquettesVivantes, metaspaceMo}` |
+| `GET` | `/api/plateforme/metaspace` | `{metaspaceMo, seuilMo, redemarrageRecommande}` (ADMIN, sur **tout** serveur : le Metaspace est celui de la JVM locale ; vaut 0/faux jusqu'à la première mesure, au plus 60 s après le démarrage) |
+| `POST` | `/api/plateforme/depot` (multipart `jar` + `sig`) | **Maître seulement** : publie un jar signé, voir `docs/plateforme-plugins-publication.md` |
+| `GET` | `/api/plateforme/depot` | **Maître seulement** : catalogue publié |
+| `GET` | `/api/plateforme/serveurs-etat[?limite=n]` | **Maître seulement** : dernier statut rapporté par serveur et par plugin |
 
 > **`installer` répond HTTP 200 même pour `REFUSE`, `ECHEC` et `ANNULE`** (le code HTTP dit que la demande a été
 > traitée, pas qu'elle a réussi). Décision : **tout appelant** (distribution côté Maître, interface
@@ -98,15 +112,48 @@ Sans jeton → 401 ; compte non administrateur → 403. Les routes du plugin son
   Un plugin consommateur peut exposer le proxy du registre comme bean du type contrat : il n'est jamais pris pour
   un fournisseur.
 
+## Distribution, tirage et volumes persistants
+
+- **Rien n'est publié par GitHub/GHCR pour les jars** : l'image du cœur ne contient aucun plugin. Le jar signé est
+  publié au Maître (`POST /api/plateforme/depot`) et chaque serveur le tire toutes les
+  `app.plateforme.intervalle-tirage-ms` (10 min, premier tirage un intervalle après le démarrage). Le tireur installe
+  aussi un plugin **absent** localement. Le tirage travaille dans `<repertoire-plugins>/.tirage`.
+- **Volumes persistants** : `app.plateforme.repertoire-plugins` (tous les serveurs) et
+  `app.plateforme.depot-maitre` (Maître, dossier privé distinct, ni contenu dans ni contenant le répertoire des plugins
+  ou le dossier de travail) doivent être sur un volume qui survit aux redéploiements blue-green. **Le paquet NAS
+  (`nas-package/lib/docker_bootstrap.sh`) ne monte aujourd'hui aucun de ces deux dossiers** (il ne monte que le
+  dossier du repère de redémarrage, voir plus bas) : sans montage ajouté, les jars et le dépôt disparaissent à chaque
+  bascule. À faire avant la production.
+- **PARTNER/CLIENT** : ils tirent du Maître (`app.plateforme.master-url`, vide = `app.licence.master-url`, en
+  `https://`) avec la clé API de licence de l'installation enrôlée. Ils n'ont **ni dépôt, ni redémarrage de nuit
+  automatique** (l'Agent de déploiement ne sait que « déployer une version ») : leur repère Metaspace est écrit dans
+  leur dossier de données et lisible par `GET /api/plateforme/metaspace`, rien de plus en SP2.
+
+## Metaspace et redémarrage de nuit (Maître seulement)
+
+- Tout serveur à plateforme active mesure son Metaspace toutes les `intervalle-surveillance-ms` (60 s). Au-dessus de
+  `metaspace-seuil-mo` (512 Mo), il écrit le repère `<repertoire-donnees>/redemarrage-recommande` (JSON
+  `metaspaceMo`, `seuilMo`, `depuis`) et journalise un WARN. Le repère ne déclenche rien tout seul.
+- **Sur le Maître (NAS) seulement**, le paquet installe un minuteur systemd (`site-redemarrage-nuit.timer`, toutes les
+  10 minutes) qui appelle `redemarrage-nuit.sh`. Le script ne fait rien hors de la fenêtre **03:00-04:00, heure
+  locale du NAS** (`REDEMARRAGE_HEURE_DEBUT`/`REDEMARRAGE_HEURE_FIN`) ; dedans, si le repère existe, il relance la
+  **même version** en blue-green et supprime le repère. Si la nouvelle instance n'est pas saine, l'ancienne continue de
+  servir et le repère est conservé (nouvel essai la nuit suivante).
+- **Il faut `app.plateforme.actif=true` sur le Maître** : sans cela, rien n'écrit le repère.
+- **Un Maître déjà installé** doit recevoir la nouvelle version du paquet **puis** un redémarrage blue-green : le
+  montage du dossier du repère (`<dossier parent>/plateforme` monté sur `/var/lib/site/plateforme`, avec
+  `APP_PLATEFORME_REPERTOIREDONNEES`) n'est ajouté qu'au démarrage d'un conteneur par le nouveau paquet.
+  Sans ce montage le repère reste dans le conteneur, invisible du NAS.
+
 ## Avant de l'activer en production
 
-La plateforme est prête pour des essais locaux, **pas** pour la production. Prérequis à traiter d'abord :
+La plateforme est prête pour des essais locaux ; en production, traiter d'abord :
 
-1. **Signature des jars** (sous-projet 2) : aujourd'hui tout jar s'exécute avec tous les privilèges (voir
-   l'encadré en tête).
-2. **Répertoire des plugins persistant** : `app.plateforme.repertoire-plugins` doit pointer vers un **volume
-   persistant**. `nas-package/lib/docker_bootstrap.sh` ne monte aujourd'hui **aucun** volume pour les plugins (seulement secrets, licence et clé de l'agent) : en l'état, les jars
-   disparaîtraient à chaque redéploiement blue-green.
+1. **Signature des jars** : fait au sous-projet 2, mais il faut **remplacer les clés `dev-`** par les clés de
+   production et sortir une version du cœur (`docs/plateforme-plugins-publication.md`) ; `signature-obligatoire`
+   doit rester à `true`.
+2. **Répertoire des plugins et dépôt du Maître persistants** : voir « Distribution, tirage et volumes persistants »
+   (montage encore à ajouter au paquet NAS).
 3. **Metaspace** : ne **pas** fixer `-XX:MaxMetaspaceSize` sans marge ; chaque génération charge ses classes, et
    une fuite résiduelle ferait tomber le cœur entier au lieu d'être visible dans le rapport de fuites.
 4. **Pool de connexions partagé et `prepareThreshold`** : les plugins utilisent le pool Hikari du cœur. Un DDL de
@@ -123,4 +170,5 @@ La plateforme est prête pour des essais locaux, **pas** pour la production. Pr�
    `@EnableMethodSecurity` dans son contexte et protéger ses méthodes (`@PreAuthorize`).
 8. **Statut de l'installation** : tous les appelants de `installer` doivent lire `statut` (HTTP 200 même en cas
    d'échec, voir plus haut).
-9. **Désinstallation non persistante** : retirer aussi le jar du répertoire (voir plus haut).
+9. **Désinstallation non persistante** : retirer aussi le jar du répertoire (voir plus haut). Attention : le tireur réinstalle un plugin du catalogue absent localement
+   (au plus 10 minutes plus tard) ; pour retirer durablement un plugin il faut aussi le retirer du dépôt du Maître.

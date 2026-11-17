@@ -156,7 +156,7 @@ gemini.api-key=${GEMINI_API_KEY:CHANGEME}
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 app.plateforme.actif=${PLATEFORME_ACTIF:false}
 # Repertoire des jars de plugins (relatif au repertoire de lancement, ou absolu). Chaque .jar
-# y est installe au demarrage ; un sous-dossier .work/ y recoit les copies chargees.
+# y est installe au demarrage ; les copies chargees sont dans <repertoire-plugins>.work (voir repertoire-travail).
 app.plateforme.repertoire-plugins=${PLATEFORME_REPERTOIRE_PLUGINS:plugins}
 # Delai maximal de drainage des requetes en vol avant fermeture d'une version (ms).
 app.plateforme.delai-drainage-ms=${PLATEFORME_DELAI_DRAINAGE_MS:30000}
