@@ -79,6 +79,15 @@ public class SurveillanceMetaspace {
 		return proprietes.getMetaspaceSeuilMo();
 	}
 
+	/** Mesure rapportée au Maître avec l'état des plugins (spec §7). */
+	public record Mesure(long metaspaceMo, long seuilMo, boolean redemarrageRecommande) {
+	}
+
+	/** Instantané {@code (metaspaceMo, seuilMo, redemarrageRecommande)} de la dernière mesure. */
+	public Mesure mesure() {
+		return new Mesure(metaspaceMo(), seuilMo(), redemarrageRecommande());
+	}
+
 	/** {@code true} si la dernière mesure dépasse le seuil. */
 	public boolean redemarrageRecommande() {
 		return recommande;

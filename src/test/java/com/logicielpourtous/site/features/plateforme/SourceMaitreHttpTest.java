@@ -258,6 +258,22 @@ class SourceMaitreHttpTest {
 	}
 
 	@Test
+	void rapport_joint_la_mesure_metaspace_quand_elle_est_fournie_et_s_en_passe_sinon() throws IOException {
+		routes.put("POST /api/licence/plugins/etat", fixe(204, ""));
+
+		new SourceMaitreHttp(base, () -> Optional.of(CLE), Duration.ofMillis(500), Duration.ofMillis(500),
+				() -> new SurveillanceMetaspace.Mesure(600, 512, true))
+			.rapporter("alpha", "1.1.0", Statut.OK, List.of());
+		JsonNode m = new ObjectMapper().readTree(recues.get(0).corps()).get("metaspace");
+		assertThat(m.get("metaspaceMo").asLong()).isEqualTo(600);
+		assertThat(m.get("seuilMo").asLong()).isEqualTo(512);
+		assertThat(m.get("redemarrageRecommande").asBoolean()).isTrue();
+
+		source().rapporter("alpha", "1.1.0", Statut.OK, List.of());
+		assertThat(new ObjectMapper().readTree(recues.get(1).corps()).has("metaspace")).isFalse();
+	}
+
+	@Test
 	void rapport_envoye_en_json_et_404_n_est_pas_retente() throws IOException {
 		routes.put("POST /api/licence/plugins/etat", fixe(204, ""));
 

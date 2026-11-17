@@ -485,6 +485,69 @@ class DistributionControllerTest {
 	}
 
 	@Test
+	void post_etat_avec_metaspace_le_stocke_et_l_expose() throws Exception {
+		String cle = LicenceCles.generate();
+		LicenceServeur serveur = serveurActif(cle);
+		publier(jarSigne("alpha", "1.0.0"));
+
+		mvc.perform(rapport(cle, "{\"nom\":\"alpha\",\"version\":\"1.0.0\",\"statut\":\"OK\",\"raisons\":[],"
+				+ "\"metaspace\":{\"metaspaceMo\":600,\"seuilMo\":512,\"redemarrageRecommande\":true}}"))
+			.andExpect(status().isNoContent());
+		JsonNode m = etatDe(etats(), serveur.getId(), "alpha").path("metaspace");
+		assertThat(m.path("metaspaceMo").asLong()).isEqualTo(600);
+		assertThat(m.path("seuilMo").asLong()).isEqualTo(512);
+		assertThat(m.path("redemarrageRecommande").asBoolean()).isTrue();
+
+		// Un rapport suivant remplace la mesure ; sans mesure (ancien serveur), le champ est absent (null).
+		mvc.perform(rapport(cle, "{\"nom\":\"alpha\",\"version\":\"1.0.0\",\"statut\":\"OK\",\"raisons\":[],"
+				+ "\"metaspace\":{\"metaspaceMo\":100,\"seuilMo\":512,\"redemarrageRecommande\":false}}"))
+			.andExpect(status().isNoContent());
+		assertThat(etatDe(etats(), serveur.getId(), "alpha").path("metaspace").path("redemarrageRecommande")
+			.asBoolean(true)).isFalse();
+		mvc.perform(rapport(cle, "{\"nom\":\"alpha" + OK_100)).andExpect(status().isNoContent());
+		assertThat(etatDe(etats(), serveur.getId(), "alpha").path("metaspace").isNull()).isTrue();
+	}
+
+	@Test
+	void post_etat_metaspace_non_fiable_est_ignore_sans_refuser_le_rapport() throws Exception {
+		String cle = LicenceCles.generate();
+		LicenceServeur serveur = serveurActif(cle);
+		publier(jarSigne("alpha", "1.0.0"));
+		String debut = "{\"nom\":\"alpha\",\"version\":\"1.0.0\",\"statut\":\"OK\",\"raisons\":[],\"metaspace\":";
+
+		for (String m : new String[] { "\"texte\"", "[1,2]", "{\"metaspaceMo\":-1,\"seuilMo\":512,\"redemarrageRecommande\":true}",
+				"{\"metaspaceMo\":9999999999,\"seuilMo\":512,\"redemarrageRecommande\":true}",
+				"{\"metaspaceMo\":1.5,\"seuilMo\":512,\"redemarrageRecommande\":true}",
+				"{\"metaspaceMo\":\"600\",\"seuilMo\":512,\"redemarrageRecommande\":true}",
+				"{\"metaspaceMo\":600,\"seuilMo\":512,\"redemarrageRecommande\":\"oui\"}",
+				"{\"metaspaceMo\":600,\"seuilMo\":512}", "{}" }) {
+			mvc.perform(rapport(cle, debut + m + "}")).andExpect(status().isNoContent());
+			assertThat(etatDe(etats(), serveur.getId(), "alpha").path("metaspace").isNull()).as(m).isTrue();
+		}
+	}
+
+	@Test
+	void post_etat_avec_metaspace_respecte_le_plafond_de_lignes_par_serveur() throws Exception {
+		String cle = LicenceCles.generate();
+		serveurActif(cle);
+		publier(jarSigne("alpha", "1.0.0"));
+		publier(jarSigne("beta", "1.0.0"));
+		DistributionController c = controleur.getObject();
+		int avant = c.etatsMaxParServeur();
+		c.etatsMaxParServeur(1);
+		try {
+			String m = "\"metaspace\":{\"metaspaceMo\":600,\"seuilMo\":512,\"redemarrageRecommande\":true}}";
+			mvc.perform(rapport(cle, "{\"nom\":\"alpha\",\"version\":\"1.0.0\",\"statut\":\"OK\",\"raisons\":[]," + m))
+				.andExpect(status().isNoContent());
+			mvc.perform(rapport(cle, "{\"nom\":\"beta\",\"version\":\"1.0.0\",\"statut\":\"OK\",\"raisons\":[]," + m))
+				.andExpect(status().isConflict());
+		}
+		finally {
+			c.etatsMaxParServeur(avant);
+		}
+	}
+
+	@Test
 	void serveurs_etat_borne_par_limite() throws Exception {
 		String cle = LicenceCles.generate();
 		serveurActif(cle);

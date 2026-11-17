@@ -41,12 +41,15 @@ public class PlateformeConfiguration {
 	@Bean
 	@Conditional(HorsServeurMaitre.class)
 	SourceMaitreHttp sourceMaitreHttp(PlateformeProperties proprietes, Environment environnement,
-			ObjectProvider<CleMaitre> cle) {
+			ObjectProvider<CleMaitre> cle, ObjectProvider<SurveillanceMetaspace> surveillance) {
 		String url = proprietes.getMasterUrl().isBlank() ? environnement.getProperty("app.licence.master-url", "")
 				: proprietes.getMasterUrl();
 		return new SourceMaitreHttp(url, () -> {
 			CleMaitre c = cle.getIfAvailable();
 			return c == null ? Optional.empty() : c.cle();
+		}, SourceMaitreHttp.DELAI_CONNEXION, SourceMaitreHttp.DELAI_LECTURE, () -> {
+			SurveillanceMetaspace s = surveillance.getIfAvailable();
+			return s == null ? null : s.mesure();
 		});
 	}
 

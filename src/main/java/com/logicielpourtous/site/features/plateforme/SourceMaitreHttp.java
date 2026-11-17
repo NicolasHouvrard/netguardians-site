@@ -86,6 +86,9 @@ public class SourceMaitreHttp implements SourcePlugins {
 
 	private final Duration dureeMax;
 
+	/** Mesure du Metaspace local (peut renvoyer {@code null} : rien n'est joint). */
+	private final Supplier<SurveillanceMetaspace.Mesure> mesure;
+
 	/**
 	 * @param urlMaitre URL de base du Maître ({@code http(s)://hôte[:port]}), en pratique {@code app.licence.master-url}
 	 * @param cle clé API de licence de cette installation
@@ -94,8 +97,19 @@ public class SourceMaitreHttp implements SourcePlugins {
 		this(urlMaitre, cle::cle, DELAI_CONNEXION, DELAI_LECTURE);
 	}
 
+	/** Avec la mesure du Metaspace local, jointe à chaque rapport d'état (le Maître l'affiche, spec §7). */
+	public SourceMaitreHttp(String urlMaitre, CleMaitre cle, Supplier<SurveillanceMetaspace.Mesure> mesure) {
+		this(urlMaitre, cle::cle, DELAI_CONNEXION, DELAI_LECTURE, mesure);
+	}
+
 	/** Pour les tests : délais réduits. */
 	SourceMaitreHttp(String urlMaitre, Supplier<Optional<String>> cle, Duration connexion, Duration lecture) {
+		this(urlMaitre, cle, connexion, lecture, () -> null);
+	}
+
+	SourceMaitreHttp(String urlMaitre, Supplier<Optional<String>> cle, Duration connexion, Duration lecture,
+			Supplier<SurveillanceMetaspace.Mesure> mesure) {
+		this.mesure = mesure;
 		String url = urlMaitre == null ? "" : urlMaitre.trim();
 		while (url.endsWith("/")) {
 			url = url.substring(0, url.length() - 1);
@@ -249,7 +263,15 @@ public class SourceMaitreHttp implements SourcePlugins {
 	@Override
 	public void rapporter(String nom, String version, ResultatInstallation.Statut statut, List<String> raisons)
 			throws IOException {
-		byte[] corps = corpsRapport(nom, version, statut, raisons);
+		SurveillanceMetaspace.Mesure m = null;
+		try {
+			m = mesure.get();
+		}
+		catch (RuntimeException e) {
+			// La mesure est accessoire : son échec ne doit jamais empêcher le rapport d'état.
+			log.warn("Mesure du Metaspace indisponible pour le rapport ({})", e.getClass().getSimpleName());
+		}
+		byte[] corps = corpsRapport(nom, version, statut, raisons, m);
 		HttpURLConnection c = ouvrir("POST", "etat");
 		try {
 			c.setDoOutput(true);
@@ -283,6 +305,12 @@ public class SourceMaitreHttp implements SourcePlugins {
 	/** JSON {@code {nom, version, statut, raisons}} sous la borne du Maître (raisons bornées en nombre et longueur). */
 	static byte[] corpsRapport(String nom, String version, ResultatInstallation.Statut statut, List<String> raisons)
 			throws IOException {
+		return corpsRapport(nom, version, statut, raisons, null);
+	}
+
+	/** Idem, avec la mesure du Metaspace ({@code metaspace}) si elle est fournie. */
+	static byte[] corpsRapport(String nom, String version, ResultatInstallation.Statut statut, List<String> raisons,
+			SurveillanceMetaspace.Mesure metaspace) throws IOException {
 		List<String> retenues = new ArrayList<>();
 		for (String r : raisons == null ? List.<String>of() : raisons) {
 			if (retenues.size() >= RAISONS_MAX) {
@@ -298,6 +326,12 @@ public class SourceMaitreHttp implements SourcePlugins {
 			o.put("statut", statut.name());
 			ArrayNode a = o.putArray("raisons");
 			retenues.forEach(a::add);
+			if (metaspace != null) {
+				ObjectNode m = o.putObject("metaspace");
+				m.put("metaspaceMo", metaspace.metaspaceMo());
+				m.put("seuilMo", metaspace.seuilMo());
+				m.put("redemarrageRecommande", metaspace.redemarrageRecommande());
+			}
 			byte[] corps = JSON.writeValueAsBytes(o);
 			if (corps.length < DistributionController.TAILLE_MAX_RAPPORT - 1024 || retenues.isEmpty()) {
 				return corps;

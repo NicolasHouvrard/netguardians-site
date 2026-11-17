@@ -69,6 +69,15 @@ public class EtatPluginServeur {
 	@Column(name = "raisons", nullable = false, columnDefinition = "text")
 	private String raisons;
 
+	@Column(name = "metaspace_mo")
+	private Long metaspaceMo;
+
+	@Column(name = "seuil_mo")
+	private Long seuilMo;
+
+	@Column(name = "redemarrage_recommande")
+	private Boolean redemarrageRecommande;
+
 	@Column(name = "rapporte_le", nullable = false)
 	private Instant rapporteLe;
 
@@ -93,6 +102,18 @@ public class EtatPluginServeur {
 
 	public String getRaisons() {
 		return raisons;
+	}
+
+	public Long getMetaspaceMo() {
+		return metaspaceMo;
+	}
+
+	public Long getSeuilMo() {
+		return seuilMo;
+	}
+
+	public Boolean getRedemarrageRecommande() {
+		return redemarrageRecommande;
 	}
 
 	public Instant getRapporteLe() {

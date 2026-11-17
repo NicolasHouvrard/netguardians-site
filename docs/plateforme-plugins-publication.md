@@ -162,8 +162,12 @@ signature est vu comme paire incomplète. Le fichier doit s'appeler exactement `
 curl -s "https://MAITRE/api/plateforme/serveurs-etat?limite=100" -H "Authorization: Bearer <jeton>"
 ```
 
-(ADMIN ; `limite` de 1 à 2000, 500 par défaut). Liste `[{licenceServeurId, nom, version, statut, raisons, rapporteLe}]` :
-le **dernier** état rapporté par serveur et par plugin. Seul le Maître sait ce que les autres serveurs ont fait ; le
+(ADMIN ; `limite` de 1 à 2000, 500 par défaut). Liste
+`[{licenceServeurId, nom, version, statut, raisons, rapporteLe, metaspace}]` : le **dernier** état rapporté par serveur
+et par plugin. `metaspace` = `{metaspaceMo, seuilMo, redemarrageRecommande}` mesuré par le serveur au moment de son
+rapport (`redemarrageRecommande: true` = ce serveur PARTNER/CLIENT devrait être redémarré ; **valeurs déclarées par le
+serveur**, bornées côté Maître) ; `null` si le serveur n'en a pas joint (ancienne version) ou si la mesure était invalide.
+La mesure date de `rapporteLe` : elle n'est remontée qu'avec un rapport, pas en continu. Seul le Maître sait ce que les autres serveurs ont fait ; le
 Maître lui-même n'y figure pas : son propre résultat est seulement dans son journal (lignes « Tirage local (Maître) ») et
 dans `GET /api/plateforme/plugins` sur lui.
 

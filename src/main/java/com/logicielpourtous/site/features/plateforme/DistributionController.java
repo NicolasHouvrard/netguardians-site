@@ -118,8 +118,15 @@ public class DistributionController {
 
 	/** Vue d'un état rapporté. */
 	public record EtatServeur(long licenceServeurId, String nom, String version, String statut, List<String> raisons,
-			Instant rapporteLe) {
+			Instant rapporteLe, MetaspaceServeur metaspace) {
 	}
+
+	/** Mesure du Metaspace rapportée par le serveur (spec §7), {@code null} dans la vue si absente ou invalide. */
+	public record MetaspaceServeur(long metaspaceMo, long seuilMo, boolean redemarrageRecommande) {
+	}
+
+	/** Borne haute (Mo) d'une mesure de Metaspace rapportée : 1 To ; au-delà la valeur n'est pas crédible. */
+	static final long METASPACE_MO_MAX = 1024L * 1024L;
 
 	private final DepotPlugins depot;
 
@@ -197,8 +204,11 @@ public class DistributionController {
 			return erreur(HttpStatus.NOT_FOUND, "plugin absent du dépôt");
 		}
 
+		MetaspaceServeur metaspace = metaspace(racine.get("metaspace"));
+
 		int lignes = etats.enregistrer(serveur, nom, version, statut, String.join("\n", raisons), Instant.now(),
-				etatsMaxParServeur);
+				metaspace == null ? null : metaspace.metaspaceMo(), metaspace == null ? null : metaspace.seuilMo(),
+				metaspace == null ? null : metaspace.redemarrageRecommande(), etatsMaxParServeur);
 		if (lignes == 0) {
 			log.warn("Plateforme : rapport du serveur {} pour {} refusé : plafond de {} plugins suivis atteint", serveur,
 					nom, etatsMaxParServeur);
@@ -228,7 +238,9 @@ public class DistributionController {
 			.stream()
 			.map(e -> new EtatServeur(e.getLicenceServeurId(), e.getNom(), e.getVersion(), e.getStatut(),
 					e.getRaisons() == null || e.getRaisons().isEmpty() ? List.of() : List.of(e.getRaisons().split("\n")),
-					e.getRapporteLe()))
+					e.getRapporteLe(),
+					e.getMetaspaceMo() == null || e.getSeuilMo() == null || e.getRedemarrageRecommande() == null ? null
+							: new MetaspaceServeur(e.getMetaspaceMo(), e.getSeuilMo(), e.getRedemarrageRecommande())))
 			.toList();
 	}
 
@@ -322,6 +334,30 @@ public class DistributionController {
 			nettes.add("(" + ecartees + " raisons non conservées)");
 		}
 		return nettes;
+	}
+
+	/**
+	 * Mesure du Metaspace rapportée, NON FIABLE : exactement un objet {@code {metaspaceMo, seuilMo,
+	 * redemarrageRecommande}} d'entiers dans {@code [0, METASPACE_MO_MAX]} et d'un booléen JSON ; sinon {@code null}
+	 * (mesure ignorée, le rapport lui-même reste accepté : c'est un accessoire, un 400 ferait réessayer le serveur
+	 * sans fin). Rien de la valeur reçue n'est journalisé ni stocké en texte.
+	 */
+	private static MetaspaceServeur metaspace(JsonNode n) {
+		if (n == null || !n.isObject()) {
+			return null;
+		}
+		JsonNode mo = n.get("metaspaceMo");
+		JsonNode seuil = n.get("seuilMo");
+		JsonNode recommande = n.get("redemarrageRecommande");
+		if (!mesureValide(mo) || !mesureValide(seuil) || recommande == null || !recommande.isBoolean()) {
+			return null;
+		}
+		return new MetaspaceServeur(mo.longValue(), seuil.longValue(), recommande.booleanValue());
+	}
+
+	private static boolean mesureValide(JsonNode n) {
+		return n != null && n.isIntegralNumber() && n.canConvertToLong() && n.longValue() >= 0
+				&& n.longValue() <= METASPACE_MO_MAX;
 	}
 
 	private static ResponseEntity<Map<String, String>> trop() {

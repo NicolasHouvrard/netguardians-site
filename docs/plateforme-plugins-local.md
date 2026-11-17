@@ -134,7 +134,11 @@ Sans jeton → 401 ; compte non administrateur → 403. Les routes du plugin son
 - **PARTNER/CLIENT** : ils tirent du Maître (`app.plateforme.master-url`, vide = `app.licence.master-url`, en
   `https://`) avec la clé API de licence de l'installation enrôlée. Ils n'ont **ni dépôt, ni redémarrage de nuit
   automatique** (l'Agent de déploiement ne sait que « déployer une version ») : leur repère Metaspace est écrit dans
-  leur dossier de données et lisible par `GET /api/plateforme/metaspace`, rien de plus en SP2.
+  leur dossier de données et lisible par `GET /api/plateforme/metaspace` sur eux ; **le Maître le voit aussi** : chaque
+  rapport d'état qu'ils lui envoient joint leur mesure (`metaspaceMo`, `seuilMo`, `redemarrageRecommande`), exposée par
+  `GET /api/plateforme/serveurs-etat` (champ `metaspace`). La mesure n'est remontée qu'avec un rapport (donc après une
+  tentative d'installation) : lire `rapporteLe` pour savoir de quand elle date ; `null` = serveur sans mesure ou mesure
+  invalide (ignorée par le Maître). Le redémarrage reste à faire à la main sur ces serveurs.
 
 ## Metaspace et redémarrage de nuit (Maître seulement)
 
