@@ -109,7 +109,11 @@ public final class ReessaiRetryAfter {
             return null;
         }
         valeur = valeur.trim();
-        if (valeur.matches("\\d{1,9}")) {
+        if (valeur.matches("\\d+")) {
+            // Entier de secondes, aussi demesure soit-il : plafonne a ATTENTE_MAX (jamais ignore).
+            if (valeur.length() > 9) {
+                return ATTENTE_MAX;
+            }
             return Duration.ofSeconds(Long.parseLong(valeur));
         }
         try {

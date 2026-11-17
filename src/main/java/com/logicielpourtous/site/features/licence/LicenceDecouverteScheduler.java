@@ -110,6 +110,18 @@ public class LicenceDecouverteScheduler {
                 // echec reste notifiePartenaire=false cote maitre, donc retentee au cycle suivant.
                 try {
                     traiter(nouveau);
+                } catch (org.springframework.web.client.RestClientResponseException e) {
+                    if (e.getStatusCode().value() == 503) {
+                        // Maitre indisponible (maintenance) alors que ReessaiRetryAfter a deja attendu et
+                        // reessaye : inutile de payer la meme attente pour chaque entree restante. On
+                        // abandonne le cycle ; les entrees non notifiees seront resondees au suivant.
+                        log.warn("Licence : maitre indisponible (503), cycle de decouverte abandonne, "
+                                + "nouvel essai au prochain cycle");
+                        break;
+                    }
+                    log.error("Licence : decouverte en echec pour l'installation {} (client {}, statut {}), "
+                            + "nouvel essai au prochain cycle : {}", nouveau.identifiantInstallationStable(),
+                            nouveau.customerId(), nouveau.statut(), e.toString());
                 } catch (RuntimeException e) {
                     log.error("Licence : decouverte en echec pour l'installation {} (client {}, statut {}), "
                             + "nouvel essai au prochain cycle : {}", nouveau.identifiantInstallationStable(),

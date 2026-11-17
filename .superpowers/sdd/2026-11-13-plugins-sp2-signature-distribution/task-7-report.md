@@ -20,3 +20,11 @@
 ## Non-regression (une classe a la fois)
 - ModularityTests 1/1 OK ; LicenceClientIntegrationTest 2/2 OK ; LicenceDecouverteSchedulerTest 8/8 OK ; GestionServeursControllerTest : 0 test execute (classe sans test actif).
 - RestSyncClientIntegrationTest 2/3 : `pullReadsPayloads...` echoue DANS L'ARRANGEMENT du test (`comments.author_id` NOT NULL en base, insertion d'un Comment sans auteur, avant tout appel client) : ecart de schema de la base partagee/test, sans rapport avec ce changement (non verifie sur BASE par stash, cout ~2 min). push/invalidKey OK.
+
+## Fix round 1 (revue)
+- Important #1 : `LicenceDecouverteScheduler.decouvrir()` abandonne le cycle (`break`) a la premiere 503 qui survit aux reessais de `pousserCodePartenaire` ; les entrees restantes (non notifiees cote maitre) sont resondees au cycle suivant. Attente maximale par cycle : 2 x 30 s pour le push + celle du listage, au lieu de N x 60 s. Test `LicenceDecouverteSchedulerBorneTest` (4 entrees, maitre en 503 permanent + Retry-After 10) : RED (plus de 3 POST) puis GREEN (3 POST, 2 attentes).
+- `SyncOutboxScheduler` : meme forme NON retrouvee (un seul `push` groupe puis un seul `pull` par cycle, pas de boucle d'appels reseau) ; au pire 2 x 60 s par cycle, non modifie.
+- Minor #2 : un Retry-After entier de 10+ chiffres est plafonne a 30 s (plus ignore) ; test `delta_enorme_est_plafonne_a_30_secondes` (RED puis GREEN).
+- Minor #3 : tests ajoutes `push_reessaie_apres_503_avec_le_meme_corps`, `pousserCodePartenaire_reessaie_apres_503_avec_le_meme_corps`, `reessai_sur_erreur_d_es_conserve` (connexion coupee puis rejeu par le client Apache).
+- Minor #4 : `echoue_tout_de_suite_sur_503_sans_retry_after` (nom du brief en commentaire) dans les 3 classes ; ecart assume : un 503 sans Retry-After n'est plus rejoue (ni 429).
+- Hors perimetre, note : `SourceMaitreHttp` et les autres `RestClient` restent sur le rejeu Apache non borne (suivi recommande avec `fabriqueRequetes()`).

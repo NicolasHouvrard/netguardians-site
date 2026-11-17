@@ -29,13 +29,14 @@ class LicenceClientRetryAfterTest {
     private volatile int echecs;
     private volatile String retryAfter;
     private final List<Duration> attentes = new ArrayList<>();
+    private final List<String> corpsRecus = new java.util.concurrent.CopyOnWriteArrayList<>();
     private LicenceClient client;
 
     @BeforeEach
     void demarrer() throws IOException {
         serveur = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         serveur.createContext("/", ex -> {
-            ex.getRequestBody().readAllBytes();
+            corpsRecus.add(new String(ex.getRequestBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
             byte[] corps = "[]".getBytes();
             if (appels.incrementAndGet() <= echecs) {
                 if (retryAfter != null) {
@@ -74,8 +75,9 @@ class LicenceClientRetryAfterTest {
         assertThat(attentes).containsExactly(Duration.ofSeconds(2));
     }
 
+    /** Nom du brief : 503_sans_retry_after_garde_le_comportement_actuel (identifiant Java invalide). */
     @Test
-    void _503_sans_retry_after_garde_le_comportement_actuel() {
+    void echoue_tout_de_suite_sur_503_sans_retry_after() {
         echecs = 99;
         retryAfter = null;
 
@@ -94,5 +96,18 @@ class LicenceClientRetryAfterTest {
 
         assertThat(appels.get()).isEqualTo(1);
         assertThat(attentes).isEmpty();
+    }
+
+    @Test
+    void pousserCodePartenaire_reessaie_apres_503_avec_le_meme_corps() {
+        echecs = 1;
+        retryAfter = "1";
+
+        client.pousserCodePartenaire("install-1", "code-local-1");
+
+        assertThat(appels.get()).isEqualTo(2);
+        assertThat(attentes).containsExactly(Duration.ofSeconds(1));
+        assertThat(corpsRecus).hasSize(2);
+        assertThat(corpsRecus.get(0)).contains("code-local-1").isEqualTo(corpsRecus.get(1));
     }
 }

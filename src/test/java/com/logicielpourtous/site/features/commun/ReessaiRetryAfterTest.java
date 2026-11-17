@@ -87,8 +87,9 @@ class ReessaiRetryAfterTest {
         assertThat(attentes).hasSize(2);
     }
 
+    /** Nom du brief : 503_sans_retry_after_garde_le_comportement_actuel (identifiant Java invalide). */
     @Test
-    void _503_sans_retry_after_garde_le_comportement_actuel() {
+    void echoue_tout_de_suite_sur_503_sans_retry_after() {
         AtomicInteger n = new AtomicInteger();
 
         assertThatThrownBy(() -> reessai.executer(appel(n, 99, null)))
@@ -125,5 +126,15 @@ class ReessaiRetryAfterTest {
 
         assertThat(n.get()).isEqualTo(1);
         assertThat(attentes).isEmpty();
+    }
+
+    @Test
+    void delta_enorme_est_plafonne_a_30_secondes() {
+        for (String valeur : new String[] {"9999999999", "99999999999999999999999999"}) {
+            attentes.clear();
+            AtomicInteger n = new AtomicInteger();
+            assertThat(reessai.executer(appel(n, 1, valeur))).isEqualTo("ok");
+            assertThat(attentes).as("Retry-After=%s", valeur).containsExactly(Duration.ofSeconds(30));
+        }
     }
 }

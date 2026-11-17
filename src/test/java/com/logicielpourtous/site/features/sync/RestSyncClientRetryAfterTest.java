@@ -27,14 +27,16 @@ class RestSyncClientRetryAfterTest {
     private volatile int echecs;
     private volatile String retryAfter;
     private final List<Duration> attentes = new ArrayList<>();
+    private volatile String reponse = "[]";
+    private final List<String> corpsRecus = new java.util.concurrent.CopyOnWriteArrayList<>();
     private RestSyncClient client;
 
     @BeforeEach
     void demarrer() throws IOException {
         serveur = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         serveur.createContext("/", ex -> {
-            ex.getRequestBody().readAllBytes();
-            byte[] corps = "[]".getBytes();
+            corpsRecus.add(new String(ex.getRequestBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+            byte[] corps = reponse.getBytes();
             if (appels.incrementAndGet() <= echecs) {
                 if (retryAfter != null) {
                     ex.getResponseHeaders().set("Retry-After", retryAfter);
@@ -78,8 +80,9 @@ class RestSyncClientRetryAfterTest {
         assertThat(attentes).containsExactly(Duration.ofSeconds(30));
     }
 
+    /** Nom du brief : 503_sans_retry_after_garde_le_comportement_actuel (identifiant Java invalide). */
     @Test
-    void _503_sans_retry_after_garde_le_comportement_actuel() {
+    void echoue_tout_de_suite_sur_503_sans_retry_after() {
         echecs = 99;
         retryAfter = null;
 
@@ -87,5 +90,50 @@ class RestSyncClientRetryAfterTest {
 
         assertThat(appels.get()).isEqualTo(1);
         assertThat(attentes).isEmpty();
+    }
+
+    @Test
+    void push_reessaie_apres_503_avec_le_meme_corps() {
+        echecs = 1;
+        retryAfter = "1";
+        reponse = "{\"resultats\":[]}";
+
+        assertThat(client.push(List.of())).isEmpty();
+
+        assertThat(appels.get()).isEqualTo(2);
+        assertThat(attentes).containsExactly(Duration.ofSeconds(1));
+        assertThat(corpsRecus).hasSize(2);
+        assertThat(corpsRecus.get(0)).isEqualTo(corpsRecus.get(1));
+    }
+
+    /** Le rejeu par defaut du client Apache sur erreur d'entree-sortie (connexion coupee) est conserve. */
+    @Test
+    void reessai_sur_erreur_d_es_conserve() throws Exception {
+        serveur.stop(0);
+        try (java.net.ServerSocket brut = new java.net.ServerSocket(0, 5, java.net.InetAddress.getLoopbackAddress())) {
+            Thread t = new Thread(() -> {
+                try {
+                    // 1re connexion : lue puis coupee sans reponse (erreur d'E/S cote client).
+                    try (java.net.Socket s = brut.accept()) {
+                        s.getInputStream().read(new byte[4096]);
+                    }
+                    try (java.net.Socket s = brut.accept()) {
+                        s.getInputStream().read(new byte[4096]);
+                        s.getOutputStream().write(("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                                + "Content-Length: 2\r\nConnection: close\r\n\r\n[]").getBytes());
+                        s.getOutputStream().flush();
+                    }
+                } catch (IOException ignore) {
+                    // le test echouera sur l'assertion
+                }
+            });
+            t.setDaemon(true);
+            t.start();
+            RestSyncClient c = new RestSyncClient("http://127.0.0.1:" + brut.getLocalPort(), "cle-de-test",
+                    new ObjectMapper().findAndRegisterModules(), new ReessaiRetryAfter(attentes::add));
+
+            assertThat(c.pull(null).events()).isEmpty();
+            assertThat(attentes).isEmpty();
+        }
     }
 }
