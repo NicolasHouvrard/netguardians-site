@@ -167,6 +167,39 @@ port_actif_nginx() {
   printf '%s\n' "${port:-$PORT_APP_BLEU}"
 }
 
+# Code 0 si le conteneur site-<port> est EN MARCHE.
+conteneur_site_en_marche() {
+  _exec_docker ps --filter "name=^site-$1\$" --format '{{.Names}}' 2>/dev/null | grep -qx "site-$1"
+}
+
+# Port actif ROBUSTE : le fichier upstream fait foi quand il est lisible et donne un port ; sinon
+# (absent, illisible, non analysable) on ne suppose PAS BLEU a l'aveugle, on regarde les conteneurs :
+# un seul en marche -> c'est lui l'actif ; aucun -> installation neuve, BLEU ; les deux -> ambigu
+# (code 1, rien sur stdout). Si le fichier donne un port dont le conteneur est arrete alors que
+# l'autre tourne, avertit sur stderr (incoherence) mais garde le port du fichier.
+determiner_port_actif() {
+  local port="" autre bleu_marche=0 vert_marche=0
+  if [ -r "$FICHIER_NGINX_UPSTREAM" ]; then
+    port="$(sed -n 's/.*server 127\.0\.0\.1:\([0-9][0-9]*\);.*/\1/p' "$FICHIER_NGINX_UPSTREAM" | head -n 1)"
+  fi
+  if [ -n "$port" ]; then
+    if [ "$port" = "$PORT_APP_BLEU" ]; then autre="$PORT_APP_VERT"; else autre="$PORT_APP_BLEU"; fi
+    if ! conteneur_site_en_marche "$port" && conteneur_site_en_marche "$autre"; then
+      echo "Attention : Nginx pointe vers $port mais site-$port est arrete alors que site-$autre tourne (configuration incoherente)." >&2
+    fi
+    printf '%s\n' "$port"
+    return 0
+  fi
+  conteneur_site_en_marche "$PORT_APP_BLEU" && bleu_marche=1
+  conteneur_site_en_marche "$PORT_APP_VERT" && vert_marche=1
+  if [ "$bleu_marche" = 1 ] && [ "$vert_marche" = 1 ]; then
+    echo "Port actif indeterminable : fichier upstream absent/illisible et site-$PORT_APP_BLEU et site-$PORT_APP_VERT tournent tous les deux." >&2
+    return 1
+  fi
+  if [ "$vert_marche" = 1 ]; then printf '%s\n' "$PORT_APP_VERT"; return 0; fi
+  printf '%s\n' "$PORT_APP_BLEU"
+}
+
 # URL du Maitre, par CONVENTION FIXE du projet (voir README, "URL_MAITRE") :
 # l'adresse Headscale du noeud nomme "logipourtous", obtenue aupres du client
 # Tailscale lui-meme (carte du reseau Headscale, sans dependre d'un DNS), sur le

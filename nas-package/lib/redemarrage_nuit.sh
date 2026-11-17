@@ -67,7 +67,7 @@ liberer_verrou_redemarrage() {
 # Tag de l'image du conteneur actif (ex. v1.7), vide si introuvable ou de forme inattendue.
 _tag_image_courante() {
   local port image tag
-  port="$(port_actif_nginx)" || return 1
+  port="$(determiner_port_actif 2>/dev/null)" || return 1
   [[ "$port" =~ ^[0-9]+$ ]] || return 1
   image="$(_exec_docker inspect --format '{{.Config.Image}}' "site-$port" 2>/dev/null | head -n 1)" || return 1
   [[ "$image" == *:* && "$image" != *@* ]] || return 1

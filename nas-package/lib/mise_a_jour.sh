@@ -43,8 +43,17 @@ mettre_a_jour_maitre() {
     return 2
   fi
   image="ghcr.io/${IMAGE_OWNER}/site:${tag}"
-  actif="$(port_actif_nginx)"
+  if ! actif="$(determiner_port_actif)"; then
+    avertir_utilisateur "Mise a jour refusee : impossible de savoir quelle instance sert (fichier upstream absent/illisible et les deux conteneurs tournent). Rien n'a ete modifie."
+    return 1
+  fi
   if [ "$actif" = "$PORT_APP_BLEU" ]; then inactif="$PORT_APP_VERT"; else inactif="$PORT_APP_BLEU"; fi
+  # Garde-fou absolu : ne JAMAIS remplacer un conteneur en marche sur le port "inactif" (incident
+  # reel : upstream illisible -> actif suppose BLEU -> docker rm -f du conteneur qui servait vraiment).
+  if conteneur_site_en_marche "$inactif"; then
+    avertir_utilisateur "Mise a jour refusee : site-$inactif tourne deja (port suppose inactif ; actif suppose : $actif). Verifier quelle instance sert reellement (fichier $FICHIER_NGINX_UPSTREAM, docker ps) avant de relancer. Rien n'a ete modifie."
+    return 1
+  fi
 
   # Memes secrets, base et options que la premiere instance et que l'Agent (OPTIONS_APPLICATION).
   if ! preparer_options_application "$PORT_POSTGRES" "$DOSSIER_DONNEES_POSTGRES"; then

@@ -79,3 +79,56 @@ test_mise_a_jour_repart_du_port_vert_quand_il_est_actif() {
   [ "$code" -eq 0 ] && grep -q "server 127.0.0.1:18080;" "$FICHIER_NGINX_UPSTREAM" \
     && [[ "$APPELS" == *"d:run -d --name site-18080"* && "$APPELS" == *"d:stop site-18081"* ]]
 }
+
+# Conteneurs "en marche" simules : liste de noms separes par des espaces (ex. "site-18081").
+_docker_avec_marche() {
+  _exec_docker() {
+    APPELS="$APPELS|d:$*"
+    case "$1" in
+      pull) [ "${PULL_OK:-oui}" = oui ] ;;
+      ps) for n in $EN_MARCHE; do echo "$n"; done ;;
+      *) return 0 ;;
+    esac
+  }
+}
+
+test_mise_a_jour_refuse_de_remplacer_un_conteneur_en_marche_sur_le_port_inactif() {
+  _preparer_maj; _docker_avec_marche
+  EN_MARCHE="site-18080 site-18081"   # upstream -> 18080, mais 18081 tourne : on ne l'ecrase pas
+  mettre_a_jour_maitre v1.7 >/dev/null; code=$?
+  [ "$code" -eq 1 ] && [[ "$APPELS" != *"d:rm"* && "$APPELS" != *"d:stop"* && "$APPELS" != *"d:run"* && "$APPELS" != *"d:pull"* ]] \
+    && grep -q "server 127.0.0.1:18080;" "$FICHIER_NGINX_UPSTREAM"
+}
+
+test_mise_a_jour_upstream_absent_et_18081_en_marche_deploie_sur_18080() {
+  _preparer_maj; _docker_avec_marche
+  rm -f "$FICHIER_NGINX_UPSTREAM"
+  EN_MARCHE="site-18081"
+  mettre_a_jour_maitre v1.7 >/dev/null; code=$?
+  [ "$code" -eq 0 ] && grep -q "server 127.0.0.1:18080;" "$FICHIER_NGINX_UPSTREAM" \
+    && [[ "$APPELS" == *"d:run -d --name site-18080"* && "$APPELS" != *"d:rm -f site-18081"* ]] \
+    && [[ "$APPELS" == *"n:-s reload"*"d:stop site-18081"* ]]
+}
+
+test_mise_a_jour_upstream_illisible_et_deux_conteneurs_en_marche_est_ambigu() {
+  _preparer_maj; _docker_avec_marche
+  echo "n'importe quoi" > "$FICHIER_NGINX_UPSTREAM"
+  EN_MARCHE="site-18080 site-18081"
+  mettre_a_jour_maitre v1.7 >/dev/null; code=$?
+  [ "$code" -eq 1 ] && [[ "$APPELS" != *"d:rm"* && "$APPELS" != *"d:stop"* && "$APPELS" != *"d:run"* ]]
+}
+
+test_mise_a_jour_installation_neuve_sans_upstream_ni_conteneur_utilise_le_port_bleu() {
+  _preparer_maj; _docker_avec_marche
+  rm -f "$FICHIER_NGINX_UPSTREAM"
+  EN_MARCHE=""
+  mettre_a_jour_maitre v1.7 >/dev/null; code=$?
+  [ "$code" -eq 0 ] && [[ "$APPELS" == *"d:run -d --name site-18081"* ]]
+}
+
+test_port_actif_fiable_avertit_si_le_port_du_fichier_est_arrete_et_l_autre_en_marche() {
+  _preparer_maj; _docker_avec_marche
+  EN_MARCHE="site-18081"   # upstream dit 18080, qui est arrete
+  sortie="$(determiner_port_actif 2>&1)"; code=$?
+  [ "$code" -eq 0 ] && [[ "$sortie" == *"18080"* ]] && [[ "$(determiner_port_actif 2>/dev/null)" == "18080" ]]
+}

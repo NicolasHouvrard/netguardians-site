@@ -199,3 +199,12 @@ Au-dessus du seuil, l'application écrit le repère `redemarrage-recommande` (JS
   (bascule bleu-vert : la nouvelle instance doit être saine avant la bascule Nginx), puis supprime le repère
   **seulement en cas de succès**. En cas d'échec l'ancienne instance sert toujours et le repère reste.
 - **Verrou** : répertoire `<données>/.redemarrage-nuit.lock` (pid dedans ; un verrou d'un processus mort est repris).
+
+### Mise à jour manuelle du Maître : détermination du port actif (incident v1.7)
+
+`determiner_port_actif` (commun.sh) remplace l'usage direct de `port_actif_nginx` dans
+`mettre_a_jour_maitre` et le redémarrage de nuit. Fichier upstream lisible : il fait foi (avertissement
+si ce conteneur est arrêté alors que l'autre tourne). Fichier absent/illisible : un seul conteneur
+`site-18080`/`site-18081` en marche = l'actif ; aucun = installation neuve (BLEU) ; les deux = ambigu,
+refus. En plus, `mettre_a_jour_maitre` refuse (sans rien toucher) si `site-<port inactif>` est en
+marche : plus jamais de `docker rm -f` sur l'instance qui sert.
