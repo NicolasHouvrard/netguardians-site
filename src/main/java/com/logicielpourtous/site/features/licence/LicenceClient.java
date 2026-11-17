@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
@@ -13,6 +14,7 @@ import org.springframework.web.client.RestClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.logicielpourtous.site.features.commun.ReessaiRetryAfter;
 
 /**
  * Client HTTP sortant vers le MAITRE, utilise par un serveur {@code PARTNER} deja enrole pour
@@ -49,11 +51,20 @@ public class LicenceClient {
     private final RestClient restClient;
     private final EtatLicenceLocaleRepository etatLicenceLocaleRepository;
     private final ObjectMapper objectMapper;
+    private final ReessaiRetryAfter reessai;
 
+    @Autowired
     public LicenceClient(@Value("${app.licence.master-url}") String masterUrl,
                          EtatLicenceLocaleRepository etatLicenceLocaleRepository,
                          ObjectMapper objectMapper) {
-        this.restClient = RestClient.builder().baseUrl(masterUrl).build();
+        this(masterUrl, etatLicenceLocaleRepository, objectMapper, ReessaiRetryAfter.PAR_DEFAUT);
+    }
+
+    /** Constructeur de test : attente injectable (503 + Retry-After du maitre). */
+    public LicenceClient(String masterUrl, EtatLicenceLocaleRepository etatLicenceLocaleRepository,
+                         ObjectMapper objectMapper, ReessaiRetryAfter reessai) {
+        this.reessai = reessai;
+        this.restClient = RestClient.builder().requestFactory(ReessaiRetryAfter.fabriqueRequetes()).baseUrl(masterUrl).build();
         this.etatLicenceLocaleRepository = etatLicenceLocaleRepository;
         this.objectMapper = objectMapper;
     }
@@ -88,11 +99,12 @@ public class LicenceClient {
      * #genererJeton} pour la reponse).
      */
     public List<LicenceEnrolementController.NouveauServeurDto> listerNouveauxServeurs() {
-        String reponse = restClient.get()
+        String cle = requireCleApi();
+        String reponse = reessai.executer(() -> restClient.get()
                 .uri(NOUVEAUX_SERVEURS_PATH)
-                .header(LicenceApiKeyAuthFilter.HEADER, requireCleApi())
+                .header(LicenceApiKeyAuthFilter.HEADER, cle)
                 .retrieve()
-                .body(String.class);
+                .body(String.class));
         return read(reponse, new TypeReference<List<LicenceEnrolementController.NouveauServeurDto>>() {});
     }
 
@@ -105,13 +117,16 @@ public class LicenceClient {
      */
     public void pousserCodePartenaire(String identifiantInstallationStable, String codeLocal) {
         String corps = write(new LicenceEnrolementController.CodePartenaireRequest(identifiantInstallationStable, codeLocal));
-        restClient.post()
+        String cle = requireCleApi();
+        // Rejouable : le maitre ecrase simplement le code conserve (idempotent), et un 503
+        // (maintenance) signifie que la requete n'a pas ete traitee.
+        reessai.executer(() -> restClient.post()
                 .uri(CODE_PARTENAIRE_PATH)
-                .header(LicenceApiKeyAuthFilter.HEADER, requireCleApi())
+                .header(LicenceApiKeyAuthFilter.HEADER, cle)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(corps)
                 .retrieve()
-                .toBodilessEntity();
+                .toBodilessEntity());
     }
 
     private String requireCleApi() {

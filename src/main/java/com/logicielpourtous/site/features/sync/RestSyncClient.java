@@ -3,6 +3,7 @@ package com.logicielpourtous.site.features.sync;
 import java.time.Instant;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
@@ -14,6 +15,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.logicielpourtous.site.features.commun.ReessaiRetryAfter;
 
 /**
  * Implementation REST ({@link RestClient}) de {@link SyncClient}. Active uniquement sur un
@@ -37,24 +39,36 @@ public class RestSyncClient implements SyncClient {
     private final RestClient restClient;
     private final String apiKey;
     private final ObjectMapper objectMapper;
+    private final ReessaiRetryAfter reessai;
 
+    @Autowired
     public RestSyncClient(@Value("${app.sync.master-url}") String masterUrl,
                           @Value("${app.sync.api-key:}") String apiKey,
                           ObjectMapper objectMapper) {
-        this.restClient = RestClient.builder().baseUrl(masterUrl).build();
+        this(masterUrl, apiKey, objectMapper, ReessaiRetryAfter.PAR_DEFAUT);
+    }
+
+    /** Constructeur de test : attente injectable (503 + Retry-After du maitre). */
+    public RestSyncClient(String masterUrl, String apiKey, ObjectMapper objectMapper, ReessaiRetryAfter reessai) {
+        this.reessai = reessai;
+        this.restClient = RestClient.builder().requestFactory(ReessaiRetryAfter.fabriqueRequetes()).baseUrl(masterUrl).build();
         this.apiKey = apiKey;
         this.objectMapper = objectMapper;
     }
 
     @Override
     public List<SyncReceptionService.ResultatReception> push(List<RequestSyncPayload> events) {
-        String response = restClient.post()
+        String corps = write(events);
+        String cle = requireApiKey();
+        // Rejouable : le maitre dedoublonne par syncId/version (SyncReceptionService), et un 503
+        // (maintenance) signifie que la requete n'a pas ete traitee.
+        String response = reessai.executer(() -> restClient.post()
                 .uri(EVENTS_PATH)
-                .header(SyncApiKeyAuthFilter.HEADER, requireApiKey())
+                .header(SyncApiKeyAuthFilter.HEADER, cle)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(write(events))
+                .body(corps)
                 .retrieve()
-                .body(String.class);
+                .body(String.class));
         return read(response, new TypeReference<SyncEventsController.PushResponse>() {}).resultats();
     }
 
@@ -64,11 +78,13 @@ public class RestSyncClient implements SyncClient {
         if (since != null) {
             uri.queryParam("since", since.toString());
         }
-        ResponseEntity<String> response = restClient.get()
-                .uri(uri.build().encode().toUriString())
-                .header(SyncApiKeyAuthFilter.HEADER, requireApiKey())
+        String chemin = uri.build().encode().toUriString();
+        String cle = requireApiKey();
+        ResponseEntity<String> response = reessai.executer(() -> restClient.get()
+                .uri(chemin)
+                .header(SyncApiKeyAuthFilter.HEADER, cle)
                 .retrieve()
-                .toEntity(String.class);
+                .toEntity(String.class));
         List<RequestSyncPayload> events = read(response.getBody(), new TypeReference<List<RequestSyncPayload>>() {});
         String cursor = response.getHeaders().getFirst(SyncEventsController.CURSOR_HEADER);
         return new PullResult(events, cursor == null || cursor.isBlank() ? null : Instant.parse(cursor));
