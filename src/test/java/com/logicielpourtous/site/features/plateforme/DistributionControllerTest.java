@@ -118,6 +118,9 @@ class DistributionControllerTest {
 	private LicenceServeurRepository licenceServeurRepository;
 
 	@Autowired
+	private ObjectProvider<DistributionController> controleur;
+
+	@Autowired
 	private SecondaryServerRepository secondaryServerRepository;
 
 	private final ObjectMapper json = new ObjectMapper();
@@ -165,7 +168,12 @@ class DistributionControllerTest {
 	}
 
 	private JsonNode etats() throws Exception {
-		String corps = mvc.perform(get("/api/plateforme/serveurs-etat").with(user("admin-etat").roles("ADMIN")))
+		return etats(get("/api/plateforme/serveurs-etat").param("limite",
+				String.valueOf(DistributionController.LISTE_MAX)));
+	}
+
+	private JsonNode etats(MockHttpServletRequestBuilder requete) throws Exception {
+		String corps = mvc.perform(requete.with(user("admin-etat").roles("ADMIN")))
 			.andExpect(status().isOk())
 			.andReturn()
 			.getResponse()
@@ -270,6 +278,7 @@ class DistributionControllerTest {
 		LicenceServeur serveur = serveurActif(cle);
 		String autreCle = LicenceCles.generate();
 		LicenceServeur autre = serveurActif(autreCle);
+		publier(jarSigne("alpha", "1.0.0"));
 
 		mvc.perform(rapport(cle, "{\"nom\":\"alpha\",\"version\":\"1.0.0\",\"statut\":\"REFUSE\","
 				+ "\"raisons\":[\"signature invalide\"]}"))
@@ -308,6 +317,7 @@ class DistributionControllerTest {
 		String cle = LicenceCles.generate();
 		LicenceServeur serveur = serveurActif(cle);
 		long usurpe = serveur.getId() + 100_000;
+		publier(jarSigne("delta", "2.0.0"));
 
 		mvc.perform(rapport(cle, "{\"licenceServeurId\":" + usurpe + ",\"nom\":\"delta\",\"version\":\"2.0.0\","
 				+ "\"statut\":\"ECHEC\",\"raisons\":[]}"))
@@ -322,6 +332,7 @@ class DistributionControllerTest {
 	void post_etat_invalide_400() throws Exception {
 		String cle = LicenceCles.generate();
 		serveurActif(cle);
+		publier(jarSigne("alpha", "1.0.0"));
 
 		for (String corps : new String[] {
 				"{\"nom\":\"alpha\",\"version\":\"1.0.0\",\"statut\":\"INSTALLE_PEUT_ETRE\",\"raisons\":[]}",
@@ -346,6 +357,7 @@ class DistributionControllerTest {
 	void post_etat_corps_trop_gros_413_et_raisons_bornees_et_nettoyees() throws Exception {
 		String cle = LicenceCles.generate();
 		LicenceServeur serveur = serveurActif(cle);
+		publier(jarSigne("epsilon", "1.0.0"));
 
 		String enorme = "{\"nom\":\"alpha\",\"version\":\"1.0.0\",\"statut\":\"OK\",\"raisons\":[\""
 				+ "x".repeat(DistributionController.TAILLE_MAX_RAPPORT) + "\"]}";
@@ -420,6 +432,119 @@ class DistributionControllerTest {
 		mvc.perform(avecCle(get("/api/licence/plugins/alpha/1.0.0/exe"), cle)).andExpect(status().isForbidden());
 		mvc.perform(avecCle(post("/api/licence/plugins/catalogue"), cle)).andExpect(status().isForbidden());
 		mvc.perform(avecCle(get("/api/licence/plugins/etat"), cle)).andExpect(status().isForbidden());
+	}
+
+	// ---- Correctifs de revue (tour 1) ----
+
+	private static final String OK_100 = "\",\"version\":\"1.0.0\",\"statut\":\"OK\",\"raisons\":[]}";
+
+	@Test
+	void post_etat_d_un_plugin_absent_du_depot_404_sans_ligne() throws Exception {
+		String cle = LicenceCles.generate();
+		LicenceServeur serveur = serveurActif(cle);
+		publier(jarSigne("alpha", "1.0.0"));
+
+		mvc.perform(rapport(cle, "{\"nom\":\"inconnu" + OK_100))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.erreur").exists());
+		assertThat(etatDe(etats(), serveur.getId(), "inconnu")).isNull();
+	}
+
+	@Test
+	void plafond_de_lignes_par_serveur_refuse_un_nouveau_nom_mais_pas_la_mise_a_jour() throws Exception {
+		String cle = LicenceCles.generate();
+		LicenceServeur serveur = serveurActif(cle);
+		String autreCle = LicenceCles.generate();
+		LicenceServeur autre = serveurActif(autreCle);
+		for (String nom : new String[] { "alpha", "beta", "gamma" }) {
+			publier(jarSigne(nom, "1.0.0"));
+		}
+		DistributionController c = controleur.getObject();
+		int avant = c.etatsMaxParServeur();
+		c.etatsMaxParServeur(2);
+		try {
+			mvc.perform(rapport(cle, "{\"nom\":\"alpha" + OK_100)).andExpect(status().isNoContent());
+			mvc.perform(rapport(cle, "{\"nom\":\"beta" + OK_100)).andExpect(status().isNoContent());
+			mvc.perform(rapport(cle, "{\"nom\":\"gamma" + OK_100))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.erreur").exists());
+			// Mise à jour d'un nom déjà présent : toujours admise au plafond.
+			mvc.perform(rapport(cle, "{\"nom\":\"beta\",\"version\":\"1.0.0\",\"statut\":\"ECHEC\",\"raisons\":[]}"))
+				.andExpect(status().isNoContent());
+			// Plafond par serveur : un autre serveur n'est pas gêné.
+			mvc.perform(rapport(autreCle, "{\"nom\":\"gamma" + OK_100)).andExpect(status().isNoContent());
+
+			JsonNode tous = etats();
+			assertThat(etatDe(tous, serveur.getId(), "gamma")).isNull();
+			assertThat(etatDe(tous, serveur.getId(), "beta").path("statut").asText()).isEqualTo("ECHEC");
+			assertThat(etatDe(tous, autre.getId(), "gamma")).isNotNull();
+		}
+		finally {
+			c.etatsMaxParServeur(avant);
+		}
+	}
+
+	@Test
+	void serveurs_etat_borne_par_limite() throws Exception {
+		String cle = LicenceCles.generate();
+		serveurActif(cle);
+		publier(jarSigne("alpha", "1.0.0"));
+		publier(jarSigne("beta", "1.0.0"));
+		mvc.perform(rapport(cle, "{\"nom\":\"alpha" + OK_100)).andExpect(status().isNoContent());
+		mvc.perform(rapport(cle, "{\"nom\":\"beta" + OK_100)).andExpect(status().isNoContent());
+
+		assertThat(etats(get("/api/plateforme/serveurs-etat").param("limite", "1")).size()).isEqualTo(1);
+		assertThat(etats(get("/api/plateforme/serveurs-etat")).size())
+			.isLessThanOrEqualTo(DistributionController.LISTE_DEFAUT);
+		// Au-delà du maximum : ramené au maximum, pas d'erreur.
+		assertThat(etats(get("/api/plateforme/serveurs-etat").param("limite", "1000000")).size())
+			.isLessThanOrEqualTo(DistributionController.LISTE_MAX);
+		for (String limite : new String[] { "0", "-1", "abc" }) {
+			mvc.perform(get("/api/plateforme/serveurs-etat").param("limite", limite).with(user("admin").roles("ADMIN")))
+				.andExpect(status().isBadRequest());
+		}
+	}
+
+	@Test
+	void erreurs_jar_sig_gardent_leur_statut_quel_que_soit_accept() throws Exception {
+		String cle = LicenceCles.generate();
+		serveurActif(cle);
+		publier(jarSigne("alpha", "1.0.0"));
+		for (String accept : new String[] { "application/octet-stream", "application/java-archive" }) {
+			mvc.perform(avecCle(get("/api/licence/plugins/alpha/9.9.9/jar"), cle).header("Accept", accept))
+				.andExpect(status().isNotFound());
+			mvc.perform(avecCle(get("/api/licence/plugins/alpha/9.9.9/sig"), cle).header("Accept", accept))
+				.andExpect(status().isNotFound());
+			mvc.perform(avecCle(get("/api/licence/plugins/Alpha/1.0.0/jar"), cle).header("Accept", accept))
+				.andExpect(status().isBadRequest());
+			mvc.perform(avecCle(get("/api/licence/plugins/alpha/1.0/sig"), cle).header("Accept", accept))
+				.andExpect(status().isBadRequest());
+		}
+		// Rapport : 400, 404 et 413 aussi, avec un Accept qui exclut JSON.
+		mvc.perform(rapport(cle, "pas du json").header("Accept", "application/octet-stream"))
+			.andExpect(status().isBadRequest());
+		mvc.perform(rapport(cle, "{\"nom\":\"inconnu" + OK_100).header("Accept", "application/octet-stream"))
+			.andExpect(status().isNotFound());
+		mvc.perform(rapport(cle, "{\"x\":\"" + "y".repeat(DistributionController.TAILLE_MAX_RAPPORT) + "\"}")
+			.header("Accept", "application/octet-stream")).andExpect(status().isPayloadTooLarge());
+	}
+
+	@Test
+	void raisons_vides_ecartees_a_l_ecriture() throws Exception {
+		String cle = LicenceCles.generate();
+		LicenceServeur serveur = serveurActif(cle);
+		publier(jarSigne("alpha", "1.0.0"));
+		mvc.perform(rapport(cle, "{\"nom\":\"alpha\",\"version\":\"1.0.0\",\"statut\":\"REFUSE\","
+				+ "\"raisons\":[\"\",\"a\",\"  \",\"b\",\"\"]}"))
+			.andExpect(status().isNoContent());
+		JsonNode e = etatDe(etats(), serveur.getId(), "alpha");
+		assertThat(e.path("raisons").size()).isEqualTo(2);
+		assertThat(e.path("raisons").get(0).asText()).isEqualTo("a");
+		assertThat(e.path("raisons").get(1).asText()).isEqualTo("b");
+
+		mvc.perform(rapport(cle, "{\"nom\":\"alpha\",\"version\":\"1.0.0\",\"statut\":\"OK\",\"raisons\":[\"\",\"\"]}"))
+			.andExpect(status().isNoContent());
+		assertThat(etatDe(etats(), serveur.getId(), "alpha").path("raisons").size()).isZero();
 	}
 
 	/** Rôle de serveur autre que MASTER : aucune route de distribution (404 même avec une clé valide). */

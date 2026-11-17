@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.core.io.InputStreamResource;
+import org.springframework.data.domain.Limit;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
@@ -34,6 +35,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.core.StreamReadFeature;
@@ -60,10 +62,18 @@ import jakarta.servlet.http.HttpServletRequest;
  * <li>{@code POST /api/licence/plugins/etat} {@code {nom, version, statut, raisons[]}} : 204 ; remplace le dernier
  * état du même serveur pour ce plugin. {@code statut} est un nom exact de {@link ResultatInstallation.Statut}
  * ({@code OK}, {@code REFUSE}, {@code ECHEC}, {@code ANNULE}) ; corps borné à {@value #TAILLE_MAX_RAPPORT} octets
- * (413 au-delà) ; au plus {@value #RAISONS_MAX} raisons conservées, chacune nettoyée et tronquée.</li>
+ * (413 au-delà) ; au plus {@value #RAISONS_MAX} raisons conservées, chacune nettoyée et tronquée, les raisons vides
+ * ou blanches écartées. {@code nom} doit figurer au catalogue du dépôt (404 sinon, rien d'écrit) ; au plus
+ * {@code etatsMaxParServeur} (défaut {@value #ETATS_MAX_PAR_SERVEUR}) lignes par serveur : un nouveau nom au-delà
+ * est refusé (409), la mise à jour d'un nom déjà présent reste admise.</li>
  * </ul>
- * {@code GET /api/plateforme/serveurs-etat} (chaîne {@code /api/plateforme/**}, ADMIN ; garde de méthode en plus) :
- * derniers états, triés par serveur puis par plugin.
+ * {@code GET /api/plateforme/serveurs-etat?limite=n} (chaîne {@code /api/plateforme/**}, ADMIN ; garde de méthode en
+ * plus) : derniers états, triés par serveur puis par plugin, au plus {@code n} (défaut {@value #LISTE_DEFAUT}, ramené
+ * à {@value #LISTE_MAX} ; 400 si {@code n < 1} ou non entier).
+ * <p>
+ * Toutes les réponses d'erreur ont un {@code Content-Type} JSON fixé : un {@code Accept} qui exclut JSON (ex.
+ * {@code application/octet-stream} pour un jar) ne transforme pas un 400/404 en 500. Les plages ({@code Range}) ne sont
+ * pas prises en charge sur jar/sig : le client télécharge le fichier entier.
  */
 @RestController
 @ConditionalOnProperty(name = "app.plateforme.actif", havingValue = "true")
@@ -77,6 +87,27 @@ public class DistributionController {
 
 	/** Nombre maximal de raisons conservées par rapport. */
 	static final int RAISONS_MAX = 20;
+
+	/** Nombre de lignes renvoyées par défaut par {@code serveurs-etat}. */
+	static final int LISTE_DEFAUT = 500;
+
+	/** Nombre maximal de lignes renvoyées par {@code serveurs-etat}. */
+	static final int LISTE_MAX = 2000;
+
+	/** Nombre maximal de plugins distincts suivis par serveur. */
+	static final int ETATS_MAX_PAR_SERVEUR = 200;
+
+	private volatile int etatsMaxParServeur = ETATS_MAX_PAR_SERVEUR;
+
+	/** Pour les tests : plafond courant de lignes par serveur. */
+	int etatsMaxParServeur() {
+		return etatsMaxParServeur;
+	}
+
+	/** Pour les tests : abaisse le plafond de lignes par serveur. */
+	void etatsMaxParServeur(int max) {
+		this.etatsMaxParServeur = max;
+	}
 
 	private static final ObjectMapper JSON = JsonMapper.builder()
 		.enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
@@ -130,6 +161,12 @@ public class DistributionController {
 		try (InputStream in = requete.getInputStream()) {
 			corps = in.readNBytes(TAILLE_MAX_RAPPORT + 1);
 		}
+		catch (IOException e) {
+			// Client interrompu, délai de lecture... : la faute de l'appelant, pas du dépôt.
+			log.warn("Plateforme : rapport du serveur {} illisible (corps de requête) : {}", serveur,
+					e.getClass().getSimpleName());
+			return erreur(HttpStatus.BAD_REQUEST, "corps de requête illisible");
+		}
 		if (corps.length > TAILLE_MAX_RAPPORT) {
 			return trop();
 		}
@@ -156,16 +193,38 @@ public class DistributionController {
 			throw new IllegalArgumentException("statut invalide (OK, REFUSE, ECHEC ou ANNULE)");
 		}
 		List<String> raisons = raisons(racine.get("raisons"));
+		if (depot.catalogue().stream().noneMatch(e -> e.nom().equals(nom))) {
+			return erreur(HttpStatus.NOT_FOUND, "plugin absent du dépôt");
+		}
 
-		etats.enregistrer(serveur, nom, version, statut, String.join("\n", raisons), Instant.now());
+		int lignes = etats.enregistrer(serveur, nom, version, statut, String.join("\n", raisons), Instant.now(),
+				etatsMaxParServeur);
+		if (lignes == 0) {
+			log.warn("Plateforme : rapport du serveur {} pour {} refusé : plafond de {} plugins suivis atteint", serveur,
+					nom, etatsMaxParServeur);
+			return erreur(HttpStatus.CONFLICT,
+					"plafond de plugins suivis pour ce serveur atteint (" + etatsMaxParServeur + ")");
+		}
 		log.info("Plateforme : serveur {} rapporte {} v{} : {}", serveur, nom, version, statut);
 		return ResponseEntity.noContent().build();
 	}
 
 	@GetMapping("/api/plateforme/serveurs-etat")
 	@PreAuthorize("hasRole('ADMIN')")
-	public List<EtatServeur> serveursEtat() {
-		return etats.findAllByOrderByLicenceServeurIdAscNomAsc()
+	public List<EtatServeur> serveursEtat(@RequestParam(name = "limite", required = false) String limite) {
+		int n = LISTE_DEFAUT;
+		if (limite != null) {
+			try {
+				n = Integer.parseInt(limite.trim());
+			}
+			catch (NumberFormatException e) {
+				n = limite.trim().matches("[0-9]{1,30}") ? LISTE_MAX : 0;
+			}
+			if (n < 1) {
+				throw new IllegalArgumentException("limite invalide (entier positif attendu)");
+			}
+		}
+		return etats.findAllByOrderByLicenceServeurIdAscNomAsc(Limit.of(Math.min(n, LISTE_MAX)))
 			.stream()
 			.map(e -> new EtatServeur(e.getLicenceServeurId(), e.getNom(), e.getVersion(), e.getStatut(),
 					e.getRaisons() == null || e.getRaisons().isEmpty() ? List.of() : List.of(e.getRaisons().split("\n")),
@@ -175,19 +234,18 @@ public class DistributionController {
 
 	@ExceptionHandler(IllegalArgumentException.class)
 	ResponseEntity<Map<String, String>> invalide(IllegalArgumentException e) {
-		return ResponseEntity.badRequest().body(Map.of("erreur", DepotPlugins.net(e.getMessage())));
+		return erreur(HttpStatus.BAD_REQUEST, DepotPlugins.net(e.getMessage()));
 	}
 
 	@ExceptionHandler(NoSuchFileException.class)
 	ResponseEntity<Map<String, String>> absente(NoSuchFileException e) {
-		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("erreur", "version absente du dépôt"));
+		return erreur(HttpStatus.NOT_FOUND, "version absente du dépôt");
 	}
 
 	@ExceptionHandler(IOException.class)
 	ResponseEntity<Map<String, String>> indisponible(IOException e) {
 		log.error("Distribution : lecture du dépôt impossible : {}", DepotPlugins.net(e.getMessage()));
-		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-			.body(Map.of("erreur", "dépôt indisponible (voir le journal du Maître)"));
+		return erreur(HttpStatus.INTERNAL_SERVER_ERROR, "dépôt indisponible (voir le journal du Maître)");
 	}
 
 	// ---- Utilitaires ----
@@ -237,7 +295,10 @@ public class DistributionController {
 		return n.asText();
 	}
 
-	/** Raisons nettoyées (sans saut de ligne : séparateur de stockage), au plus {@value #RAISONS_MAX}. */
+	/**
+	 * Raisons nettoyées (sans saut de ligne : séparateur de stockage), les vides et blanches écartées (le format
+	 * stocké est ainsi relu à l'identique), au plus {@value #RAISONS_MAX}.
+	 */
 	private static List<String> raisons(JsonNode n) {
 		if (n == null || n.isNull()) {
 			return List.of();
@@ -250,7 +311,10 @@ public class DistributionController {
 			if (!r.isTextual()) {
 				throw new IllegalArgumentException("raisons : tableau de textes attendu");
 			}
-			nettes.add(DepotPlugins.net(r.asText()));
+			String nette = DepotPlugins.net(r.asText());
+			if (!nette.isBlank()) {
+				nettes.add(nette);
+			}
 		}
 		if (nettes.size() > RAISONS_MAX) {
 			int ecartees = nettes.size() - (RAISONS_MAX - 1);
@@ -261,8 +325,12 @@ public class DistributionController {
 	}
 
 	private static ResponseEntity<Map<String, String>> trop() {
-		return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
-			.body(Map.of("erreur", "rapport trop volumineux (" + TAILLE_MAX_RAPPORT + " octets au plus)"));
+		return erreur(HttpStatus.CONTENT_TOO_LARGE, "rapport trop volumineux (" + TAILLE_MAX_RAPPORT + " octets au plus)");
+	}
+
+	/** Réponse d'erreur au Content-Type JSON fixé (pas de négociation avec {@code Accept}). */
+	private static ResponseEntity<Map<String, String>> erreur(HttpStatus statut, String message) {
+		return ResponseEntity.status(statut).contentType(MediaType.APPLICATION_JSON).body(Map.of("erreur", message));
 	}
 
 }
