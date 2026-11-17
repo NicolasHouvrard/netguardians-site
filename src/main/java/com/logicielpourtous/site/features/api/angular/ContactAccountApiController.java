@@ -85,8 +85,13 @@ public class ContactAccountApiController {
 
     public record EsnRolesRequest(List<String> roleNames) {}
 
+    /**
+     * Rôles ESN que cette route peut donner ou retirer. L'administration (ROLE_ADMIN) en est volontairement
+     * EXCLUE : tout utilisateur ESN peut appeler cette route, il ne doit donc pas pouvoir nommer un administrateur
+     * (ni en retirer un). Les administrateurs se nomment par /intra/users, réservé à ROLE_ADMIN.
+     */
     private static final List<String> ESN_ROLES =
-            List.of("USER", "COMMERCIAL", "TECHNICIEN", "MARKETING", "COMPTABLE", "ADMIN");
+            List.of("USER", "COMMERCIAL", "TECHNICIEN", "MARKETING", "COMPTABLE");
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
