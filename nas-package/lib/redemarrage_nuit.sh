@@ -18,9 +18,7 @@ fi
 : "${REDEMARRAGE_HEURE_DEBUT:=3}"
 : "${REDEMARRAGE_HEURE_FIN:=4}"
 
-# Repere et verrou, relatifs au dossier de donnees (surchargeables, tests).
-: "${FICHIER_REPERE_REDEMARRAGE:=${SITE_NAS_RACINE_DONNEES:-/volume1/site-data}/plateforme/redemarrage-recommande}"
-: "${VERROU_REDEMARRAGE:=${SITE_NAS_RACINE_DONNEES:-/volume1/site-data}/.redemarrage-nuit.lock}"
+# FICHIER_REPERE_REDEMARRAGE et VERROU_REDEMARRAGE sont definis dans spk/src/scripts/commun.sh (a partir du dossier de donnees).
 
 # Code 0 si l'heure locale courante est dans la fenetre. Code 2 si la configuration est invalide.
 _dans_fenetre_redemarrage() {

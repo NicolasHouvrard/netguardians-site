@@ -136,3 +136,19 @@ test_redemarrage_installe_le_minuteur_seulement_avec_des_gabarits_valides() {
     && ! grep -q "__" "$SITE_NAS_DOSSIER_SYSTEMD"/site-redemarrage-nuit.* \
     && [[ "$APPELS" == *"s:enable site-redemarrage-nuit.timer"* && "$APPELS" == *"s:start site-redemarrage-nuit.timer"* ]]
 }
+
+test_redemarrage_build_spk_embarque_tous_les_gabarits_systemd() {
+  # Regression : build-spk.sh listait les gabarits un par un, les nouveaux n'etaient pas packages et le
+  # minuteur n'etait jamais installe sur un vrai NAS (test_installateur copie systemd/* et ne le voit pas).
+  local f nom ligne
+  ligne="$(grep -E '^cp .*systemd' "$NAS_PKG_DIR/spk/build-spk.sh")"
+  [ -n "$ligne" ] || return 1
+  for f in "$NAS_PKG_DIR"/systemd/*; do
+    nom="$(basename "$f")"
+    [[ "$ligne" == *"$nom"* || "$ligne" == *'/systemd/*.template'* || "$ligne" == *'/systemd/*"'* ]] || { echo "non package : $nom"; return 1; }
+  done
+}
+
+test_redemarrage_script_d_entree_est_package_par_build_spk() {
+  grep -q 'redemarrage-nuit.sh' "$NAS_PKG_DIR/spk/build-spk.sh"
+}

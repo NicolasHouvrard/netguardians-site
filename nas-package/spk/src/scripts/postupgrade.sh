@@ -37,7 +37,7 @@ fi
 
 # Maitre : minuteur de redemarrage de nuit (gabarits eventuellement renouvelles), non bloquant.
 if nas_est_maitre; then
-  installer_minuteur_redemarrage_nuit "$(cd "$(dirname "$0")" && pwd)/redemarrage-nuit.sh" "$SITE_NAS_DOSSIER_SYSTEMD" \
+  installer_minuteur_redemarrage_nuit "$SCRIPT_REDEMARRAGE_NUIT" "$SITE_NAS_DOSSIER_SYSTEMD" \
     || avertir_utilisateur "Le minuteur de redemarrage de nuit du Maitre n'a pas pu etre rafraichi (non bloquant)."
 fi
 

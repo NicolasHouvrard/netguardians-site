@@ -187,5 +187,5 @@ test_preparer_options_application_monte_le_dossier_du_repere_seulement_sur_le_ma
   nas_est_maitre() { return 1; }
   preparer_options_application 15432 "$dir/postgres"; sur_client="$OPTIONS_APPLICATION"
   [[ "$sur_maitre" == *"-v $dir/plateforme:/var/lib/site/plateforme "* && "$sur_maitre" == *"-e APP_PLATEFORME_REPERTOIREDONNEES=/var/lib/site/plateforme"* \
-     && "$sur_client" != *plateforme* ]] && [ -d "$dir/plateforme" ]
+     && "$sur_client" != *"-v "*":/var/lib/site/plateforme"* && "$sur_client" != *APP_PLATEFORME_REPERTOIREDONNEES* ]] && [ -d "$dir/plateforme" ]
 }

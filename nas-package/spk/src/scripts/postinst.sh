@@ -150,7 +150,7 @@ fi
 # --- 9. Maitre seulement : minuteur de redemarrage de nuit ----------------------
 # Le Maitre est le seul a charger des plugins (Metaspace) ; un echec ici n'empeche pas l'installation.
 if nas_est_maitre; then
-  if ! installer_minuteur_redemarrage_nuit "$(cd "$(dirname "$0")" && pwd)/redemarrage-nuit.sh" "$SITE_NAS_DOSSIER_SYSTEMD"; then
+  if ! installer_minuteur_redemarrage_nuit "$SCRIPT_REDEMARRAGE_NUIT" "$SITE_NAS_DOSSIER_SYSTEMD"; then
     avertir_utilisateur "Le minuteur de redemarrage de nuit du Maitre n'a pas pu etre installe (non bloquant)."
   fi
 fi

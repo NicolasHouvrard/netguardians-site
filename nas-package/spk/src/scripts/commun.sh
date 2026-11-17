@@ -65,6 +65,9 @@ version_tailscale_suffisante() {
 
 DOSSIER_DONNEES_POSTGRES="$SITE_NAS_RACINE_DONNEES/postgres"
 DOSSIER_DONNEES_AGENT="$SITE_NAS_RACINE_DONNEES/agent"
+# Repere ecrit par l'application (dossier plateforme monte, voir docker_bootstrap.sh) et verrou du redemarrage de nuit.
+FICHIER_REPERE_REDEMARRAGE="$SITE_NAS_RACINE_DONNEES/plateforme/redemarrage-recommande"
+VERROU_REDEMARRAGE="$SITE_NAS_RACINE_DONNEES/.redemarrage-nuit.lock"
 # Dossier DEDIE a la cle API : seul dossier que le conteneur applicatif (non privilegie) peut ecrire.
 # Il est distinct du dossier de travail de l'Agent (root), qui ne doit jamais etre inscriptible par
 # l'application : Spring Boot y lit sa configuration (./config/application.properties).
@@ -87,6 +90,14 @@ FICHIER_DROPIN_AGENT="$DOSSIER_DROPIN_AGENT/10-site-nas.conf"
 NAS_PKG_DIR="${SYNOPKG_PKGDEST:-/var/packages/${SYNOPKG_PKGNAME:-site-nas}/target}"
 CHEMIN_JRE="$NAS_PKG_DIR/jre/bin/java"
 CHEMIN_JAR_AGENT="$NAS_PKG_DIR/agent/agent.jar"
+# Chemin STABLE du script lance par le minuteur de redemarrage de nuit (ecrit dans l'unite systemd) :
+# jamais derive de $0, car DSM peut lancer postupgrade depuis une copie temporaire. Installation par
+# installer-nas.sh : <prefixe>/scripts ; sous DSM : /var/packages/<nom>/scripts (voisin de target/).
+if [ -d "$NAS_PKG_DIR/scripts" ]; then
+  SCRIPT_REDEMARRAGE_NUIT="$NAS_PKG_DIR/scripts/redemarrage-nuit.sh"
+else
+  SCRIPT_REDEMARRAGE_NUIT="$(dirname "$NAS_PKG_DIR")/scripts/redemarrage-nuit.sh"
+fi
 IMAGE_APPLICATION="ghcr.io/${IMAGE_OWNER}/site:${IMAGE_TAG}"
 
 # Binaires fournis par les paquets dont celui-ci depend (INFO install_dep_packages) :

@@ -6,6 +6,7 @@ RACINE_TEST_INSTALLATEUR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 _hash() { sha256sum "$1" | cut -d" " -f1; }
 
 _preparer_installation() {
+  unset SITE_NAS_CIBLE SITE_NAS_DOMAINE SITE_NAS_DOSSIER_SYSCTL LICENCE_LOGIN LICENCE_MOT_DE_PASSE   # fuites des tests VPS
   local src="$RACINE_TEST_INSTALLATEUR"
   T="$(mktemp -d)"
   SPKDIR="$T/spk"; CONTENU="$T/contenu"; STUBS="$T/stubs"
@@ -240,4 +241,50 @@ test_installer_vps_nettoie_le_dossier_de_travail_de_l_agent_des_restes_d_une_ver
   bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" >/dev/null 2>&1 < /dev/null || return 1
   [ ! -e "$T/data/agent/config" ] && [ ! -e "$T/data/agent/cle-api-licence" ] && [ ! -e "$T/data/agent/application.properties" ] \
     && grep -q "^chown -R root:root $T/data/agent" "$STUB_LOG"
+}
+
+# --- Minuteur de redemarrage de nuit du Maitre (Task 9) ------------------------------------------
+_installer_pour_minuteur() {
+  _preparer_installation
+  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" >"$T/sortie.txt" 2>&1 < /dev/null
+}
+
+test_minuteur_nuit_installe_sur_le_maitre_avec_le_chemin_stable_du_script() {
+  _installer_pour_minuteur || return 1
+  grep -Fq "ExecStart=/bin/bash $SITE_NAS_PREFIXE/scripts/redemarrage-nuit.sh" "$T/systemd-etc/site-redemarrage-nuit.service" \
+    && [ -f "$T/systemd-etc/site-redemarrage-nuit.timer" ] && [ -f "$SITE_NAS_PREFIXE/scripts/redemarrage-nuit.sh" ] \
+    && grep -q "^systemctl enable site-redemarrage-nuit.timer" "$STUB_LOG" \
+    && grep -q "^systemctl start site-redemarrage-nuit.timer" "$STUB_LOG"
+}
+
+test_minuteur_nuit_pas_installe_sur_un_serveur_qui_n_est_pas_le_maitre() {
+  _preparer_installation
+  printf '#!/bin/bash\necho client-01\n' > "$STUBS/hostname"; chmod +x "$STUBS/hostname"
+  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" >"$T/sortie.txt" 2>&1 < /dev/null
+  [ ! -e "$T/systemd-etc/site-redemarrage-nuit.timer" ] && [ ! -e "$T/systemd-etc/site-redemarrage-nuit.service" ] \
+    && ! grep -q "site-redemarrage-nuit" "$STUB_LOG"
+}
+
+test_minuteur_nuit_echec_d_installation_ne_bloque_pas_l_installation() {
+  _preparer_installation
+  rm -f "$CONTENU"/systemd/site-redemarrage-nuit.*
+  tar -czf "$SPKDIR/package.tgz" -C "$CONTENU" lib systemd agent jre
+  printf 'package="site-nas"\nchecksum="%s"\n' "$(md5sum "$SPKDIR/package.tgz" | cut -d' ' -f1)" > "$SPKDIR/INFO"
+  tar -cf "$SPK" -C "$SPKDIR" INFO package.tgz scripts
+  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" >"$T/sortie.txt" 2>&1 < /dev/null; code=$?
+  [ "$code" -eq 0 ] && grep -q "Installation terminee" "$T/sortie.txt" && grep -q "minuteur de redemarrage" "$T/sortie.txt" \
+    && [ -f "$T/systemd-etc/site-agent.service" ] && [ ! -e "$T/systemd-etc/site-redemarrage-nuit.timer" ]
+}
+
+test_minuteur_nuit_postupgrade_le_reinstalle_avec_le_meme_chemin_stable_et_preuninst_le_retire() {
+  _installer_pour_minuteur || return 1
+  rm -f "$T/systemd-etc/site-redemarrage-nuit.timer" "$T/systemd-etc/site-redemarrage-nuit.service"
+  # DSM peut lancer postupgrade depuis une copie : le chemin ecrit ne doit pas en dependre.
+  mkdir -p "$T/copie-temporaire"; cp "$SITE_NAS_PREFIXE"/scripts/* "$T/copie-temporaire/"
+  SYNOPKG_PKGDEST="$SITE_NAS_PREFIXE" SYNOPKG_PKGNAME=site-nas SYNOPKG_PKG_STATUS=UPGRADE bash "$T/copie-temporaire/postupgrade" >/dev/null 2>&1 < /dev/null
+  grep -Fq "ExecStart=/bin/bash $SITE_NAS_PREFIXE/scripts/redemarrage-nuit.sh" "$T/systemd-etc/site-redemarrage-nuit.service" || return 1
+  [ -f "$T/systemd-etc/site-redemarrage-nuit.timer" ] || return 1
+  SYNOPKG_PKGDEST="$SITE_NAS_PREFIXE" SYNOPKG_PKGNAME=site-nas SYNOPKG_PKG_STATUS=UNINSTALL bash "$SITE_NAS_PREFIXE/scripts/preuninst" >/dev/null 2>&1 < /dev/null
+  [ ! -e "$T/systemd-etc/site-redemarrage-nuit.timer" ] && [ ! -e "$T/systemd-etc/site-redemarrage-nuit.service" ] \
+    && grep -q "^systemctl disable site-redemarrage-nuit.timer" "$STUB_LOG"
 }

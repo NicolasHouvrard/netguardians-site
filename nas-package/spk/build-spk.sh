@@ -61,7 +61,7 @@ CONTENU="$CONSTRUCTION/package"
 # --- package.tgz : contenu installe dans SYNOPKG_PKGDEST (= NAS_PKG_DIR) --------
 mkdir -p "$CONTENU/lib" "$CONTENU/systemd" "$CONTENU/agent"
 cp "$RACINE_PAQUET"/lib/*.sh "$CONTENU/lib/"
-cp "$RACINE_PAQUET"/systemd/site-agent.service.template "$RACINE_PAQUET"/systemd/site-nas-nginx.service.template "$CONTENU/systemd/"
+cp "$RACINE_PAQUET"/systemd/*.template "$CONTENU/systemd/"
 cp "$AGENT_JAR" "$CONTENU/agent/agent.jar"
 cp -R "$JRE_DIR" "$CONTENU/jre"
 
