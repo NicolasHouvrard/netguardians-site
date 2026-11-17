@@ -96,7 +96,7 @@ CHEMIN_JAR_AGENT="$NAS_PKG_DIR/agent/agent.jar"
 if [ -d "$NAS_PKG_DIR/scripts" ]; then
   SCRIPT_REDEMARRAGE_NUIT="$NAS_PKG_DIR/scripts/redemarrage-nuit.sh"
 else
-  SCRIPT_REDEMARRAGE_NUIT="$(dirname "$NAS_PKG_DIR")/scripts/redemarrage-nuit.sh"
+  SCRIPT_REDEMARRAGE_NUIT="/var/packages/${SYNOPKG_PKGNAME:-site-nas}/scripts/redemarrage-nuit.sh"
 fi
 IMAGE_APPLICATION="ghcr.io/${IMAGE_OWNER}/site:${IMAGE_TAG}"
 
