@@ -180,6 +180,25 @@ compile rien (comme l'exemple Docker officiel Synology). L'empaquetage est fait 
 - Aucune installation sur un vrai DSM n'a encore été faite : la vérification a été
   structurelle (archive) + simulation des scripts avec commandes externes simulées.
 
+## Relancer `installer-nas.sh` sur une installation existante
+
+Relancer la commande d'installation du workflow sur un NAS deja installe **ne rejoue plus** le `postinst`
+"installation neuve" (qui arretait Postgres et l'application et remplacait l'instance vivante, hors
+bleu-vert). `installer-nas.sh` (cible `nas`) detecte une installation existante et suit le chemin que DSM
+utilise en mise a jour : `SYNOPKG_PKG_STATUS=UPGRADE`, puis `preupgrade`, `preinst`, `postinst` (sort aussitot
+avec 0) et `postupgrade` (rafraichit scripts, unite de l'Agent et minuteur de nuit sans toucher ni a Postgres ni
+aux conteneurs). Les scripts et le contenu du paquet sont remplaces comme avant.
+
+- **Detection** : tous ces elements doivent etre presents, sinon c'est une installation neuve (idempotente) :
+  `<prefixe>/scripts/postinst` + `postupgrade` + `<prefixe>/lib`, `<donnees>/postgres`, `.postgres-password`,
+  `.app-crypto-key`, `site-nas-upstream.conf`, `site-agent.service`. Une installation precedente interrompue, un
+  paquet desinstalle ou une machine neuve prennent donc le chemin neuf.
+- **Changer de version de l'application** : `sudo bash <prefixe>/scripts/mettre-a-jour-maitre.sh vX.Y`.
+- **Forcer une installation neuve** (arrete et remplace les conteneurs, a vos risques) :
+  `SITE_NAS_REINSTALLER=1 sudo -E bash installer-nas.sh <spk> <sha256>`.
+- **Cible `vps`** : inchangee (son `postinst-vps.sh` n'a pas de chemin de mise a jour ; il arrete encore Postgres et
+  l'application et recree la premiere instance a chaque execution). Ne le relancer que volontairement.
+
 ## Redémarrage de nuit du Maître (plateforme de plugins, SP2 Task 9)
 
 Chaque rechargement de plugin laisse des classes dans le Metaspace ; seul un redémarrage les libère.

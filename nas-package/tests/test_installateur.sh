@@ -288,3 +288,87 @@ test_minuteur_nuit_postupgrade_le_reinstalle_avec_le_meme_chemin_stable_et_preun
   [ ! -e "$T/systemd-etc/site-redemarrage-nuit.timer" ] && [ ! -e "$T/systemd-etc/site-redemarrage-nuit.service" ] \
     && grep -q "^systemctl disable site-redemarrage-nuit.timer" "$STUB_LOG"
 }
+
+# --- Reexecution de l'installateur sur une installation EXISTANTE (incident Maitre) -----------------
+# Relancer la commande du workflow ne doit jamais rejouer le postinst "installation neuve" (arret de
+# Postgres et de l'appli, remplacement de l'instance vivante) : meme chemin que DSM en mise a jour.
+_lancer_installateur() {
+  bash "$RACINE_TEST_INSTALLATEUR/installer/installer-nas.sh" "$SPK" "$(_hash "$SPK")" 2>&1 < /dev/null
+}
+_installation_existante() {
+  _preparer_installation
+  _lancer_installateur >/dev/null || return 1
+  [ -f "$SITE_NAS_PREFIXE/scripts/postinst" ] && [ -d "$T/data/postgres" ] && [ -f "$T/nginx/site-nas-upstream.conf" ] \
+    && [ -f "$T/systemd-etc/site-agent.service" ] || return 1
+  : > "$STUB_LOG"
+}
+
+test_installer_nas_sur_une_installation_existante_ne_touche_ni_aux_conteneurs_ni_a_postgres() {
+  _installation_existante || return 1
+  rm -f "$T/systemd-etc/site-redemarrage-nuit.timer"   # preuve que postupgrade s'execute
+  sortie="$(_lancer_installateur)"; code=$?
+  [ "$code" -eq 0 ] || { echo "$sortie" | tail -8; return 1; }
+  [[ "$sortie" == *"Installation existante detectee"* ]] && [[ "$sortie" == *"mettre-a-jour-maitre.sh"* ]] && [[ "$sortie" == *"SITE_NAS_REINSTALLER=1"* ]] \
+    && ! grep -Eq "^docker (rm|stop|run|restart|start|kill)" "$STUB_LOG" \
+    && ! grep -q "site-postgres" "$STUB_LOG" \
+    && [ -f "$T/systemd-etc/site-redemarrage-nuit.timer" ] \
+    && [ -f "$T/systemd-etc/site-agent.service" ]
+}
+
+test_installer_nas_sur_une_installation_existante_remplace_quand_meme_les_scripts_du_paquet() {
+  _installation_existante || return 1
+  echo >> "$SITE_NAS_PREFIXE/scripts/commun.sh"
+  echo '# MARQUEUR-LOCAL-XYZ' >> "$SITE_NAS_PREFIXE/scripts/commun.sh"
+  _lancer_installateur >/dev/null || return 1
+  ! grep -q "MARQUEUR-LOCAL-XYZ" "$SITE_NAS_PREFIXE/scripts/commun.sh"
+}
+
+test_installer_nas_reinstallation_forcee_par_variable_rejoue_le_chemin_installation_neuve() {
+  _installation_existante || return 1
+  sortie="$(SITE_NAS_REINSTALLER=1 _lancer_installateur)"; code=$?
+  [ "$code" -eq 0 ] && [[ "$sortie" != *"Installation existante detectee"* ]] \
+    && grep -q "^docker rm -f site-18080" "$STUB_LOG" \
+    && grep -q "^docker run -d --name site-postgres" "$STUB_LOG" \
+    && grep -q "^docker run -d --name site-18080" "$STUB_LOG"
+}
+
+test_installer_nas_machine_neuve_suit_le_chemin_installation_neuve_sans_message_d_installation_existante() {
+  _preparer_installation
+  sortie="$(_lancer_installateur)"; code=$?
+  [ "$code" -eq 0 ] && [[ "$sortie" != *"Installation existante detectee"* ]] && [[ "$sortie" == *"Installation terminee"* ]] \
+    && grep -q "^docker run -d --name site-postgres" "$STUB_LOG" && grep -q "^docker run -d --name site-18080" "$STUB_LOG"
+}
+
+# Installation precedente incomplete : chaque element manquant doit ramener au chemin neuf.
+_incomplete_suit_chemin_neuf() {
+  _installation_existante || return 1
+  eval "$1"
+  sortie="$(_lancer_installateur)"; code=$?
+  [ "$code" -eq 0 ] && [[ "$sortie" != *"Installation existante detectee"* ]] \
+    && grep -q "^docker run -d --name site-postgres" "$STUB_LOG" && grep -q "^docker run -d --name site-18080" "$STUB_LOG"
+}
+test_installer_nas_installation_precedente_sans_donnees_postgres_suit_le_chemin_neuf() {
+  _incomplete_suit_chemin_neuf 'rm -rf "$T/data/postgres" "$T/data/.postgres-password"'
+}
+test_installer_nas_installation_precedente_sans_service_agent_suit_le_chemin_neuf() {
+  _incomplete_suit_chemin_neuf 'rm -f "$T/systemd-etc/site-agent.service"'
+}
+test_installer_nas_installation_precedente_sans_upstream_nginx_suit_le_chemin_neuf() {
+  _incomplete_suit_chemin_neuf 'rm -f "$T/nginx/site-nas-upstream.conf"'
+}
+test_installer_nas_installation_precedente_sans_cles_suit_le_chemin_neuf() {
+  _incomplete_suit_chemin_neuf 'rm -f "$T/data/.app-crypto-key"'
+}
+test_installer_nas_scripts_seuls_dans_le_prefixe_sans_reste_d_installation_suit_le_chemin_neuf() {
+  _preparer_installation
+  mkdir -p "$SITE_NAS_PREFIXE/scripts"; echo x > "$SITE_NAS_PREFIXE/scripts/postinst"
+  sortie="$(_lancer_installateur)"; code=$?
+  [ "$code" -eq 0 ] && [[ "$sortie" != *"Installation existante detectee"* ]] && grep -q "^docker run -d --name site-postgres" "$STUB_LOG"
+}
+test_installer_nas_donnees_conservees_apres_desinstallation_suivent_le_chemin_neuf() {
+  _installation_existante || return 1
+  bash "$RACINE_TEST_INSTALLATEUR/installer/desinstaller-nas.sh" >/dev/null 2>&1 || return 1
+  : > "$STUB_LOG"
+  sortie="$(_lancer_installateur)"; code=$?
+  [ "$code" -eq 0 ] && [[ "$sortie" != *"Installation existante detectee"* ]] && grep -q "^docker run -d --name site-postgres" "$STUB_LOG"
+}

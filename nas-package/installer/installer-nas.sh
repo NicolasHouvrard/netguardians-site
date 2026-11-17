@@ -16,6 +16,13 @@
 # variable d'environnement CLE_HEADSCALE ou saisie au clavier (jamais en argument, pour ne pas
 # apparaitre dans la liste des processus).
 #
+# Reexecution sur une installation EXISTANTE (cible nas) : le script la detecte et ne rejoue PAS le
+# postinst "installation neuve" (qui arreterait Postgres et l'application et remplacerait l'instance
+# vivante, hors bleu-vert). Il remplace les scripts/fichiers du paquet puis suit le chemin DSM
+# "mise a jour" (SYNOPKG_PKG_STATUS=UPGRADE : preupgrade, preinst, postinst, postupgrade), sans toucher
+# aux conteneurs. Pour changer de version de l'application : mettre-a-jour-maitre.sh. Pour forcer
+# malgre tout une installation neuve : SITE_NAS_REINSTALLER=1.
+#
 # Variables de test (hors NAS) : SITE_NAS_PREFIXE (dossier d'installation) et SITE_NAS_SANS_ROOT=1.
 set -u
 
@@ -70,6 +77,23 @@ for f in INFO package.tgz scripts/postinst scripts/preinst scripts/commun.sh scr
 done
 [ "$CIBLE" != vps ] || [ -e "$TMP/scripts/postinst-vps.sh" ] || echec "archive incomplete, il manque : scripts/postinst-vps.sh"
 
+# --- 2b. Installation existante ? (decide AVANT de remplacer quoi que ce soit) -------------------
+# Existante = TOUS ces elements d'une installation menee jusqu'a l'Agent (derniere etape de postinst
+# avant l'instance applicative) sont presents : scripts et contenu du paquet, donnees Postgres et
+# secrets, upstream Nginx, unite de l'Agent. Un seul manquant (installation precedente interrompue,
+# paquet desinstalle, machine neuve) -> chemin installation neuve, qui est idempotent. Les chemins
+# suivent ceux de commun.sh (memes variables d'environnement, memes valeurs par defaut).
+MISE_A_JOUR=0
+if [ "$CIBLE" = nas ] && [ "${SITE_NAS_REINSTALLER:-}" != "1" ]; then
+  _racine_donnees="${SITE_NAS_RACINE_DONNEES:-/volume1/site-data}"
+  _dossier_nginx="${SITE_NAS_DOSSIER_NGINX:-/usr/local/etc/nginx/sites-enabled}"
+  _dossier_systemd="${SITE_NAS_DOSSIER_SYSTEMD:-/etc/systemd/system}"
+  if [ -f "$PREFIXE/scripts/postinst" ] && [ -f "$PREFIXE/scripts/postupgrade" ] && [ -d "$PREFIXE/lib" ]      && [ -d "$_racine_donnees/postgres" ] && [ -s "$_racine_donnees/.postgres-password" ] && [ -s "$_racine_donnees/.app-crypto-key" ]      && [ -f "$_dossier_nginx/site-nas-upstream.conf" ] && [ -f "$_dossier_systemd/site-agent.service" ]; then
+    MISE_A_JOUR=1
+    [ -e "$TMP/scripts/postupgrade" ] || echec "archive incomplete, il manque : scripts/postupgrade (necessaire pour mettre a jour une installation existante)"
+  fi
+fi
+
 # --- 3. Mise en place dans le dossier d'installation ----------------------------------------
 mkdir -p "$PREFIXE/scripts" || echec "impossible de creer $PREFIXE"
 cp -a "$TMP/scripts/." "$PREFIXE/scripts/" || echec "copie des scripts impossible"
@@ -96,7 +120,7 @@ fi
 
 # --- 4. Cle Headscale : seulement si le NAS n'est pas deja connecte -------------------------------
 CLE="${CLE_HEADSCALE:-}"
-if [ "$CIBLE" = nas ] && [ -z "$CLE" ] && ! tailscale status >/dev/null 2>&1; then
+if [ "$CIBLE" = nas ] && [ "$MISE_A_JOUR" -eq 0 ] && [ -z "$CLE" ] && ! tailscale status >/dev/null 2>&1; then
   if [ -t 0 ]; then
     printf 'Cle de connexion Headscale (saisie masquee) : ' >&2
     read -rs CLE
@@ -108,7 +132,25 @@ unset CLE_HEADSCALE
 # --- 5. Meme execution que DSM : preinst puis postinst ----------------------------------------------
 export SYNOPKG_PKGDEST="$PREFIXE" SYNOPKG_PKGNAME=site-nas SYNOPKG_PKG_STATUS=INSTALL SYNOPKG_TEMP_LOGFILE="$JOURNAL"
 code=0
-if [ "$CIBLE" = vps ]; then
+if [ "$MISE_A_JOUR" -eq 1 ]; then
+  # Meme sequence que DSM en mise a jour : postinst sort aussitot (0) en UPGRADE, postupgrade rafraichit
+  # scripts/unite de l'Agent/minuteur sans toucher a Postgres ni aux conteneurs applicatifs.
+  export SYNOPKG_PKG_STATUS=UPGRADE
+  printf "Installation existante detectee : mise a jour sans toucher aux conteneurs.
+"
+  printf "Pour changer de version de l'application : sudo bash %s/scripts/mettre-a-jour-maitre.sh vX.Y
+" "$PREFIXE"
+  printf "(Pour forcer une installation neuve, a vos risques : SITE_NAS_REINSTALLER=1 sudo -E bash installer-nas.sh ...)
+
+"
+  if [ -e "$PREFIXE/scripts/preupgrade" ]; then
+    bash "$PREFIXE/scripts/preupgrade" || code=$?
+  fi
+  for _etape in preinst postinst postupgrade; do
+    [ "$code" -eq 0 ] || break
+    bash "$PREFIXE/scripts/$_etape" || code=$?
+  done
+elif [ "$CIBLE" = vps ]; then
   # Serveur Linux generique : le VPS est deja connecte a Headscale (tailscale up fait a la main).
   SITE_NAS_DOMAINE="$SITE_NAS_DOMAINE" bash "$PREFIXE/scripts/postinst-vps.sh" || code=$?
 else
@@ -139,6 +181,11 @@ Verifiez : https://$SITE_NAS_DOMAINE repond, puis sur le Maitre l'ecran des serv
 Si "nginx -t" ou un de vos sites ne repond plus, retirez nos fichiers et rechargez Nginx :
   sudo rm -f /etc/nginx/conf.d/site-nas-public.conf /etc/nginx/conf.d/site-nas-ecoute.conf && sudo nginx -t && sudo systemctl reload nginx
 FINVPS
+  exit 0
+fi
+
+if [ "$MISE_A_JOUR" -eq 1 ]; then
+  echo "Mise a jour terminee : scripts du paquet remplaces, conteneurs applicatifs et Postgres non touches."
   exit 0
 fi
 
