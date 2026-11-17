@@ -39,11 +39,26 @@ public class PluginAdminController {
 
 	private final PluginManager manager;
 
+	/** Réponse de {@code GET /metaspace}. */
+	public record EtatMetaspace(long metaspaceMo, long seuilMo, boolean redemarrageRecommande) {
+	}
+
 	private final PlateformeProperties proprietes;
 
-	public PluginAdminController(PluginManager manager, PlateformeProperties proprietes) {
+	private final SurveillanceMetaspace surveillance;
+
+	public PluginAdminController(PluginManager manager, PlateformeProperties proprietes,
+			SurveillanceMetaspace surveillance) {
 		this.manager = manager;
 		this.proprietes = proprietes;
+		this.surveillance = surveillance;
+	}
+
+	/** Utilisation du Metaspace (dernière mesure), seuil, et recommandation de redémarrage. */
+	@GetMapping("/metaspace")
+	public EtatMetaspace metaspace() {
+		return new EtatMetaspace(surveillance.metaspaceMo(), surveillance.seuilMo(),
+				surveillance.redemarrageRecommande());
 	}
 
 	@GetMapping("/plugins")

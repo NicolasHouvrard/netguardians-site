@@ -202,3 +202,11 @@ app.plateforme.depot-maitre=${PLATEFORME_DEPOT_MAITRE:depot-plugins}
 app.plateforme.intervalle-tirage-ms=${PLATEFORME_INTERVALLE_TIRAGE_MS:600000}
 # URL du Maitre pour le tirage (PARTNER/CLIENT). Vide = app.licence.master-url.
 app.plateforme.master-url=${PLATEFORME_MASTER_URL:}
+# Surveillance du Metaspace : toutes les intervalle-surveillance-ms (60 s par defaut, 1 s minimum), au-dessus de
+# metaspace-seuil-mo (512 par defaut, 1 minimum) le coeur ecrit UNE fois (atomiquement) le repere
+# <repertoire-donnees>/redemarrage-recommande (JSON metaspaceMo, seuilMo, depuis) et journalise en WARN ; sous le
+# seuil le repere est supprime. Il ne declenche rien lui-meme (signal pour l'exploitation). Mesure aussi lisible par
+# GET /api/plateforme/metaspace (ADMIN). Une erreur d'ecriture est journalisee, jamais fatale.
+app.plateforme.metaspace-seuil-mo=${PLATEFORME_METASPACE_SEUIL_MO:512}
+app.plateforme.intervalle-surveillance-ms=${PLATEFORME_INTERVALLE_SURVEILLANCE_MS:60000}
+app.plateforme.repertoire-donnees=${PLATEFORME_REPERTOIRE_DONNEES:donnees}

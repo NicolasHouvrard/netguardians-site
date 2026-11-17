@@ -77,6 +77,56 @@ public class PlateformeProperties {
 	 */
 	private long intervalleTirageMs = 600_000;
 
+	/** Borne basse de {@link #intervalleSurveillanceMs}. */
+	static final long INTERVALLE_SURVEILLANCE_MS_MIN = 1_000;
+
+	/**
+	 * Seuil d'utilisation du Metaspace, en Mo (au moins 1), au-delà duquel un redémarrage est recommandé : un repère
+	 * {@code redemarrage-recommande} est alors écrit dans {@link #repertoireDonnees}.
+	 */
+	private long metaspaceSeuilMo = 512;
+
+	/** Intervalle entre deux mesures du Metaspace, en millisecondes (1 min par défaut ; au moins 1 s). */
+	private long intervalleSurveillanceMs = 60_000;
+
+	/** Répertoire de données du cœur où est écrit le repère {@code redemarrage-recommande}. */
+	private String repertoireDonnees = "donnees";
+
+	public long getMetaspaceSeuilMo() {
+		return metaspaceSeuilMo;
+	}
+
+	/** @throws IllegalArgumentException si inférieur à 1 : la plateforme ne démarre pas, avec ce message. */
+	public void setMetaspaceSeuilMo(long metaspaceSeuilMo) {
+		if (metaspaceSeuilMo < 1) {
+			throw new IllegalArgumentException(
+					"app.plateforme.metaspace-seuil-mo doit valoir au moins 1 : " + metaspaceSeuilMo);
+		}
+		this.metaspaceSeuilMo = metaspaceSeuilMo;
+	}
+
+	public long getIntervalleSurveillanceMs() {
+		return intervalleSurveillanceMs;
+	}
+
+	/** @throws IllegalArgumentException sous la borne : la plateforme ne démarre pas, avec ce message. */
+	public void setIntervalleSurveillanceMs(long intervalleSurveillanceMs) {
+		if (intervalleSurveillanceMs < INTERVALLE_SURVEILLANCE_MS_MIN) {
+			throw new IllegalArgumentException("app.plateforme.intervalle-surveillance-ms doit valoir au moins "
+					+ INTERVALLE_SURVEILLANCE_MS_MIN + " : " + intervalleSurveillanceMs);
+		}
+		this.intervalleSurveillanceMs = intervalleSurveillanceMs;
+	}
+
+	public String getRepertoireDonnees() {
+		return repertoireDonnees;
+	}
+
+	public void setRepertoireDonnees(String repertoireDonnees) {
+		this.repertoireDonnees = repertoireDonnees == null || repertoireDonnees.isBlank() ? "donnees"
+				: repertoireDonnees;
+	}
+
 	public String getMasterUrl() {
 		return masterUrl;
 	}
