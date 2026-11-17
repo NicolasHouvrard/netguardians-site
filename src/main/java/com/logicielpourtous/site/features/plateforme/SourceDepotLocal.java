@@ -74,7 +74,7 @@ public class SourceDepotLocal implements SourcePlugins {
 			while ((lus = in.read(tampon)) != -1) {
 				total += lus;
 				if (total > max) {
-					throw new IOException(source.getFileName() + " : plus de " + max + " octets");
+					throw new TelechargementRefuse(source.getFileName() + " : plus de " + max + " octets");
 				}
 				out.write(tampon, 0, lus);
 			}

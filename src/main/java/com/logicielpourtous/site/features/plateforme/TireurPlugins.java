@@ -12,6 +12,8 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -20,7 +22,9 @@ import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
@@ -58,10 +62,14 @@ import org.springframework.stereotype.Component;
  * </ol>
  * Un refus local (taille, sha256, signature) est rapporté {@code REFUSE} (rien n'est installé ni déposé). Une
  * version refusée ou en échec est mise de côté en mémoire : elle n'est plus retirée tant qu'aucune version plus haute
- * n'apparaît au catalogue. Le jar déposé n'est conservé qu'après {@code OK}, ou après un {@code REFUSE} d'une mise à
- * jour qui ne se fait qu'au redémarrage ({@code miseAJour=coeur}, ou changement de version majeure) : le prochain
- * démarrage le prendra (plus haute version signée). Après tout autre statut, il est retiré : il ferait échouer le
- * prochain démarrage et tomber le plugin.
+ * n'apparaît au catalogue. Le catalogue doit reprendre exactement le manifeste vérifié (nom, version, miseAJour,
+ * coeurMin, coeurMax), sinon {@code ECHEC}. Le jar déposé n'est conservé qu'après {@code OK}, ou après un
+ * {@code REFUSE} dont TOUTES les raisons ne valent qu'à chaud ({@code mise-a-jour=coeur}, changement de majeure) et que
+ * le contrôle du démarrage accepterait ({@link #garderPourLeRedemarrage}) ; sinon il est retiré (jar puis sig).
+ * <p>
+ * Plancher anti-rétrogradation : une version n'est retenue que si elle dépasse l'active, la plus haute version vue
+ * active dans ce processus et le plus haut jar validement signé du répertoire des plugins (version lue dans le jar). Une
+ * {@link TelechargementRefuse} (corps plus gros que le catalogue) est un {@code REFUSE} mis de côté.
  * <p>
  * Après chaque tirage réussi, les jars {@code <nom>-<version>.jar} (et leur {@code .sig}) d'un plugin actif plus vieux
  * que la version précédant l'active sont supprimés : on garde l'active, la précédente et toute version plus haute.
@@ -105,6 +113,15 @@ public class TireurPlugins {
 	private final Map<String, Rapport> enAttente = new LinkedHashMap<>();
 
 	private boolean injoignableSignale;
+
+	/** Plus haute version vue active par plugin dans ce processus (plancher anti-rétrogradation). */
+	private final Map<String, String> vusActifs = new HashMap<>();
+
+	/** Versions des jars validement signés du répertoire des plugins, mémorisées par fichier (taille + date). */
+	private final Map<Path, JarSurDisque> jarsSurDisque = new HashMap<>();
+
+	private record JarSurDisque(long taille, FileTime date, String nom, String version) {
+	}
 
 	private record Rapport(String nom, String version, Statut statut, List<String> raisons) {
 	}
@@ -184,8 +201,8 @@ public class TireurPlugins {
 			injoignableSignale = false;
 		}
 		renvoyerRapports();
-		List<EntreeCatalogue> choix = choisir(brut, versionsActives.get());
 		Path depot = repertoirePlugins();
+		List<EntreeCatalogue> choix = choisir(brut, versionsActives.get(), depot);
 		if (!choix.isEmpty()) {
 			Path tirage;
 			try {
@@ -216,7 +233,8 @@ public class TireurPlugins {
 	// --- Choix -----------------------------------------------------------------------------------------------------
 
 	/** Pour chaque plugin : la plus haute version valide, compatible, supérieure à l'active et non mise de côté. */
-	private List<EntreeCatalogue> choisir(List<EntreeCatalogue> brut, Map<String, String> actives) {
+	private List<EntreeCatalogue> choisir(List<EntreeCatalogue> brut, Map<String, String> actives, Path depot) {
+		actives.forEach(this::noterActive);
 		Map<String, EntreeCatalogue> valides = new LinkedHashMap<>();
 		Set<String> contradictoires = new HashSet<>();
 		int ignorees = 0;
@@ -247,7 +265,17 @@ public class TireurPlugins {
 			meilleures.merge(e.nom(), e, (a, b) -> plusRecente(a.version(), b.version()) >= 0 ? a : b);
 		}
 		List<EntreeCatalogue> choix = new ArrayList<>();
+		Map<String, String> surDisque = meilleures.isEmpty() ? Map.of() : versionsSigneesSurDisque(depot);
 		meilleures.forEach((nom, e) -> {
+			// Jamais en dessous de ce que le démarrage choisirait, ni de ce qui a déjà tourné ici (version active absente :
+			// jamais installé, désinstallé, démarrage raté) : un Maître ne peut pas faire revenir une ancienne version.
+			for (String plancher : new String[] { vusActifs.get(nom), surDisque.get(nom) }) {
+				if (plancher != null && plusRecente(e.version(), plancher) <= 0) {
+					log.debug("Plugin {} : version {} ignorée (version {} déjà présente ou vue active)", nom,
+							e.version(), plancher);
+					return;
+				}
+			}
 			String deCote = misesDeCote.get(nom);
 			if (deCote != null && plusRecente(e.version(), deCote) <= 0) {
 				log.debug("Plugin {} : version {} mise de côté, en attente d'une version plus haute", nom, deCote);
@@ -256,6 +284,87 @@ public class TireurPlugins {
 			choix.add(e);
 		});
 		return choix;
+	}
+
+	private void noterActive(String nom, String version) {
+		try {
+			vusActifs.merge(nom, version, (a, b) -> plusRecente(a, b) >= 0 ? a : b);
+		}
+		catch (RuntimeException e) {
+			log.debug("Version active non comparable ignorée : {} {}", nom, DepotPlugins.net(version));
+		}
+	}
+
+	/**
+	 * Plus haute version par plugin parmi les jars du répertoire des plugins que le démarrage pourrait choisir : taille au
+	 * plus {@code taille-max-jar-mo}, signature valide (si obligatoire), manifeste lisible (nom et version lus DANS le
+	 * jar, pas dans le nom du fichier). Résultat mémorisé par fichier (taille + date) : chaque jar n'est vérifié qu'une
+	 * fois. Ce n'est qu'un plancher : un jar invalide ne bloque rien.
+	 */
+	private Map<String, String> versionsSigneesSurDisque(Path depot) {
+		Map<String, String> plusHautes = new HashMap<>();
+		if (!Files.isDirectory(depot, LinkOption.NOFOLLOW_LINKS)) {
+			jarsSurDisque.clear();
+			return plusHautes;
+		}
+		Set<Path> vus = new HashSet<>();
+		try (Stream<Path> fichiers = Files.list(depot)) {
+			for (Path f : fichiers.toList()) {
+				if (!f.getFileName().toString().endsWith(".jar") || !Files.isRegularFile(f, LinkOption.NOFOLLOW_LINKS)) {
+					continue;
+				}
+				vus.add(f);
+				JarSurDisque j = jarSurDisque(f);
+				if (j != null && j.nom() != null) {
+					try {
+						plusHautes.merge(j.nom(), j.version(), (a, b) -> plusRecente(a, b) >= 0 ? a : b);
+					}
+					catch (RuntimeException e) {
+						log.debug("Version non comparable ignorée : {}", f.getFileName());
+					}
+				}
+			}
+		}
+		catch (IOException e) {
+			log.warn("Lecture du répertoire des plugins impossible : {}", DepotPlugins.net(e.getMessage()));
+		}
+		jarsSurDisque.keySet().retainAll(vus);
+		return plusHautes;
+	}
+
+	private JarSurDisque jarSurDisque(Path jar) {
+		BasicFileAttributes a;
+		try {
+			a = Files.readAttributes(jar, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+		}
+		catch (IOException e) {
+			return null;
+		}
+		JarSurDisque memo = jarsSurDisque.get(jar);
+		if (memo != null && memo.taille() == a.size() && memo.date().equals(a.lastModifiedTime())) {
+			return memo;
+		}
+		JarSurDisque lu = new JarSurDisque(a.size(), a.lastModifiedTime(), null, null);
+		if (a.size() <= tailleMax()) {
+			try {
+				boolean valide = true;
+				if (proprietes.isSignatureObligatoire()) {
+					Path sig = jar.resolveSibling(jar.getFileName() + ".sig");
+					valide = Files.isRegularFile(sig, LinkOption.NOFOLLOW_LINKS)
+							&& SignatureJar.verifier(jar, lireSignature(sig), cles.cles()).valide();
+				}
+				if (valide) {
+					ManifestePlugin m = LecteurManifeste.lire(jar);
+					VerificateurMiseAJour.comparer(m.version(), m.version());
+					lu = new JarSurDisque(a.size(), a.lastModifiedTime(), m.nom(), m.version());
+				}
+			}
+			catch (IOException | Refus | RuntimeException e) {
+				log.debug("Jar {} ignoré pour le plancher de version", jar.getFileName());
+			}
+		}
+		jarsSurDisque.put(jar, lu);
+		return lu;
 	}
 
 	/** Raison d'écarter une entrée du catalogue, ou {@code null} si elle est exploitable. */
@@ -316,16 +425,23 @@ public class TireurPlugins {
 			try {
 				jar = source.telecharger(e, tirage);
 			}
+			catch (TelechargementRefuse ex) {
+				// Se reproduirait à l'identique (corps plus gros que le catalogue...) : refus mis de côté.
+				log.warn("Plugin {} {} refusé au téléchargement : {}", e.nom(), e.version(),
+						DepotPlugins.net(ex.getMessage()));
+				conclure(e, Statut.REFUSE, List.of("téléchargement refusé : " + DepotPlugins.net(ex.getMessage())));
+				return;
+			}
 			catch (IOException | RuntimeException ex) {
 				// Passager (réseau, version retirée entre-temps...) : rien n'est mis de côté ni rapporté.
 				log.warn("Téléchargement du plugin {} {} impossible : {} {}", e.nom(), e.version(),
 						ex.getClass().getSimpleName(), DepotPlugins.net(ex.getMessage()));
 				return;
 			}
-			boolean deposeParLeTireur;
+			ManifestePlugin m;
 			try {
-				verifier(e, tirage, base, jar);
-				deposeParLeTireur = deposer(e, base, tirage.resolve(base), jarCible, sigCible);
+				m = verifier(e, tirage, base, jar);
+				deposer(e, base, tirage.resolve(base), jarCible, sigCible);
 			}
 			catch (Refus refus) {
 				log.warn("Plugin {} {} refusé avant installation : {} {}", e.nom(), e.version(), refus.statut,
@@ -333,7 +449,7 @@ public class TireurPlugins {
 				conclure(e, refus.statut, List.of(refus.getMessage()));
 				return;
 			}
-			installer(e, jarCible, sigCible, deposeParLeTireur);
+			installer(e, m, jarCible, sigCible);
 		}
 		catch (IOException ex) {
 			log.error("Tirage du plugin {} {} interrompu : {}", e.nom(), e.version(), DepotPlugins.net(ex.getMessage()));
@@ -349,7 +465,7 @@ public class TireurPlugins {
 	}
 
 	/** Contrôles sur les octets téléchargés : emplacement, taille, sha256, signature, manifeste. */
-	private void verifier(EntreeCatalogue e, Path tirage, String base, Path jar) throws Refus {
+	private ManifestePlugin verifier(EntreeCatalogue e, Path tirage, String base, Path jar) throws Refus {
 		Path attendu = tirage.resolve(base);
 		if (jar == null || !jar.toAbsolutePath().normalize().equals(attendu)) {
 			throw new Refus(Statut.ECHEC, "fichier téléchargé hors du dossier de tirage");
@@ -389,6 +505,15 @@ public class TireurPlugins {
 			throw new Refus(Statut.ECHEC, "manifeste différent du catalogue : " + DepotPlugins.net(m.nom()) + " "
 					+ DepotPlugins.net(m.version()) + " au lieu de " + e.nom() + " " + e.version());
 		}
+		// Toutes les décisions du tireur lisent le catalogue : il doit dire exactement ce que dit le jar signé.
+		String miseAJour = m.miseAJour().name().toLowerCase(Locale.ROOT);
+		if (!miseAJour.equals(e.miseAJour()) || !Objects.equals(m.coeurMin(), e.coeurMin())
+				|| !Objects.equals(m.coeurMax(), e.coeurMax())) {
+			throw new Refus(Statut.ECHEC, "catalogue différent du manifeste (miseAJour/coeurMin/coeurMax) : manifeste "
+					+ miseAJour + " " + DepotPlugins.net(m.coeurMin()) + ".." + DepotPlugins.net(m.coeurMax())
+					+ ", catalogue " + e.miseAJour() + " " + e.coeurMin() + ".." + e.coeurMax());
+		}
+		return m;
 	}
 
 	private static String lireSignature(Path sig) throws IOException, Refus {
@@ -446,25 +571,28 @@ public class TireurPlugins {
 	}
 
 	/**
-	 * Mise à jour qui ne peut se faire qu'au redémarrage : {@code miseAJour=coeur} au catalogue, ou changement de
-	 * version majeure par rapport à l'active. Seul un tel refus laisse le jar déposé (le prochain démarrage le prend) ;
-	 * tout autre refus (dépendance, paquet, migration destructive d'un plugin « chaud »...) échouerait aussi au
-	 * démarrage et ferait tomber le plugin : le jar est retiré.
+	 * Un refus à chaud ne laisse le jar déposé (pour le prochain redémarrage) que si TOUTES ses raisons ne valent qu'à
+	 * chaud ({@code mise-a-jour=coeur} du manifeste vérifié, changement de majeure) ET si ce que le démarrage vérifiera
+	 * passe sur le manifeste vérifié (bornes du cœur, paquets, dépendances parmi les autres plugins actifs) : sinon le
+	 * démarrage le refuserait et, ne démarrant que la plus haute version signée, ferait tomber le plugin.
 	 */
-	private static boolean aFroid(EntreeCatalogue e, String versionActive) {
-		if ("coeur".equals(e.miseAJour())) {
-			return true;
+	private boolean garderPourLeRedemarrage(ResultatInstallation r, ManifestePlugin m) {
+		if (r.raisons().isEmpty() || !r.raisons().stream().allMatch(VerificateurMiseAJour::raisonAFroidSeulement)) {
+			return false;
 		}
-		return versionActive != null && !majeure(versionActive).equals(majeure(e.version()));
+		try {
+			Map<String, String> autres = new HashMap<>(versionsActives.get());
+			autres.remove(m.nom());
+			return VerificateurMiseAJour.verifier(m, Map.of(), Set.of(), proprietes.getVersionCoeur(), null).accepte()
+					&& VerificateurMiseAJour.verifierPaquets(m).isEmpty()
+					&& VerificateurMiseAJour.verifierDependances(m.dependances(), autres).isEmpty();
+		}
+		catch (RuntimeException e) {
+			return false;
+		}
 	}
 
-	private static String majeure(String version) {
-		int point = version.indexOf('.');
-		return (point < 0 ? version : version.substring(0, point)).replaceFirst("^0+(?=\\d)", "");
-	}
-
-	private void installer(EntreeCatalogue e, Path jarCible, Path sigCible, boolean deposeParLeTireur) {
-		String versionActive = versionsActives.get().get(e.nom());
+	private void installer(EntreeCatalogue e, ManifestePlugin m, Path jarCible, Path sigCible) {
 		ResultatInstallation r;
 		try {
 			r = installateur.apply(jarCible);
@@ -487,11 +615,13 @@ public class TireurPlugins {
 			statut = Statut.ECHEC;
 		}
 		boolean garder = statut == Statut.OK
-				|| (statut == Statut.REFUSE && r.plugin() != null && !autre && aFroid(e, versionActive));
-		if (!garder && deposeParLeTireur) {
+				|| (statut == Statut.REFUSE && r.plugin() != null && !autre && garderPourLeRedemarrage(r, m));
+		if (!garder) {
+			// Y compris un jar identique déjà présent qui a été réutilisé : il échouerait de même au démarrage.
 			retirer(jarCible, sigCible);
 		}
 		if (statut == Statut.OK) {
+			noterActive(e.nom(), e.version());
 			log.info("Plugin {} {} installé par le tirage", e.nom(), e.version());
 		}
 		else {
@@ -536,9 +666,9 @@ public class TireurPlugins {
 			return false;
 		}
 		catch (RuntimeException e) {
-			log.warn("Rapport {} {} ({}) abandonné : {}", r.nom(), r.version(), r.statut(),
-					DepotPlugins.net(e.getMessage()));
-			return true;
+			log.warn("Rapport {} {} ({}) non remis : {} {} ; nouvel essai au prochain tirage", r.nom(), r.version(),
+					r.statut(), e.getClass().getSimpleName(), DepotPlugins.net(e.getMessage()));
+			return false;
 		}
 	}
 

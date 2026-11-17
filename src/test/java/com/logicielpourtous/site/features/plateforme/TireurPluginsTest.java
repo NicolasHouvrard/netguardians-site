@@ -72,6 +72,11 @@ class TireurPluginsTest {
 
 		IOException panneRapport;
 
+		RuntimeException panneRapportRuntime;
+
+		/** Si non nul : levée par telecharger après l'avoir compté. */
+		IOException panneTelechargement;
+
 		/** Si non nul : chemin renvoyé par telecharger à la place du vrai. */
 		Path cheminForce;
 
@@ -90,6 +95,9 @@ class TireurPluginsTest {
 		public Path telecharger(EntreeCatalogue e, Path dossier) throws IOException {
 			telechargements.add(e.nom() + "-" + e.version());
 			dossiers.add(dossier);
+			if (panneTelechargement != null) {
+				throw panneTelechargement;
+			}
 			Path source = jars.get(e.nom() + "-" + e.version());
 			Path jar = dossier.resolve(e.nom() + "-" + e.version() + ".jar");
 			Files.copy(source, jar);
@@ -101,6 +109,9 @@ class TireurPluginsTest {
 		public void rapporter(String nom, String version, Statut statut, List<String> raisons) throws IOException {
 			if (panneRapport != null) {
 				throw panneRapport;
+			}
+			if (panneRapportRuntime != null) {
+				throw panneRapportRuntime;
 			}
 			rapports.add(new Rapport(nom, version, statut, List.copyOf(raisons)));
 		}
@@ -143,6 +154,16 @@ class TireurPluginsTest {
 	/** Publie un jar signé dans la source simulée (catalogue + octets) et renvoie l'entrée. */
 	private EntreeCatalogue publier(String nom, String version) throws IOException {
 		return publier(nom, version, jarSigne(nom, version, Map.of()), "1.0.0", "2.0.0");
+	}
+
+	/** Publie un jar avec une entrée de catalogue fidèle à son manifeste (comme le dépôt du Maître). */
+	private EntreeCatalogue publierFidele(Path jar) throws IOException {
+		ManifestePlugin m = LecteurManifeste.lire(jar);
+		EntreeCatalogue e = new EntreeCatalogue(m.nom(), m.version(), m.miseAJour().name().toLowerCase(), m.coeurMin(),
+				m.coeurMax(), sha256(jar), Files.size(jar));
+		source.catalogue.add(e);
+		source.jars.put(m.nom() + "-" + m.version(), jar);
+		return e;
 	}
 
 	private EntreeCatalogue publier(String nom, String version, Path jar, String coeurMin, String coeurMax)
@@ -296,13 +317,13 @@ class TireurPluginsTest {
 			actives.put(nom, "1.0.0");
 			publier(nom, "1.1.0");
 		}
-		// alpha : mise à jour « coeur » (ne se fait qu'au redémarrage).
-		EntreeCatalogue alpha = source.catalogue.remove(0);
-		source.catalogue.add(0, new EntreeCatalogue("alpha", "1.1.0", "coeur", alpha.coeurMin(), alpha.coeurMax(),
-				alpha.sha256(), alpha.taille()));
+		// alpha : vraie mise à jour « coeur » (manifeste ET catalogue), refusée à chaud pour cette seule raison.
+		actives.put("alpha", "1.0.0");
+		source.catalogue.remove(0);
+		publierFidele(jarSigne("alpha", "1.1.0", Map.of("mise-a-jour", "coeur")));
 		actives.put("delta", "1.0.0");
 		publier("delta", "1.1.0");
-		reponses.put("alpha", m -> resultat(Statut.REFUSE, m, "Le manifeste déclare mise-a-jour=coeur"));
+		reponses.put("alpha", m -> resultat(Statut.REFUSE, m, VerificateurMiseAJour.RAISON_MISE_A_JOUR_COEUR));
 		reponses.put("beta", m -> resultat(Statut.ANNULE, m, "démarrage impossible", "ancienne version relancée"));
 		reponses.put("gamma", m -> resultat(Statut.ECHEC, m, "retour arrière impossible"));
 		reponses.put("delta", m -> resultat(Statut.REFUSE, m, "Dépendance absente : le plugin 'zeta' n'est pas actif"));
@@ -310,14 +331,14 @@ class TireurPluginsTest {
 		tireur.tirer();
 
 		assertThat(source.rapports).containsExactlyInAnyOrder(
-				new Rapport("alpha", "1.1.0", Statut.REFUSE, List.of("Le manifeste déclare mise-a-jour=coeur")),
+				new Rapport("alpha", "1.1.0", Statut.REFUSE, List.of(VerificateurMiseAJour.RAISON_MISE_A_JOUR_COEUR)),
 				new Rapport("beta", "1.1.0", Statut.ANNULE, List.of("démarrage impossible", "ancienne version relancée")),
 				new Rapport("gamma", "1.1.0", Statut.ECHEC, List.of("retour arrière impossible")),
 				new Rapport("delta", "1.1.0", Statut.REFUSE,
 						List.of("Dépendance absente : le plugin 'zeta' n'est pas actif")));
 		assertThat(source.rapports).noneMatch(r -> r.statut() == Statut.OK);
-		// Seul le refus d'une mise à jour « à froid » (coeur, ou changement de majeure) laisse le jar pour le prochain
-		// redémarrage ; ECHEC, ANNULE et les autres refus le retirent (il ferait tomber le plugin au démarrage).
+		// Seul un refus dû UNIQUEMENT au caractère « à froid » (mise-a-jour=coeur du manifeste vérifié, ou changement
+		// de majeure), d'un jar que le démarrage accepterait, laisse le jar ; tout le reste le retire.
 		assertThat(deposes()).containsExactly("alpha-1.1.0.jar", "alpha-1.1.0.jar.sig");
 	}
 
@@ -325,7 +346,8 @@ class TireurPluginsTest {
 	void refus_d_un_changement_de_majeure_garde_le_jar_pour_le_redemarrage() throws IOException {
 		actives.put("alpha", "1.4.0");
 		publier("alpha", "2.0.0");
-		reponses.put("alpha", m -> resultat(Statut.REFUSE, m, "Changement de version majeure (1.4.0 -> 2.0.0)"));
+		reponses.put("alpha", m -> resultat(Statut.REFUSE, m,
+				VerificateurMiseAJour.RAISON_MAJEURE + "1.4.0 -> 2.0.0) : mise à jour du cœur requise"));
 
 		tireur.tirer();
 
@@ -333,6 +355,149 @@ class TireurPluginsTest {
 		assertThat(deposes()).containsExactly("alpha-2.0.0.jar", "alpha-2.0.0.jar.sig");
 		tireur.tirer();
 		assertThat(source.telechargements).containsExactly("alpha-2.0.0");
+	}
+
+	/** I1 : Maître compromis, jar légitimement signé d'une version future, catalogue qui ment sur coeurMin et miseAJour. */
+	@Test
+	void maitre_compromis_coeurMin_abaisse_et_coeur_au_catalogue_est_ECHEC_sans_rien_deposer() throws IOException {
+		actives.put("alpha", "1.0.0");
+		Path futur = jarSigne("alpha", "1.1.0", Map.of("coeur-min", "9.0.0", "coeur-max", "")); // chaud au manifeste
+		source.catalogue.add(new EntreeCatalogue("alpha", "1.1.0", "coeur", "1.0.0", null, sha256(futur),
+				Files.size(futur)));
+		source.jars.put("alpha-1.1.0", futur);
+		reponses.put("alpha", m -> resultat(Statut.REFUSE, m, VerificateurMiseAJour.RAISON_MISE_A_JOUR_COEUR,
+				"Version du coeur 1.5.0 inférieure au minimum requis 9.0.0"));
+
+		tireur.tirer();
+
+		assertThat(installes).isEmpty();
+		assertThat(deposes()).isEmpty();
+		assertThat(source.rapports).singleElement().satisfies(r -> {
+			assertThat(r.statut()).isEqualTo(Statut.ECHEC);
+			assertThat(r.raisons()).anyMatch(raison -> raison.contains("catalogue"));
+		});
+	}
+
+	@Test
+	void catalogue_different_du_manifeste_sur_miseAJour_ou_bornes_du_coeur_est_ECHEC() throws IOException {
+		Path jar = jarSigne("alpha", "1.1.0", Map.of()); // chaud, 1.0.0..2.0.0
+		String sha = sha256(jar);
+		long taille = Files.size(jar);
+		List<EntreeCatalogue> menteuses = List.of(
+				new EntreeCatalogue("alpha", "1.1.0", "coeur", "1.0.0", "2.0.0", sha, taille),
+				new EntreeCatalogue("alpha", "1.1.0", "chaud", "1.1.0", "2.0.0", sha, taille),
+				new EntreeCatalogue("alpha", "1.1.0", "chaud", "1.0.0", null, sha, taille),
+				new EntreeCatalogue("alpha", "1.1.0", "chaud", "1.0.0", "3.0.0", sha, taille));
+		source.jars.put("alpha-1.1.0", jar);
+		for (EntreeCatalogue e : menteuses) {
+			source.catalogue.clear();
+			source.catalogue.add(e);
+			tireur = nouveauTireur(); // mémoire de mise de côté remise à zéro
+			source.rapports.clear();
+
+			tireur.tirer();
+
+			assertThat(installes).as(e.toString()).isEmpty();
+			assertThat(deposes()).as(e.toString()).isEmpty();
+			assertThat(source.rapports).as(e.toString())
+				.singleElement()
+				.satisfies(r -> assertThat(r.statut()).isEqualTo(Statut.ECHEC));
+		}
+	}
+
+	@Test
+	void refus_d_une_mise_a_jour_coeur_pour_dependance_ou_paquet_interdit_supprime_le_jar() throws IOException {
+		// Le refus mêle la raison « coeur » et une raison qui vaudrait aussi au démarrage : retiré.
+		actives.put("alpha", "1.0.0");
+		publierFidele(jarSigne("alpha", "1.1.0", Map.of("mise-a-jour", "coeur")));
+		reponses.put("alpha", m -> resultat(Statut.REFUSE, m, VerificateurMiseAJour.RAISON_MISE_A_JOUR_COEUR,
+				"Dépendance absente : le plugin 'zeta' n'est pas actif"));
+		// L'installateur ne cite que « coeur », mais le démarrage refuserait la dépendance absente : retiré.
+		actives.put("beta", "1.0.0");
+		publierFidele(jarSigne("beta", "1.1.0", Map.of("mise-a-jour", "coeur", "dependances", "zeta")));
+		reponses.put("beta", m -> resultat(Statut.REFUSE, m, VerificateurMiseAJour.RAISON_MISE_A_JOUR_COEUR));
+		// Paquet interdit (dans le cœur) : le démarrage le refuserait aussi : retiré.
+		actives.put("gamma", "1.0.0");
+		publierFidele(jarSigne("gamma", "1.1.0", Map.of("mise-a-jour", "coeur", "paquet", "com.logicielpourtous.site")));
+		reponses.put("gamma", m -> resultat(Statut.REFUSE, m, VerificateurMiseAJour.RAISON_MISE_A_JOUR_COEUR));
+
+		tireur.tirer();
+
+		assertThat(source.rapports).hasSize(3).allSatisfy(r -> assertThat(r.statut()).isEqualTo(Statut.REFUSE));
+		assertThat(deposes()).isEmpty();
+	}
+
+	/** I2 : aucune version active, mais un jar plus haut validement signé sur le disque : pas de retour en arrière. */
+	@Test
+	void sans_version_active_un_jar_plus_haut_signe_sur_le_disque_bloque_une_version_plus_basse() throws IOException {
+		deposerAlaMain(jarSigne("alpha", "2.0.0", Map.of("coeur-max", "")));
+		publier("alpha", "1.0.0");
+		publier("alpha", "2.0.0");
+
+		tireur.tirer();
+
+		assertThat(source.telechargements).isEmpty();
+		assertThat(installes).isEmpty();
+		assertThat(source.rapports).isEmpty();
+	}
+
+	@Test
+	void jar_plus_haut_mal_signe_ou_illisible_sur_le_disque_ne_bloque_rien() throws IOException {
+		Path pirate = JarDePluginDeTest.signer(
+				JarDePluginDeTest.creer(racine.resolve("pirate"), "alpha", "9.0.0", Map.of("coeur-min", "1.0.0",
+						"mise-a-jour", "chaud", "paquet", "alpha", "configuration", "alpha.Config"), Map.of()),
+				JarDePluginDeTest.nouvellePaire().getPrivate(), JarDePluginDeTest.KEY_ID_TEST);
+		deposerAlaMain(pirate);
+		Files.writeString(plugins.resolve("alpha-8.0.0.jar"), "pas un jar");
+		publier("alpha", "1.0.0");
+
+		tireur.tirer();
+
+		assertThat(source.rapports).containsExactly(new Rapport("alpha", "1.0.0", Statut.OK, List.of()));
+	}
+
+	@Test
+	void version_vue_active_puis_desinstallee_bloque_les_versions_plus_basses() throws IOException {
+		actives.put("alpha", "1.5.0");
+		tireur.tirer(); // vue active
+		actives.remove("alpha"); // désinstallée (jar retiré du disque)
+		publier("alpha", "1.2.0");
+
+		tireur.tirer();
+
+		assertThat(source.telechargements).isEmpty();
+		publier("alpha", "1.6.0");
+		tireur.tirer();
+		assertThat(source.telechargements).containsExactly("alpha-1.6.0");
+	}
+
+	/** M1 : corps plus gros que la taille du catalogue = refus mis de côté, pas une panne passagère. */
+	@Test
+	void corps_plus_gros_que_le_catalogue_est_REFUSE_et_n_est_pas_retelecharge() throws IOException {
+		publier("alpha", "1.1.0");
+		source.panneTelechargement = new TelechargementRefuse("alpha/1.1.0/jar : plus de 1234 octets reçus");
+
+		tireur.tirer();
+		tireur.tirer();
+
+		assertThat(source.telechargements).containsExactly("alpha-1.1.0");
+		assertThat(source.rapports).singleElement().satisfies(r -> assertThat(r.statut()).isEqualTo(Statut.REFUSE));
+		assertThat(tireur.misesDeCote()).containsEntry("alpha", "1.1.0");
+		assertThat(deposes()).isEmpty();
+	}
+
+	/** M2 : un rapport qui lève une RuntimeException (ex. base indisponible pour lire la clé) est retenté. */
+	@Test
+	void rapport_qui_leve_une_RuntimeException_est_retente() throws IOException {
+		publier("alpha", "1.1.0");
+		source.panneRapportRuntime = new IllegalStateException("base indisponible");
+
+		tireur.tirer();
+		assertThat(source.rapports).isEmpty();
+
+		source.panneRapportRuntime = null;
+		tireur.tirer();
+		assertThat(source.rapports).containsExactly(new Rapport("alpha", "1.1.0", Statut.OK, List.of()));
 	}
 
 	@Test
@@ -534,14 +699,18 @@ class TireurPluginsTest {
 
 	@Test
 	void fichier_identique_deja_depose_est_reutilise() throws IOException {
+		// Jar identique sans sa .sig (ex. arrêt entre deux opérations) : pas « validement signé sur le disque », donc
+		// il ne bloque pas le tirage ; il est réutilisé et la .sig vérifiée est posée à côté.
 		EntreeCatalogue e = publier("alpha", "1.1.0");
-		deposerAlaMain(source.jars.get("alpha-1.1.0"));
+		Files.createDirectories(plugins);
+		Files.copy(source.jars.get("alpha-1.1.0"), plugins.resolve("alpha-1.1.0.jar"));
 
 		tireur.tirer();
 
 		assertThat(installes).containsExactly(plugins.resolve("alpha-1.1.0.jar").toAbsolutePath().normalize());
 		assertThat(source.rapports).containsExactly(new Rapport("alpha", "1.1.0", Statut.OK, List.of()));
 		assertThat(sha256(plugins.resolve("alpha-1.1.0.jar"))).isEqualTo(e.sha256());
+		assertThat(deposes()).containsExactly("alpha-1.1.0.jar", "alpha-1.1.0.jar.sig");
 	}
 
 	@Test

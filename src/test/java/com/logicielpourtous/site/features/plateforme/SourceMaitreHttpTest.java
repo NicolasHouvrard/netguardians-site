@@ -164,18 +164,30 @@ class SourceMaitreHttpTest {
 		routes.put("GET /api/licence/plugins/alpha/1.1.0/jar", e -> repondre(e, 200, new byte[5000]));
 		routes.put("GET /api/licence/plugins/alpha/1.1.0/sig", fixe(200, "{}"));
 
-		assertThatThrownBy(() -> source().telecharger(entree(100), dossier)).isInstanceOf(IOException.class);
+		// M1 : plus gros que le catalogue = refus définitif (mis de côté par le tireur), pas une panne passagère.
+		assertThatThrownBy(() -> source().telecharger(entree(100), dossier)).isInstanceOf(TelechargementRefuse.class);
+		assertThat(contenu(dossier)).isEmpty();
+
+		// Corps sans Content-Length (fragmenté) plus gros que le catalogue : même refus.
+		routes.put("GET /api/licence/plugins/alpha/1.1.0/jar", e -> {
+			e.sendResponseHeaders(200, 0);
+			try (OutputStream out = e.getResponseBody()) {
+				out.write(new byte[5000]);
+			}
+		});
+		assertThatThrownBy(() -> source().telecharger(entree(100), dossier)).isInstanceOf(TelechargementRefuse.class);
 		assertThat(contenu(dossier)).isEmpty();
 
 		// Signature démesurée : refusée aussi.
 		routes.put("GET /api/licence/plugins/alpha/1.1.0/jar", e -> repondre(e, 200, new byte[100]));
 		routes.put("GET /api/licence/plugins/alpha/1.1.0/sig", e -> repondre(e, 200, new byte[17 * 1024]));
-		assertThatThrownBy(() -> source().telecharger(entree(100), dossier)).isInstanceOf(IOException.class);
+		assertThatThrownBy(() -> source().telecharger(entree(100), dossier)).isInstanceOf(TelechargementRefuse.class);
 		assertThat(contenu(dossier)).isEmpty();
 
-		// Version absente (404) : IOException, rien d'écrit.
+		// Version absente (404) : IOException passagère (pas un refus), rien d'écrit.
 		routes.clear();
-		assertThatThrownBy(() -> source().telecharger(entree(100), dossier)).isInstanceOf(IOException.class);
+		assertThatThrownBy(() -> source().telecharger(entree(100), dossier)).isInstanceOf(IOException.class)
+			.isNotInstanceOf(TelechargementRefuse.class);
 		assertThat(contenu(dossier)).isEmpty();
 	}
 
@@ -269,6 +281,52 @@ class SourceMaitreHttpTest {
 		routes.put("POST /api/licence/plugins/etat", fixe(503, ""));
 		assertThatThrownBy(() -> source().rapporter("alpha", "1.1.0", Statut.OK, List.of()))
 			.isInstanceOf(IOException.class);
+	}
+
+	/** M2 : seuls 404, 401 et 403 sont définitifs ; tout autre refus du Maître est retenté. */
+	@Test
+	void rapport_401_403_definitifs_autres_4xx_retentes() throws IOException {
+		for (int code : List.of(401, 403)) {
+			routes.put("POST /api/licence/plugins/etat", fixe(code, "{}"));
+			source().rapporter("alpha", "1.1.0", Statut.OK, List.of());
+		}
+		for (int code : List.of(400, 409, 413, 429)) {
+			routes.put("POST /api/licence/plugins/etat", fixe(code, "{}"));
+			assertThatThrownBy(() -> source().rapporter("alpha", "1.1.0", Statut.OK, List.of())).as("HTTP " + code)
+				.isInstanceOf(IOException.class);
+		}
+	}
+
+	/** M3 : une clé stockée avec CR/LF ou caractère de contrôle n'est jamais envoyée ni écrite dans un message. */
+	@Test
+	void cle_aux_caracteres_interdits_refusee_sans_requete_ni_fuite() {
+		Logger racine = (Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+		ListAppender<ILoggingEvent> capture = new ListAppender<>();
+		capture.start();
+		racine.addAppender(capture);
+		try {
+			for (String mauvaise : List.of("abc\r\nX-Injecte: 1", "abc\u0000def", "abc def", "abcSECRETé")) {
+				SourceMaitreHttp s = new SourceMaitreHttp(base, () -> Optional.of(mauvaise), Duration.ofMillis(500),
+						Duration.ofMillis(500));
+				String m1 = message(s::catalogue);
+				String m2 = message(() -> {
+					s.rapporter("alpha", "1.1.0", Statut.OK, List.of());
+					return null;
+				});
+				assertThat(m1).isNotNull().doesNotContain(mauvaise).contains("IOException");
+				assertThat(m2).isNotNull().doesNotContain(mauvaise);
+				PlateformeProperties p = new PlateformeProperties();
+				p.setRepertoirePlugins(dossier.resolve("plugins").toString());
+				new TireurPlugins(s, p, new ClesPubliques(JarDePluginDeTest.clesDeTest()),
+						jar -> new ResultatInstallation(Statut.OK, "alpha", "1.1.0", List.of(), 0), Map::of)
+					.tirer();
+			}
+		}
+		finally {
+			racine.detachAppender(capture);
+		}
+		assertThat(recues).isEmpty();
+		assertThat(capture.list).noneMatch(e -> e.getFormattedMessage().contains("abc"));
 	}
 
 	@Test

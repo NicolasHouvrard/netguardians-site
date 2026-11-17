@@ -19,7 +19,19 @@ public final class VerificateurMiseAJour {
 	/** Dépendance du manifeste : {@code nom} ou {@code nom>=version}. */
 	private static final Pattern DEPENDANCE = Pattern.compile("^([a-z][a-z0-9_]{0,39})\\s*(?:>=\\s*(\\S+))?$");
 
+	/** Début de la raison « changement de version majeure » (refus à chaud seulement, admis au redémarrage). */
+	static final String RAISON_MAJEURE = "Changement de version majeure (";
+
+	/** Raison « mise-a-jour=coeur » (refus à chaud seulement, admis au redémarrage). */
+	static final String RAISON_MISE_A_JOUR_COEUR = "Le manifeste déclare mise-a-jour=coeur : mise à jour du cœur "
+			+ "requise (redémarrage), pas de mise à jour à chaud";
+
 	private VerificateurMiseAJour() {
+	}
+
+	/** Raison qui ne vaut qu'à chaud (une version active est remplacée) : levée au redémarrage. */
+	static boolean raisonAFroidSeulement(String raison) {
+		return raison != null && (raison.equals(RAISON_MISE_A_JOUR_COEUR) || raison.startsWith(RAISON_MAJEURE));
 	}
 
 	public static Verdict verifier(ManifestePlugin m, Map<String, String> migrations, Set<String> tablesReferencees,
@@ -56,12 +68,11 @@ public final class VerificateurMiseAJour {
 		}
 		List<String> raisons = new ArrayList<>(base.raisons());
 		if (!majeure(versionInstallee).equals(majeure(m.version()))) {
-			raisons.add(0, "Changement de version majeure (" + versionInstallee + " -> " + m.version()
+			raisons.add(0, RAISON_MAJEURE + versionInstallee + " -> " + m.version()
 					+ ") : mise à jour du cœur requise, même si le manifeste déclare 'chaud'");
 		}
 		if (m.miseAJour() == ModeMiseAJour.COEUR) {
-			raisons.add(0, "Le manifeste déclare mise-a-jour=coeur : mise à jour du cœur requise (redémarrage), "
-					+ "pas de mise à jour à chaud");
+			raisons.add(0, RAISON_MISE_A_JOUR_COEUR);
 		}
 		// Une version signée plus ancienne reste authentique : seul ce contrôle empêche de revenir en arrière (version
 		// vulnérable). À égalité, la réinstallation reste admise.

@@ -39,7 +39,9 @@ import org.slf4j.LoggerFactory;
  * goutte-à-goutte est coupé) ; aucune redirection suivie (une réponse 3xx est une erreur) ; {@code Accept: *}{@code /*}
  * et jamais de {@code Range} (le Maître ne gère pas les plages) ; corps bornés (catalogue
  * {@value #TAILLE_MAX_CATALOGUE} octets, jar {@code taille} de l'entrée du catalogue, signature
- * {@value #TAILLE_MAX_SIG} octets) ; le rapport d'état reste sous la borne du Maître.
+ * {@value #TAILLE_MAX_SIG} octets ; au-delà : {@link TelechargementRefuse}) ; le rapport d'état reste sous la borne du
+ * Maître ; seuls 404 (plugin hors catalogue), 401 et 403 sont des refus définitifs du rapport, tout autre échec est
+ * retenté au tirage suivant. La clé n'est envoyée que faite de caractères ASCII visibles.
  */
 public class SourceMaitreHttp implements SourcePlugins {
 
@@ -220,7 +222,7 @@ public class SourceMaitreHttp implements SourcePlugins {
 			exigerSucces(c, chemin);
 			long annonce = c.getContentLengthLong();
 			if (annonce > max) {
-				throw new IOException(chemin + " : taille annoncée " + annonce + " > " + max + " octets");
+				throw new TelechargementRefuse(chemin + " : taille annoncée " + annonce + " > " + max + " octets");
 			}
 			long debut = System.nanoTime();
 			try (InputStream in = c.getInputStream();
@@ -232,7 +234,7 @@ public class SourceMaitreHttp implements SourcePlugins {
 				while ((lus = in.read(tampon)) != -1) {
 					total += lus;
 					if (total > max) {
-						throw new IOException(chemin + " : plus de " + max + " octets reçus");
+						throw new TelechargementRefuse(chemin + " : plus de " + max + " octets reçus");
 					}
 					out.write(tampon, 0, lus);
 					verifierDuree(debut, chemin);
@@ -266,9 +268,9 @@ public class SourceMaitreHttp implements SourcePlugins {
 						statut);
 				return;
 			}
-			if (code >= 400 && code < 500) {
-				log.warn("Rapport {} {} ({}) refusé par le Maître : HTTP {} (pas de nouvelle tentative)", nom, version,
-						statut, code);
+			if (code == HttpURLConnection.HTTP_UNAUTHORIZED || code == HttpURLConnection.HTTP_FORBIDDEN) {
+				log.warn("Rapport {} {} ({}) refusé par le Maître : HTTP {} (clé refusée ; pas de nouvelle tentative)",
+						nom, version, statut, code);
 				return;
 			}
 			throw new IOException("rapport d'état : HTTP " + code);
@@ -329,6 +331,13 @@ public class SourceMaitreHttp implements SourcePlugins {
 		String valeur = cle.get().filter(k -> !k.isBlank()).orElse(null);
 		if (valeur == null) {
 			throw new IOException("installation non enrôlée auprès du Maître : aucune clé API de licence");
+		}
+		// Jamais de CR/LF, d'espace ni de contrôle dans un en-tête : le JDK citerait sinon la valeur dans son message.
+		for (int i = 0; i < valeur.length(); i++) {
+			char ch = valeur.charAt(i);
+			if (ch < 0x21 || ch > 0x7e) {
+				throw new IOException("clé API de licence invalide (caractère interdit) : rien n'est envoyé");
+			}
 		}
 		HttpURLConnection c = (HttpURLConnection) uri.toURL().openConnection();
 		c.setConnectTimeout((int) connexion.toMillis());
