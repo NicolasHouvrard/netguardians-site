@@ -78,6 +78,25 @@ preparer_options_application() {
     OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $dossier_parent/agent-cle:/var/lib/site/agent"
     OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e AGENT_CLE_API_FILE_PATH=/var/lib/site/agent/cle-api-licence"
   fi
+  # Plugins (plateforme) : le repertoire des plugins (TOUS les roles : le tireur y installe aussi sur
+  # PARTNER/CLIENT) et, sur le Maitre seulement, le depot des jars publies doivent survivre aux bascules
+  # bleu-vert (sinon le depot est vide a chaque redeploiement et les planchers anti-retour sont perdus).
+  # Dossiers separes (ni l'un dans l'autre), appartenant a l'utilisateur de l'application, 0700.
+  # Le dossier de TRAVAIL (copies chargees) reste LOCAL au conteneur : sur un montage partage, la purge au
+  # demarrage de la nouvelle couleur supprimerait les copies que l'ancienne a encore chargees.
+  mkdir -p "$dossier_parent/plateforme-plugins" || return 1
+  _exec_chown "$UID_APPLICATION:$UID_APPLICATION" "$dossier_parent/plateforme-plugins" || return 1
+  chmod 700 "$dossier_parent/plateforme-plugins" || return 1
+  OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $dossier_parent/plateforme-plugins:/var/lib/site/plugins"
+  OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e APP_PLATEFORME_REPERTOIREPLUGINS=/var/lib/site/plugins"
+  OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e APP_PLATEFORME_REPERTOIRETRAVAIL=/tmp/plateforme-travail"
+  if declare -F nas_est_maitre >/dev/null && nas_est_maitre; then
+    mkdir -p "$dossier_parent/plateforme-depot" || return 1
+    _exec_chown "$UID_APPLICATION:$UID_APPLICATION" "$dossier_parent/plateforme-depot" || return 1
+    chmod 700 "$dossier_parent/plateforme-depot" || return 1
+    OPTIONS_APPLICATION="$OPTIONS_APPLICATION -v $dossier_parent/plateforme-depot:/var/lib/site/depot-plugins"
+    OPTIONS_APPLICATION="$OPTIONS_APPLICATION -e APP_PLATEFORME_DEPOTMAITRE=/var/lib/site/depot-plugins"
+  fi
   # Maitre seulement : dossier ou l'application ecrit le repere "redemarrage-recommande" (Metaspace),
   # lu depuis le NAS par redemarrage_nuit.sh. Sans ce montage le repere resterait dans le systeme de
   # fichiers du conteneur, invisible de l'hote, et serait perdu a chaque bascule. Appartient a

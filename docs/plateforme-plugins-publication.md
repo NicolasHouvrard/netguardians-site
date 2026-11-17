@@ -136,8 +136,11 @@ signature est vu comme paire incomplète. Le fichier doit s'appeler exactement `
   contrôle la taille, le `sha256`, la signature et le manifeste, dépose `<nom>-<version>.jar` + `.sig` dans le
   répertoire des plugins et appelle l'installation. Il rapporte ensuite le résultat au Maître.
 - **Le tireur installe aussi les plugins absents localement** : tout plugin du catalogue finit sur tous les serveurs,
-  Maître compris. Un plugin désinstallé par l'administrateur (`DELETE /api/plateforme/plugins/{nom}`) est réinstallé
-  au tirage suivant (au plus 10 minutes). Un indicateur obligatoire/optionnel est prévu au sous-projet 3.
+  Maître compris. **Un plugin désinstallé (`DELETE /api/plateforme/plugins/{nom}`) n'est PAS réinstallé dans la même
+  version** : la version active vue en mémoire et le jar resté dans le répertoire servent de plancher, et le tireur
+  ignore toute version qui ne leur est pas strictement supérieure. Il revient seulement avec une version plus haute
+  publiée au Maître, ou si le jar a été retiré du répertoire ET que le processus a redémarré (plancher perdu : la même
+  version est alors retirée au tirage suivant). Un indicateur obligatoire/optionnel est prévu au sous-projet 3.
 - Les jars anciens non actifs sont supprimés : on garde l'active et la précédente (et toute version plus haute).
 - Maître injoignable, lent ou incohérent : le serveur continue avec ce qu'il a, sans bloquer le démarrage ni les requêtes.
 - Authentification d'un serveur PARTNER/CLIENT : sa clé API de licence (en-tête `X-Licence-Api-Key`), routes

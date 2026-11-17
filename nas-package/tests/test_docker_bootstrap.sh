@@ -189,3 +189,29 @@ test_preparer_options_application_monte_le_dossier_du_repere_seulement_sur_le_ma
   [[ "$sur_maitre" == *"-v $dir/plateforme:/var/lib/site/plateforme "* && "$sur_maitre" == *"-e APP_PLATEFORME_REPERTOIREDONNEES=/var/lib/site/plateforme"* \
      && "$sur_client" != *"-v "*":/var/lib/site/plateforme"* && "$sur_client" != *APP_PLATEFORME_REPERTOIREDONNEES* ]] && [ -d "$dir/plateforme" ]
 }
+
+test_preparer_options_application_persiste_plugins_et_depot_sur_le_maitre_et_garde_le_travail_local_au_conteneur() {
+  _preparer
+  source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
+  nas_est_maitre() { return 0; }
+  preparer_options_application 15432 "$dir/postgres" || return 1
+  local o="$OPTIONS_APPLICATION"
+  [[ "$o" == *"-v $dir/plateforme-plugins:/var/lib/site/plugins "* && "$o" == *"-e APP_PLATEFORME_REPERTOIREPLUGINS=/var/lib/site/plugins"* \
+     && "$o" == *"-v $dir/plateforme-depot:/var/lib/site/depot-plugins "* && "$o" == *"-e APP_PLATEFORME_DEPOTMAITRE=/var/lib/site/depot-plugins"* \
+     && "$o" == *"-e APP_PLATEFORME_REPERTOIRETRAVAIL=/tmp/plateforme-travail"* ]] || return 1
+  # le dossier de travail ne doit jamais etre sur un montage partage entre blue et green
+  local re_montage_travail="-v [^ ]*travail"
+  [[ "$o" != *":/tmp/plateforme-travail"* ]] && ! [[ "$o" =~ $re_montage_travail ]] || return 1
+  [ -d "$dir/plateforme-plugins" ] && [ -d "$dir/plateforme-depot" ]
+}
+
+test_preparer_options_application_client_persiste_les_plugins_mais_pas_le_depot() {
+  _preparer
+  source "$NAS_PKG_DIR/lib/docker_bootstrap.sh"
+  nas_est_maitre() { return 1; }
+  preparer_options_application 15432 "$dir/postgres" || return 1
+  local o="$OPTIONS_APPLICATION"
+  [[ "$o" == *"-v $dir/plateforme-plugins:/var/lib/site/plugins "* && "$o" == *"-e APP_PLATEFORME_REPERTOIREPLUGINS=/var/lib/site/plugins"* \
+     && "$o" == *"-e APP_PLATEFORME_REPERTOIRETRAVAIL=/tmp/plateforme-travail"* \
+     && "$o" != *DEPOTMAITRE* && "$o" != *depot-plugins* ]] && [ ! -e "$dir/plateforme-depot" ]
+}

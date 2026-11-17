@@ -121,9 +121,16 @@ Sans jeton → 401 ; compte non administrateur → 403. Les routes du plugin son
 - **Volumes persistants** : `app.plateforme.repertoire-plugins` (tous les serveurs) et
   `app.plateforme.depot-maitre` (Maître, dossier privé distinct, ni contenu dans ni contenant le répertoire des plugins
   ou le dossier de travail) doivent être sur un volume qui survit aux redéploiements blue-green. **Le paquet NAS
-  (`nas-package/lib/docker_bootstrap.sh`) ne monte aujourd'hui aucun de ces deux dossiers** (il ne monte que le
-  dossier du repère de redémarrage, voir plus bas) : sans montage ajouté, les jars et le dépôt disparaissent à chaque
-  bascule. À faire avant la production.
+  (`nas-package/lib/docker_bootstrap.sh`, `preparer_options_application`) les monte** : `<données>/plateforme-plugins`
+  -> `/var/lib/site/plugins` (`APP_PLATEFORME_REPERTOIREPLUGINS`, **tous les rôles**, car le tireur installe aussi sur
+  PARTNER/CLIENT) et `<données>/plateforme-depot` -> `/var/lib/site/depot-plugins` (`APP_PLATEFORME_DEPOTMAITRE`,
+  **Maître seulement**), propriétaire uid 10001, mode 0700. Le **dossier de travail** reste **local au conteneur**
+  (`APP_PLATEFORME_REPERTOIRETRAVAIL=/tmp/plateforme-travail`, jamais sur un montage : blue et green le partageraient et
+  la purge au démarrage de la nouvelle couleur supprimerait les copies que l'ancienne a encore chargées). **Un Maître
+  déjà installé** doit recevoir la nouvelle version du paquet puis une bascule blue-green pour que ces montages existent
+  (les jars et le dépôt déjà présents dans le conteneur actuel ne sont pas migrés : republier). Comme le repère de
+  redémarrage, le montage du dépôt n'est posé que si `nas_est_maitre` (nom d'hôte `logipourtous`) : un Maître d'un autre
+  nom n'aurait ni dépôt persistant ni repère (limite connue, non corrigée).
 - **PARTNER/CLIENT** : ils tirent du Maître (`app.plateforme.master-url`, vide = `app.licence.master-url`, en
   `https://`) avec la clé API de licence de l'installation enrôlée. Ils n'ont **ni dépôt, ni redémarrage de nuit
   automatique** (l'Agent de déploiement ne sait que « déployer une version ») : leur repère Metaspace est écrit dans
@@ -153,7 +160,7 @@ La plateforme est prête pour des essais locaux ; en production, traiter d'abord
    production et sortir une version du cœur (`docs/plateforme-plugins-publication.md`) ; `signature-obligatoire`
    doit rester à `true`.
 2. **Répertoire des plugins et dépôt du Maître persistants** : voir « Distribution, tirage et volumes persistants »
-   (montage encore à ajouter au paquet NAS).
+   (montages fournis par le paquet NAS, voir ce chapitre).
 3. **Metaspace** : ne **pas** fixer `-XX:MaxMetaspaceSize` sans marge ; chaque génération charge ses classes, et
    une fuite résiduelle ferait tomber le cœur entier au lieu d'être visible dans le rapport de fuites.
 4. **Pool de connexions partagé et `prepareThreshold`** : les plugins utilisent le pool Hikari du cœur. Un DDL de
@@ -170,5 +177,4 @@ La plateforme est prête pour des essais locaux ; en production, traiter d'abord
    `@EnableMethodSecurity` dans son contexte et protéger ses méthodes (`@PreAuthorize`).
 8. **Statut de l'installation** : tous les appelants de `installer` doivent lire `statut` (HTTP 200 même en cas
    d'échec, voir plus haut).
-9. **Désinstallation non persistante** : retirer aussi le jar du répertoire (voir plus haut). Attention : le tireur réinstalle un plugin du catalogue absent localement
-   (au plus 10 minutes plus tard) ; pour retirer durablement un plugin il faut aussi le retirer du dépôt du Maître.
+9. **Désinstallation non persistante** : retirer aussi le jar du répertoire (voir plus haut). Le tireur ne réinstalle **pas** la même version d'un plugin désinstallé (plancher = version vue active en mémoire + jars présents sur disque) : il revient avec une version plus haute publiée au Maître, ou si le jar est retiré du répertoire et que le processus redémarre ; pour le retirer durablement, retirer aussi le plugin du dépôt du Maître.
