@@ -55,11 +55,11 @@ class ClesPubliquesTest {
 	}
 
 	@Test
-	void la_ressource_du_coeur_contient_au_moins_deux_cles_de_developpement_lisibles() {
+	void la_ressource_du_coeur_contient_au_moins_deux_cles_de_production_lisibles() {
 		ClesPubliques cles = ClesPubliques.depuisRessource(true);
 
 		assertThat(cles.cles()).hasSizeGreaterThanOrEqualTo(2);
-		assertThat(cles.cles()).allMatch(c -> c.keyId().startsWith("dev-"));
+		assertThat(cles.cles()).allMatch(c -> c.keyId().startsWith("prod-"));
 		assertThat(cles.ignorees()).isZero();
 		assertThat(avertit("moins de deux")).isFalse();
 	}

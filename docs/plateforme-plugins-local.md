@@ -160,9 +160,8 @@ Sans jeton → 401 ; compte non administrateur → 403. Les routes du plugin son
 
 La plateforme est prête pour des essais locaux ; en production, traiter d'abord :
 
-1. **Signature des jars** : fait au sous-projet 2, mais il faut **remplacer les clés `dev-`** par les clés de
-   production et sortir une version du cœur (`docs/plateforme-plugins-publication.md`) ; `signature-obligatoire`
-   doit rester à `true`.
+1. **Signature des jars** : fait au sous-projet 2 ; les clés de production (`prod-2026-11-a` et la clé de secours
+   `prod-2026-11-b`) sont dans le cœur depuis le 2026-11-18 ; `signature-obligatoire` doit rester à `true`.
 2. **Répertoire des plugins et dépôt du Maître persistants** : voir « Distribution, tirage et volumes persistants »
    (montages fournis par le paquet NAS, voir ce chapitre).
 3. **Metaspace** : ne **pas** fixer `-XX:MaxMetaspaceSize` sans marge ; chaque génération charge ses classes, et

@@ -47,8 +47,8 @@ dossier doit être privé et le poste non partagé.
 
 ## 2. Mettre les clés publiques dans le cœur et sortir une version
 
-Les clés livrées dans le dépôt (`keyId` commençant par `dev-`) sont des clés de **développement** dont les clés
-privées ont été détruites : le cœur tel que livré n'accepte **aucun** jar réel. Avant la première utilisation :
+Les clés livrées initialement (`keyId` commençant par `dev-`) étaient des clés de **développement** aux clés privées détruites ;
+elles ont été remplacées le 2026-11-18 par `prod-2026-11-a` et `prod-2026-11-b`. Pour une rotation, la procédure est :
 
 1. Ouvrir `src/main/resources/plateforme/cles-publiques.properties`.
 2. Remplacer les deux lignes `dev-...` par les deux clés de production, au format `keyId=<contenu du fichier .public>` :
