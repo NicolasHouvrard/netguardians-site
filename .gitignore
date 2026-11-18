@@ -47,3 +47,7 @@ desktop.ini
 # Superpowers scratch (worktrees, SDD workspaces)
 .worktrees/
 .superpowers/
+
+# worktrees locaux (superpowers)
+.worktrees/
+.superpowers/
