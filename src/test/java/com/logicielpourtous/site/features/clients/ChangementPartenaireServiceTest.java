@@ -131,8 +131,48 @@ class ChangementPartenaireServiceTest {
         Long demandeId = s.demander(client, p3, "x").demandeId();
         s.trancher(demandeId, false);
 
+        evenements.clear();
+
         assertThatThrownBy(() -> s.trancher(demandeId, true)).isInstanceOf(IllegalStateException.class);
         assertThat(partenaireDuClient()).isEqualTo(p2);
+        assertThat(evenements).isEmpty();
+        assertThat(liens.findByClientSocieteId(client).orElseThrow().getChangementsAnneeCourante()).isEqualTo(1);
+    }
+
+    @Test
+    void secondeDemandeAlorsqu1EstEnAttenteEstRefusee() {
+        ChangementPartenaireService s = service(2026);
+        s.demander(client, p2, null);
+        s.demander(client, p3, "x");
+
+        assertThatThrownBy(() -> s.demander(client, p1, "y")).isInstanceOf(IllegalStateException.class);
+        assertThat(demandes.count()).isEqualTo(1);
+    }
+
+    @Test
+    void nouvelleDemandeEstPermiseApresUnRefus() {
+        ChangementPartenaireService s = service(2026);
+        s.demander(client, p2, null);
+        Long premiere = s.demander(client, p3, "x").demandeId();
+        s.trancher(premiere, false);
+
+        var res = s.demander(client, p1, "y");
+
+        assertThat(res.applique()).isFalse();
+        assertThat(res.demandeId()).isNotNull().isNotEqualTo(premiere);
+    }
+
+    @Test
+    void accepterDeuxFoisLaMemeDemandeNePublieQuUnEvenement() {
+        ChangementPartenaireService s = service(2026);
+        s.demander(client, p2, null);
+        Long demandeId = s.demander(client, p3, "x").demandeId();
+        evenements.clear();
+        s.trancher(demandeId, true);
+
+        assertThatThrownBy(() -> s.trancher(demandeId, true)).isInstanceOf(IllegalStateException.class);
+        assertThat(evenements).hasSize(1);
+        assertThat(liens.findByClientSocieteId(client).orElseThrow().getChangementsAnneeCourante()).isEqualTo(2);
     }
 
     @Test

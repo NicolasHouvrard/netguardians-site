@@ -44,8 +44,13 @@ public class ChangementPartenaireService {
         if (clientSocieteId == null || nouveauPartenaireSocieteId == null) {
             throw new IllegalArgumentException("Le client et le nouveau partenaire doivent etre renseignes.");
         }
-        LienClient lien = liens.findByClientSocieteId(clientSocieteId).orElseThrow(() -> new IllegalStateException(
-                "Le client " + clientSocieteId + " n'a pas de partenaire : il n'y a rien a changer."));
+        LienClient lien = liens.findWithLockByClientSocieteId(clientSocieteId).orElseThrow(
+                () -> new IllegalStateException("Le client " + clientSocieteId
+                        + " n'a pas de partenaire : il n'y a rien a changer."));
+        if (demandes.existsByClientSocieteIdAndStatut(clientSocieteId, EN_ATTENTE)) {
+            throw new IllegalStateException("Le client " + clientSocieteId
+                    + " a deja une demande de changement en attente de validation.");
+        }
         verifierNouveauPartenaire(lien, nouveauPartenaireSocieteId);
 
         if (changementsDeLAnnee(lien) < CHANGEMENTS_MAX_PAR_AN) {
@@ -66,13 +71,13 @@ public class ChangementPartenaireService {
         if (demandeId == null) {
             throw new IllegalArgumentException("La demande doit etre renseignee.");
         }
-        DemandeChangementPartenaire demande = demandes.findById(demandeId)
+        DemandeChangementPartenaire demande = demandes.findWithLockById(demandeId)
                 .orElseThrow(() -> new IllegalArgumentException("Demande inconnue : " + demandeId));
         if (!EN_ATTENTE.equals(demande.getStatut())) {
             throw new IllegalStateException("La demande " + demandeId + " est deja traitee (" + demande.getStatut() + ").");
         }
         if (accepter) {
-            LienClient lien = liens.findByClientSocieteId(demande.getClientSocieteId()).orElseThrow(
+            LienClient lien = liens.findWithLockByClientSocieteId(demande.getClientSocieteId()).orElseThrow(
                     () -> new IllegalStateException("Le client " + demande.getClientSocieteId() + " n'a plus de partenaire."));
             verifierNouveauPartenaire(lien, demande.getNouveauPartenaireSocieteId());
             appliquer(lien, demande.getNouveauPartenaireSocieteId());
