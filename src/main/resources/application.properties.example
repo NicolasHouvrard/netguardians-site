@@ -210,3 +210,7 @@ app.plateforme.master-url=${PLATEFORME_MASTER_URL:}
 app.plateforme.metaspace-seuil-mo=${PLATEFORME_METASPACE_SEUIL_MO:512}
 app.plateforme.intervalle-surveillance-ms=${PLATEFORME_INTERVALLE_SURVEILLANCE_MS:60000}
 app.plateforme.repertoire-donnees=${PLATEFORME_REPERTOIRE_DONNEES:donnees}
+
+# Clients : id de la societe partenaire par defaut (doit avoir la capacite PARTENAIRE). Vide = aucun :
+# toute inscription autonome est alors refusee explicitement (jamais de client orphelin).
+app.clients.partenaire-defaut-societe-id=${CLIENTS_PARTENAIRE_DEFAUT_SOCIETE_ID:}
