@@ -154,7 +154,30 @@ class ManifestePluginTest {
 			p.setProperty("bloc.1", id + "|Factures|/x|droit.x");
 			assertThatThrownBy(() -> ManifestePlugin.depuis(p)).as(id)
 				.isInstanceOf(IllegalArgumentException.class)
-				.hasMessageContaining("id");
+				.hasMessageContaining("id de bloc");
+		}
+	}
+
+	@Test
+	void depuis_refuse_une_numerotation_non_contigue() {
+		Properties p = completes();
+		p.setProperty("entree.1", "CLIENT|A|i|/a|droit.a");
+		p.setProperty("entree.3", "CLIENT|B|i|/b|droit.b");
+		assertThatThrownBy(() -> ManifestePlugin.depuis(p)).isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("entree.3");
+
+		Properties q = completes();
+		q.setProperty("bloc.2", "factures|Factures|/x|droit.x");
+		assertThatThrownBy(() -> ManifestePlugin.depuis(q)).isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("bloc.2");
+
+		for (String cle : List.of("entree.x", "entree.0", "entree.01")) {
+			Properties r = completes();
+			r.setProperty("entree.1", "CLIENT|A|i|/a|droit.a");
+			r.setProperty(cle, "CLIENT|B|i|/b|droit.b");
+			assertThatThrownBy(() -> ManifestePlugin.depuis(r)).as(cle)
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining(cle);
 		}
 	}
 

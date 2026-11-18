@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 /** Manifeste d'un plugin, lu depuis son fichier {@code plugin.properties}. */
@@ -75,6 +76,7 @@ public record ManifestePlugin(
 			verifierDroit(champs[4], cle);
 			entrees.add(new EntreeNavigation(zone, champs[1], champs[2], champs[3], champs[4]));
 		}
+		verifierNumerotation(p, "entree.", entrees.size());
 		return List.copyOf(entrees);
 	}
 
@@ -92,7 +94,27 @@ public record ManifestePlugin(
 			verifierDroit(champs[3], cle);
 			blocs.add(new BlocFiche(champs[0], champs[1], champs[2], champs[3]));
 		}
+		verifierNumerotation(p, "bloc.", blocs.size());
 		return List.copyOf(blocs);
+	}
+
+	/** Toute clé {@code prefixe*} non lue par la boucle contiguë (trou, {@code .0}, {@code .x}, {@code .01}) est refusée. */
+	private static void verifierNumerotation(Properties p, String prefixe, int lues) {
+		for (String cle : new TreeSet<>(p.stringPropertyNames())) {
+			if (cle.startsWith(prefixe) && !estLue(cle, prefixe, lues)) {
+				throw new IllegalArgumentException("Clé " + cle + " non contiguë ou hors numérotation (attendu : "
+						+ prefixe + "1, " + prefixe + "2, …)");
+			}
+		}
+	}
+
+	private static boolean estLue(String cle, String prefixe, int lues) {
+		for (int n = 1; n <= lues; n++) {
+			if (cle.equals(prefixe + n)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static String[] champs(String valeur, int attendus, String cle, String format) {
