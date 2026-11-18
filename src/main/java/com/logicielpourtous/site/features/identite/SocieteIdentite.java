@@ -35,7 +35,8 @@ public class SocieteIdentite {
     private String tva;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false)
+    /** Historique : n'est plus ecrit par le nouveau code (voir les capacites, {@code V11__capacites_clients.sql}). */
+    @Column(name = "type")
     private TypeSociete type;
 
     @Column(name = "proprietaire_tenant_id")
