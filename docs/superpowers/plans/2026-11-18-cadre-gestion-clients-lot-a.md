@@ -6,7 +6,7 @@
 
 **Architecture :** le noyau (`features/identite`, `features/user`, nouveau `features/clients`) possède société, capacités, lien client→partenaire, accès et droits ; le plugin `clients` (nouveau module Maven `plugins-clients/`) possède les écrans et les parcours et n'accède au noyau que par des contrats du SDK. L'existant est **étendu** (décision du propriétaire, 2026-11-18) : `societes_identites` devient la Société, `appartenances` l'accès délégué, le flux `demandes_societe_connue` est réutilisé pour les doublons. `Customer` n'est pas utilisé par le nouveau code.
 
-**Pile :** Spring Boot 4.0.2, Java 25, PostgreSQL, Flyway, JUnit 5/AssertJ, Angular (`frontend/intra`), SDK `src/sdk/java` (module `plugins-sdk`).
+**Pile :** Spring Boot 4.0.2, Java 25, PostgreSQL, Flyway, JUnit 5/AssertJ, Angular (`frontend/intra`, et projet Angular séparé du plugin), SDK `src/sdk/java` (module `plugins-sdk`).
 
 **Spec :** `docs/superpowers/specs/2026-11-18-cadre-plugins-gestion-clients-design.md` (§4 cadre, §5 modèle, §6 parcours, §8 choix du constructeur).
 
@@ -17,7 +17,8 @@
 - Contrats du SDK : types JDK et records uniquement ; aucun type de plugin dans un contrat. Le noyau ne dépend jamais d'un plugin.
 - Un plugin vit sous `com.logicielpourtous.site.plugins.<plugin>` ; routes `/api/plugins/<nom>/...` ; son code est en scope `provided` (Spring/Hibernate/Jackson imposés par le noyau).
 - Nouvelles tables du noyau : migration Flyway `V11__...` dans `src/main/resources/db/migration` (la dernière actuelle est `V10`).
-- **Hors lot A :** clients particuliers sans SIREN/TVA (la table `societes_identites.tva` reste obligatoire), inscription seul sur le site public, cycle de vie du partenaire (documents, états), annuaire du Maître et gestion inter-serveurs, migration de données, livraison du front **par** le plugin (le front du lot A est compilé dans `frontend/intra`), comptable externe (partenaire de type comptable), abstraction des sources d'identité (LDAP/Google/Microsoft : le lot A garde l'authentification actuelle), schéma PostgreSQL par client (le lot A ne touche pas à `Tenant`), prérequis techniques SP3 (fuite d'application complète, `TenantContext`, `*IT` en CI).
+- **Décisions du propriétaire (2026-11-18, après relecture du plan) :** le rôle manager client est `ROLE_GESTIONNAIRE` ; les **particuliers** (sans SIREN ni TVA) sont des clients à part entière, mais **l'e-mail d'un particulier ne peut jamais être celui d'un utilisateur existant** ; le front d'un plugin doit pouvoir être **séparé du front du noyau** (livré par le plugin) ; le comptable externe viendra plus tard.
+- **Hors lot A :** inscription seul d'un client ou d'un particulier sur le site public (lot B : le lot A fournit le modèle et la création par le partenaire), cycle de vie du partenaire (documents, états), annuaire du Maître et gestion inter-serveurs, migration de données, comptable externe (partenaire de type comptable), abstraction des sources d'identité (LDAP/Google/Microsoft : le lot A garde l'authentification actuelle), schéma PostgreSQL par client (le lot A ne touche pas à `Tenant`), prérequis techniques SP3 (fuite d'application complète, `TenantContext`, `*IT` en CI).
 - **Numérotation des migrations :** tâche 2 = `V11`, tâches 4 et 5 = `V12` (une seule migration pour les deux), tâche 11 = `V13`. Aucune n'est livrée avant l'exécution du plan ; si une migration plus récente existe au démarrage, prendre le numéro libre suivant et le noter dans le ledger.
 
 ## Review Focus (modes de défaillance que les tests de tâche n'exercent pas seuls)
@@ -62,6 +63,22 @@
 - [ ] **Étape 3 :** écrire la migration et les entités JPA (schéma `public`, colonnes ci-dessus).
 - [ ] **Étape 4 :** exécuter `V11MigrationIT` et `SocieteIdentiteRepositoryTest`/`RegistreSocietesTest` (grep sous `src/test/.../identite`) ; attendu : passent.
 - [ ] **Étape 5 :** commit `feat(clients): capacités de société et lien client-partenaire (V11)`.
+
+### Tâche 2 bis : clients particuliers dans le registre
+
+**Fichiers :**
+- Modifier : `V11__capacites_clients.sql` (créée à la tâche 2, non livrée) : `ALTER TABLE societes_identites ADD COLUMN particulier BOOLEAN NOT NULL DEFAULT FALSE`, `ALTER COLUMN tva DROP NOT NULL`, `CHECK (particulier OR tva IS NOT NULL)`, et `CHECK (NOT particulier OR (siren IS NULL AND tva IS NULL))`
+- Modifier : `features/identite/SocieteIdentite.java` (champ `particulier`), `RegistreSocietes.java`, `features/identite/NumerosSociete.java` si besoin
+- Test : `src/test/java/.../features/identite/RegistreSocietesParticulierTest.java`
+
+**Interfaces :**
+- Produit : `SocieteIdentite RegistreSocietes.enregistrerParticulier(String emailPremierUtilisateur, Long proprietaireTenantId)` : crée une société `particulier = true`, capacité CLIENT, sans SIREN ni TVA. Lève `EmailDejaUtiliseException` (nouvelle, dans `identite`) si l'e-mail (comparé en minuscules, espaces retirés) est celui d'un utilisateur existant (`UserRepository`) ; **aucune écriture** dans ce cas. L'`IdentiteSociete` (record) n'est pas modifié : un particulier n'en a pas.
+
+- [ ] **Étape 1 : tests en échec** : (a) création d'un particulier : société sans SIREN/TVA, `particulier = true`, capacité CLIENT ; (b) e-mail identique à celui d'un utilisateur existant, y compris avec une casse ou des espaces différents → `EmailDejaUtiliseException` et aucune ligne créée ; (c) la contrainte `CHECK` refuse en base une société non particulière sans TVA ; (d) les sociétés existantes (SIREN/TVA) se comportent comme avant (`RegistreSocietesTest` existant inchangé).
+- [ ] **Étape 2 :** exécuter `-Dtest=RegistreSocietesParticulierTest` ; ÉCHEC.
+- [ ] **Étape 3 :** implémenter ; l'unicité de l'e-mail utilisateur est déjà garantie en base par `users.email UNIQUE`.
+- [ ] **Étape 4 :** exécuter `RegistreSocietesParticulierTest`, `RegistreSocietesTest`, `V11MigrationIT` ; PASSENT.
+- [ ] **Étape 5 :** commit `feat(identite): clients particuliers dans le registre`.
 
 ### Tâche 3 : partenaire par défaut et rattachement d'un client
 
@@ -121,7 +138,7 @@
 - Test : `src/test/java/.../features/clients/ManagersServiceTest.java`
 
 **Interfaces :**
-- Étape 1 de la tâche : repérer dans `V1__baseline.sql`/`application.properties` le nom exact du rôle « manager client » déjà seedé (candidats : `ROLE_GESTIONNAIRE` ; sinon créer `ROLE_CLIENT_MANAGER` dans V11) et le noter dans le ledger.
+- Le rôle manager client est `ROLE_GESTIONNAIRE` (décision du propriétaire) ; vérifier qu'il existe dans la table `roles` (sinon l'ajouter par la migration V12) et utiliser cette constante partout.
 - Produit : `Appartenance ajouterUtilisateur(Long userId, Long societeId, Set<String> roles)` (le premier utilisateur d'une société reçoit d'office le rôle manager) ; `void retirerRoleManager(Long userId, Long societeId)` et `void retirerUtilisateur(Long userId, Long societeId)` (lèvent `DernierManagerException` s'ils laisseraient la société sans manager, ou si la société n'a qu'un seul utilisateur).
 
 - [ ] **Étape 1 : tests en échec** : (a) premier utilisateur → manager même si aucun rôle n'est demandé ; (b) deuxième utilisateur → pas manager ; (c) retirer le rôle manager du seul manager → `DernierManagerException` ; (d) avec deux managers, retirer l'un passe ; (e) société à un seul utilisateur : modifier son statut de manager → refusé ; (f) retirer le seul manager par suppression de l'utilisateur → refusé.
@@ -185,11 +202,11 @@
 ### Tâche 10 : plugin « clients » — création d'un client par le partenaire et doublon
 
 **Fichiers :**
-- Modifier : `AnnuaireClientsContrat` (SDK) : `ResultatCreation creerClient(CreationClient demande)` avec `record CreationClient(Long partenaireSocieteId, String siren, String tva, boolean etrangere, String email, String nom)` et `record ResultatCreation(String issue, Long societeId)` où `issue ∈ {CREE, DEJA_CONNUE}` ; l'implémentation noyau `AnnuaireClientsContratImpl.creerClient` utilise `RegistreSocietes.enregistrer`, `PartenaireReferentService.rattacher`, `ManagersService.ajouterUtilisateur` ; sur `SocieteDejaConnueException` elle enregistre la `DemandeSocieteConnue` (flux existant, voir `InscriptionSocieteService`) **sans** rattacher ni créer l'utilisateur, et renvoie `DEJA_CONNUE`.
-- Modifier : `ClientsController` : `POST /api/plugins/clients` (droit `clients.creer`) ; réponse 201 (`CREE`) ou 409 avec message neutre (`DEJA_CONNUE` : « société déjà connue, une demande d'accès a été envoyée à son manager »).
+- Modifier : `AnnuaireClientsContrat` (SDK) : `ResultatCreation creerClient(CreationClient demande)` avec `record CreationClient(Long partenaireSocieteId, boolean particulier, String siren, String tva, boolean etrangere, String email, String nom)` et `record ResultatCreation(String issue, Long societeId)` où `issue ∈ {CREE, DEJA_CONNUE, EMAIL_DEJA_UTILISE}`. Pour un particulier (`particulier = true`, `siren` et `tva` nuls) : `RegistreSocietes.enregistrerParticulier` ; `EmailDejaUtiliseException` → `EMAIL_DEJA_UTILISE` sans aucune écriture ni demande d'accès ; l'implémentation noyau `AnnuaireClientsContratImpl.creerClient` utilise `RegistreSocietes.enregistrer`, `PartenaireReferentService.rattacher`, `ManagersService.ajouterUtilisateur` ; sur `SocieteDejaConnueException` elle enregistre la `DemandeSocieteConnue` (flux existant, voir `InscriptionSocieteService`) **sans** rattacher ni créer l'utilisateur, et renvoie `DEJA_CONNUE`.
+- Modifier : `ClientsController` : `POST /api/plugins/clients` (droit `clients.creer`) ; réponse 201 (`CREE`) ou 409 avec message neutre (`DEJA_CONNUE` : « société déjà connue, une demande d'accès a été envoyée à son manager » ; `EMAIL_DEJA_UTILISE` : « cette adresse e-mail est déjà utilisée »).
 - Test : `ContratsClientsTest` (noyau) et `ClientsControllerTest` (plugin) étendus
 
-- [ ] **Étape 1 : tests en échec** : (a) création : société + capacité CLIENT + lien vers le partenaire (origine `PARTENAIRE`) + premier utilisateur manager ; (b) SIREN déjà connu : aucune écriture de lien ni d'utilisateur, une demande non traitée créée ; (c) échec à mi-parcours (utilisateur invalide) : tout est annulé (société comprise) ; (d) contrôleur : 201 / 409 / 403 sans le droit.
+- [ ] **Étape 1 : tests en échec** : (a0) création d'un particulier : société `particulier`, lien vers le partenaire, premier utilisateur manager ; e-mail d'un utilisateur existant → `EMAIL_DEJA_UTILISE`, rien d'écrit ; (a) création : société + capacité CLIENT + lien vers le partenaire (origine `PARTENAIRE`) + premier utilisateur manager ; (b) SIREN déjà connu : aucune écriture de lien ni d'utilisateur, une demande non traitée créée ; (c) échec à mi-parcours (utilisateur invalide) : tout est annulé (société comprise) ; (d) contrôleur : 201 / 409 / 403 sans le droit.
 - [ ] **Étape 2 :** exécuter les deux classes ; ÉCHEC.
 - [ ] **Étape 3 :** implémenter, en une seule transaction.
 - [ ] **Étape 4 :** exécuter `ContratsClientsTest`, `ClientsControllerTest`, tests d'`InscriptionSocieteService` existants ; PASSENT.
@@ -210,28 +227,48 @@
 - [ ] **Étape 4 :** exécuter la classe ; PASSE.
 - [ ] **Étape 5 :** commit `feat(clients): accès du partenaire à l'espace client, journalisé`.
 
-### Tâche 12 : écrans Angular — accueil à tuiles, liste et fiche des clients
+### Tâche 12 : accueil à tuiles et chargeur de front de plugin (noyau, Angular)
 
 **Fichiers :**
-- Créer : `frontend/intra/src/app/features/accueil/accueil.component.ts` (+ `.html`, `.scss`), `core/navigation/navigation.service.ts`, `features/clients/clients-liste.component.ts`, `clients-fiche.component.ts`, `clients.routes.ts`
-- Modifier : `frontend/intra/src/app/app.routes.ts` (route `accueil` et `clients`), `core/auth/home-redirect.guard.ts` (redirection par défaut vers `accueil`)
-- Test : `*.spec.ts` à côté de chaque composant/service
+- Créer : `frontend/intra/src/app/features/accueil/accueil.component.ts` (+ `.html`, `.scss`), `core/navigation/navigation.service.ts`, `core/plugins/plugin-host.component.ts` (charge le front d'un plugin), `core/plugins/plugin-loader.service.ts`
+- Modifier : `frontend/intra/src/app/app.routes.ts` (routes `accueil` et `plugins/:plugin/**` → `PluginHostComponent`), `core/auth/home-redirect.guard.ts` (redirection par défaut vers `accueil`)
+- Modifier (noyau Java) : `features/plateforme/RoutagePlugins.java` ou nouveau `PluginUiController` : `GET /api/plugins/{nom}/ui/{fichier}` sert un fichier statique du jar du plugin sous `ui/` (types `js`, `css`, `json` seulement ; refuse `..` ; en-tête `Cache-Control: public, max-age=31536000, immutable` car l'URL porte la version : `GET /api/plugins/{nom}/ui/{version}/{fichier}`)
+- Test : `*.spec.ts` à côté de chaque composant/service ; `src/test/java/.../features/plateforme/PluginUiControllerTest.java`
 
-**Interfaces :** `NavigationService.tuiles(zone: string, societeId?: number): Observable<Tuile[]>` (GET `/api/navigation`) ; `Tuile { plugin; libelle; icone; chemin; zone }` ; l'accueil affiche une carte par tuile et route vers `/plugins/<plugin><chemin>` ; liste et fiche appellent `/api/plugins/clients/...`. Un lien de l'espace client ne doit jamais pointer sur une route de zone PARTENAIRE (test).
+**Interfaces :**
+- `NavigationService.tuiles(zone: string, societeId?: number): Observable<Tuile[]>` (GET `/api/navigation`) ; `Tuile { plugin; libelle; icone; chemin; zone; version }` (**ajouter `version` à la réponse de la tâche 8** : version du manifeste du plugin actif).
+- **Mécanisme retenu (choix du constructeur) : éléments personnalisés (Web Components).** Un plugin publie `ui/<version>/main.js` qui déclare un élément `<nom-du-plugin-app>` ; `PluginLoaderService.charger(plugin, version)` injecte une seule fois `<script type="module" src="/api/plugins/<plugin>/ui/<version>/main.js">` ; `PluginHostComponent` crée l'élément, lui passe le `chemin` courant et le jeton d'authentification via propriétés (`chemin`, `jeton`), et le recrée quand la `version` d'une tuile change (un module déjà chargé ne se décharge pas : la nouvelle version utilise un nom d'élément suffixé par la version, `<nom>-app-v<version-sans-points>`, que le plugin déclare dans son `main.js`).
+- Un lien de l'espace client ne doit jamais pointer sur une route de zone PARTENAIRE (test).
 
-- [ ] **Étape 1 : tests en échec** (Karma/Jest selon le projet : voir `package.json`) : (a) le service appelle `/api/navigation` avec la zone ; (b) l'accueil rend une carte par tuile et aucune tuile → message « aucune application disponible » ; (c) la liste affiche les clients et un état d'erreur sur 403 ; (d) en espace client, aucun lien généré vers une route partenaire.
-- [ ] **Étape 2 :** exécuter les specs ; ÉCHEC.
-- [ ] **Étape 3 :** implémenter (composants autonomes, `loadComponent`, pattern des routes existantes).
-- [ ] **Étape 4 :** exécuter les specs et `ng build` ; PASSENT.
-- [ ] **Étape 5 :** commit `feat(frontend): accueil à tuiles et écrans clients`.
+- [ ] **Étape 1 : tests en échec** (Karma/Jest selon le projet : voir `package.json`) : (a) le service appelle `/api/navigation` avec la zone ; (b) l'accueil rend une carte par tuile et aucune tuile → « aucune application disponible » ; (c) `PluginLoaderService` n'injecte pas deux fois le même script ; une nouvelle version injecte un nouveau script ; (d) `PluginHostComponent` crée l'élément du nom attendu et lui transmet `chemin` ; (e) en espace client, aucun lien généré vers une route partenaire ; (f) Java : `PluginUiControllerTest` : fichier existant servi avec le bon type, `..` et extension non admise → 400/404, plugin inconnu ou version qui n'est pas celle du plugin actif → 404.
+- [ ] **Étape 2 :** exécuter les specs et `-Dtest=PluginUiControllerTest` ; ÉCHEC.
+- [ ] **Étape 3 :** implémenter (composants autonomes, `loadComponent`, pattern des routes existantes ; la sécurité de `/api/plugins/*/ui/**` suit celle de `/api/plugins/**`).
+- [ ] **Étape 4 :** exécuter les specs, `PluginUiControllerTest`, `ng build` ; PASSENT.
+- [ ] **Étape 5 :** commit `feat(frontend): accueil à tuiles et chargeur de front de plugin`.
 
-### Tâche 13 : installation du jar `clients` à chaud et vérification de bout en bout
+### Tâche 13 : front du plugin « clients » livré dans son propre jar
+
+**Fichiers :**
+- Créer : `plugins-clients/frontend/` (petit projet Angular **séparé**, avec `@angular/elements`, produisant un seul `main.js`), composants `clients-liste`, `clients-fiche`, `clients-creation` ; copie du `main.js` construit vers `plugins-clients/src/main/resources/ui/<version>/main.js` par le build Maven du module
+- Modifier : `plugins-clients/pom.xml` (étape de build du front, ressources dans le jar)
+- Test : specs du projet `plugins-clients/frontend` ; `plugins-clients/src/test/java/.../FrontDansLeJarTest.java`
+
+**Interfaces :** élément `clients-app-v<version-sans-points>` (propriétés `chemin`, `jeton`) ; il appelle `/api/plugins/clients/...` avec `Authorization: Bearer <jeton>` ; routes internes : `/clients` (liste), `/clients/<id>` (fiche), `/clients/nouveau` (création, avec le choix société / particulier, les messages neutres de la tâche 10). Le front du plugin ne dépend d'aucun fichier du front du noyau.
+
+- [ ] **Étape 0 : essai chronométré (au plus une demi-journée)** : un élément personnalisé minimal construit à part, chargé par `PluginHostComponent` depuis un jar installé, affiche « bonjour ». S'il échoue pour une raison de fond (versions Angular, zone.js en double, styles), noter la cause dans le ledger et **arrêter la tâche** pour décision du propriétaire ; ne pas basculer silencieusement sur un front compilé dans le noyau.
+- [ ] **Étape 1 : tests en échec** : (a) la liste affiche les clients et un état d'erreur sur 403 ; (b) la fiche affiche les blocs ; (c) la création envoie `particulier` ou SIREN/TVA selon le choix et affiche les messages neutres sur 409 ; (d) Java : le jar construit contient `ui/<version>/main.js`.
+- [ ] **Étape 2 :** exécuter les specs du projet front du plugin et `FrontDansLeJarTest` ; ÉCHEC.
+- [ ] **Étape 3 :** implémenter.
+- [ ] **Étape 4 :** exécuter les specs, le build Maven du module ; PASSENT.
+- [ ] **Étape 5 :** commit `feat(plugin-clients): front livré par le plugin`.
+
+### Tâche 14 : installation du jar `clients` à chaud et vérification de bout en bout
 
 **Fichiers :**
 - Créer : `src/test/java/.../features/plateforme/PluginClientsIT.java`
 - Modifier : `FuiteMemoireIT.java` seulement s'il doit aussi tourner avec le jar `clients` (sinon laisser)
 
-- [ ] **Étape 1 : test en échec** : construire le jar `plugins-clients`, l'installer via `PluginManager.installer`, vérifier : `GET /api/navigation` contient les tuiles `clients` ; `GET /api/plugins/clients/liste` répond ; réinstaller une version 1.0.1 avec une entrée de tuile en plus et constater qu'elle apparaît **sans redémarrage** ; désinstaller et constater que les tuiles disparaissent.
+- [ ] **Étape 1 : test en échec** : construire le jar `plugins-clients`, l'installer via `PluginManager.installer`, vérifier : `GET /api/navigation` contient les tuiles `clients` ; `GET /api/plugins/clients/liste` répond ; réinstaller une version 1.0.1 avec une entrée de tuile en plus et constater qu'elle apparaît **sans redémarrage** ; `GET /api/plugins/clients/ui/1.0.0/main.js` répond, et la version 1.0.1 expose `ui/1.0.1/main.js` alors que l'ancienne URL ne répond plus ; désinstaller et constater que les tuiles disparaissent.
 - [ ] **Étape 2 :** exécuter `-Dtest=PluginClientsIT` ; ÉCHEC.
 - [ ] **Étape 3 :** corriger ce que l'IT révèle (chargement des contrats du noyau dans le contexte enfant, sécurité de la route).
 - [ ] **Étape 4 :** exécuter `PluginClientsIT`, `PluginManagerIT`, `FuiteMemoireIT` ; PASSENT (un test à la fois).
