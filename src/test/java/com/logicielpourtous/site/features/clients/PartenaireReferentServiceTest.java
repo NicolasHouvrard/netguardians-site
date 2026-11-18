@@ -111,4 +111,37 @@ class PartenaireReferentServiceTest {
                 .isInstanceOf(PartenaireDefautAbsentException.class);
         assertThat(liens.findByClientSocieteId(client)).isEmpty();
     }
+
+    private void assertRienEcrit() {
+        assertThat(liens.findByClientSocieteId(client)).isEmpty();
+        assertThat(capacites.existsBySocieteIdAndCapacite(client, TypeCapacite.CLIENT)).isFalse();
+    }
+
+    @Test
+    void origineInvalideEstRefuseeSansRienEcrire() {
+        assertThatThrownBy(() -> service("").rattacher(client, partenaire, "X"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertRienEcrit();
+    }
+
+    @Test
+    void origineNulleEstRefuseeSansRienEcrire() {
+        assertThatThrownBy(() -> service("").rattacher(client, partenaire, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertRienEcrit();
+    }
+
+    @Test
+    void clientNulEstRefuseSansRienEcrire() {
+        assertThatThrownBy(() -> service("").rattacher(null, partenaire, "PARTENAIRE"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertRienEcrit();
+    }
+
+    @Test
+    void partenaireNulEstRefuseSansRienEcrire() {
+        assertThatThrownBy(() -> service("").rattacher(client, null, "PARTENAIRE"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertRienEcrit();
+    }
 }

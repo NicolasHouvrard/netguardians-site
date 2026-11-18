@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PartenaireReferentService {
 
+    static final String ORIGINE_PARTENAIRE = "PARTENAIRE";
     static final String ORIGINE_INSCRIPTION = "INSCRIPTION";
 
     private final LienClientRepository liens;
@@ -27,6 +28,13 @@ public class PartenaireReferentService {
      */
     @Transactional
     public LienClient rattacher(Long clientSocieteId, Long partenaireSocieteId, String origine) {
+        if (clientSocieteId == null || partenaireSocieteId == null) {
+            throw new IllegalArgumentException("Le client et le partenaire doivent etre renseignes.");
+        }
+        if (!ORIGINE_PARTENAIRE.equals(origine) && !ORIGINE_INSCRIPTION.equals(origine)) {
+            throw new IllegalArgumentException("Origine invalide : " + origine + " (valeurs permises : "
+                    + ORIGINE_PARTENAIRE + ", " + ORIGINE_INSCRIPTION + ").");
+        }
         if (clientSocieteId.equals(partenaireSocieteId)) {
             throw new IllegalArgumentException("Un partenaire ne peut pas etre son propre referent.");
         }
