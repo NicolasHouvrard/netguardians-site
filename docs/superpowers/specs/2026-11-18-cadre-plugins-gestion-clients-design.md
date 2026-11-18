@@ -159,9 +159,10 @@ serveur le temps d'être repris ; l'invitation n'ajoute aucun privilège.
 - **Dans un premier temps : authentification par serveur**, avec des comptes locaux à chaque serveur.
 - Une fois le serveur LDAP central en place, on **bascule dessus**, ou sur **Google / Microsoft**, en gardant
   la possibilité d'ajouter d'autres fournisseurs d'authentification unique (SSO) plus tard.
-- Le propriétaire parle d'un système de « double authentification (local/LDAP, voire Google et Microsoft) » :
-  lecture retenue ici = **plusieurs sources d'identité acceptées côte à côte**, pas une 2FA obligatoire
-  (à confirmer à la relecture).
+- **Plusieurs sources d'identité acceptées côte à côte** (locale, LDAP, Google, Microsoft, autre SSO).
+- **Second facteur (2FA)** : non géré par nos serveurs. Pour la solution LDAP, il sera fourni **plus tard par
+  Authelia**. Le noyau n'implémente donc aucune 2FA ; il doit seulement pouvoir déléguer la connexion à un
+  fournisseur externe qui l'applique (comme pour Google ou Microsoft).
 - Conséquence pour le cadre : le noyau expose une **identité interne stable** par utilisateur, reliée à une ou
   plusieurs identités externes (locale, LDAP, Google, Microsoft, autre SSO). Aucun plugin ne dépend du mode de
   connexion. La gestion à distance entre serveurs (§8) ne suppose donc pas de compte partagé.
