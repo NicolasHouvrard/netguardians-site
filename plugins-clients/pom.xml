@@ -90,5 +90,79 @@
 
 	<build>
 		<finalName>clients-${project.version}</finalName>
+		<plugins>
+			<!-- Front du plugin (element personnalise Angular) : projet separe dans frontend/, construit avec le meme
+			     Node que le noyau (v22.17.1) et embarque dans le jar sous ui/main.js. Rien n'est commite (node_modules,
+			     dist). -->
+			<plugin>
+				<groupId>com.github.eirslett</groupId>
+				<artifactId>frontend-maven-plugin</artifactId>
+				<version>1.15.0</version>
+				<configuration>
+					<workingDirectory>${project.basedir}/frontend</workingDirectory>
+					<installDirectory>${project.build.directory}</installDirectory>
+				</configuration>
+				<executions>
+					<execution>
+						<id>install-node-npm</id>
+						<goals><goal>install-node-and-npm</goal></goals>
+						<phase>generate-resources</phase>
+						<configuration>
+							<nodeVersion>v22.17.1</nodeVersion>
+							<npmVersion>10.9.2</npmVersion>
+						</configuration>
+					</execution>
+					<execution>
+						<id>npm-ci</id>
+						<goals><goal>npm</goal></goals>
+						<phase>generate-resources</phase>
+						<configuration><arguments>ci --no-audit --no-fund</arguments></configuration>
+					</execution>
+					<execution>
+						<id>ng-build</id>
+						<goals><goal>npm</goal></goals>
+						<phase>generate-resources</phase>
+						<configuration><arguments>run build</arguments></configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<artifactId>maven-resources-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>copier-le-front</id>
+						<phase>process-resources</phase>
+						<goals><goal>copy-resources</goal></goals>
+						<configuration>
+							<outputDirectory>${project.build.outputDirectory}/ui</outputDirectory>
+							<resources>
+								<resource>
+									<directory>${project.basedir}/frontend/dist</directory>
+									<includes><include>main.js</include></includes>
+								</resource>
+							</resources>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<!-- FrontDansLeJarTest inspecte le jar : il ne peut s'executer qu'apres lui (phase package). -->
+			<plugin>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<excludes><exclude>**/FrontDansLeJarTest.java</exclude></excludes>
+				</configuration>
+				<executions>
+					<execution>
+						<id>test-du-jar</id>
+						<phase>package</phase>
+						<goals><goal>test</goal></goals>
+						<configuration>
+							<excludes combine.self="override"/>
+							<test>FrontDansLeJarTest</test>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
 	</build>
 </project>
