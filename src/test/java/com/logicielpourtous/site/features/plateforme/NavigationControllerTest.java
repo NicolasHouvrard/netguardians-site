@@ -56,9 +56,16 @@ class NavigationControllerTest {
 	}
 
 	@Test
-	void zone_absente_400() throws Exception {
-		mvc.perform(get("/api/navigation")).andExpect(status().isBadRequest());
-		verifyNoInteractions(service);
+	void zone_absente_laisse_le_serveur_decider_et_chaque_tuile_porte_sa_zone() throws Exception {
+		when(service.tuilesAutorisees(null))
+				.thenReturn(List.of(new Tuile("alpha", "A", "ico", "/a", ZoneNavigation.PARTENAIRE, "1.0.0")));
+		when(service.tuilesAutorisees(5L))
+				.thenReturn(List.of(new Tuile("beta", "B", "ico", "/b", ZoneNavigation.CLIENT, "2.0.0")));
+
+		mvc.perform(get("/api/navigation")).andExpect(status().isOk()).andExpect(jsonPath("$[0].plugin").value("alpha"))
+				.andExpect(jsonPath("$[0].zone").value("PARTENAIRE"));
+		mvc.perform(get("/api/navigation").param("societeId", "5")).andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].zone").value("CLIENT"));
 	}
 
 	@Test

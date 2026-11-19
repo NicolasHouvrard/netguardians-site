@@ -19,6 +19,7 @@ const seg = (...p: string[]) => p.map(x => new UrlSegment(x, {}));
 describe('PluginHostComponent', () => {
   let url$: BehaviorSubject<UrlSegment[]>;
   let version: string;
+  let zone: string;
   const charger = vi.fn((plugin: string, v: string) =>
     Promise.resolve(`${plugin}-app-v${v.replace(/\./g, '')}`));
 
@@ -32,9 +33,8 @@ describe('PluginHostComponent', () => {
         {
           provide: NavigationService,
           useValue: {
-            zoneCourante: () => 'PARTENAIRE',
-            tuiles: () =>
-              of([{ plugin: 'clients', libelle: 'C', icone: 'x', chemin: '/', zone: 'PARTENAIRE', version } as Tuile]),
+            tuilesAutorisees: () =>
+              of([{ plugin: 'clients', libelle: 'C', icone: 'x', chemin: '/', zone, version } as Tuile]),
           },
         },
       ],
@@ -47,6 +47,7 @@ describe('PluginHostComponent', () => {
   const attendre = () => new Promise(r => setTimeout(r, 0));
 
   beforeEach(() => {
+    zone = 'PARTENAIRE';
     charger.mockClear();
     version = '1.0.0';
     url$ = new BehaviorSubject<UrlSegment[]>(seg('plugins', 'clients', 'liste', '3'));
@@ -105,6 +106,13 @@ describe('PluginHostComponent', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('introuvable');
     expect(charger).not.toHaveBeenCalled();
+  });
+
+  it('la zone de la tuile vient du serveur : une tuile de toute autre zone renvoyée est hébergée', async () => {
+    zone = 'CLIENT';
+    const fixture = monter();
+    await attendre();
+    expect(fixture.nativeElement.querySelector('clients-app-v100')).not.toBeNull();
   });
 
   it('pluginsMatcher consomme tout après /plugins/<plugin>', () => {

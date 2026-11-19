@@ -18,19 +18,20 @@ describe('NavigationService', () => {
 
   afterEach(() => http.verify());
 
-  it('appelle /api/navigation avec la zone', () => {
-    let recu: unknown;
-    service.tuiles('PARTENAIRE').subscribe(t => (recu = t));
+  it('appelle /api/navigation SANS zone : le serveur la décide, chaque tuile porte la sienne', () => {
+    let recu: { zone: string }[] = [];
+    service.tuilesAutorisees().subscribe(t => (recu = t));
     const req = http.expectOne(r => r.url === '/api/navigation');
     expect(req.request.method).toBe('GET');
-    expect(req.request.params.get('zone')).toBe('PARTENAIRE');
+    expect(req.request.params.has('zone')).toBe(false);
     expect(req.request.params.has('societeId')).toBe(false);
     req.flush([{ plugin: 'a', libelle: 'A', icone: 'x', chemin: '/a', zone: 'PARTENAIRE', version: '1.0.0' }]);
     expect(recu).toHaveLength(1);
+    expect(recu[0].zone).toBe('PARTENAIRE');
   });
 
   it('transmet la société quand elle est donnée', () => {
-    service.tuiles('CLIENT', 42).subscribe();
+    service.tuilesAutorisees(42).subscribe();
     const req = http.expectOne(r => r.url === '/api/navigation');
     expect(req.request.params.get('societeId')).toBe('42');
     req.flush([]);

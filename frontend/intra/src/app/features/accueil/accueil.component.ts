@@ -1,9 +1,9 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
-import { NavigationService, Tuile, ZoneNavigation, lienPlugin } from '../../core/navigation/navigation.service';
+import { NavigationService, Tuile, lienPlugin } from '../../core/navigation/navigation.service';
 
-/** Accueil : une carte par tuile autorisée (plugins actifs), dans la zone de l'utilisateur. */
+/** Accueil : une carte par tuile autorisée (plugins actifs), des zones décidées par le serveur. */
 @Component({
   selector: 'app-accueil',
   standalone: true,
@@ -20,11 +20,10 @@ export class AccueilComponent implements OnInit {
   protected readonly lien = lienPlugin;
 
   ngOnInit(): void {
-    const zone: ZoneNavigation = this.navigation.zoneCourante();
-    this.navigation.tuiles(zone).subscribe({
-      // Défense en profondeur : jamais de lien vers une tuile d'une autre zone (ex. espace client -> PARTENAIRE).
+    this.navigation.tuilesAutorisees().subscribe({
+      // La zone de chaque tuile est décidée par le serveur (capacités de la société) : on affiche ce qu'il renvoie.
       next: liste => {
-        this.tuiles.set(liste.filter(t => t.zone === zone));
+        this.tuiles.set(liste);
         this.charge.set(true);
       },
       error: () => {

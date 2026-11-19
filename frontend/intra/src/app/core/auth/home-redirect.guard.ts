@@ -19,7 +19,7 @@ export const homeRedirectGuard: CanActivateFn = () => {
     if (auth.isPortalUser()) return router.createUrlTree(['/portail']);
     return router.createUrlTree(['/general']);
   };
-  return navigation.tuiles(navigation.zoneCourante()).pipe(
+  return navigation.tuilesAutorisees().pipe(
     map(tuiles => (tuiles.length > 0 ? router.createUrlTree(['/accueil']) : ancienne())),
     catchError(() => of(ancienne())),
   );

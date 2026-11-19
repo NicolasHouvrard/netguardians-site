@@ -56,7 +56,7 @@ export class PluginHostComponent implements OnInit {
           const plugin = segments[1]?.path ?? '';
           const chemin = '/' + segments.slice(2).map(s => s.path).join('/');
           // Interrogé à chaque navigation : une mise à jour à chaud change la version active.
-          return this.navigation.tuiles(this.navigation.zoneCourante()).pipe(
+          return this.navigation.tuilesAutorisees().pipe(
             switchMap(tuiles => from(this.afficher(plugin, chemin, tuiles, ++this.numeroNavigation))),
             catchError(() => {
               this.erreur.set('Application indisponible.');

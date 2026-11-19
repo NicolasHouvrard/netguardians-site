@@ -1,7 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { AuthService } from '../auth/auth.service';
 
 export type ZoneNavigation = 'PUBLIQUE' | 'CLIENT' | 'PARTENAIRE' | 'ADMIN';
 
@@ -19,18 +18,15 @@ export interface Tuile {
 @Injectable({ providedIn: 'root' })
 export class NavigationService {
   private readonly http = inject(HttpClient);
-  private readonly auth = inject(AuthService);
 
-  /** Tuiles autorisées pour l'utilisateur courant dans cette zone (société : celle de la session si absente). */
-  tuiles(zone: string, societeId?: number): Observable<Tuile[]> {
-    let params = new HttpParams().set('zone', zone);
+  /**
+   * Tuiles autorisées pour l'utilisateur courant (société : celle de la session si absente). La ou les zones sont
+   * décidées par le SERVEUR d'après les capacités de la société ; chaque tuile porte sa zone. Le front ne la devine pas.
+   */
+  tuilesAutorisees(societeId?: number): Observable<Tuile[]> {
+    let params = new HttpParams();
     if (societeId !== undefined) params = params.set('societeId', societeId);
     return this.http.get<Tuile[]>('/api/navigation', { params });
-  }
-
-  /** Zone de l'utilisateur : un compte portail pur est dans l'espace client, tout autre compte côté partenaire. */
-  zoneCourante(): ZoneNavigation {
-    return this.auth.isPortalUser() && !this.auth.isEsnUser() ? 'CLIENT' : 'PARTENAIRE';
   }
 }
 

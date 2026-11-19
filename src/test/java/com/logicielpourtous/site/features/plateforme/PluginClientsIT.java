@@ -212,6 +212,14 @@ class PluginClientsIT {
 				.andExpect(jsonPath("$[?(@.plugin=='clients')].zone").value("PARTENAIRE"))
 				.andExpect(jsonPath("$[?(@.plugin=='clients')].chemin").value("/clients"))
 				.andExpect(jsonPath("$[?(@.plugin=='clients')].version").value("1.0.0"));
+		// Zone décidée par le serveur (sans paramètre zone) : société partenaire + rôle ROLE_GESTIONNAIRE -> tuile
+		// PARTENAIRE ; jamais devinée d'après le rôle. Société cliente seule : jamais de tuile PARTENAIRE.
+		mvc.perform(get("/api/navigation").header("Authorization", "Bearer " + jetonAvecDroits))
+				.andExpect(status().isOk()).andExpect(jsonPath("$[?(@.plugin=='clients')]", hasSize(1)))
+				.andExpect(jsonPath("$[?(@.plugin=='clients')].zone").value("PARTENAIRE"));
+		mvc.perform(get("/api/navigation").header("Authorization", "Bearer " + jetonSansDroit))
+				.andExpect(status().isOk()).andExpect(jsonPath("$[?(@.plugin=='clients')]", hasSize(0)));
+		mvc.perform(get("/api/navigation")).andExpect(status().isUnauthorized());
 		// Société du partenaire, mais rôle sans droit : aucune tuile.
 		mvc.perform(navigation(jetonSansDroit)).andExpect(status().isOk())
 				.andExpect(jsonPath("$[?(@.plugin=='clients')]", hasSize(0)));

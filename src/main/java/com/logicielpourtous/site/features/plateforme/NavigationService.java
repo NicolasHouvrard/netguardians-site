@@ -1,6 +1,7 @@
 package com.logicielpourtous.site.features.plateforme;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,10 +55,51 @@ public class NavigationService {
 
 	private final IdentiteContrat identite;
 
-	public NavigationService(PluginManager manager, ControleDroits droits, IdentiteContrat identite) {
+	private final ControleCapacites capacites;
+
+	public NavigationService(PluginManager manager, ControleDroits droits, IdentiteContrat identite,
+			ControleCapacites capacites) {
 		this.manager = manager;
 		this.droits = droits;
 		this.identite = identite;
+		this.capacites = capacites;
+	}
+
+	/**
+	 * Tuiles de toutes les zones auxquelles la société qualifie, la zone étant décidée ICI (le front ne la devine
+	 * pas) : capacité PARTENAIRE vers la zone PARTENAIRE, capacité CLIENT vers la zone CLIENT (une société qui a les
+	 * deux reçoit les deux ; jamais ADMIN ni PUBLIQUE). Chaque tuile porte sa zone. Échec fermé : sans société, sans
+	 * capacité ou sans droit sur la société (appartenance vérifiée par le contrôle des droits, y compris pour un
+	 * {@code societeId} demandé), liste vide ; une société cliente seule ne reçoit jamais de tuile PARTENAIRE.
+	 *
+	 * @param societeId société ; {@code null} : société de la session
+	 */
+	public List<Tuile> tuilesAutorisees(Long societeId) {
+		Contexte contexte = contexte(societeId, true);
+		if (contexte == null || contexte.societeId == null) {
+			return List.of();
+		}
+		Set<ZoneNavigation> zones = EnumSet.noneOf(ZoneNavigation.class);
+		if (aCapacite(contexte.societeId, "PARTENAIRE")) {
+			zones.add(ZoneNavigation.PARTENAIRE);
+		}
+		if (aCapacite(contexte.societeId, "CLIENT")) {
+			zones.add(ZoneNavigation.CLIENT);
+		}
+		if (zones.isEmpty()) {
+			return List.of();
+		}
+		return collecter(zones, contexte);
+	}
+
+	private boolean aCapacite(Long societeId, String capacite) {
+		try {
+			return capacites.aCapacite(societeId, capacite);
+		}
+		catch (RuntimeException e) {
+			log.warn("Navigation : lecture de la capacité '{}' en échec, refusée", capacite, e);
+			return false;
+		}
 	}
 
 	/**
@@ -73,6 +115,11 @@ public class NavigationService {
 		if (contexte == null) {
 			return List.of();
 		}
+		return collecter(Set.of(zone), contexte);
+	}
+
+	/** Entrées des plugins actifs dans ces zones : PUBLIQUE sans contrôle de droit, toutes les autres avec. */
+	private List<Tuile> collecter(Set<ZoneNavigation> zones, Contexte contexte) {
 		List<Tuile> resultat = new ArrayList<>();
 		for (Map.Entry<String, PluginGeneration> actif : pluginsActifs().entrySet()) {
 			ManifestePlugin m = manifeste(actif.getKey(), actif.getValue());
@@ -80,7 +127,7 @@ public class NavigationService {
 				continue;
 			}
 			for (EntreeNavigation e : m.entrees()) {
-				if (e.zone() == zone && (zone == ZoneNavigation.PUBLIQUE || contexte.autorise(e.droit()))) {
+				if (zones.contains(e.zone()) && (e.zone() == ZoneNavigation.PUBLIQUE || contexte.autorise(e.droit()))) {
 					resultat.add(new Tuile(m.nom(), e.libelle(), e.icone(), e.chemin(), e.zone(),
 							actif.getValue().version));
 				}

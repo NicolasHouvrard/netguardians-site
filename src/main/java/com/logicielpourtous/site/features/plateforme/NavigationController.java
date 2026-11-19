@@ -35,6 +35,10 @@ public class NavigationController {
 	@GetMapping
 	public List<Tuile> tuiles(@RequestParam(required = false) String zone,
 			@RequestParam(required = false) Long societeId) {
+		if (zone == null || zone.isBlank()) {
+			// Zone décidée par le serveur d'après les capacités de la société (chaque tuile porte sa zone).
+			return service.tuilesAutorisees(societeId);
+		}
 		return service.tuiles(zone(zone), societeId);
 	}
 
@@ -48,7 +52,7 @@ public class NavigationController {
 		String attendu = Arrays.toString(ZoneNavigation.values());
 		if (valeur == null || valeur.isBlank()) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-					"Le paramètre 'zone' est obligatoire (valeurs : " + attendu + ").");
+					"Zone inconnue.");
 		}
 		try {
 			return ZoneNavigation.valueOf(valeur.trim().toUpperCase(Locale.ROOT));

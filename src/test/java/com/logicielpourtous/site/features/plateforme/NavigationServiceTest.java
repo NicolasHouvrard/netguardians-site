@@ -43,6 +43,11 @@ class NavigationServiceTest {
 
 	private IdentiteContrat identite;
 
+	private ControleCapacites capacites;
+
+	/** Capacités (PARTENAIRE, CLIENT) de la société SOCIETE ; aucune pour une autre société. */
+	private final Set<String> capacitesSociete = new java.util.HashSet<>();
+
 	private NavigationService service;
 
 	private final Map<String, PluginGeneration> actifs = new HashMap<>();
@@ -56,6 +61,9 @@ class NavigationServiceTest {
 		manager = mock(PluginManager.class);
 		droits = mock(ControleDroits.class);
 		identite = mock(IdentiteContrat.class);
+		capacites = mock(ControleCapacites.class);
+		when(capacites.aCapacite(anyLong(), anyString())).thenAnswer(
+				inv -> inv.<Long>getArgument(0) == SOCIETE && capacitesSociete.contains(inv.<String>getArgument(1)));
 		// Seuls les droits de l'ensemble "accordes" sont accordés, à USER sur SOCIETE ; chaque test l'ajuste.
 		when(droits.autorise(anyLong(), anyLong(), anyString())).thenAnswer(inv -> inv.<Long>getArgument(0) == USER
 				&& inv.<Long>getArgument(1) == SOCIETE && accordes.contains(inv.<String>getArgument(2)));
@@ -63,7 +71,7 @@ class NavigationServiceTest {
 		when(manager.etats()).thenAnswer(inv -> etats.entrySet().stream()
 				.map(e -> new EtatPlugin(e.getKey(), "1.0.0", e.getValue())).toList());
 		when(identite.courante()).thenReturn(new IdentiteCourante(USER, Set.of(), SOCIETE, 1L, "PARTNER"));
-		service = new NavigationService(manager, droits, identite);
+		service = new NavigationService(manager, droits, identite, capacites);
 	}
 
 	private void plugin(String nom, List<EntreeNavigation> entrees, List<BlocFiche> blocs) {
@@ -76,6 +84,64 @@ class NavigationServiceTest {
 
 	private static EntreeNavigation entree(ZoneNavigation zone, String libelle, String droit) {
 		return new EntreeNavigation(zone, libelle, "icone", "/" + libelle, droit);
+	}
+
+	// ---- zone décidée par le serveur (sans paramètre zone) ----
+
+	@Test
+	void zone_serveur_societe_partenaire_recoit_les_tuiles_partenaire_avec_leur_zone() {
+		plugin("alpha", List.of(entree(ZoneNavigation.PARTENAIRE, "p", "d"), entree(ZoneNavigation.CLIENT, "c", "d")),
+				List.of());
+		accordes.add("d");
+		capacitesSociete.add("PARTENAIRE");
+
+		assertThat(service.tuilesAutorisees(null)).extracting(Tuile::libelle, Tuile::zone)
+				.containsExactly(org.assertj.core.groups.Tuple.tuple("p", ZoneNavigation.PARTENAIRE));
+	}
+
+	@Test
+	void zone_serveur_societe_cliente_seule_ne_recoit_jamais_de_tuile_partenaire() {
+		plugin("alpha", List.of(entree(ZoneNavigation.PARTENAIRE, "p", "d"), entree(ZoneNavigation.CLIENT, "c", "d")),
+				List.of());
+		accordes.add("d");
+		capacitesSociete.add("CLIENT");
+
+		assertThat(service.tuilesAutorisees(null)).extracting(Tuile::libelle).containsExactly("c");
+	}
+
+	@Test
+	void zone_serveur_societe_partenaire_et_cliente_recoit_les_deux_zones_jamais_admin() {
+		plugin("alpha", List.of(entree(ZoneNavigation.PARTENAIRE, "p", "d"), entree(ZoneNavigation.CLIENT, "c", "d"),
+				entree(ZoneNavigation.ADMIN, "a", "d")), List.of());
+		accordes.add("d");
+		capacitesSociete.addAll(Set.of("PARTENAIRE", "CLIENT"));
+
+		assertThat(service.tuilesAutorisees(null)).extracting(Tuile::libelle).containsExactlyInAnyOrder("p", "c");
+	}
+
+	@Test
+	void zone_serveur_sans_capacite_sans_droit_sans_societe_ou_sans_identite_rien() {
+		plugin("alpha", List.of(entree(ZoneNavigation.PARTENAIRE, "p", "d")), List.of());
+		accordes.add("d");
+		assertThat(service.tuilesAutorisees(null)).isEmpty(); // aucune capacité
+		capacitesSociete.add("PARTENAIRE");
+		accordes.clear();
+		assertThat(service.tuilesAutorisees(null)).isEmpty(); // capacité mais droit non accordé
+		accordes.add("d");
+		when(identite.courante()).thenReturn(new IdentiteCourante(USER, Set.of(), null, 1L, "ESN"));
+		assertThat(service.tuilesAutorisees(null)).isEmpty(); // compte historique sans société
+		when(identite.courante()).thenThrow(new IllegalStateException("aucune"));
+		assertThat(service.tuilesAutorisees(null)).isEmpty(); // identité indisponible
+	}
+
+	@Test
+	void zone_serveur_societe_demandee_verifiee_par_les_droits() {
+		plugin("alpha", List.of(entree(ZoneNavigation.PARTENAIRE, "p", "d")), List.of());
+		accordes.add("d");
+		capacitesSociete.add("PARTENAIRE");
+
+		assertThat(service.tuilesAutorisees(SOCIETE)).hasSize(1);
+		assertThat(service.tuilesAutorisees(999L)).isEmpty();
 	}
 
 	@Test

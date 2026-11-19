@@ -29,7 +29,7 @@ describe('homeRedirectGuard', () => {
       providers: [
         provideRouter([]),
         { provide: AuthService, useValue: { isLoggedIn: () => connecte, isEsnUser: () => esn, isPortalUser: () => portail } },
-        { provide: NavigationService, useValue: { zoneCourante: () => 'PARTENAIRE', tuiles: () => tuiles$, tuilesAutorisees: () => tuiles$ } },
+        { provide: NavigationService, useValue: { tuilesAutorisees: () => tuiles$ } },
       ],
     });
   });
