@@ -29,6 +29,8 @@ import com.logicielpourtous.site.features.user.UserRepository;
 import com.logicielpourtous.site.features.identite.SocieteIdentite;
 import com.logicielpourtous.site.features.identite.SocieteIdentiteRepository;
 import com.logicielpourtous.site.sdk.AnnuaireClientsContrat;
+import com.logicielpourtous.site.sdk.IdentiteContrat;
+import com.logicielpourtous.site.sdk.IdentiteContrat.IdentiteCourante;
 
 /**
  * Annuaire clients offert aux plugins. Accès aux données seulement ({@code clientsDuPartenaire}, {@code fiche}) :
@@ -69,11 +71,15 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 
 	private final InscriptionSocieteService inscription;
 
+	private final IdentiteContrat identite;
+
+	private final AccesEspaceClientService acces;
+
 	AnnuaireClientsContratImpl(LienClientRepository liens, CapaciteSocieteRepository capacites,
 			SocieteIdentiteRepository societes, DroitsService droits, RegistreSocietes registre,
 			PartenaireReferentService referents, ManagersService managers, UserRepository users, RoleRepository roles,
 			TenantRepository tenants, PasswordEncoder passwordEncoder, EmailsUtilises emailsUtilises,
-			InscriptionSocieteService inscription) {
+			InscriptionSocieteService inscription, IdentiteContrat identite, AccesEspaceClientService acces) {
 		this.liens = liens;
 		this.capacites = capacites;
 		this.societes = societes;
@@ -87,6 +93,8 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 		this.passwordEncoder = passwordEncoder;
 		this.emailsUtilises = emailsUtilises;
 		this.inscription = inscription;
+		this.identite = identite;
+		this.acces = acces;
 	}
 
 	/**
@@ -234,6 +242,28 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 	@Override
 	public boolean autorise(Long userId, Long societeId, String droit) {
 		return droits.autorise(userId, societeId, droit);
+	}
+
+	@Override
+	public PorteeAcces entrerEspaceClient(Long userId, Long clientSocieteId) {
+		IdentiteCourante moi;
+		try {
+			moi = identite.courante();
+		}
+		catch (IllegalStateException e) {
+			throw new SecurityException("Accès refusé.");
+		}
+		// Échec fermé : l'utilisateur est celui de la session et la société du partenaire vient de la session, jamais
+		// de l'appelant.
+		if (moi == null || userId == null || !userId.equals(moi.userId()) || moi.societeId() == null) {
+			throw new SecurityException("Accès refusé.");
+		}
+		try {
+			return acces.entrer(userId, moi.societeId(), clientSocieteId);
+		}
+		catch (AccesRefuseException e) {
+			throw new SecurityException("Accès refusé.");
+		}
 	}
 
 	private static ClientResume resume(SocieteIdentite s, LienClient lien) {

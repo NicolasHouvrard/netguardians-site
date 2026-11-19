@@ -31,6 +31,8 @@ public class ClientsController {
 
 	static final String DROIT_CREER = "clients.creer";
 
+	static final String DROIT_ENTRER = "clients.entrer";
+
 	/** Corps de la creation : le partenaire n'y figure volontairement pas (c'est toujours la societe de l'appelant). */
 	record DemandeCreation(boolean particulier, String siren, String tva, boolean etrangere, String email, String nom) {
 	}
@@ -99,6 +101,27 @@ public class ClientsController {
 				.body(Map.of("issue", "EMAIL_DEJA_UTILISE", "message", "cette adresse e-mail est déjà utilisée"));
 		}
 		throw new IllegalStateException("Issue de création inattendue.");
+	}
+
+	/**
+	 * Entrée du partenaire dans l'espace d'un de ses clients (droit {@value #DROIT_ENTRER} sur SA société). Aucune
+	 * donnée de la requête hormis l'identifiant du client : l'utilisateur et la société viennent de l'identité. Sans le
+	 * droit : 403 vide. Refus du noyau (client inconnu, d'un autre partenaire, tout autre refus) : un 404 vide, identique
+	 * dans tous les cas. Toute autre erreur remonte (500) : échec fermé.
+	 */
+	@PostMapping("/{societeId}/entrer")
+	public ResponseEntity<Object> entrer(@PathVariable("societeId") Long societeId) {
+		Optional<Long> societe = societeAutorisee(DROIT_ENTRER);
+		if (societe.isEmpty()) {
+			return ResponseEntity.status(403).build();
+		}
+		Long userId = identite.courante().userId();
+		try {
+			return ResponseEntity.ok(annuaire.entrerEspaceClient(userId, societeId));
+		}
+		catch (SecurityException e) {
+			return ResponseEntity.status(404).build();
+		}
 	}
 
 	/** Société du partenaire courant si elle existe et si son utilisateur a le droit ; vide sinon (403). */

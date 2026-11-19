@@ -2,6 +2,7 @@ package com.logicielpourtous.site.sdk;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Contrat « annuaire clients » offert aux plugins par le noyau. {@code clientsDuPartenaire} et {@code fiche} sont de
@@ -28,6 +29,25 @@ public interface AnnuaireClientsContrat {
 	 * @throws IllegalArgumentException si la demande est invalide (numeros, e-mail, nom, partenaire)
 	 */
 	ResultatCreation creerClient(CreationClient demande);
+
+	/**
+	 * Entree du partenaire dans l'espace d'un client, en tant que manager, tracee dans un journal. {@code userId} doit
+	 * etre celui de l'identite courante et la societe du partenaire est celle de cette identite (jamais une valeur de la
+	 * requete). L'identite reste celle du partenaire.
+	 *
+	 * @throws SecurityException refus, quelle qu'en soit la cause (sans droit, client inconnu, client d'un autre
+	 * partenaire, identite absente ou incoherente) : l'appelant ne doit pas distinguer les causes
+	 */
+	PorteeAcces entrerEspaceClient(Long userId, Long clientSocieteId);
+
+	/** Perimetre accorde : la societe cliente et les droits effectifs (droits du manager dans la limite du plafond). */
+	record PorteeAcces(Long societeId, Set<String> droitsEffectifs) {
+
+		public PorteeAcces {
+			droitsEffectifs = droitsEffectifs == null ? Set.of() : Set.copyOf(droitsEffectifs);
+		}
+
+	}
 
 	record CreationClient(Long partenaireSocieteId, boolean particulier, String siren, String tva, boolean etrangere,
 			String email, String nom) {

@@ -57,6 +57,7 @@ class ContratsClientsTest {
     @Autowired private UserRepository users;
     @Autowired private RoleRepository roles;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private org.springframework.transaction.PlatformTransactionManager tm;
     @Autowired private DemandeSocieteConnueRepository demandes;
 
     private Tenant tenant;
@@ -83,6 +84,12 @@ class ContratsClientsTest {
     @AfterEach
     void nettoyer() {
         SecurityContextHolder.clearContext();
+        // Le journal d'acces est ecrit en REQUIRES_NEW : le rollback du test ne le retire pas.
+        org.springframework.transaction.support.TransactionTemplate tx =
+                new org.springframework.transaction.support.TransactionTemplate(tm);
+        tx.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        tx.executeWithoutResult(st -> jdbc.update("DELETE FROM journal_acces_partenaire WHERE partenaire_user_id = ?",
+                user.getId()));
     }
 
     private Long societe(String siren, String tva) {
@@ -254,7 +261,7 @@ class ContratsClientsTest {
     void autoriseDelegueAuServiceDeDroitsSansRaccourci() {
         DroitsService faux = mock(DroitsService.class);
         when(faux.autorise(1L, 2L, "clients.lire")).thenReturn(true);
-        AnnuaireClientsContrat contrat = new AnnuaireClientsContratImpl(liens, capacites, null, faux, null, null, null, null, null, null, null, null, null);
+        AnnuaireClientsContrat contrat = new AnnuaireClientsContratImpl(liens, capacites, null, faux, null, null, null, null, null, null, null, null, null, null, null);
 
         assertThat(contrat.autorise(1L, 2L, "clients.lire")).isTrue();
         assertThat(contrat.autorise(1L, 2L, "clients.ecrire")).isFalse();
@@ -404,5 +411,72 @@ class ContratsClientsTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> annuaire.creerClient(new CreationClient(p, false, "123", null, false, emailNeuf(), "A")))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // ---- Entree du partenaire dans l'espace d'un client ----
+
+    private Long partenaireQuiPeutEntrer(Long clientId) {
+        Long p = societe("EN" + UUID.randomUUID().toString().substring(0, 6), "FREN" + UUID.randomUUID().toString().substring(0, 6));
+        droits.fixerPlafond(p, Set.of("clients.entrer"));
+        droits.accorderAuRole(p, "ROLE_GESTIONNAIRE", Set.of("clients.entrer"));
+        droits.fixerPlafond(clientId, Set.of("clients.lire"));
+        droits.accorderAuRole(clientId, "ROLE_GESTIONNAIRE", Set.of("clients.lire"));
+        lier(clientId, p, TypeCapacite.CLIENT);
+        return p;
+    }
+
+    @Test
+    void entrerEspaceClientUtiliseLaSocieteDeLIdentiteEtRendLaPortee() {
+        Long client = societe("EC1" + UUID.randomUUID().toString().substring(0, 5), "FREC1" + UUID.randomUUID().toString().substring(0, 5));
+        Long p = partenaireQuiPeutEntrer(client);
+        Appartenance a = appartenance(p);
+        connecter(new CustomUserDetails(user, List.of(a), a.getId()));
+
+        var portee = annuaire.entrerEspaceClient(user.getId(), client);
+
+        assertThat(portee.societeId()).isEqualTo(client);
+        assertThat(portee.droitsEffectifs()).containsExactly("clients.lire");
+    }
+
+    @Test
+    void entrerEspaceClientRefuseSansIdentite() {
+        Long client = societe("EC2" + UUID.randomUUID().toString().substring(0, 5), "FREC2" + UUID.randomUUID().toString().substring(0, 5));
+        partenaireQuiPeutEntrer(client);
+
+        assertThatThrownBy(() -> annuaire.entrerEspaceClient(user.getId(), client)).isInstanceOf(SecurityException.class);
+    }
+
+    @Test
+    void entrerEspaceClientRefuseUnUserIdQuiNEstPasCeluiDeLIdentite() {
+        Long client = societe("EC3" + UUID.randomUUID().toString().substring(0, 5), "FREC3" + UUID.randomUUID().toString().substring(0, 5));
+        Long p = partenaireQuiPeutEntrer(client);
+        Appartenance a = appartenance(p);
+        connecter(new CustomUserDetails(user, List.of(a), a.getId()));
+
+        assertThatThrownBy(() -> annuaire.entrerEspaceClient(user.getId() + 1, client)).isInstanceOf(SecurityException.class);
+        assertThatThrownBy(() -> annuaire.entrerEspaceClient(null, client)).isInstanceOf(SecurityException.class);
+    }
+
+    @Test
+    void entrerEspaceClientRefuseUneIdentiteSansSociete() {
+        Long client = societe("EC4" + UUID.randomUUID().toString().substring(0, 5), "FREC4" + UUID.randomUUID().toString().substring(0, 5));
+        partenaireQuiPeutEntrer(client);
+        Appartenance a = appartenance(null);
+        connecter(new CustomUserDetails(user, List.of(a), a.getId()));
+
+        assertThatThrownBy(() -> annuaire.entrerEspaceClient(user.getId(), client)).isInstanceOf(SecurityException.class);
+    }
+
+    @Test
+    void entrerEspaceClientRefuseUnClientDUnAutrePartenaire() {
+        Long client = societe("EC5" + UUID.randomUUID().toString().substring(0, 5), "FREC5" + UUID.randomUUID().toString().substring(0, 5));
+        partenaireQuiPeutEntrer(client);
+        Long autre = societe("EC6" + UUID.randomUUID().toString().substring(0, 5), "FREC6" + UUID.randomUUID().toString().substring(0, 5));
+        droits.fixerPlafond(autre, Set.of("clients.entrer"));
+        droits.accorderAuRole(autre, "ROLE_GESTIONNAIRE", Set.of("clients.entrer"));
+        Appartenance a = appartenance(autre);
+        connecter(new CustomUserDetails(user, List.of(a), a.getId()));
+
+        assertThatThrownBy(() -> annuaire.entrerEspaceClient(user.getId(), client)).isInstanceOf(SecurityException.class);
     }
 }

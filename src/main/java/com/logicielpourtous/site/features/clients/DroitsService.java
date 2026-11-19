@@ -91,6 +91,22 @@ public class DroitsService implements ControleDroits {
         return reglages.existsByClientSocieteIdAndDroitAndRoleNomIn(societeId, droit, roles);
     }
 
+    /**
+     * Droits du role manager de la societe cliente dans la limite du plafond (intersection). Vide si pas de plafond
+     * (echec ferme) ou si le manager n'a rien accorde.
+     */
+    @Transactional(readOnly = true)
+    public Set<String> droitsEffectifsDuManager(Long clientSocieteId) {
+        if (clientSocieteId == null) {
+            return Set.of();
+        }
+        Set<String> plafond = plafonds.findByClientSocieteId(clientSocieteId).stream()
+                .map(PlafondClient::getDroit).collect(Collectors.toSet());
+        return reglages.findByClientSocieteIdAndRoleNom(clientSocieteId, ManagersService.ROLE_MANAGER).stream()
+                .map(ReglageManager::getDroit).filter(plafond::contains)
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
     private static Set<String> valider(Set<String> droits) {
         if (droits == null) {
             throw new IllegalArgumentException("Les droits doivent etre renseignes.");

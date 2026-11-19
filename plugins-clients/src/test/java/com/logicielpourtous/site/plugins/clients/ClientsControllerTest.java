@@ -225,4 +225,69 @@ class ClientsControllerTest {
         verify(annuaire, never()).autorise(any(), any(), anyString());
         verify(annuaire, never()).clientsDuPartenaire(any());
     }
+
+    // ---- Entree dans l'espace d'un client ----
+
+    @Test
+    void entrerRenvoie200AvecLaPorteeEtNUtiliseQueLIdentiteDeLAppelant() throws Exception {
+        when(annuaire.autorise(USER, MOI, "clients.entrer")).thenReturn(true);
+        when(annuaire.entrerEspaceClient(USER, MON_CLIENT))
+                .thenReturn(new AnnuaireClientsContrat.PorteeAcces(MON_CLIENT, Set.of("clients.lire")));
+
+        mvc.perform(post("/" + MON_CLIENT + "/entrer").param("societeId", "1").param("userId", "999"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.societeId").value((int) MON_CLIENT))
+                .andExpect(jsonPath("$.droitsEffectifs[0]").value("clients.lire"));
+        verify(annuaire).entrerEspaceClient(USER, MON_CLIENT);
+    }
+
+    @Test
+    void entrerSansLeDroitEst403SansAucuneEntree() throws Exception {
+        when(annuaire.autorise(USER, MOI, "clients.entrer")).thenReturn(false);
+
+        mvc.perform(post("/" + MON_CLIENT + "/entrer")).andExpect(status().isForbidden())
+                .andExpect(content().string(""));
+        verify(annuaire, never()).entrerEspaceClient(any(), any());
+    }
+
+    @Test
+    void entrerAvecLeSeulDroitLireEst403() throws Exception {
+        when(annuaire.autorise(USER, MOI, "clients.lire")).thenReturn(true);
+
+        mvc.perform(post("/" + MON_CLIENT + "/entrer")).andExpect(status().isForbidden());
+        verify(annuaire, never()).entrerEspaceClient(any(), any());
+    }
+
+    @Test
+    void entrerSansSocieteOuSansIdentiteEst403() throws Exception {
+        when(annuaire.autorise(anyLong(), anyLong(), anyString())).thenReturn(true);
+        quand(null);
+        mvc.perform(post("/" + MON_CLIENT + "/entrer")).andExpect(status().isForbidden());
+        when(identite.courante()).thenThrow(new IllegalStateException("non authentifie"));
+        mvc.perform(post("/" + MON_CLIENT + "/entrer")).andExpect(status().isForbidden());
+        verify(annuaire, never()).entrerEspaceClient(any(), any());
+    }
+
+    @Test
+    void entrerClientInconnuEtClientDUnAutreDonnentLeMeme404Vide() throws Exception {
+        when(annuaire.autorise(USER, MOI, "clients.entrer")).thenReturn(true);
+        when(annuaire.entrerEspaceClient(USER, INCONNU)).thenThrow(new SecurityException("Accès refusé."));
+        when(annuaire.entrerEspaceClient(USER, CLIENT_D_UN_AUTRE)).thenThrow(new SecurityException("Accès refusé."));
+
+        String a = mvc.perform(post("/" + INCONNU + "/entrer")).andExpect(status().isNotFound())
+                .andReturn().getResponse().getContentAsString();
+        String b = mvc.perform(post("/" + CLIENT_D_UN_AUTRE + "/entrer")).andExpect(status().isNotFound())
+                .andReturn().getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertEquals("", a);
+        org.junit.jupiter.api.Assertions.assertEquals(a, b);
+    }
+
+    @Test
+    void entrerErreurInattendueEchoueFerme() throws Exception {
+        when(annuaire.autorise(USER, MOI, "clients.entrer")).thenReturn(true);
+        when(annuaire.entrerEspaceClient(USER, MON_CLIENT)).thenThrow(new IllegalStateException("journal"));
+
+        org.junit.jupiter.api.Assertions.assertThrows(jakarta.servlet.ServletException.class,
+                () -> mvc.perform(post("/" + MON_CLIENT + "/entrer")));
+    }
 }
