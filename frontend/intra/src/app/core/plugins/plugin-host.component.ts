@@ -44,6 +44,8 @@ export class PluginHostComponent implements OnInit {
   private readonly conteneur = viewChild.required<ElementRef<HTMLElement>>('conteneur');
   protected readonly erreur = signal<string | null>(null);
 
+  /** Numéro de la dernière navigation : un afficher() plus ancien, resté en attente du chargement, s'abandonne. */
+  private numeroNavigation = 0;
   private nomCourant: string | null = null;
   private element: ElementPlugin | null = null;
 
@@ -55,7 +57,7 @@ export class PluginHostComponent implements OnInit {
           const chemin = '/' + segments.slice(2).map(s => s.path).join('/');
           // Interrogé à chaque navigation : une mise à jour à chaud change la version active.
           return this.navigation.tuiles(this.navigation.zoneCourante()).pipe(
-            switchMap(tuiles => from(this.afficher(plugin, chemin, tuiles))),
+            switchMap(tuiles => from(this.afficher(plugin, chemin, tuiles, ++this.numeroNavigation))),
             catchError(() => {
               this.erreur.set('Application indisponible.');
               return of(undefined);
@@ -67,7 +69,7 @@ export class PluginHostComponent implements OnInit {
       .subscribe();
   }
 
-  private async afficher(plugin: string, chemin: string, tuiles: Tuile[]): Promise<void> {
+  private async afficher(plugin: string, chemin: string, tuiles: Tuile[], numero: number): Promise<void> {
     const tuile = tuiles.find(t => t.plugin === plugin);
     if (!tuile) {
       this.vider();
@@ -76,6 +78,7 @@ export class PluginHostComponent implements OnInit {
     }
     this.erreur.set(null);
     const nom = await this.loader.charger(plugin, tuile.version);
+    if (numero !== this.numeroNavigation) return; // une navigation plus récente a pris le relais pendant le chargement
     if (!customElements.get(nom)) {
       this.vider();
       this.erreur.set(`L'application ${plugin} ne déclare pas l'élément ${nom}.`);

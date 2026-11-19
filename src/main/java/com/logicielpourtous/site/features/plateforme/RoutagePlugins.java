@@ -7,6 +7,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.Ordered;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.stereotype.Component;
 import org.springframework.web.HttpRequestHandler;
 import org.springframework.web.servlet.HandlerExecutionChain;
@@ -37,6 +39,15 @@ public class RoutagePlugins implements HandlerMapping, Ordered {
 		reponse.setContentType("application/json;charset=UTF-8");
 		reponse.getWriter().write("{\"erreur\":\"mise a jour en cours\"}");
 	};
+
+	/**
+	 * Espace {@code /api/plugins/<nom>/ui/**} réservé au noyau ({@link PluginUiController}) : il est ouvert sans jeton
+	 * par la sécurité, aucun mapping de plugin ne doit donc pouvoir le revendiquer (ni y masquer les fichiers). Le
+	 * matcher travaille sur le chemin décodé et normalisé de la requête (jamais sur la chaîne brute : {@code %75i} est
+	 * {@code ui} pour la sécurité comme pour lui).
+	 */
+	private static final RequestMatcher ESPACE_UI = PathPatternRequestMatcher
+			.pathPattern("/api/plugins/*/ui/**");
 
 	private final Map<String, PluginGeneration> routes = new ConcurrentHashMap<>();
 
@@ -111,6 +122,9 @@ public class RoutagePlugins implements HandlerMapping, Ordered {
 		}
 		if (maintenance.contains(nom)) {
 			return new HandlerExecutionChain(MAINTENANCE);
+		}
+		if (ESPACE_UI.matches(requete)) {
+			return null; // mapping du cœur (PluginUiController), jamais celui du plugin
 		}
 		// Seule la génération annoncée (et donc comptée) par FiltreEnVol peut servir la requête : jamais de nouvelle
 		// consultation des routes ici, sinon une génération non comptée pourrait être drainée en pleine requête.

@@ -82,6 +82,22 @@ describe('PluginHostComponent', () => {
     expect(fixture.nativeElement.querySelector('clients-app-v110')).not.toBeNull();
   });
 
+  it('une navigation plus récente prend le relais d\'un chargement plus ancien en attente', async () => {
+    version = '1.0.0';
+    let liberer!: (nom: string) => void;
+    charger.mockImplementationOnce(() => new Promise<string>(r => (liberer = r)));
+    const fixture = monter(); // premier afficher() : bloqué sur le chargement de la 1.0.0
+    await attendre();
+    version = '1.1.0';
+    url$.next(seg('plugins', 'clients', 'liste')); // second afficher() : 1.1.0, résolu tout de suite
+    await attendre();
+    expect(fixture.nativeElement.querySelector('clients-app-v110')).not.toBeNull();
+    liberer('clients-app-v100'); // le plus ancien se termine en retard : ne doit rien ajouter
+    await attendre();
+    expect(fixture.nativeElement.querySelector('clients-app-v100')).toBeNull();
+    expect(fixture.nativeElement.querySelector('clients-app-v110')).not.toBeNull();
+  });
+
   it('plugin absent des tuiles : message, aucun élément', async () => {
     url$.next(seg('plugins', 'inconnu'));
     const fixture = monter();

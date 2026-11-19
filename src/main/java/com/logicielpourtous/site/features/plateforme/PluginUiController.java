@@ -25,6 +25,10 @@ import org.springframework.web.bind.annotation.RestController;
  * {@code js}, {@code css}, {@code json} seulement, et uniquement si {@code <version>} est celle du plugin actif (sinon
  * 404, comme pour un plugin ou un fichier inconnu : aucune information sur ce qui existe). L'URL portant la version,
  * la réponse est immuable.
+ * <p>
+ * Contrat pour les plugins : les fichiers du front sont dans {@code ui/<fichier>} À LA RACINE du jar (la version
+ * n'apparaît que dans l'URL, jamais dans le jar) ; l'espace {@code /api/plugins/<nom>/ui/**} est RÉSERVÉ au noyau :
+ * {@link RoutagePlugins} n'y route jamais un mapping du plugin (un contrôleur de plugin ne peut pas y répondre).
  */
 @RestController
 @ConditionalOnProperty(name = "app.plateforme.actif", havingValue = "true")
