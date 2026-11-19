@@ -80,6 +80,20 @@ class SecurityPlateformeTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void navigation_sans_jeton_refusee_401() throws Exception {
+        mockMvc.perform(get("/api/navigation").param("zone", "PARTENAIRE")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/navigation/blocs")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void navigation_en_attente_de_choix_de_societe_refuse_403() throws Exception {
+        mockMvc.perform(get("/api/navigation").param("zone", "PARTENAIRE")
+                        .with(user("en-attente").authorities(
+                                new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_SELECTION_SOCIETE"))))
+                .andExpect(status().isForbidden());
+    }
+
     // Non-regression : le comportement sans jeton des routes EXISTANTES de la chaine ne change pas (403, comme avant
     // l'ajout des API de plateforme), alors que les deux nouvelles familles repondent 401.
     @Test

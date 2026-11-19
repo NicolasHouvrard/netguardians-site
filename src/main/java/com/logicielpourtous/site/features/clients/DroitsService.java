@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.logicielpourtous.site.features.plateforme.ControleDroits;
 import com.logicielpourtous.site.features.role.Role;
 import com.logicielpourtous.site.features.user.AppartenanceRepository;
 
@@ -16,7 +17,7 @@ import com.logicielpourtous.site.features.user.AppartenanceRepository;
  * Le refus est la valeur par defaut : un droit n'est accorde que si les trois couches l'autorisent.
  */
 @Service
-public class DroitsService {
+public class DroitsService implements ControleDroits {
 
     private final PlafondClientRepository plafonds;
     private final ReglageManagerRepository reglages;
@@ -71,6 +72,7 @@ public class DroitsService {
      * Vrai seulement si le droit est dans le plafond de la societe ET accorde a l'un des roles que
      * l'utilisateur detient dans une appartenance a CETTE societe. Faux pour toute entree absente ou inconnue.
      */
+    @Override
     @Transactional(readOnly = true)
     public boolean autorise(Long userId, Long societeId, String droit) {
         if (userId == null || societeId == null || droit == null || droit.isBlank()) {
