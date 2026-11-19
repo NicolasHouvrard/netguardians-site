@@ -57,6 +57,19 @@ public class ClientsController {
 
 	@GetMapping("/{societeId}/fiche")
 	public ResponseEntity<Object> fiche(@PathVariable("societeId") Long societeId) {
+		return ficheDuPartenaire(societeId, false);
+	}
+
+	/**
+	 * Bloc « resume » de la fiche (chemin {@code /blocs/resume} du manifeste, appele pour un client donne) : memes
+	 * controles que la fiche (droit sur SA societe, rattachement a CE partenaire, 404 vide identique, 403 echec ferme).
+	 */
+	@GetMapping("/{societeId}/blocs/resume")
+	public ResponseEntity<Object> blocResume(@PathVariable("societeId") Long societeId) {
+		return ficheDuPartenaire(societeId, true);
+	}
+
+	private ResponseEntity<Object> ficheDuPartenaire(Long societeId, boolean resumeSeul) {
 		Optional<Long> societe = societeAutorisee(DROIT);
 		if (societe.isEmpty()) {
 			return ResponseEntity.status(403).build();
@@ -65,7 +78,7 @@ public class ClientsController {
 		if (fiche.isEmpty() || !societe.get().equals(fiche.get().partenaireSocieteId())) {
 			return ResponseEntity.status(404).build();
 		}
-		return ResponseEntity.ok(fiche.get());
+		return ResponseEntity.ok(resumeSeul ? fiche.get().resume() : fiche.get());
 	}
 
 	/**

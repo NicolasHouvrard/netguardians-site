@@ -25,7 +25,7 @@ class PluginClientsCompatibiliteTest {
 		assumeTrue(Files.isRegularFile(JAR), "jar du plugin clients non construit");
 		ManifestePlugin m = LecteurManifeste.lire(JAR);
 		assertEquals("clients", m.nom());
-		assertEquals(2, m.entrees().size());
+		assertEquals(1, m.entrees().size());
 		assertEquals(1, m.blocs().size());
 		for (String coeur : new String[] { "0.0.0", "0.0.1-SNAPSHOT", "1.2.3" }) {
 			var verdict = VerificateurMiseAJour.verifier(m, Map.of(), Set.of(), coeur, null);

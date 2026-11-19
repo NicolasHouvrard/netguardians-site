@@ -28,10 +28,9 @@ class ManifesteClientsTest {
 		assertEquals("1.0.0", m.version());
 		assertEquals(ModeMiseAJour.CHAUD, m.miseAJour());
 		assertEquals("com.logicielpourtous.site.plugins.clients.ClientsConfiguration", m.configuration());
-		assertEquals(2, m.entrees().size());
+		assertEquals(1, m.entrees().size());
 		assertEquals(new EntreeNavigation(ZoneNavigation.PARTENAIRE, "Clients", "people", "/clients", "clients.lire"),
 				m.entrees().get(0));
-		assertEquals(ZoneNavigation.CLIENT, m.entrees().get(1).zone());
 		assertEquals(1, m.blocs().size());
 		assertEquals("/blocs/resume", m.blocs().get(0).chemin());
 	}

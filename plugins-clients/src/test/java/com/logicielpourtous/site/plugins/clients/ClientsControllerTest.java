@@ -132,6 +132,44 @@ class ClientsControllerTest {
 	}
 
 
+	// ---- Bloc resume de la fiche ----
+
+	@Test
+	void blocResumeDeMonClientRenvoyeLeResume() throws Exception {
+		mvc.perform(get("/" + MON_CLIENT + "/blocs/resume"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.societeId").value(MON_CLIENT))
+				.andExpect(jsonPath("$.siren").value("SIREN" + MON_CLIENT))
+				.andExpect(jsonPath("$.origine").value("MANUEL"));
+		verify(annuaire).autorise(USER, MOI, "clients.lire");
+	}
+
+	@Test
+	void blocResumeD_unAutrePartenaireOuInconnuEst404IdentiqueALaFiche() throws Exception {
+		String attendu = mvc.perform(get("/" + CLIENT_D_UN_AUTRE + "/fiche")).andReturn().getResponse()
+				.getContentAsString();
+		mvc.perform(get("/" + CLIENT_D_UN_AUTRE + "/blocs/resume")).andExpect(status().isNotFound())
+				.andExpect(content().string(attendu));
+		mvc.perform(get("/" + SANS_LIEN + "/blocs/resume")).andExpect(status().isNotFound())
+				.andExpect(content().string(attendu));
+		mvc.perform(get("/" + INCONNU + "/blocs/resume")).andExpect(status().isNotFound())
+				.andExpect(content().string(attendu));
+	}
+
+	@Test
+	void blocResumeSansDroitOuSansSocieteEst403SansLectureDeDonnees() throws Exception {
+		when(annuaire.autorise(USER, MOI, "clients.lire")).thenReturn(false);
+		mvc.perform(get("/" + MON_CLIENT + "/blocs/resume")).andExpect(status().isForbidden())
+				.andExpect(content().string(""));
+		verify(annuaire, never()).fiche(anyLong());
+		quand(null);
+		mvc.perform(get("/" + MON_CLIENT + "/blocs/resume")).andExpect(status().isForbidden());
+		when(identite.courante()).thenThrow(new IllegalStateException("non authentifié"));
+		mvc.perform(get("/" + MON_CLIENT + "/blocs/resume")).andExpect(status().isForbidden());
+		verify(annuaire, never()).fiche(anyLong());
+	}
+
+
     // ---- Creation ----
 
     private static final String CORPS = "{\"particulier\":false,\"siren\":\"123456782\",\"tva\":null,\"etrangere\":false,"
