@@ -34,6 +34,10 @@ import com.logicielpourtous.site.features.user.User;
 import com.logicielpourtous.site.features.user.UserRepository;
 import com.logicielpourtous.site.sdk.AnnuaireClientsContrat;
 import com.logicielpourtous.site.sdk.AnnuaireClientsContrat.ClientResume;
+import com.logicielpourtous.site.sdk.AnnuaireClientsContrat.CreationClient;
+import com.logicielpourtous.site.sdk.AnnuaireClientsContrat.ResultatCreation;
+import com.logicielpourtous.site.features.auth.DemandeSocieteConnue;
+import com.logicielpourtous.site.features.auth.DemandeSocieteConnueRepository;
 import com.logicielpourtous.site.sdk.AnnuaireClientsContrat.FicheClient;
 import com.logicielpourtous.site.sdk.IdentiteContrat;
 import com.logicielpourtous.site.sdk.IdentiteContrat.IdentiteCourante;
@@ -53,6 +57,7 @@ class ContratsClientsTest {
     @Autowired private UserRepository users;
     @Autowired private RoleRepository roles;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private DemandeSocieteConnueRepository demandes;
 
     private Tenant tenant;
     private User user;
@@ -249,7 +254,7 @@ class ContratsClientsTest {
     void autoriseDelegueAuServiceDeDroitsSansRaccourci() {
         DroitsService faux = mock(DroitsService.class);
         when(faux.autorise(1L, 2L, "clients.lire")).thenReturn(true);
-        AnnuaireClientsContrat contrat = new AnnuaireClientsContratImpl(liens, capacites, null, faux);
+        AnnuaireClientsContrat contrat = new AnnuaireClientsContratImpl(liens, capacites, null, faux, null, null, null, null, null, null, null, null, null);
 
         assertThat(contrat.autorise(1L, 2L, "clients.lire")).isTrue();
         assertThat(contrat.autorise(1L, 2L, "clients.ecrire")).isFalse();
@@ -268,5 +273,136 @@ class ContratsClientsTest {
         assertThat(annuaire.autorise(user.getId(), c, "clients.lire")).isTrue();
         assertThat(annuaire.autorise(user.getId(), c, "clients.ecrire")).isFalse();
         assertThat(annuaire.autorise(user.getId(), autre, "clients.lire")).isFalse();
+    }
+
+    // ---- Creation d'un client par le partenaire ----
+
+    private static String sirenValide(int graine) {
+        String base = String.format("%08d", graine);
+        for (int c = 0; c < 10; c++) {
+            String candidat = base + c;
+            if (com.logicielpourtous.site.features.identite.NumerosSociete.sirenValide(candidat)) {
+                return candidat;
+            }
+        }
+        throw new IllegalStateException();
+    }
+
+    private Long partenaire() {
+        Long p = societe("PA" + UUID.randomUUID().toString().substring(0, 6), "FRPA" + UUID.randomUUID().toString().substring(0, 6));
+        CapaciteSociete c = new CapaciteSociete();
+        c.setSocieteId(p);
+        c.setCapacite(TypeCapacite.PARTENAIRE);
+        capacites.saveAndFlush(c);
+        return p;
+    }
+
+    private String emailNeuf() {
+        return "client-" + UUID.randomUUID() + "@example.test";
+    }
+
+    private boolean estManagerDe(Long userId, Long societeId) {
+        return appartenances.findByUserIdAndSocieteId(userId, societeId).stream()
+                .anyMatch(a -> a.getRoles().stream().anyMatch(r -> "ROLE_GESTIONNAIRE".equals(r.getName())));
+    }
+
+    @Test
+    void creerUnClientEcritSocieteCapaciteLienEtPremierManager() {
+        Long p = partenaire();
+        String siren = sirenValide(48151623);
+        String email = emailNeuf();
+
+        ResultatCreation r = annuaire.creerClient(new CreationClient(p, false, siren, null, false, email, "Alice Martin"));
+
+        assertThat(r.issue()).isEqualTo("CREE");
+        Long id = r.societeId();
+        assertThat(id).isNotNull();
+        assertThat(jdbc.queryForObject("SELECT siren FROM societes_identites WHERE id = ?", String.class, id)).isEqualTo(siren);
+        assertThat(capacites.existsBySocieteIdAndCapacite(id, TypeCapacite.CLIENT)).isTrue();
+        LienClient lien = liens.findByClientSocieteId(id).orElseThrow();
+        assertThat(lien.getPartenaireSocieteId()).isEqualTo(p);
+        assertThat(lien.getOrigine()).isEqualTo("PARTENAIRE");
+        User cree = users.findByEmail(email).orElseThrow();
+        assertThat(estManagerDe(cree.getId(), id)).isTrue();
+    }
+
+    @Test
+    void creerUnParticulierCreeUneSocieteParticulierLieeAuPartenaire() {
+        Long p = partenaire();
+        String email = emailNeuf();
+
+        ResultatCreation r = annuaire.creerClient(new CreationClient(p, true, null, null, false, email, "Jean Dupont"));
+
+        assertThat(r.issue()).isEqualTo("CREE");
+        Long id = r.societeId();
+        assertThat(jdbc.queryForObject("SELECT particulier FROM societes_identites WHERE id = ?", Boolean.class, id)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT siren FROM societes_identites WHERE id = ?", String.class, id)).isNull();
+        assertThat(liens.findByClientSocieteId(id).orElseThrow().getPartenaireSocieteId()).isEqualTo(p);
+        assertThat(estManagerDe(users.findByEmail(email).orElseThrow().getId(), id)).isTrue();
+    }
+
+    @Test
+    void emailDUnUtilisateurExistantPourUnParticulierNEcritRienEtNeCreeAucuneDemande() {
+        Long p = partenaire();
+        long societes = jdbc.queryForObject("SELECT count(*) FROM societes_identites", Long.class);
+        long liensAvant = liens.count();
+        long demandesAvant = demandes.count();
+
+        ResultatCreation r = annuaire.creerClient(new CreationClient(p, true, null, null, false, user.getEmail().toUpperCase(), "X Y"));
+
+        assertThat(r.issue()).isEqualTo("EMAIL_DEJA_UTILISE");
+        assertThat(r.societeId()).isNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM societes_identites", Long.class)).isEqualTo(societes);
+        assertThat(liens.count()).isEqualTo(liensAvant);
+        assertThat(demandes.count()).isEqualTo(demandesAvant);
+    }
+
+    @Test
+    void emailDejaUtiliseNEcritRienPourUneSocieteNonPlus() {
+        Long p = partenaire();
+        long societes = jdbc.queryForObject("SELECT count(*) FROM societes_identites", Long.class);
+
+        ResultatCreation r = annuaire.creerClient(new CreationClient(p, false, sirenValide(11223344), null, false, user.getEmail(), "X Y"));
+
+        assertThat(r.issue()).isEqualTo("EMAIL_DEJA_UTILISE");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM societes_identites", Long.class)).isEqualTo(societes);
+    }
+
+    @Test
+    void sirenDejaConnuEnregistreUneDemandeSansLienNiUtilisateur() {
+        Long p = partenaire();
+        String siren = sirenValide(99887766);
+        Long existante = societe(siren, com.logicielpourtous.site.features.identite.NumerosSociete.tvaFrancaise(siren));
+        String email = emailNeuf();
+        long liensAvant = liens.count();
+
+        ResultatCreation r = annuaire.creerClient(new CreationClient(p, false, siren, null, false, email, "Bob Durand"));
+
+        assertThat(r.issue()).isEqualTo("DEJA_CONNUE");
+        assertThat(r.societeId()).isNull();
+        assertThat(liens.count()).isEqualTo(liensAvant);
+        assertThat(users.findByEmail(email)).isEmpty();
+        assertThat(appartenances.findBySocieteIdOrderById(existante)).isEmpty();
+        List<DemandeSocieteConnue> ds = demandes.findAll().stream()
+                .filter(d -> existante.equals(d.getSocieteIdentiteId())).toList();
+        assertThat(ds).hasSize(1);
+        assertThat(ds.get(0).isTraitee()).isFalse();
+        assertThat(ds.get(0).getEmailDemandeur()).isEqualTo(email);
+    }
+
+    @Test
+    void creerClientRefuseLesEntreesInvalides() {
+        Long p = partenaire();
+        assertThatThrownBy(() -> annuaire.creerClient(null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> annuaire.creerClient(new CreationClient(null, true, null, null, false, emailNeuf(), "A")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> annuaire.creerClient(new CreationClient(p, true, null, null, false, " ", "A")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> annuaire.creerClient(new CreationClient(p, true, null, null, false, "pas-un-email", "A")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> annuaire.creerClient(new CreationClient(p, true, null, null, false, emailNeuf(), " ")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> annuaire.creerClient(new CreationClient(p, false, "123", null, false, emailNeuf(), "A")))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

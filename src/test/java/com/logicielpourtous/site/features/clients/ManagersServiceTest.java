@@ -230,4 +230,18 @@ class ManagersServiceTest {
         Appartenance a = managers.ajouterUtilisateur(u1.getId(), societe, Set.of());
         assertThat(a.getTenant().getId()).isEqualTo(tenant.getId());
     }
+
+    @Test
+    void unRoleQuiNEstPasUnRoleClientEstRefuseSansRienEcrire() {
+        roles.findByName("ROLE_ADMIN_MANAGERS_TEST").orElseGet(() -> roles.save(new Role("ROLE_ADMIN_MANAGERS_TEST", "A", "ESN")));
+        roles.findByName("ROLE_SANS_TYPE_MANAGERS_TEST").orElseGet(() -> roles.save(new Role("ROLE_SANS_TYPE_MANAGERS_TEST", "S", null)));
+
+        assertThatThrownBy(() -> managers.ajouterUtilisateur(u1.getId(), societe, Set.of("ROLE_ADMIN_MANAGERS_TEST")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> managers.ajouterUtilisateur(u1.getId(), societe, Set.of("ROLE_SANS_TYPE_MANAGERS_TEST")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> managers.ajouterUtilisateur(u1.getId(), societe, Set.of("ROLE_ADMIN")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(appartenances.findByUserIdAndSocieteId(u1.getId(), societe)).isEmpty();
+    }
 }

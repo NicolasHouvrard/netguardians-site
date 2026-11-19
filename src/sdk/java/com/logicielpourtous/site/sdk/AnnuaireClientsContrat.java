@@ -18,6 +18,25 @@ public interface AnnuaireClientsContrat {
 	/** Droit de l'utilisateur sur la société (plafond, réglages du manager, rôles) ; faux par défaut. */
 	boolean autorise(Long userId, Long societeId, String droit);
 
+	/**
+	 * Cree un client pour le partenaire {@code demande.partenaireSocieteId()} (societe, capacite CLIENT, lien d'origine
+	 * {@code PARTENAIRE}, premier utilisateur manager) en une seule transaction. Comme {@code clientsDuPartenaire}, c'est
+	 * un simple acces : l'appelant verifie d'abord le droit {@code clients.creer} de son utilisateur sur la societe du
+	 * partenaire. Issues : {@code CREE}, {@code DEJA_CONNUE} (societe deja au registre : une demande d'acces est
+	 * enregistree, rien d'autre n'est ecrit, aucune identite revelee), {@code EMAIL_DEJA_UTILISE} (rien d'ecrit).
+	 *
+	 * @throws IllegalArgumentException si la demande est invalide (numeros, e-mail, nom, partenaire)
+	 */
+	ResultatCreation creerClient(CreationClient demande);
+
+	record CreationClient(Long partenaireSocieteId, boolean particulier, String siren, String tva, boolean etrangere,
+			String email, String nom) {
+	}
+
+	/** {@code issue} : CREE, DEJA_CONNUE ou EMAIL_DEJA_UTILISE ; {@code societeId} seulement pour CREE. */
+	record ResultatCreation(String issue, Long societeId) {
+	}
+
 	record ClientResume(Long societeId, String siren, String tva, String origine) {
 	}
 

@@ -33,6 +33,9 @@ public class ManagersService {
     /** Role manager d'une societe cliente (decision du proprietaire) : la seule source du nom. */
     public static final String ROLE_MANAGER = "ROLE_GESTIONNAIRE";
 
+    /** Seul type de role attribuable via ce service (Role.type). */
+    private static final String TYPE_ROLE_CLIENT = "CLIENT";
+
     private final AppartenanceRepository appartenances;
     private final UserRepository users;
     private final RoleRepository roles;
@@ -64,8 +67,13 @@ public class ManagersService {
             if (nom == null || nom.isBlank()) {
                 throw new IllegalArgumentException("Un nom de role est vide.");
             }
-            rolesAAttribuer.add(roles.findByName(nom)
-                    .orElseThrow(() -> new IllegalArgumentException("Role inconnu : " + nom)));
+            Role role = roles.findByName(nom)
+                    .orElseThrow(() -> new IllegalArgumentException("Role inconnu : " + nom));
+            // Garde anti-escalade : seuls les roles de type CLIENT sont attribuables (jamais ROLE_ADMIN, etc.).
+            if (!TYPE_ROLE_CLIENT.equals(role.getType())) {
+                throw new IllegalArgumentException("Role non attribuable a un client : " + nom);
+            }
+            rolesAAttribuer.add(role);
         }
         Long proprietaireTenantId = verrouillerSociete(societeId);
         Tenant tenant = determinerTenant(user, proprietaireTenantId, societeId);
