@@ -183,6 +183,10 @@ public class SecurityConfig {
                 // Plateforme de plugins : administration reservee a ADMIN ; API des plugins ouvertes a tout compte
                 // authentifie, sauf un jeton "choix de societe en attente".
                 .requestMatchers("/api/plateforme/**").hasRole("ADMIN")
+                // Front d'un plugin : un <script type="module"> ne peut pas porter de jeton. Seule exception de
+                // /api/plugins/** : GET sur UN fichier d'un dossier ui/ versionne (code statique js/css/json du plugin
+                // actif, valide par PluginUiController ; ni sous-dossier ni listing). Tout le reste exige un jeton.
+                .requestMatchers(HttpMethod.GET, "/api/plugins/{nom}/ui/{version}/{fichier}").permitAll()
                 .requestMatchers("/api/plugins/**", "/api/navigation/**").access(authentifieHorsSelection())
                 .requestMatchers("/api/intra/admin/**").hasRole("ADMIN")
                 // ESN_USER est une autorité synthétique posée par CustomUserDetails

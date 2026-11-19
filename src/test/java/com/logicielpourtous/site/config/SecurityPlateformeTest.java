@@ -80,6 +80,44 @@ class SecurityPlateformeTest {
                 .andExpect(status().isForbidden());
     }
 
+    // Le front d'un plugin est charge par <script type="module"> : pas d'en-tete Authorization possible. SEULE cette
+    // route (GET, un seul segment de fichier) est ouverte sans jeton ; toute autre /api/plugins/** reste en 401.
+    // Plateforme inactive : pas de controleur, donc 404 (et non 401) prouve que la securite laisse passer.
+    @Test
+    void plugin_ui_ouvert_sans_jeton_en_get_uniquement() throws Exception {
+        mockMvc.perform(get("/api/plugins/bonjour/ui/1.0.0/main.js")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/plugins/bonjour/ui/1.0.0/style.css")).andExpect(status().isNotFound());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/plugins/bonjour/ui/1.0.0/main.js"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void plugin_hors_ui_reste_authentifie_401() throws Exception {
+        mockMvc.perform(get("/api/plugins/bonjour/hello")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/plugins/bonjour/ui")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/plugins/bonjour/ui/")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/plugins/bonjour/ui/1.0.0")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/plugins/bonjour/ui/1.0.0/")).andExpect(status().isUnauthorized());
+        // pas de sous-dossier ni de listing
+        mockMvc.perform(get("/api/plugins/bonjour/ui/1.0.0/sous/main.js")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/plugins/bonjour/ui/1.0.0/a/b/c.js")).andExpect(status().isUnauthorized());
+        // le nom de dossier ui n'est ouvert qu'en 3e segment
+        mockMvc.perform(get("/api/plugins/bonjour/x/ui/1.0.0/main.js")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/plugins/bonjour/ui/1.0.0/main.js/")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void plugin_ui_traversee_jamais_servie() throws Exception {
+        // Le pare-feu HTTP rejette ces formes (400) ou la route reste fermee (401/404) : jamais 200.
+        for (String chemin : new String[] { "/api/plugins/bonjour/ui/1.0.0/..", "/api/plugins/bonjour/ui/1.0.0/%2e%2e",
+                "/api/plugins/bonjour/ui/1.0.0/..%2fhello", "/api/plugins/bonjour/ui/../hello",
+                "/api/plugins/bonjour/ui/%2e%2e/hello", "/api/plugins/bonjour/ui/1.0.0/%2e%2e/%2e%2e/hello" }) {
+            int statut = mockMvc.perform(get(java.net.URI.create(chemin))).andReturn().getResponse().getStatus();
+            assertThat(statut).as(chemin).isIn(400, 401, 403, 404);
+        }
+    }
+
     @Test
     void navigation_sans_jeton_refusee_401() throws Exception {
         mockMvc.perform(get("/api/navigation").param("zone", "PARTENAIRE")).andExpect(status().isUnauthorized());
