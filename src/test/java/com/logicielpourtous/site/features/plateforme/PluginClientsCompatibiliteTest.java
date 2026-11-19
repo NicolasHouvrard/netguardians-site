@@ -2,28 +2,22 @@ package com.logicielpourtous.site.features.plateforme;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.logicielpourtous.site.sdk.ManifestePlugin;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
  * Le jar du plugin « clients » (construit par {@code mvn -f plugins-clients/pom.xml package}) est lu par le vrai
- * {@link LecteurManifeste} et accepté par la vraie vérification de compatibilité du noyau. Ignoré si le jar n'a pas
- * été construit.
+ * {@link LecteurManifeste} et accepté par la vraie vérification de compatibilité du noyau. Jamais ignoré : si le jar
+ * n'a pas été construit, le test échoue avec la commande à lancer ({@link JarClientsReel#localiser()}).
  */
 class PluginClientsCompatibiliteTest {
 
-	private static final Path JAR = Path.of("plugins-clients", "target", "clients-1.0.0.jar");
-
 	@Test
 	void leJarEstLuEtAccepteParLeNoyau() {
-		assumeTrue(Files.isRegularFile(JAR), "jar du plugin clients non construit");
-		ManifestePlugin m = LecteurManifeste.lire(JAR);
+		ManifestePlugin m = LecteurManifeste.lire(JarClientsReel.localiser());
 		assertEquals("clients", m.nom());
 		assertEquals(1, m.entrees().size());
 		assertEquals(1, m.blocs().size());
