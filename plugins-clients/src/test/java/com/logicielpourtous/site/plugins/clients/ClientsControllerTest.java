@@ -67,7 +67,7 @@ class ClientsControllerTest {
 	}
 
 	private static ClientResume resume(long id) {
-		return new ClientResume(id, "SIREN" + id, "TVA" + id, "MANUEL");
+		return new ClientResume(id, "SIREN" + id, "TVA" + id, "MANUEL", "Nom " + id);
 	}
 
 	private static FicheClient fiche(long id, long partenaire) {
@@ -79,7 +79,8 @@ class ClientsControllerTest {
 		mvc.perform(get("/liste").param("societeId", String.valueOf(AUTRE_PARTENAIRE)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(1))
-				.andExpect(jsonPath("$[0].societeId").value(MON_CLIENT));
+				.andExpect(jsonPath("$[0].societeId").value(MON_CLIENT))
+				.andExpect(jsonPath("$[0].nom").value("Nom " + MON_CLIENT));
 		verify(annuaire).clientsDuPartenaire(MOI);
 		verify(annuaire, never()).clientsDuPartenaire(AUTRE_PARTENAIRE);
 		verify(annuaire).autorise(USER, MOI, "clients.lire");
@@ -90,7 +91,8 @@ class ClientsControllerTest {
 		mvc.perform(get("/" + MON_CLIENT + "/fiche"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.resume.societeId").value(MON_CLIENT))
-				.andExpect(jsonPath("$.partenaireSocieteId").value(MOI));
+				.andExpect(jsonPath("$.partenaireSocieteId").value(MOI))
+				.andExpect(jsonPath("$.resume.nom").value("Nom " + MON_CLIENT));
 	}
 
 	@Test

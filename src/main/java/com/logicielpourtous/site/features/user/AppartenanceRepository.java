@@ -13,4 +13,7 @@ public interface AppartenanceRepository extends JpaRepository<Appartenance, Long
 
     /** Toutes les appartenances d'une societe du registre (par {@code societe_id}). */
     List<Appartenance> findBySocieteIdOrderById(Long societeId);
+
+    /** Appartenances de plusieurs societes du registre, par id croissant (le premier membre vient en premier). */
+    List<Appartenance> findBySocieteIdInOrderById(java.util.Collection<Long> societeIds);
 }

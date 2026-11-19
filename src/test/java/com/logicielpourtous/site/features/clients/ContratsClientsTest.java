@@ -217,6 +217,53 @@ class ContratsClientsTest {
     }
 
     @Test
+    void clientsEtFicheExposentUnNomAffiche() {
+        Long p = societe("CT40", "FRCT40");
+        Long societeCliente = societe("CT41", "FRCT41");
+        Long particulier = jdbc.queryForObject(
+                "INSERT INTO societes_identites (siren, tva, type, particulier) VALUES (NULL, NULL, 'CLIENT', TRUE) RETURNING id",
+                Long.class);
+        lier(societeCliente, p, TypeCapacite.CLIENT);
+        lier(particulier, p, TypeCapacite.CLIENT);
+        user.setFullName("Jeanne Martin");
+        users.saveAndFlush(user);
+        appartenance(societeCliente);
+        // second membre : sans nom complet -> repli sur l'e-mail ; le premier membre (plus petit id) prime
+        User sansNom = new User();
+        sansNom.setEmail("sans-nom-" + UUID.randomUUID() + "@logicielpourtous.com");
+        sansNom.setPassword("test");
+        sansNom.setFullName(" ");
+        sansNom.setActive(true);
+        sansNom.setTenant(tenant);
+        sansNom.setRoles(Set.of(role));
+        sansNom = users.saveAndFlush(sansNom);
+        Appartenance a = new Appartenance();
+        a.setUserId(sansNom.getId());
+        a.setTenant(tenant);
+        a.setSocieteId(particulier);
+        a.setRoles(Set.of(role));
+        appartenances.saveAndFlush(a);
+
+        List<ClientResume> liste = annuaire.clientsDuPartenaire(p);
+
+        assertThat(liste).filteredOn(c -> c.societeId().equals(societeCliente)).extracting(ClientResume::nom)
+                .containsExactly("Jeanne Martin");
+        assertThat(liste).filteredOn(c -> c.societeId().equals(particulier)).extracting(ClientResume::nom)
+                .containsExactly(sansNom.getEmail());
+        assertThat(annuaire.fiche(societeCliente).orElseThrow().resume().nom()).isEqualTo("Jeanne Martin");
+        assertThat(annuaire.fiche(particulier).orElseThrow().resume().nom()).isEqualTo(sansNom.getEmail());
+    }
+
+    @Test
+    void clientSansMembreAUnNomNul() {
+        Long p = societe("CT42", "FRCT42");
+        Long c = societe("CT43", "FRCT43");
+        lier(c, p, TypeCapacite.CLIENT);
+
+        assertThat(annuaire.fiche(c).orElseThrow().resume().nom()).isNull();
+    }
+
+    @Test
     void ficheDUneSocieteSansLienClientEstVide() {
         assertThat(annuaire.fiche(societe("CT12", "FRCT12"))).isEmpty();
         assertThat(annuaire.fiche(-1L)).isEmpty();
@@ -261,7 +308,7 @@ class ContratsClientsTest {
     void autoriseDelegueAuServiceDeDroitsSansRaccourci() {
         DroitsService faux = mock(DroitsService.class);
         when(faux.autorise(1L, 2L, "clients.lire")).thenReturn(true);
-        AnnuaireClientsContrat contrat = new AnnuaireClientsContratImpl(liens, capacites, null, faux, null, null, null, null, null, null, null, null, null, null, null);
+        AnnuaireClientsContrat contrat = new AnnuaireClientsContratImpl(liens, capacites, null, faux, null, null, null, null, null, null, null, null, null, null, null, null);
 
         assertThat(contrat.autorise(1L, 2L, "clients.lire")).isTrue();
         assertThat(contrat.autorise(1L, 2L, "clients.ecrire")).isFalse();

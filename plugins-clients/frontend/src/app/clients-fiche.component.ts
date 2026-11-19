@@ -14,6 +14,7 @@ import { Navigation } from './navigation';
       <p>Chargement…</p>
     } @else {
       <dl>
+        <dt>Nom</dt><dd>{{ fiche()!.resume.nom }}</dd>
         <dt>SIREN</dt><dd>{{ fiche()!.resume.siren }}</dd>
         <dt>TVA</dt><dd>{{ fiche()!.resume.tva }}</dd>
         <dt>Origine</dt><dd>{{ fiche()!.resume.origine }}</dd>
@@ -22,7 +23,7 @@ import { Navigation } from './navigation';
       @if (resume(); as r) {
         <section class="bloc">
           <h3>Résumé</h3>
-          <p>SIREN {{ r.siren }} · TVA {{ r.tva }} · origine {{ r.origine }}</p>
+          <p>{{ r.nom }} · SIREN {{ r.siren }} · TVA {{ r.tva }} · origine {{ r.origine }}</p>
         </section>
       }
     }

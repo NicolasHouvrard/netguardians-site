@@ -57,7 +57,18 @@ public interface AnnuaireClientsContrat {
 	record ResultatCreation(String issue, Long societeId) {
 	}
 
-	record ClientResume(Long societeId, String siren, String tva, String origine) {
+	/**
+	 * Résumé d'un client. {@code nom} : nom affiché (le registre des sociétés ne stocke aucun nom de société : c'est le
+	 * nom complet du premier membre de la société, à défaut son e-mail ; pour un particulier c'est donc la personne).
+	 * Peut être nul si la société n'a encore aucun membre. Le constructeur à 4 arguments (sans nom) reste disponible
+	 * pour la compatibilité avec les plugins construits avant l'ajout du nom (la version du SDK ne change pas).
+	 */
+	record ClientResume(Long societeId, String siren, String tva, String origine, String nom) {
+
+		public ClientResume(Long societeId, String siren, String tva, String origine) {
+			this(societeId, siren, tva, origine, null);
+		}
+
 	}
 
 	record FicheClient(ClientResume resume, Long partenaireSocieteId, List<String> capacites) {

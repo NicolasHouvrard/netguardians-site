@@ -36,6 +36,28 @@ describe('ClientsListeComponent', () => {
     expect(appels[0].url).not.toContain('JT');
   });
 
+  it('affiche le nom (societe ET particulier sans SIREN/TVA), echappe', async () => {
+    simulerFetch({
+      'GET /api/plugins/clients/liste': {
+        status: 200,
+        corps: [
+          { societeId: 21, nom: 'Jeanne Martin', siren: '123456782', tva: null, origine: 'MANUEL' },
+          { societeId: 22, nom: 'part@exemple.fr', siren: null, tva: null, origine: 'MANUEL' },
+          { societeId: 23, nom: '<i>pirate</i>', siren: null, tva: null, origine: 'MANUEL' },
+        ],
+      },
+    });
+    const f = monter();
+    await vi.waitFor(() => {
+      f.detectChanges();
+      expect(texte(f)).toContain('Jeanne Martin');
+    });
+    const lignes = Array.from(f.nativeElement.querySelectorAll('tbody tr')).map(tr => (tr as HTMLElement).textContent);
+    expect(lignes[1]).toContain('part@exemple.fr'); // le particulier n'est plus une ligne vide
+    expect(texte(f)).toContain('<i>pirate</i>');
+    expect(f.nativeElement.querySelector('i')).toBeNull();
+  });
+
   it('affiche un etat d erreur sur 403', async () => {
     simulerFetch({ 'GET /api/plugins/clients/liste': { status: 403 } });
     const f = monter();

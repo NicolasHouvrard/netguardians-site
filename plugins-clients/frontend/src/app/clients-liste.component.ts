@@ -17,11 +17,12 @@ import { Navigation } from './navigation';
     } @else {
       <table>
         <thead>
-          <tr><th>SIREN</th><th>TVA</th><th>Origine</th><th></th></tr>
+          <tr><th>Nom</th><th>SIREN</th><th>TVA</th><th>Origine</th><th></th></tr>
         </thead>
         <tbody>
           @for (c of clients(); track c.societeId) {
             <tr>
+              <td>{{ c.nom }}</td>
               <td>{{ c.siren }}</td>
               <td>{{ c.tva }}</td>
               <td>{{ c.origine }}</td>

@@ -167,6 +167,8 @@ class PluginClientsIT {
 		clientDeB = societe("CLIENT", null);
 		lier(clientDeA, partenaireA);
 		lier(clientDeB, partenaireB);
+		// Premier membre du client de A : son nom complet est le nom affiché du client.
+		utilisateur(tenant, clientDeA, gestionnaire);
 
 		Set<String> tous = Set.of("clients.lire", "clients.creer", "clients.entrer");
 		droits.fixerPlafond(partenaireA, tous);
@@ -240,8 +242,10 @@ class PluginClientsIT {
 
 		mvc.perform(api("/liste", jetonAvecDroits)).andExpect(status().isOk())
 				.andExpect(jsonPath("$", hasSize(1)))
-				.andExpect(jsonPath("$[0].societeId").value(clientDeA.intValue()));
+				.andExpect(jsonPath("$[0].societeId").value(clientDeA.intValue()))
+				.andExpect(jsonPath("$[0].nom").value("Utilisateur T14"));
 		mvc.perform(api("/" + clientDeA + "/fiche", jetonAvecDroits)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.resume.nom").value("Utilisateur T14"))
 				.andExpect(jsonPath("$.partenaireSocieteId").value(partenaireA.intValue()));
 		mvc.perform(api("/" + clientDeA + "/blocs/resume", jetonAvecDroits)).andExpect(status().isOk())
 				.andExpect(jsonPath("$.societeId").value(clientDeA.intValue()));

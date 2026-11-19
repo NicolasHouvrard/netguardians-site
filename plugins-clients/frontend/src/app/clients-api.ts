@@ -8,6 +8,8 @@ export interface Reponse<T = unknown> {
 
 export interface ClientResume {
   societeId: number;
+  /** Nom affiché (nom du premier membre ou e-mail ; le registre ne stocke pas de nom de société) ; nul sans membre. */
+  nom?: string | null;
   siren: string | null;
   tva: string | null;
   origine: string | null;

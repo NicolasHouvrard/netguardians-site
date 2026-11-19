@@ -4,7 +4,7 @@ import { ClientsApi } from './clients-api';
 import { ClientsFicheComponent } from './clients-fiche.component';
 import { simulerFetch } from './test-utils';
 
-const RESUME = { societeId: 11, siren: '123456782', tva: null, origine: 'MANUEL' };
+const RESUME = { societeId: 11, nom: 'Jeanne <b>Martin</b>', siren: '123456782', tva: null, origine: 'MANUEL' };
 
 function monter(id: number) {
   TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
@@ -28,6 +28,8 @@ describe('ClientsFicheComponent', () => {
       expect(texte(f)).toContain('Résumé');
       expect(texte(f)).toContain('123456782');
     });
+    expect(texte(f)).toContain('Jeanne <b>Martin</b>'); // nom affiche tel quel, echappe
+    expect(f.nativeElement.querySelector('b')).toBeNull();
     expect(texte(f)).toContain('CLIENT');
     expect(appels.every(a => a.authorization === 'Bearer JT')).toBe(true);
   });

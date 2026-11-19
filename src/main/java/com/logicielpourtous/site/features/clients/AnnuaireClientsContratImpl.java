@@ -24,6 +24,8 @@ import com.logicielpourtous.site.features.identite.RegistreSocietes;
 import com.logicielpourtous.site.features.identite.SocieteDejaConnueException;
 import com.logicielpourtous.site.features.identite.TypeSociete;
 import com.logicielpourtous.site.features.role.RoleRepository;
+import com.logicielpourtous.site.features.user.Appartenance;
+import com.logicielpourtous.site.features.user.AppartenanceRepository;
 import com.logicielpourtous.site.features.user.User;
 import com.logicielpourtous.site.features.user.UserRepository;
 import com.logicielpourtous.site.features.identite.SocieteIdentite;
@@ -75,11 +77,14 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 
 	private final AccesEspaceClientService acces;
 
+	private final AppartenanceRepository appartenances;
+
 	AnnuaireClientsContratImpl(LienClientRepository liens, CapaciteSocieteRepository capacites,
 			SocieteIdentiteRepository societes, DroitsService droits, RegistreSocietes registre,
 			PartenaireReferentService referents, ManagersService managers, UserRepository users, RoleRepository roles,
 			TenantRepository tenants, PasswordEncoder passwordEncoder, EmailsUtilises emailsUtilises,
-			InscriptionSocieteService inscription, IdentiteContrat identite, AccesEspaceClientService acces) {
+			InscriptionSocieteService inscription, IdentiteContrat identite, AccesEspaceClientService acces,
+			AppartenanceRepository appartenances) {
 		this.liens = liens;
 		this.capacites = capacites;
 		this.societes = societes;
@@ -95,6 +100,7 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 		this.inscription = inscription;
 		this.identite = identite;
 		this.acces = acces;
+		this.appartenances = appartenances;
 	}
 
 	/**
@@ -211,9 +217,10 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 		Map<Long, SocieteIdentite> parId = societes.findAllById(clients)
 			.stream()
 			.collect(Collectors.toMap(SocieteIdentite::getId, Function.identity()));
+		Map<Long, String> noms = noms(parId.keySet());
 		return lies.stream()
 			.filter(l -> parId.containsKey(l.getClientSocieteId()))
-			.map(l -> resume(parId.get(l.getClientSocieteId()), l))
+			.map(l -> resume(parId.get(l.getClientSocieteId()), l, noms.get(l.getClientSocieteId())))
 			.toList();
 	}
 
@@ -236,7 +243,8 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 			return Optional.empty();
 		}
 		return societes.findById(clientSocieteId)
-			.map(s -> new FicheClient(resume(s, lien.get()), lien.get().getPartenaireSocieteId(), noms));
+			.map(s -> new FicheClient(resume(s, lien.get(), noms(Set.of(s.getId())).get(s.getId())),
+					lien.get().getPartenaireSocieteId(), noms));
 	}
 
 	@Override
@@ -266,8 +274,37 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 		}
 	}
 
-	private static ClientResume resume(SocieteIdentite s, LienClient lien) {
-		return new ClientResume(s.getId(), s.getSiren(), s.getTva(), lien.getOrigine());
+	private static ClientResume resume(SocieteIdentite s, LienClient lien, String nom) {
+		return new ClientResume(s.getId(), s.getSiren(), s.getTva(), lien.getOrigine(), nom);
+	}
+
+	/**
+	 * Nom affiché de chaque société : le registre ne stocke aucun nom de société, on prend donc le nom complet du
+	 * premier membre (plus petit id d'appartenance), à défaut son e-mail (un particulier est ainsi la personne). Absent
+	 * de la map si la société n'a aucun membre.
+	 */
+	private Map<Long, String> noms(java.util.Collection<Long> societeIds) {
+		if (societeIds.isEmpty()) {
+			return Map.of();
+		}
+		Map<Long, Long> premierMembre = new java.util.HashMap<>();
+		for (Appartenance a : appartenances.findBySocieteIdInOrderById(societeIds)) {
+			premierMembre.putIfAbsent(a.getSocieteId(), a.getUserId());
+		}
+		Map<Long, User> membres = users.findAllById(premierMembre.values())
+			.stream()
+			.collect(Collectors.toMap(User::getId, Function.identity()));
+		Map<Long, String> noms = new java.util.HashMap<>();
+		premierMembre.forEach((societe, userId) -> {
+			User u = membres.get(userId);
+			if (u != null) {
+				String nom = u.getFullName() != null && !u.getFullName().isBlank() ? u.getFullName().strip() : u.getEmail();
+				if (nom != null && !nom.isBlank()) {
+					noms.put(societe, nom);
+				}
+			}
+		});
+		return noms;
 	}
 
 }
