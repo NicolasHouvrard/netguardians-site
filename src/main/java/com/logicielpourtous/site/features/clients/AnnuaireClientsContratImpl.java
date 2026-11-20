@@ -5,16 +5,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Locale;
 import java.util.Set;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.logicielpourtous.site.features.auth.InscriptionSocieteService;
-import com.logicielpourtous.site.features.commun.Tenant;
 import com.logicielpourtous.site.features.commun.TenantRepository;
 import com.logicielpourtous.site.features.identite.EmailDejaUtiliseException;
 import com.logicielpourtous.site.features.identite.EmailsUtilises;
@@ -23,7 +20,6 @@ import com.logicielpourtous.site.features.identite.NumerosSociete;
 import com.logicielpourtous.site.features.identite.RegistreSocietes;
 import com.logicielpourtous.site.features.identite.SocieteDejaConnueException;
 import com.logicielpourtous.site.features.identite.TypeSociete;
-import com.logicielpourtous.site.features.role.RoleRepository;
 import com.logicielpourtous.site.features.user.Appartenance;
 import com.logicielpourtous.site.features.user.AppartenanceRepository;
 import com.logicielpourtous.site.features.user.User;
@@ -63,11 +59,9 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 
 	private final UserRepository users;
 
-	private final RoleRepository roles;
+	private final PremierManagerService premierManager;
 
 	private final TenantRepository tenants;
-
-	private final PasswordEncoder passwordEncoder;
 
 	private final EmailsUtilises emailsUtilises;
 
@@ -81,8 +75,8 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 
 	AnnuaireClientsContratImpl(LienClientRepository liens, CapaciteSocieteRepository capacites,
 			SocieteIdentiteRepository societes, DroitsService droits, RegistreSocietes registre,
-			PartenaireReferentService referents, ManagersService managers, UserRepository users, RoleRepository roles,
-			TenantRepository tenants, PasswordEncoder passwordEncoder, EmailsUtilises emailsUtilises,
+			PartenaireReferentService referents, ManagersService managers, UserRepository users, PremierManagerService premierManager,
+			TenantRepository tenants, EmailsUtilises emailsUtilises,
 			InscriptionSocieteService inscription, IdentiteContrat identite, AccesEspaceClientService acces,
 			AppartenanceRepository appartenances) {
 		this.liens = liens;
@@ -93,9 +87,8 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 		this.referents = referents;
 		this.managers = managers;
 		this.users = users;
-		this.roles = roles;
+		this.premierManager = premierManager;
 		this.tenants = tenants;
-		this.passwordEncoder = passwordEncoder;
 		this.emailsUtilises = emailsUtilises;
 		this.inscription = inscription;
 		this.identite = identite;
@@ -171,7 +164,7 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 			}
 		}
 		referents.rattacher(societe.getId(), partenaire, "PARTENAIRE");
-		User premier = creerUtilisateur(email, nom, proprietaireTenantId);
+		User premier = premierManager.creer(email, nom, proprietaireTenantId);
 		managers.ajouterUtilisateur(premier.getId(), societe.getId(), Set.of());
 		return new ResultatCreation(CREE, societe.getId());
 	}
@@ -183,21 +176,6 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 			tva = NumerosSociete.tvaFrancaise(siren);
 		}
 		return IdentiteSociete.depuis(siren, null, tva);
-	}
-
-	/** Compte du premier manager : mot de passe aléatoire inutilisable, à définir via « mot de passe oublié ». */
-	private User creerUtilisateur(String email, String nom, Long proprietaireTenantId) {
-		Tenant tenant = tenants.findById(proprietaireTenantId)
-			.orElseThrow(() -> new IllegalStateException("La société partenaire n'a pas de tenant propriétaire valide."));
-		User user = new User();
-		user.setEmail(email);
-		user.setFullName(nom);
-		user.setPassword(passwordEncoder.encode(UUID.randomUUID() + UUID.randomUUID().toString()));
-		user.setTenant(tenant);
-		user.setMustChangePassword(true);
-		user.setActive(true);
-		roles.findByName(ManagersService.ROLE_MANAGER).ifPresent(r -> user.getRoles().add(r));
-		return users.saveAndFlush(user);
 	}
 
 	@Override

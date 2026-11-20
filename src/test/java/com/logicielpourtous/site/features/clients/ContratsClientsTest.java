@@ -308,7 +308,7 @@ class ContratsClientsTest {
     void autoriseDelegueAuServiceDeDroitsSansRaccourci() {
         DroitsService faux = mock(DroitsService.class);
         when(faux.autorise(1L, 2L, "clients.lire")).thenReturn(true);
-        AnnuaireClientsContrat contrat = new AnnuaireClientsContratImpl(liens, capacites, null, faux, null, null, null, null, null, null, null, null, null, null, null, null);
+        AnnuaireClientsContrat contrat = new AnnuaireClientsContratImpl(liens, capacites, null, faux, null, null, null, null, null, null, null, null, null, null, null);
 
         assertThat(contrat.autorise(1L, 2L, "clients.lire")).isTrue();
         assertThat(contrat.autorise(1L, 2L, "clients.ecrire")).isFalse();
