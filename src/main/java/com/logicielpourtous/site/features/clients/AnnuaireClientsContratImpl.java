@@ -111,6 +111,19 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 		if (partenaire == null) {
 			throw new IllegalArgumentException("La société partenaire doit être renseignée.");
 		}
+		return creerClientPour(partenaire, demande);
+	}
+
+	/**
+	 * Creation d'un client pour le partenaire donne, SANS controle d'appelant : l'appelant garantit l'autorisation (le
+	 * plugin clients controle clients.creer avant d'appeler le contrat public ; le contrat de gestion des partenaires
+	 * controle la qualite d'admin du serveur maitre). Volontairement non publique.
+	 */
+	@Transactional
+	ResultatCreation creerClientPour(Long partenaire, CreationClient demande) {
+		if (demande == null || partenaire == null) {
+			throw new IllegalArgumentException("La demande doit être renseignée.");
+		}
 		String email = demande.email() == null ? "" : demande.email().strip().toLowerCase(Locale.ROOT);
 		if (email.isEmpty() || email.length() < 3 || email.indexOf('@') < 1 || email.indexOf('@') == email.length() - 1
 				|| email.chars().anyMatch(Character::isWhitespace)) {

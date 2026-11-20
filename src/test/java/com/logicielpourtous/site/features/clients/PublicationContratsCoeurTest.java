@@ -12,6 +12,7 @@ import org.springframework.context.support.GenericApplicationContext;
 
 import com.logicielpourtous.site.features.plateforme.ContratRegistre;
 import com.logicielpourtous.site.sdk.AnnuaireClientsContrat;
+import com.logicielpourtous.site.sdk.GestionPartenairesContrat;
 import com.logicielpourtous.site.sdk.IdentiteContrat;
 import com.logicielpourtous.site.sdk.IdentiteContrat.IdentiteCourante;
 
@@ -24,9 +25,11 @@ class PublicationContratsCoeurTest {
         when(identite.courante()).thenReturn(new IdentiteCourante(7L, Set.of("ROLE_X"), 3L, 4L, "MASTER"));
         AnnuaireClientsContrat annuaire = mock(AnnuaireClientsContrat.class);
         when(annuaire.clientsDuPartenaire(3L)).thenReturn(List.of());
+        GestionPartenairesContrat gestion = mock(GestionPartenairesContrat.class);
+        when(gestion.modeleDroits()).thenReturn(Set.of("clients.lire"));
 
         ContratRegistre registre = new ContratRegistre();
-        new PublicationContratsCoeur(registre, identite, annuaire);
+        new PublicationContratsCoeur(registre, identite, annuaire, gestion);
 
         GenericApplicationContext parent = new GenericApplicationContext();
         parent.registerBean(ContratRegistre.class, () -> registre);
@@ -36,22 +39,28 @@ class PublicationContratsCoeurTest {
         enfant.registerBean("identite", IdentiteContrat.class, () -> enfant.getBean(ContratRegistre.class).obtenir(IdentiteContrat.class));
         enfant.registerBean("annuaire", AnnuaireClientsContrat.class,
                 () -> enfant.getBean(ContratRegistre.class).obtenir(AnnuaireClientsContrat.class));
+        enfant.registerBean("gestion", GestionPartenairesContrat.class,
+                () -> enfant.getBean(ContratRegistre.class).obtenir(GestionPartenairesContrat.class));
         enfant.registerBean(ConsommateurDeTest.class);
         enfant.refresh();
 
         ConsommateurDeTest conso = enfant.getBean(ConsommateurDeTest.class);
         assertThat(conso.identite.courante().userId()).isEqualTo(7L);
         assertThat(conso.annuaire.clientsDuPartenaire(3L)).isEmpty();
+        assertThat(conso.gestion.modeleDroits()).containsExactly("clients.lire");
     }
 
     public static class ConsommateurDeTest {
 
         public final IdentiteContrat identite;
         public final AnnuaireClientsContrat annuaire;
+        public final GestionPartenairesContrat gestion;
 
-        public ConsommateurDeTest(IdentiteContrat identite, AnnuaireClientsContrat annuaire) {
+        public ConsommateurDeTest(IdentiteContrat identite, AnnuaireClientsContrat annuaire,
+                GestionPartenairesContrat gestion) {
             this.identite = identite;
             this.annuaire = annuaire;
+            this.gestion = gestion;
         }
     }
 }

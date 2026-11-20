@@ -10,5 +10,7 @@ public interface CapaciteSocieteRepository extends JpaRepository<CapaciteSociete
 
     List<CapaciteSociete> findBySocieteIdIn(java.util.Collection<Long> societeIds);
 
+    List<CapaciteSociete> findByCapacite(TypeCapacite capacite);
+
     boolean existsBySocieteIdAndCapacite(Long societeId, TypeCapacite capacite);
 }

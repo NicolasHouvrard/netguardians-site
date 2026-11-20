@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 
 import com.logicielpourtous.site.features.plateforme.ContratRegistre;
 import com.logicielpourtous.site.sdk.AnnuaireClientsContrat;
+import com.logicielpourtous.site.sdk.GestionPartenairesContrat;
 import com.logicielpourtous.site.sdk.IdentiteContrat;
 
 /**
@@ -15,9 +16,11 @@ import com.logicielpourtous.site.sdk.IdentiteContrat;
 @ConditionalOnProperty(name = "app.plateforme.actif", havingValue = "true")
 class PublicationContratsCoeur {
 
-	PublicationContratsCoeur(ContratRegistre registre, IdentiteContrat identite, AnnuaireClientsContrat annuaire) {
+	PublicationContratsCoeur(ContratRegistre registre, IdentiteContrat identite, AnnuaireClientsContrat annuaire,
+			GestionPartenairesContrat gestionPartenaires) {
 		registre.publierCoeur(IdentiteContrat.class, identite);
 		registre.publierCoeur(AnnuaireClientsContrat.class, annuaire);
+		registre.publierCoeur(GestionPartenairesContrat.class, gestionPartenaires);
 	}
 
 }
