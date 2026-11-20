@@ -5,6 +5,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
@@ -27,6 +28,9 @@ import com.logicielpourtous.site.sdk.GestionPartenairesContrat.ResultatPartenair
  */
 @Service
 class CreationPartenaireService {
+
+	/** Taille maximale (colonnes varchar(255)) de l'e-mail, du nom et de la raison sociale. */
+	private static final int MAX = 255;
 
 	private static final String CREE = "CREE";
 
@@ -66,22 +70,26 @@ class CreationPartenaireService {
 		this.etats = etats;
 	}
 
-	@Transactional
+	/**
+	 * REQUIRES_NEW : la création (et un éventuel rollback-only de la course sur le SIREN) est isolée de la transaction
+	 * d'un appelant. Conséquence : si l'appelant annule ensuite sa propre transaction, le partenaire reste créé.
+	 */
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	ResultatPartenaire creer(CreationPartenaire demande) {
 		if (demande == null) {
 			throw new IllegalArgumentException("La demande doit être renseignée.");
 		}
 		String email = demande.email() == null ? "" : demande.email().strip().toLowerCase(Locale.ROOT);
 		if (email.isEmpty() || email.length() < 3 || email.indexOf('@') < 1 || email.indexOf('@') == email.length() - 1
-				|| email.chars().anyMatch(Character::isWhitespace)) {
+				|| email.length() > MAX || email.chars().anyMatch(Character::isWhitespace)) {
 			throw new IllegalArgumentException("L'adresse e-mail est invalide.");
 		}
 		String nom = demande.nom() == null ? "" : demande.nom().strip();
-		if (nom.isEmpty()) {
+		if (nom.isEmpty() || nom.length() > MAX) {
 			throw new IllegalArgumentException("Le nom doit être renseigné.");
 		}
 		String raisonSociale = demande.raisonSociale() == null ? "" : demande.raisonSociale().strip();
-		if (raisonSociale.isEmpty()) {
+		if (raisonSociale.isEmpty() || raisonSociale.length() > MAX) {
 			throw new IllegalArgumentException("La raison sociale doit être renseignée.");
 		}
 		IdentiteSociete identite = identite(demande);

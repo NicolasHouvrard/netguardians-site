@@ -2,6 +2,8 @@ package com.logicielpourtous.site.features.clients;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -15,6 +17,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import com.logicielpourtous.site.features.identite.RegistreSocietes;
+import com.logicielpourtous.site.features.identite.SocieteDejaConnueException;
+import com.logicielpourtous.site.features.identite.SocieteIdentite;
 
 import com.logicielpourtous.site.features.identite.NumerosSociete;
 import com.logicielpourtous.site.sdk.GestionPartenairesContrat.CreationPartenaire;
@@ -30,6 +38,8 @@ class CreationPartenaireServiceTest {
     @Autowired private ModeleDroitsPartenaireService modele;
     @Autowired private DroitsService droits;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private TransactionTemplate tx;
+    @MockitoSpyBean private RegistreSocietes registre;
 
     private final List<String> sirens = new ArrayList<>();
     private final List<String> emails = new ArrayList<>();
@@ -203,6 +213,95 @@ class CreationPartenaireServiceTest {
         assertThatThrownBy(() -> service.creer(new CreationPartenaire(bon, null, "X", "pas-un-email", "N")))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.creer(new CreationPartenaire(bon, null, " ", "a@example.test", "N")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(compter("tenants")).isEqualTo(tenants);
+        assertThat(compter("societes_identites")).isEqualTo(identites);
+        assertThat(compter("users")).isEqualTo(users);
+        assertThat(schemas()).isEqualTo(schemas);
+    }
+
+    private Long marqueur() {
+        String suffixe = UUID.randomUUID().toString().substring(0, 8);
+        sirens.add("MK" + suffixe);
+        return jdbc.queryForObject(
+                "INSERT INTO societes_identites (siren, tva, type) VALUES (?, ?, 'CLIENT') RETURNING id", Long.class,
+                "MK" + suffixe, "FRMK" + suffixe);
+    }
+
+    @Test
+    void creerDansUneTransactionExterneRenvoieSirenDejaConnuSansRollbackDuCaller() {
+        String siren = siren();
+        assertThat(service.creer(demande(siren, email())).issue()).isEqualTo("CREE");
+        long tenants = compter("tenants");
+        long schemas = schemas();
+        String sirenMarqueur = "MK" + UUID.randomUUID().toString().substring(0, 8);
+        sirens.add(sirenMarqueur);
+
+        ResultatPartenaire r = tx.execute(st -> {
+            jdbc.update("INSERT INTO societes_identites (siren, tva, type) VALUES (?, ?, 'CLIENT')", sirenMarqueur,
+                    "FR" + sirenMarqueur);
+            return service.creer(demande(siren, email()));
+        });
+
+        assertThat(r.issue()).isEqualTo("SIREN_DEJA_CONNU");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM societes_identites WHERE siren = ?", Long.class,
+                sirenMarqueur)).isEqualTo(1L);
+        assertThat(compter("tenants")).isEqualTo(tenants);
+        assertThat(schemas()).isEqualTo(schemas);
+    }
+
+    @Test
+    void courseSurLeSirenDansUneTransactionExterneAnnuleTenantEtSchemaSansRollbackDuCaller() {
+        String siren = siren();
+        long tenants = compter("tenants");
+        long societes = compter("societes_identites");
+        long schemas = schemas();
+        String sirenMarqueur = "MK" + UUID.randomUUID().toString().substring(0, 8);
+        sirens.add(sirenMarqueur);
+        doThrow(new SocieteDejaConnueException(new SocieteIdentite())).when(registre)
+                .enregistrer(any(), any(), any());
+
+        ResultatPartenaire r = tx.execute(st -> {
+            jdbc.update("INSERT INTO societes_identites (siren, tva, type) VALUES (?, ?, 'CLIENT')", sirenMarqueur,
+                    "FR" + sirenMarqueur);
+            return service.creer(demande(siren, email()));
+        });
+
+        assertThat(r.issue()).isEqualTo("SIREN_DEJA_CONNU");
+        assertThat(r.societeId()).isNull();
+        assertThat(compter("tenants")).isEqualTo(tenants);
+        assertThat(schemas()).isEqualTo(schemas);
+        assertThat(compter("societes_identites")).isEqualTo(societes + 1);
+    }
+
+    @Test
+    void unCreateurAvecTransactionExterneEtCreationReussieValideTout() {
+        String email = email();
+        ResultatPartenaire r = tx.execute(st -> {
+            marqueur();
+            return service.creer(demande(siren(), email));
+        });
+
+        assertThat(r.issue()).isEqualTo("CREE");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE email = ?", Long.class, email)).isEqualTo(1L);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM partenaires_etat WHERE societe_id = ?", Long.class,
+                r.societeId())).isEqualTo(1L);
+    }
+
+    @Test
+    void uneValeurDePlusDe255CaracteresEstRefuseeSansRienEcrire() {
+        long tenants = compter("tenants");
+        long identites = compter("societes_identites");
+        long users = compter("users");
+        long schemas = schemas();
+        String bon = siren();
+        String long256 = "x".repeat(256);
+        assertThatThrownBy(() -> service.creer(new CreationPartenaire(bon, null, long256, "a@example.test", "N")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.creer(new CreationPartenaire(bon, null, "X", "a@example.test", long256)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service
+                .creer(new CreationPartenaire(bon, null, "X", "x".repeat(250) + "@example.test", "N")))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(compter("tenants")).isEqualTo(tenants);
         assertThat(compter("societes_identites")).isEqualTo(identites);
