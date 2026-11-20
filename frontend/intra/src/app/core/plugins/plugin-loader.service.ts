@@ -4,7 +4,7 @@ import { DOCUMENT } from '@angular/common';
 /**
  * Charge le front d'un plugin : un module ES (`ui/main.js` côté serveur, URL versionnée) qui déclare un élément
  * personnalisé. Un module déjà chargé ne se décharge pas : chaque version a son propre script ET son propre nom
- * d'élément (`<plugin>-app-v<version sans points>`).
+ * d'élément (`<plugin>-app-v<version encodée>`, encodage injectif : voir nomElement).
  */
 @Injectable({ providedIn: 'root' })
 export class PluginLoaderService {
@@ -13,7 +13,12 @@ export class PluginLoaderService {
 
   /** Nom de l'élément personnalisé de cette version du plugin. */
   nomElement(plugin: string, version: string): string {
-    const suffixe = version.toLowerCase().replace(/\./g, '').replace(/[^a-z0-9-]/g, '-');
+    // Encodage INJECTIF (règle identique à plugins-clients/frontend/scripts/version.mjs) : minuscules et chiffres tels
+    // quels, « . » -> « - », « - » -> « _d », tout autre caractère -> « _u<hex>_ » (« _ » inclus). Ex. 1.1.10 ->
+    // v1-1-10 et 1.11.0 -> v1-11-0 : jamais le même nom pour deux versions.
+    const suffixe = Array.from(version.toLowerCase())
+      .map(c => (/[a-z0-9]/.test(c) ? c : c === '.' ? '-' : c === '-' ? '_d' : `_u${c.codePointAt(0)!.toString(16)}_`))
+      .join('');
     return `${plugin}-app-v${suffixe}`;
   }
 

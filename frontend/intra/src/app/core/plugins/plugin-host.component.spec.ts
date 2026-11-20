@@ -10,7 +10,7 @@ class ElementTest extends HTMLElement {
   chemin?: string;
   jeton?: string | null;
 }
-for (const nom of ['clients-app-v100', 'clients-app-v110']) {
+for (const nom of ['clients-app-v1-0-0', 'clients-app-v1-1-0']) {
   if (!customElements.get(nom)) customElements.define(nom, class extends ElementTest {});
 }
 
@@ -21,7 +21,7 @@ describe('PluginHostComponent', () => {
   let version: string;
   let zone: string;
   const charger = vi.fn((plugin: string, v: string) =>
-    Promise.resolve(`${plugin}-app-v${v.replace(/\./g, '')}`));
+    Promise.resolve(`${plugin}-app-v${v.replace(/\./g, '-')}`));
 
   function monter() {
     TestBed.configureTestingModule({
@@ -56,7 +56,7 @@ describe('PluginHostComponent', () => {
   it('(d) crée l\'élément attendu et lui transmet chemin et jeton', async () => {
     const fixture = monter();
     await attendre();
-    const el = fixture.nativeElement.querySelector('clients-app-v100') as ElementTest;
+    const el = fixture.nativeElement.querySelector('clients-app-v1-0-0') as ElementTest;
     expect(el).not.toBeNull();
     expect(el.chemin).toBe('/liste/3');
     expect(el.jeton).toBe('JWT');
@@ -66,10 +66,10 @@ describe('PluginHostComponent', () => {
   it('un changement de chemin met à jour le même élément', async () => {
     const fixture = monter();
     await attendre();
-    const el = fixture.nativeElement.querySelector('clients-app-v100') as ElementTest;
+    const el = fixture.nativeElement.querySelector('clients-app-v1-0-0') as ElementTest;
     url$.next(seg('plugins', 'clients', 'autre'));
     await attendre();
-    expect(fixture.nativeElement.querySelector('clients-app-v100')).toBe(el);
+    expect(fixture.nativeElement.querySelector('clients-app-v1-0-0')).toBe(el);
     expect(el.chemin).toBe('/autre');
   });
 
@@ -79,8 +79,8 @@ describe('PluginHostComponent', () => {
     version = '1.1.0';
     url$.next(seg('plugins', 'clients', 'liste'));
     await attendre();
-    expect(fixture.nativeElement.querySelector('clients-app-v100')).toBeNull();
-    expect(fixture.nativeElement.querySelector('clients-app-v110')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('clients-app-v1-0-0')).toBeNull();
+    expect(fixture.nativeElement.querySelector('clients-app-v1-1-0')).not.toBeNull();
   });
 
   it('une navigation plus récente prend le relais d\'un chargement plus ancien en attente', async () => {
@@ -92,11 +92,11 @@ describe('PluginHostComponent', () => {
     version = '1.1.0';
     url$.next(seg('plugins', 'clients', 'liste')); // second afficher() : 1.1.0, résolu tout de suite
     await attendre();
-    expect(fixture.nativeElement.querySelector('clients-app-v110')).not.toBeNull();
-    liberer('clients-app-v100'); // le plus ancien se termine en retard : ne doit rien ajouter
+    expect(fixture.nativeElement.querySelector('clients-app-v1-1-0')).not.toBeNull();
+    liberer('clients-app-v1-0-0'); // le plus ancien se termine en retard : ne doit rien ajouter
     await attendre();
-    expect(fixture.nativeElement.querySelector('clients-app-v100')).toBeNull();
-    expect(fixture.nativeElement.querySelector('clients-app-v110')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('clients-app-v1-0-0')).toBeNull();
+    expect(fixture.nativeElement.querySelector('clients-app-v1-1-0')).not.toBeNull();
   });
 
   it('plugin absent des tuiles : message, aucun élément', async () => {
@@ -112,7 +112,7 @@ describe('PluginHostComponent', () => {
     zone = 'CLIENT';
     const fixture = monter();
     await attendre();
-    expect(fixture.nativeElement.querySelector('clients-app-v100')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('clients-app-v1-0-0')).not.toBeNull();
   });
 
   it('pluginsMatcher consomme tout après /plugins/<plugin>', () => {
