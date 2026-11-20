@@ -1,0 +1,14 @@
+@if (erreur()) {
+  <p class="vide" role="alert">Impossible de charger les applications.</p>
+} @else if (charge() && tuiles().length === 0) {
+  <p class="vide">Aucune application disponible.</p>
+} @else {
+  <div class="grille">
+    @for (t of tuiles(); track t.plugin + t.chemin) {
+      <a class="carte" [routerLink]="lien(t.plugin, t.chemin)">
+        <mat-icon>{{ t.icone }}</mat-icon>
+        <span class="libelle">{{ t.libelle }}</span>
+      </a>
+    }
+  </div>
+}

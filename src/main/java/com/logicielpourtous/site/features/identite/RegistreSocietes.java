@@ -27,8 +27,36 @@ public class RegistreSocietes {
 
     private final SocieteIdentiteRepository repository;
 
-    public RegistreSocietes(SocieteIdentiteRepository repository) {
+    private final EmailsUtilises emailsUtilises;
+    private final AttributionCapacites capacites;
+
+    public RegistreSocietes(SocieteIdentiteRepository repository, EmailsUtilises emailsUtilises,
+                            AttributionCapacites capacites) {
         this.repository = repository;
+        this.emailsUtilises = emailsUtilises;
+        this.capacites = capacites;
+    }
+
+    /**
+     * Cree une societe « particulier » (ni SIREN ni TVA) avec la capacite CLIENT.
+     *
+     * @param emailPremierUtilisateur e-mail du particulier ; compare en minuscules, espaces retires
+     * @param proprietaireTenantId    tenant du partenaire proprietaire ; {@code null} = le Maitre
+     * @throws EmailDejaUtiliseException si l'e-mail est celui d'un utilisateur existant (avant toute ecriture)
+     */
+    @Transactional(noRollbackFor = EmailDejaUtiliseException.class)
+    public SocieteIdentite enregistrerParticulier(String emailPremierUtilisateur, Long proprietaireTenantId) {
+        Objects.requireNonNull(emailPremierUtilisateur, "emailPremierUtilisateur");
+        String email = emailPremierUtilisateur.strip().toLowerCase(java.util.Locale.ROOT);
+        if (emailsUtilises.estUtilise(email)) {
+            throw new EmailDejaUtiliseException();
+        }
+        SocieteIdentite nouvelle = new SocieteIdentite();
+        nouvelle.setParticulier(true);
+        nouvelle.setProprietaireTenantId(proprietaireTenantId);
+        SocieteIdentite enregistree = repository.saveAndFlush(nouvelle);
+        capacites.accorderClient(enregistree.getId());
+        return enregistree;
     }
 
     /** Retrouve une societe par son SIREN s'il existe, sinon par sa TVA. */

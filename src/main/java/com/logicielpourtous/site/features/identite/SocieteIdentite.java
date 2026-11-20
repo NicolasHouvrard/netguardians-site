@@ -31,11 +31,17 @@ public class SocieteIdentite {
     @Column(name = "siren")
     private String siren;
 
-    @Column(name = "tva", nullable = false)
+    /** Nul pour un particulier (voir {@code V12__particuliers_registre.sql}). */
+    @Column(name = "tva")
     private String tva;
 
+    /** Client particulier : ni SIREN ni TVA. */
+    @Column(name = "particulier", nullable = false)
+    private boolean particulier;
+
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false)
+    /** Historique : n'est plus ecrit par le nouveau code (voir les capacites, {@code V11__capacites_clients.sql}). */
+    @Column(name = "type")
     private TypeSociete type;
 
     @Column(name = "proprietaire_tenant_id")

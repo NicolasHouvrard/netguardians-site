@@ -633,6 +633,7 @@ public class PluginManager {
 	 */
 	private void basculer(PluginGeneration gen, ManifestePlugin m) {
 		contrats.activer(gen);
+		gen.manifeste = m;
 		actifs.put(m.nom(), gen);
 		manifestes.put(m.nom(), m);
 		routage.router(m.nom(), gen);

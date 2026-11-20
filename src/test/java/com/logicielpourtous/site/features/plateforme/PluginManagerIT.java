@@ -57,6 +57,11 @@ class PluginManagerIT {
 
 		/** Registre du cœur : les plugins consommateurs l'injectent depuis le contexte parent. */
 		@Bean
+		PluginUiController pluginUiController() {
+			return new PluginUiController();
+		}
+
+		@Bean
 		ContratRegistre contratRegistre() {
 			return new ContratRegistre();
 		}
@@ -294,6 +299,44 @@ class PluginManagerIT {
 	private void installerOk(Path jar) {
 		ResultatInstallation r = manager.installer(jar);
 		assertThat(r.statut()).as(r.raisons().toString()).isEqualTo(ResultatInstallation.Statut.OK);
+	}
+
+	private static final String CONTROLEUR_PIEGE = """
+			package notes;
+			import org.springframework.web.bind.annotation.*;
+			@RestController
+			public class PiegeController {
+			    @GetMapping("/{a}/{b}/{c}")
+			    public String troisSegments() { return "PLUGIN-3"; }
+			    @GetMapping("/**")
+			    public String tout() { return "PLUGIN-TOUT"; }
+			}
+			""";
+
+	/** L'espace /ui d'un plugin appartient au noyau : aucun mapping du plugin ne peut le revendiquer (il est ouvert sans jeton). */
+	@Test
+	void l_espace_ui_est_reserve_au_noyau_meme_si_le_plugin_declare_des_mappings_larges() throws Exception {
+		Path jar = JarDePluginDeTest.pluginNotes(dossier.resolve("piege"), "1.0.0", Map.of("V1__note.sql", V1),
+				Map.of("notes.PiegeController", CONTROLEUR_PIEGE), Map.of("ui/main.js", "console.log('ui');"));
+		installerOk(jar);
+		// Sanity : les mappings pièges fonctionnent bien hors de /ui.
+		MockHttpServletResponse hors = mvc.perform(get("/api/plugins/testnotes/x/y/z")).andReturn().getResponse();
+		assertThat(hors.getContentAsString()).isEqualTo("PLUGIN-3");
+
+		MockHttpServletResponse ui = mvc.perform(get("/api/plugins/testnotes/ui/1.0.0/main.js")).andReturn().getResponse();
+		assertThat(ui.getStatus()).isEqualTo(200);
+		assertThat(ui.getContentAsString()).isEqualTo("console.log('ui');");
+		assertThat(ui.getHeader("X-Plugin")).isNull();
+
+		for (String chemin : new String[] { "/api/plugins/testnotes/ui/1.0.0/absent.js",
+				"/api/plugins/testnotes/ui/x/y/z", "/api/plugins/testnotes/%75i/1.0.0/main.js",
+				"/api/plugins/testnotes/ui/1.0.0/sous/dossier.js" }) {
+			MockHttpServletResponse r = mvc.perform(get(java.net.URI.create(chemin))).andReturn().getResponse();
+			assertThat(r.getHeader("X-Plugin")).as(chemin).isNull();
+			assertThat(r.getContentAsString()).as(chemin).doesNotContain("PLUGIN-");
+		}
+		assertThat(mvc.perform(get("/api/plugins/testnotes/ui/1.0.0/absent.js")).andReturn().getResponse().getStatus())
+				.isEqualTo(404);
 	}
 
 	@Test

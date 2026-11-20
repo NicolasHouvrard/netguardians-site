@@ -65,6 +65,8 @@ class InscriptionNonVerifieeTest {
     @Autowired private InscriptionSocieteService service;
     @Autowired private NettoyageInscriptionsNonVerifiees nettoyage;
     @Autowired private SocieteIdentiteRepository identites;
+    @Autowired private com.logicielpourtous.site.features.identite.EmailsUtilises emailsUtilises;
+    @Autowired private com.logicielpourtous.site.features.identite.AttributionCapacites attributionCapacites;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private TenantRepository tenantRepository;
     @Autowired private PlatformTransactionManager transactionManager;
@@ -490,7 +492,7 @@ class InscriptionNonVerifieeTest {
         vieillir(perimee, 73);
         AtomicBoolean premiereRecherche = new AtomicBoolean(true);
         // L'inscription voit la ligne, puis le nettoyage (autre fil, autre transaction) la libere et valide.
-        RegistreSocietes registreEnRetard = new RegistreSocietes(identites) {
+        RegistreSocietes registreEnRetard = new RegistreSocietes(identites, emailsUtilises, attributionCapacites) {
             @Override
             public Optional<SocieteIdentite> trouver(IdentiteSociete identite) {
                 if (premiereRecherche.getAndSet(false)) {

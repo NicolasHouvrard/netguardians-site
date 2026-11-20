@@ -24,7 +24,7 @@ class RegistreSocietesConflitTest {
         when(repository.findByTva(any())).thenReturn(Optional.empty());
         when(repository.saveAndFlush(any())).thenThrow(
                 new DataIntegrityViolationException("refus", new SQLException("refus", sqlState)));
-        return new RegistreSocietes(repository);
+        return new RegistreSocietes(repository, mock(EmailsUtilises.class), mock(AttributionCapacites.class));
     }
 
     @Test
