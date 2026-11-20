@@ -82,6 +82,12 @@ class GestionPartenairesContratImpl implements GestionPartenairesContrat {
 		return moi;
 	}
 
+	/**
+	 * La ligne de journal est ecrite dans sa propre transaction validee, APRES le retour de la creation : (i) si la
+	 * transaction de l'appelant annule ensuite ce qui a ete cree, la ligne de journal reste ; (ii) si l'ecriture du
+	 * journal echoue apres une creation validee, l'appelant recoit une exception alors que la creation reste validee (un
+	 * nouvel essai repondrait SIREN_DEJA_CONNU).
+	 */
 	@Override
 	public ResultatPartenaire creerPartenaire(CreationPartenaire demande) {
 		IdentiteCourante admin = adminDuMaitre();
@@ -92,6 +98,7 @@ class GestionPartenairesContratImpl implements GestionPartenairesContrat {
 		return r;
 	}
 
+	/** Meme semantique de journal que {@link #creerPartenaire} : ecrit apres coup, dans sa propre transaction. */
 	@Override
 	public ResultatCreation creerClientPourPartenaire(CreationClient demande) {
 		IdentiteCourante admin = adminDuMaitre();
@@ -129,8 +136,16 @@ class GestionPartenairesContratImpl implements GestionPartenairesContrat {
 		Map<Long, EtatPartenaire> etatParId = etats.findAllById(ids)
 			.stream()
 			.collect(Collectors.toMap(EtatPartenaire::getSocieteId, Function.identity()));
-		return societes.findAllById(ids).stream().map(s -> {
-			Tenant t = s.getProprietaireTenantId() == null ? null : tenants.findById(s.getProprietaireTenantId()).orElse(null);
+		List<SocieteIdentite> liste = societes.findAllById(ids);
+		Set<Long> tenantIds = liste.stream()
+			.map(SocieteIdentite::getProprietaireTenantId)
+			.filter(java.util.Objects::nonNull)
+			.collect(Collectors.toSet());
+		Map<Long, Tenant> tenantParId = tenants.findAllById(tenantIds)
+			.stream()
+			.collect(Collectors.toMap(Tenant::getId, Function.identity()));
+		return liste.stream().map(s -> {
+			Tenant t = s.getProprietaireTenantId() == null ? null : tenantParId.get(s.getProprietaireTenantId());
 			EtatPartenaire etat = etatParId.get(s.getId());
 			return new PartenaireResume(s.getId(), s.getSiren(), t == null ? null : t.getName(),
 					etat == null ? "ACTIF" : etat.getEtat());

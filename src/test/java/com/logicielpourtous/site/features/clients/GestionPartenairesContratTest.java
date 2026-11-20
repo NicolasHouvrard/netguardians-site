@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -33,7 +34,6 @@ import com.logicielpourtous.site.sdk.IdentiteContrat.IdentiteCourante;
 class GestionPartenairesContratTest {
 
     private static final long ADMIN = 987_654_322L;
-    private static final Set<String> INITIAL = Set.of("clients.lire", "clients.creer", "clients.entrer");
 
     @Autowired private GestionPartenairesContrat contrat;
     @Autowired private CreationPartenaireService creation;
@@ -45,11 +45,26 @@ class GestionPartenairesContratTest {
     private final List<String> sirensClients = new ArrayList<>();
     private final List<String> emails = new ArrayList<>();
 
+    private Set<String> modeleInitial;
+    private long schemasAvant;
+    private long tenantsAvant;
+
+    @BeforeEach
+    void memoriser() {
+        modeleInitial = modele.droits();
+        schemasAvant = schemas();
+        tenantsAvant = compter("tenants");
+    }
+
     @AfterEach
     void nettoyer() {
-        modele.remplacer(INITIAL);
+        modele.remplacer(modeleInitial);
         jdbc.update("DELETE FROM journal_actions_maitre WHERE admin_user_id = ?", ADMIN);
+        // Tenants des partenaires crees : retrouves par leurs utilisateurs (jamais modifies par les tests), car les tests
+        // de refus alterent proprietaire_tenant_id sur la societe.
+        Set<Long> tenantsCrees = new java.util.LinkedHashSet<>();
         for (String email : emails) {
+            tenantsCrees.addAll(jdbc.queryForList("SELECT tenant_id FROM users WHERE email = ?", Long.class, email));
             jdbc.update("DELETE FROM appartenances_roles WHERE appartenance_id IN "
                     + "(SELECT a.id FROM appartenances a JOIN users u ON u.id = a.user_id WHERE u.email = ?)", email);
             jdbc.update("DELETE FROM appartenances WHERE user_id IN (SELECT id FROM users WHERE email = ?)", email);
@@ -62,12 +77,17 @@ class GestionPartenairesContratTest {
         for (String siren : sirensPartenaires) {
             supprimerSociete(siren);
         }
+        for (Long tenant : tenantsCrees) {
+            String schema = jdbc.queryForObject("SELECT schema_name FROM tenants WHERE id = ?", String.class, tenant);
+            jdbc.update("DELETE FROM tenants WHERE id = ?", tenant);
+            jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+        }
+        assertThat(schemas()).as("schemas p_* laisses par le test").isEqualTo(schemasAvant);
+        assertThat(compter("tenants")).as("tenants laisses par le test").isEqualTo(tenantsAvant);
     }
 
     private void supprimerSociete(String siren) {
         for (Long id : jdbc.queryForList("SELECT id FROM societes_identites WHERE siren = ?", Long.class, siren)) {
-            Long tenant = jdbc.queryForObject("SELECT proprietaire_tenant_id FROM societes_identites WHERE id = ?",
-                    Long.class, id);
             jdbc.update("DELETE FROM liens_clients WHERE client_societe_id = ? OR partenaire_societe_id = ?", id, id);
             jdbc.update("DELETE FROM reglages_manager WHERE client_societe_id = ?", id);
             jdbc.update("DELETE FROM plafonds_client WHERE client_societe_id = ?", id);
@@ -75,19 +95,7 @@ class GestionPartenairesContratTest {
             jdbc.update("DELETE FROM societe_capacites WHERE societe_id = ?", id);
             jdbc.update("DELETE FROM appartenances WHERE societe_id = ?", id);
             jdbc.update("DELETE FROM societes_identites WHERE id = ?", id);
-            if (tenant != null && jdbc.queryForObject("SELECT count(*) FROM tenants WHERE id = ?", Long.class, tenant) > 0
-                    && !tenantEncoreUtilise(tenant)) {
-                String schema = jdbc.queryForObject("SELECT schema_name FROM tenants WHERE id = ?", String.class, tenant);
-                jdbc.update("DELETE FROM tenants WHERE id = ?", tenant);
-                jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
-            }
         }
-    }
-
-    private boolean tenantEncoreUtilise(Long tenant) {
-        return jdbc.queryForObject("SELECT count(*) FROM societes_identites WHERE proprietaire_tenant_id = ?",
-                Long.class, tenant) > 0
-                || jdbc.queryForObject("SELECT count(*) FROM users WHERE tenant_id = ?", Long.class, tenant) > 0;
     }
 
     private String siren(List<String> liste) {
@@ -113,6 +121,11 @@ class GestionPartenairesContratTest {
 
     private void adminDuMaitre() {
         identite("ROLE_ADMIN", "MASTER", ADMIN);
+    }
+
+    private long schemas() {
+        return jdbc.queryForObject("SELECT count(*) FROM information_schema.schemata WHERE schema_name LIKE 'p\\_%'",
+                Long.class);
     }
 
     private long compter(String table) {
@@ -355,7 +368,6 @@ class GestionPartenairesContratTest {
     void remplacerLeModeleJournalise() {
         adminDuMaitre();
 
-        assertThat(contrat.modeleDroits()).isEqualTo(INITIAL);
         contrat.remplacerModeleDroits(Set.of("clients.lire", "clients.creer"));
 
         assertThat(contrat.modeleDroits()).containsExactlyInAnyOrder("clients.lire", "clients.creer");
@@ -370,7 +382,7 @@ class GestionPartenairesContratTest {
         assertThatThrownBy(() -> contrat.remplacerModeleDroits(Set.of("DROIT INVALIDE!")))
             .isInstanceOf(IllegalArgumentException.class);
 
-        assertThat(contrat.modeleDroits()).isEqualTo(INITIAL);
+        assertThat(contrat.modeleDroits()).isEqualTo(modeleInitial);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM journal_actions_maitre WHERE admin_user_id = ?",
                 Long.class, ADMIN)).isZero();
     }
