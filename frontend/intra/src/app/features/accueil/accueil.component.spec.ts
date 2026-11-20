@@ -41,4 +41,12 @@ describe('AccueilComponent', () => {
     const liens = Array.from(el.querySelectorAll('a')).map(a => a.getAttribute('href'));
     expect(liens).toEqual(['/plugins/suivi/suivi', '/plugins/clients/liste']);
   });
+
+  it('rend une carte pour une tuile de la zone ADMIN, qui ouvre le plugin-host', () => {
+    const el = monter([tuile('partenaires', 'ADMIN', '/partenaires')]);
+    const cartes = el.querySelectorAll('a.carte');
+    expect(cartes).toHaveLength(1);
+    expect(cartes[0].textContent).toContain('Libelle partenaires');
+    expect(cartes[0].getAttribute('href')).toBe('/plugins/partenaires/partenaires');
+  });
 });

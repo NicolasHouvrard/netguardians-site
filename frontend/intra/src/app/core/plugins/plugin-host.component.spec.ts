@@ -115,6 +115,13 @@ describe('PluginHostComponent', () => {
     expect(fixture.nativeElement.querySelector('clients-app-v1-0-0')).not.toBeNull();
   });
 
+  it('une tuile de la zone ADMIN est hébergée comme les autres', async () => {
+    zone = 'ADMIN';
+    const fixture = monter();
+    await attendre();
+    expect(fixture.nativeElement.querySelector('clients-app-v1-0-0')).not.toBeNull();
+  });
+
   it('pluginsMatcher consomme tout après /plugins/<plugin>', () => {
     const m = pluginsMatcher(seg('plugins', 'clients', 'a', 'b'));
     expect(m?.consumed).toHaveLength(4);

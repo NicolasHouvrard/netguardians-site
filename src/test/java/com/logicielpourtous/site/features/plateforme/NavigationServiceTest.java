@@ -286,4 +286,97 @@ class NavigationServiceTest {
 		assertThatThrownBy(() -> service.tuiles(null, SOCIETE)).isInstanceOf(IllegalArgumentException.class);
 	}
 
+	// ---- zone ADMIN : réservée à l'admin du serveur maître ----
+
+	private void identite(Long societe, Set<String> roles, String roleServeur) {
+		when(identite.courante()).thenReturn(new IdentiteCourante(USER, roles, societe, 1L, roleServeur));
+	}
+
+	@Test
+	void admin_du_maitre_sans_societe_recoit_la_tuile_admin_sans_controle_de_droit() {
+		plugin("alpha", List.of(entree(ZoneNavigation.ADMIN, "a", "alpha.gerer")), List.of());
+		identite(null, Set.of("ROLE_ADMIN"), "MASTER");
+
+		assertThat(service.tuilesAutorisees(null)).extracting(Tuile::libelle, Tuile::zone, Tuile::version)
+				.containsExactly(org.assertj.core.groups.Tuple.tuple("a", ZoneNavigation.ADMIN, "1.0.0"));
+		verify(droits, never()).autorise(any(), any(), anyString());
+	}
+
+	@Test
+	void admin_du_maitre_dont_la_societe_n_a_pas_de_capacite_recoit_la_tuile_admin() {
+		plugin("alpha", List.of(entree(ZoneNavigation.ADMIN, "a", "alpha.gerer")), List.of());
+		identite(SOCIETE, Set.of("ROLE_ADMIN"), "MASTER");
+
+		assertThat(service.tuilesAutorisees(null)).extracting(Tuile::libelle).containsExactly("a");
+	}
+
+	@Test
+	void admin_du_maitre_garde_ses_tuiles_partenaire_et_client() {
+		plugin("alpha", List.of(entree(ZoneNavigation.PARTENAIRE, "p", "d"), entree(ZoneNavigation.CLIENT, "c", "d"),
+				entree(ZoneNavigation.ADMIN, "a", "inutile")), List.of());
+		accordes.add("d");
+		capacitesSociete.addAll(Set.of("PARTENAIRE", "CLIENT"));
+		identite(SOCIETE, Set.of("ROLE_ADMIN"), "MASTER");
+
+		assertThat(service.tuilesAutorisees(null)).extracting(Tuile::libelle).containsExactlyInAnyOrder("p", "c", "a");
+	}
+
+	@Test
+	void admin_d_un_serveur_partenaire_ou_sans_role_admin_ne_recoit_jamais_de_tuile_admin() {
+		plugin("alpha", List.of(entree(ZoneNavigation.ADMIN, "a", "d")), List.of());
+		accordes.add("d");
+		capacitesSociete.add("PARTENAIRE");
+		identite(SOCIETE, Set.of("ROLE_ADMIN"), "PARTNER");
+		assertThat(service.tuilesAutorisees(null)).isEmpty();
+		assertThat(service.tuiles(ZoneNavigation.ADMIN, SOCIETE)).isEmpty();
+		identite(SOCIETE, Set.of("ROLE_ADMIN"), null);
+		assertThat(service.tuilesAutorisees(null)).isEmpty();
+		identite(SOCIETE, Set.of("ROLE_USER"), "MASTER");
+		assertThat(service.tuilesAutorisees(null)).isEmpty();
+		assertThat(service.tuiles(ZoneNavigation.ADMIN, SOCIETE)).isEmpty();
+		identite(SOCIETE, Set.of(), "MASTER");
+		assertThat(service.tuilesAutorisees(null)).isEmpty();
+		identite(SOCIETE, Set.of("ROLE_ADMINISTRATEUR"), "master");
+		assertThat(service.tuilesAutorisees(null)).isEmpty();
+	}
+
+	@Test
+	void partenaire_ordinaire_avec_tous_les_droits_ne_recoit_aucune_tuile_admin() {
+		plugin("alpha", List.of(entree(ZoneNavigation.ADMIN, "a", "d"), entree(ZoneNavigation.PARTENAIRE, "p", "d")),
+				List.of());
+		accordes.add("d");
+		capacitesSociete.add("PARTENAIRE");
+
+		assertThat(service.tuiles(ZoneNavigation.ADMIN, SOCIETE)).isEmpty();
+		assertThat(service.tuiles(ZoneNavigation.ADMIN, null)).isEmpty();
+		assertThat(service.tuilesAutorisees(null)).extracting(Tuile::libelle).containsExactly("p");
+	}
+
+	@Test
+	void tuiles_zone_admin_pour_l_admin_du_maitre_sans_societe() {
+		plugin("alpha", List.of(entree(ZoneNavigation.ADMIN, "a", "d"), entree(ZoneNavigation.PARTENAIRE, "p", "d")),
+				List.of());
+		identite(null, Set.of("ROLE_ADMIN"), "MASTER");
+
+		assertThat(service.tuiles(ZoneNavigation.ADMIN, null)).extracting(Tuile::libelle, Tuile::zone)
+				.containsExactly(org.assertj.core.groups.Tuple.tuple("a", ZoneNavigation.ADMIN));
+		assertThat(service.tuiles(ZoneNavigation.PARTENAIRE, null)).isEmpty();
+	}
+
+	@Test
+	void tuile_admin_ignoree_si_plugin_en_maintenance_et_echec_ferme_sur_identite() {
+		plugin("alpha", List.of(entree(ZoneNavigation.ADMIN, "a", "d")), List.of());
+		identite(null, Set.of("ROLE_ADMIN"), "MASTER");
+		etats.put("alpha", Etat.MAINTENANCE);
+		assertThat(service.tuilesAutorisees(null)).isEmpty();
+		etats.put("alpha", Etat.ACTIF);
+		when(identite.courante()).thenThrow(new IllegalStateException("aucune"));
+		assertThat(service.tuilesAutorisees(null)).isEmpty();
+		assertThat(service.tuiles(ZoneNavigation.ADMIN, null)).isEmpty();
+		org.mockito.Mockito.doReturn(null).when(identite).courante();
+		assertThat(service.tuilesAutorisees(null)).isEmpty();
+		org.mockito.Mockito.doReturn(new IdentiteCourante(null, Set.of("ROLE_ADMIN"), null, 1L, "MASTER")).when(identite).courante();
+		assertThat(service.tuilesAutorisees(null)).isEmpty();
+	}
+
 }

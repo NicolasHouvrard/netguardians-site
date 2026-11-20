@@ -68,13 +68,57 @@ public class NavigationService {
 	/**
 	 * Tuiles de toutes les zones auxquelles la société qualifie, la zone étant décidée ICI (le front ne la devine
 	 * pas) : capacité PARTENAIRE vers la zone PARTENAIRE, capacité CLIENT vers la zone CLIENT (une société qui a les
-	 * deux reçoit les deux ; jamais ADMIN ni PUBLIQUE). Chaque tuile porte sa zone. Échec fermé : sans société, sans
+	 * deux reçoit les deux ; jamais PUBLIQUE). Les entrées ADMIN ne sont ajoutées que pour l'admin du serveur maître,
+	 * sans contrôle de droit sur une société (même sans société). Chaque tuile porte sa zone. Échec fermé : sans société, sans
 	 * capacité ou sans droit sur la société (appartenance vérifiée par le contrôle des droits, y compris pour un
 	 * {@code societeId} demandé), liste vide ; une société cliente seule ne reçoit jamais de tuile PARTENAIRE.
 	 *
 	 * @param societeId société ; {@code null} : société de la session
 	 */
 	public List<Tuile> tuilesAutorisees(Long societeId) {
+		List<Tuile> resultat = new ArrayList<>(tuilesSociete(societeId));
+		if (adminDuMaitre()) {
+			resultat.addAll(tuilesAdmin());
+		}
+		return List.copyOf(resultat);
+	}
+
+	/**
+	 * Admin du serveur maître : identité valide, rôle {@code ROLE_ADMIN} et serveur {@code MASTER}. Même prédicat que
+	 * celui du contrat de gestion des partenaires (dupliqué ici car le module plateforme ne dépend que de commun ; les
+	 * deux sont testés sur les mêmes cas). Échec fermé sur toute erreur de lecture de l'identité.
+	 */
+	private boolean adminDuMaitre() {
+		try {
+			IdentiteCourante moi = identite.courante();
+			return moi != null && moi.userId() != null && moi.roles() != null && moi.roles().contains("ROLE_ADMIN")
+					&& "MASTER".equals(moi.roleServeur());
+		}
+		catch (RuntimeException e) {
+			return false;
+		}
+	}
+
+	/** Entrées ADMIN des plugins actifs, sans droit sur une société : l'appelant a déjà vérifié l'admin du maître. */
+	private List<Tuile> tuilesAdmin() {
+		List<Tuile> resultat = new ArrayList<>();
+		for (Map.Entry<String, PluginGeneration> actif : pluginsActifs().entrySet()) {
+			ManifestePlugin m = manifeste(actif.getKey(), actif.getValue());
+			if (m == null) {
+				continue;
+			}
+			for (EntreeNavigation e : m.entrees()) {
+				if (e.zone() == ZoneNavigation.ADMIN) {
+					resultat.add(new Tuile(m.nom(), e.libelle(), e.icone(), e.chemin(), e.zone(),
+							actif.getValue().version));
+				}
+			}
+		}
+		return List.copyOf(resultat);
+	}
+
+	/** Tuiles PARTENAIRE / CLIENT d'après les capacités de la société (jamais ADMIN ni PUBLIQUE). */
+	private List<Tuile> tuilesSociete(Long societeId) {
 		Contexte contexte = contexte(societeId, true);
 		if (contexte == null || contexte.societeId == null) {
 			return List.of();
@@ -110,6 +154,9 @@ public class NavigationService {
 	public List<Tuile> tuiles(ZoneNavigation zone, Long societeId) {
 		if (zone == null) {
 			throw new IllegalArgumentException("La zone de navigation est obligatoire.");
+		}
+		if (zone == ZoneNavigation.ADMIN) {
+			return adminDuMaitre() ? tuilesAdmin() : List.of();
 		}
 		Contexte contexte = contexte(societeId, zone != ZoneNavigation.PUBLIQUE);
 		if (contexte == null) {

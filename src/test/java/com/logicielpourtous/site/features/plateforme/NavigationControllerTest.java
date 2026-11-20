@@ -86,4 +86,28 @@ class NavigationControllerTest {
 				.andExpect(jsonPath("$[0].version").value("1.2.3"));
 	}
 
+	@Test
+	void sans_zone_l_admin_du_maitre_recoit_la_tuile_admin_avec_sa_zone() throws Exception {
+		PluginManager manager = mock(PluginManager.class);
+		PluginGeneration gen = new PluginGeneration("partenaires", "1.0.0", java.nio.file.Path.of("p.jar"));
+		gen.manifeste = new com.logicielpourtous.site.sdk.ManifestePlugin("partenaires", "1.0.0", "1.0.0", null,
+				com.logicielpourtous.site.sdk.ModeMiseAJour.CHAUD, "p", "c", List.of(), List.of(),
+				List.of(new com.logicielpourtous.site.sdk.EntreeNavigation(ZoneNavigation.ADMIN, "Partenaires",
+						"apartment", "/partenaires", "partenaires.gerer")),
+				List.of());
+		when(manager.actifs()).thenReturn(java.util.Map.of("partenaires", gen));
+		when(manager.etats()).thenReturn(List.of(new EtatPlugin("partenaires", "1.0.0", EtatPlugin.Etat.ACTIF)));
+		var identite = mock(com.logicielpourtous.site.sdk.IdentiteContrat.class);
+		when(identite.courante()).thenReturn(new com.logicielpourtous.site.sdk.IdentiteContrat.IdentiteCourante(1L,
+				java.util.Set.of("ROLE_ADMIN"), null, 1L, "MASTER"));
+		var reel = new NavigationService(manager, mock(ControleDroits.class), identite, mock(ControleCapacites.class));
+		MockMvc mvcReel = MockMvcBuilders.standaloneSetup(new NavigationController(reel)).build();
+
+		mvcReel.perform(get("/api/navigation")).andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].plugin").value("partenaires"))
+				.andExpect(jsonPath("$[0].zone").value("ADMIN"))
+				.andExpect(jsonPath("$[0].chemin").value("/partenaires"))
+				.andExpect(jsonPath("$[0].version").value("1.0.0"));
+	}
+
 }
