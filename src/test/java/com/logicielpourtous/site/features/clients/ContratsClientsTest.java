@@ -344,6 +344,7 @@ class ContratsClientsTest {
 
     private Long partenaire() {
         Long p = societe("PA" + UUID.randomUUID().toString().substring(0, 6), "FRPA" + UUID.randomUUID().toString().substring(0, 6));
+        jdbc.update("UPDATE societes_identites SET proprietaire_tenant_id = ? WHERE id = ?", tenant.getId(), p);
         CapaciteSociete c = new CapaciteSociete();
         c.setSocieteId(p);
         c.setCapacite(TypeCapacite.PARTENAIRE);
@@ -358,6 +359,23 @@ class ContratsClientsTest {
     private boolean estManagerDe(Long userId, Long societeId) {
         return appartenances.findByUserIdAndSocieteId(userId, societeId).stream()
                 .anyMatch(a -> a.getRoles().stream().anyMatch(r -> "ROLE_GESTIONNAIRE".equals(r.getName())));
+    }
+
+    @Test
+    void creerClientRefuseUnPartenaireSansTenantProprietaireEtNEcritRien() {
+        Long p = societe("PS" + UUID.randomUUID().toString().substring(0, 6), "FRPS" + UUID.randomUUID().toString().substring(0, 6));
+        CapaciteSociete c = new CapaciteSociete();
+        c.setSocieteId(p);
+        c.setCapacite(TypeCapacite.PARTENAIRE);
+        capacites.saveAndFlush(c);
+        String email = emailNeuf();
+        long societesAvant = jdbc.queryForObject("SELECT count(*) FROM societes_identites", Long.class);
+
+        assertThatThrownBy(() -> annuaire.creerClient(new CreationClient(p, true, null, null, false, email, "Sans Tenant")))
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(users.findByEmail(email)).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM societes_identites", Long.class)).isEqualTo(societesAvant);
     }
 
     @Test

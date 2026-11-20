@@ -131,6 +131,11 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 			.filter(s -> capacites.existsBySocieteIdAndCapacite(s.getId(), TypeCapacite.PARTENAIRE))
 			.orElseThrow(() -> new IllegalArgumentException("Société partenaire inconnue ou sans capacité partenaire."));
 		Long proprietaireTenantId = societePartenaire.getProprietaireTenantId();
+		// Refus avant toute écriture : sans tenant propriétaire valide, le compte du client ne doit pas atterrir dans un
+		// tenant choisi au hasard.
+		if (proprietaireTenantId == null || tenants.findById(proprietaireTenantId).isEmpty()) {
+			throw new IllegalStateException("La société partenaire n'a pas de tenant propriétaire valide.");
+		}
 
 		SocieteIdentite societe;
 		if (demande.particulier()) {
@@ -182,11 +187,8 @@ class AnnuaireClientsContratImpl implements AnnuaireClientsContrat {
 
 	/** Compte du premier manager : mot de passe aléatoire inutilisable, à définir via « mot de passe oublié ». */
 	private User creerUtilisateur(String email, String nom, Long proprietaireTenantId) {
-		Tenant tenant = proprietaireTenantId != null ? tenants.findById(proprietaireTenantId).orElse(null) : null;
-		if (tenant == null) {
-			tenant = tenants.findAll().stream().findFirst()
-				.orElseThrow(() -> new IllegalStateException("Aucun tenant trouvé."));
-		}
+		Tenant tenant = tenants.findById(proprietaireTenantId)
+			.orElseThrow(() -> new IllegalStateException("La société partenaire n'a pas de tenant propriétaire valide."));
 		User user = new User();
 		user.setEmail(email);
 		user.setFullName(nom);
