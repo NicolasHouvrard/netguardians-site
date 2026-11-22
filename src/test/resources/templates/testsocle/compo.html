@@ -6,6 +6,8 @@
 <th:block th:if="${cas == 'panneau'}"><div th:replace="~{socle/fragments/control-panel :: control-panel(${titre}, ${fil}, ${actions}, ${recherche})}"></div></th:block>
 <th:block th:if="${cas == 'tuiles'}"><div th:replace="~{socle/fragments/tile-grid :: tile-grid(${tuilesDemo})}"></div></th:block>
 <th:block th:if="${cas == 'fiche'}"><div th:replace="~{socle/fragments/form-view :: form-view(${titre}, ${statut}, ${actions}, ~{::#contenu-fiche})}"></div></th:block>
+<th:block th:if="${cas == 'boutons'}"><div th:replace="~{socle/fragments/slots :: boutons(${emplacement}, ${idEntite})}"></div></th:block>
+<th:block th:if="${cas == 'onglets'}"><div th:replace="~{socle/fragments/slots :: onglets(${emplacement}, ${idEntite})}"></div></th:block>
 <template><p id="contenu-fiche">Contenu de la fiche</p></template>
 </body>
 </html>

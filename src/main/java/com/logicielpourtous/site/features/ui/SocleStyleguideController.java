@@ -51,6 +51,7 @@ public class SocleStyleguideController {
 				Map.of("libelle", "Gabarits du socle")));
 		model.addAttribute("actionsPanneau", List.of(Map.of("libelle", "Nouveau", "url", "/admin/socle")));
 		model.addAttribute("recherche", Map.of("url", "/admin/socle/liste", "cible", "#liste"));
+		model.addAttribute("idDemo", "42");
 		model.addAttribute("etats", ETATS);
 		model.addAttribute("courant", "actif");
 		model.addAttribute("statutFiche", Map.of("etats", ETATS, "courant", "actif"));

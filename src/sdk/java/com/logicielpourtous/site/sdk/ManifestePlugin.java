@@ -19,7 +19,25 @@ public record ManifestePlugin(
 		List<String> dependances,
 		List<String> tablesReferencees,
 		List<EntreeNavigation> entrees,
-		List<BlocFiche> blocs) {
+		List<BlocFiche> blocs,
+		List<ExtensionUi> extensions) {
+
+	/** Emplacement : segments en minuscules séparés par des points, au moins deux (ex. {@code clients.fiche.onglets}). */
+	public static final Pattern EMPLACEMENT_VALIDE = Pattern.compile("^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$");
+
+	private static final Pattern CHEMIN_EXT_VALIDE = Pattern.compile("^/[A-Za-z0-9/_\\-.?=&{}]*$");
+
+	private static final Pattern QUERY_EXT_VALIDE = Pattern.compile("^[A-Za-z0-9_=&{}-]*$");
+
+	private static final Pattern ORDRE_VALIDE = Pattern.compile("^[0-9]{1,4}$");
+
+	/** Manifeste sans extensions d'écran (liste vide). */
+	public ManifestePlugin(String nom, String version, String coeurMin, String coeurMax, ModeMiseAJour miseAJour,
+			String paquet, String configuration, List<String> dependances, List<String> tablesReferencees,
+			List<EntreeNavigation> entrees, List<BlocFiche> blocs) {
+		this(nom, version, coeurMin, coeurMax, miseAJour, paquet, configuration, dependances, tablesReferencees,
+				entrees, blocs, List.of());
+	}
 
 	/** Nom sûr : il sert tel quel dans {@code plugin_<nom>}, {@code flyway_schema_history_<nom>} et {@code /api/plugins/<nom>}. */
 	public static final Pattern NOM_VALIDE = Pattern.compile("^[a-z][a-z0-9_]{0,39}$");
@@ -41,6 +59,7 @@ public record ManifestePlugin(
 					+ "' (attendu : " + NOM_VALIDE.pattern()
 					+ ", car le nom entre dans des noms de schéma et de table SQL et dans des URL)");
 		}
+		extensions = extensions == null ? List.of() : List.copyOf(extensions);
 	}
 
 	public static ManifestePlugin depuis(Properties p) {
@@ -62,7 +81,8 @@ public record ManifestePlugin(
 				liste(p, "dependances"),
 				liste(p, "tables-referencees"),
 				entrees(p),
-				blocs(p));
+				blocs(p),
+				extensions(p));
 	}
 
 	/** Lit {@code entree.1}, {@code entree.2}, … : {@code ZONE|libellé|icône|chemin|droit[|couleur]}. */
@@ -103,7 +123,7 @@ public record ManifestePlugin(
 			String cle = "bloc." + n;
 			String[] champs = champs(p.getProperty(cle), 4, cle, "id|libellé|chemin|droit");
 			if (!NOM_VALIDE.matcher(champs[0]).matches()) {
-				throw new IllegalArgumentException("id de bloc invalide dans " + cle + " : '" + champs[0]
+				throw new IllegalArgumentException("id de bloc invalide dans " + cle + " : '" + court(champs[0])
 						+ "' (attendu : " + NOM_VALIDE.pattern() + ")");
 			}
 			verifierChemin(champs[2], cle);
@@ -112,6 +132,52 @@ public record ManifestePlugin(
 		}
 		verifierNumerotation(p, "bloc.", blocs.size());
 		return List.copyOf(blocs);
+	}
+
+	/** Lit {@code ext.1}, {@code ext.2}, … : {@code emplacement|libellé|chemin|droit|ordre}. */
+	private static List<ExtensionUi> extensions(Properties p) {
+		List<ExtensionUi> extensions = new ArrayList<>();
+		for (int n = 1; p.getProperty("ext." + n) != null; n++) {
+			String cle = "ext." + n;
+			String[] champs = champs(p.getProperty(cle), 5, cle, "emplacement|libellé|chemin|droit|ordre");
+			if (champs[0].length() > 80 || !EMPLACEMENT_VALIDE.matcher(champs[0]).matches()) {
+				throw new IllegalArgumentException("emplacement invalide dans " + cle + " : '" + court(champs[0])
+						+ "' (attendu : " + EMPLACEMENT_VALIDE.pattern() + ", 80 caractères au plus)");
+			}
+			verifierLibelle(champs[1], cle);
+			verifierCheminExtension(champs[2], cle);
+			verifierDroit(champs[3], cle);
+			if (!ORDRE_VALIDE.matcher(champs[4]).matches()) {
+				throw new IllegalArgumentException("ordre invalide dans " + cle + " : '" + court(champs[4])
+						+ "' (attendu : entier de 0 à 9999)");
+			}
+			extensions.add(new ExtensionUi(champs[0], champs[1], champs[2], champs[3], Integer.parseInt(champs[4])));
+		}
+		verifierNumerotation(p, "ext.", extensions.size());
+		return List.copyOf(extensions);
+	}
+
+	private static void verifierLibelle(String libelle, String cle) {
+		boolean controle = libelle.chars().anyMatch(Character::isISOControl);
+		if (libelle.isEmpty() || libelle.length() > 60 || controle) {
+			throw new IllegalArgumentException("libellé invalide dans " + cle + " : '" + court(libelle)
+					+ "' (attendu : 1 à 60 caractères, sans caractère de contrôle)");
+		}
+	}
+
+	/** Chemin d'extension : au plus un {@code {id}}, jeu de caractères fermé, ni {@code ..} ni {@code //}. */
+	private static void verifierCheminExtension(String chemin, String cle) {
+		verifierChemin(chemin, cle);
+		String sansMarqueur = chemin.replaceFirst("\\{id\\}", "");
+		int q = chemin.indexOf('?');
+		boolean valide = chemin.length() <= 200 && CHEMIN_EXT_VALIDE.matcher(chemin).matches()
+				&& !chemin.contains("..") && !chemin.contains("//") && !sansMarqueur.contains("{")
+				&& !sansMarqueur.contains("}") && (q < 0 || (chemin.indexOf('?', q + 1) < 0
+						&& QUERY_EXT_VALIDE.matcher(chemin.substring(q + 1)).matches()));
+		if (!valide) {
+			throw new IllegalArgumentException("chemin invalide dans " + cle + " : '" + court(chemin)
+					+ "' (200 caractères au plus, un seul {id}, caractères A-Z a-z 0-9 / _ - . ? = &)");
+		}
 	}
 
 	/** Toute clé {@code prefixe*} non lue par la boucle contiguë (trou, {@code .0}, {@code .x}, {@code .01}) est refusée. */
@@ -156,14 +222,14 @@ public record ManifestePlugin(
 
 	private static void verifierChemin(String chemin, String cle) {
 		if (!chemin.startsWith("/")) {
-			throw new IllegalArgumentException("chemin invalide dans " + cle + " : '" + chemin
+			throw new IllegalArgumentException("chemin invalide dans " + cle + " : '" + court(chemin)
 					+ "' (doit commencer par /)");
 		}
 	}
 
 	private static void verifierDroit(String droit, String cle) {
 		if (!DROIT_VALIDE.matcher(droit).matches()) {
-			throw new IllegalArgumentException("droit invalide dans " + cle + " : '" + droit
+			throw new IllegalArgumentException("droit invalide dans " + cle + " : '" + court(droit)
 					+ "' (attendu : " + DROIT_VALIDE.pattern() + ")");
 		}
 	}

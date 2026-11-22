@@ -419,6 +419,64 @@ class PluginManagerIT {
 		assertThat(mvc.perform(get("/p/testpages/liste")).andReturn().getResponse().getStatus()).isEqualTo(404);
 	}
 
+	/** Plugin « testslots » : déclare {@code ext.1} et sert, sous /p/testslots, le fragment de l'onglet. */
+	private Path pluginSlots(String version, boolean avecExtension) {
+		Map<String, String> manifeste = new java.util.HashMap<>(Map.of("coeur-min", "0.0.0", "mise-a-jour", "chaud",
+				"paquet", "slots", "configuration", "slots.SlotsConfiguration"));
+		if (avecExtension) {
+			manifeste.put("ext.1", "demo.fiche.onglets|Historique|/onglet?client={id}|historique.lire|5");
+		}
+		return JarDePluginDeTest.creer(dossier.resolve("slots-" + version), "testslots", version, manifeste, Map.of(),
+				Map.of("slots.SlotsConfiguration", """
+						package slots;
+						@org.springframework.context.annotation.Configuration
+						@org.springframework.context.annotation.ComponentScan("slots")
+						public class SlotsConfiguration {
+						}
+						""", "slots.OngletController", """
+						package slots;
+						@org.springframework.stereotype.Controller
+						public class OngletController {
+						    @org.springframework.web.bind.annotation.GetMapping("/onglet")
+						    @org.springframework.web.bind.annotation.ResponseBody
+						    public String onglet(@org.springframework.web.bind.annotation.RequestParam("client") String client) {
+						        return "<p>onglet client " + client + "</p>";
+						    }
+						}
+						"""));
+	}
+
+	@Test
+	void un_plugin_contribue_un_onglet_dont_l_adresse_est_servie_puis_il_disparait_a_la_desinstallation()
+			throws Exception {
+		ControleDroits droitsDeTest = org.mockito.Mockito.mock(ControleDroits.class);
+		org.mockito.Mockito.when(droitsDeTest.autorise(7L, 42L, "historique.lire")).thenReturn(true);
+		com.logicielpourtous.site.sdk.IdentiteContrat identite = org.mockito.Mockito
+			.mock(com.logicielpourtous.site.sdk.IdentiteContrat.class);
+		org.mockito.Mockito.when(identite.courante()).thenReturn(
+				new com.logicielpourtous.site.sdk.IdentiteContrat.IdentiteCourante(7L, java.util.Set.of(), 42L, 1L, "PARTNER"));
+		EmplacementsService emplacements = new EmplacementsService(manager, droitsDeTest, identite);
+
+		installerOk(pluginSlots("1.0.0", true));
+		List<EmplacementsService.ElementAffiche> elements = emplacements.elements("demo.fiche.onglets", null, "12");
+		assertThat(elements).hasSize(1);
+		assertThat(elements.get(0).url()).isEqualTo("/p/testslots/onglet?client=12");
+		MockHttpServletResponse fragment = mvc.perform(get(elements.get(0).url())).andReturn().getResponse();
+		assertThat(fragment.getStatus()).isEqualTo(200);
+		assertThat(fragment.getContentAsString()).isEqualTo("<p>onglet client 12</p>");
+
+		// Mise à jour à chaud sans extension : l'onglet disparaît sans redémarrage.
+		installerOk(pluginSlots("1.1.0", false));
+		assertThat(emplacements.elements("demo.fiche.onglets", null, "12")).isEmpty();
+		installerOk(pluginSlots("1.2.0", true));
+		assertThat(emplacements.elements("demo.fiche.onglets", null, "12")).hasSize(1);
+
+		manager.desinstaller("testslots");
+		assertThat(emplacements.elements("demo.fiche.onglets", null, "12")).isEmpty();
+		assertThat(mvc.perform(get("/p/testslots/onglet?client=12")).andReturn().getResponse().getStatus())
+			.isEqualTo(404);
+	}
+
 	/**
 	 * Plugin « testgabarits » : une page rendue par gabarit (mise en page du coeur, texte du modèle), un fichier
 	 * statique, et des mappings pièges larges ({@code /{a}/{b}}) pour vérifier la réservation de {@code /static/}.

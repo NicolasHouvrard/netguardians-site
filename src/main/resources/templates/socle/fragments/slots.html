@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+  Emplacements d'extension : les elements viennent de ${uiSlots.elements(emplacement, idEntite)} (liste d'objets
+  libelle(), url(), plugin(), ordre()). L'url est validee cote serveur (/p/<plugin>/...) ; le libelle est du texte.
+  Sans uiSlots (plateforme inactive) ou sans element : rien n'est rendu.
+-->
+<!-- boutons : chaque element se charge tout seul (hx-trigger="load") et remplace son conteneur -->
+<th:block th:fragment="boutons(emplacement, idEntite)"
+          th:with="elements=${uiSlots != null ? uiSlots.elements(emplacement, idEntite) : {}}">
+    <th:block th:if="${elements != null and !#lists.isEmpty(elements)}">
+        <span th:each="e : ${elements}" class="d-inline-block me-1"
+              th:attr="hx-get=@{${e.url()}},hx-trigger='load',hx-swap='outerHTML'"><span
+                class="text-muted small" th:text="${e.libelle()}">Libellé</span></span>
+    </th:block>
+</th:block>
+<!-- onglets : chaque panneau se charge au premier clic sur son onglet (hx-trigger="click once") -->
+<th:block th:fragment="onglets(emplacement, idEntite)"
+          th:with="elements=${uiSlots != null ? uiSlots.elements(emplacement, idEntite) : {}}">
+    <th:block th:if="${elements != null and !#lists.isEmpty(elements)}">
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item" role="presentation" th:each="e, it : ${elements}">
+                <button type="button" class="nav-link" role="tab" data-bs-toggle="tab"
+                        th:attr="data-bs-target=|#panneau-${it.index}|,hx-get=@{${e.url()}},hx-trigger='click once',hx-target=|#panneau-${it.index}|"
+                        th:text="${e.libelle()}">Onglet</button>
+            </li>
+        </ul>
+        <div class="tab-content pt-3">
+            <div class="tab-pane fade" role="tabpanel" th:each="e, it : ${elements}"
+                 th:id="|panneau-${it.index}|">
+                <span class="text-muted small">Chargement…</span>
+            </div>
+        </div>
+    </th:block>
+</th:block>
+</body>
+</html>
