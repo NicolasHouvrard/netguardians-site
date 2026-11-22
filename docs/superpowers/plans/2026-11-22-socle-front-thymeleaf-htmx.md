@@ -112,6 +112,22 @@
 - [ ] **Step 4: Exécuter** `AccueilControllerTest` et `SecurityPlateformeTest` ; PASSENT.
 - [ ] **Step 5: Commit** `feat(front): accueil à tuiles côté serveur`.
 
+### Task 4 bis : Tests JavaScript du socle (Node seul, hors build Maven)
+
+**Files:**
+- Modify: `src/main/resources/static/js/socle.js` (logique extraite en fonctions pures, sans changer le comportement dans le navigateur)
+- Create: `src/test/js/socle.test.js`, `src/test/js/README.md`
+- Test: `node --test src/test/js/` (Node 24 déjà installé ; **aucun** `package.json`, aucun paquet npm, **aucune** intégration à Maven)
+
+**Interfaces:**
+- Produces: dans `socle.js`, des fonctions nommées et pures : `memeSite(chemin, base, origine) -> boolean` (vrai seulement si l'adresse, résolue contre `base`, a pour origine `origine` ; faux si l'adresse est illisible), `doitAjouterJeton(verbe, chemin, base, origine) -> boolean` (faux pour `get`, `head`, `options`, `trace` en toute casse ; faux si l'adresse est d'un autre site ; vrai sinon), `lireJeton(documentLike) -> {entete, valeur} | null` (lit les balises `_csrf_header` et `_csrf` ; nul si l'une manque), `creerMessage(documentLike, texte) -> element` (alerte Bootstrap dont le texte est posé par `textContent`). Les écouteurs HTMX appellent ces fonctions. Fin de fichier : `if (typeof module !== 'undefined' && module.exports) { module.exports = { memeSite, doitAjouterJeton, lireJeton, creerMessage }; }` (inoffensif dans le navigateur).
+
+- [ ] **Step 1: Écrire les tests en échec** (`node:test` et `node:assert/strict`, faux `document` minimal écrit à la main, aucune dépendance) : `memeSite` : chemin relatif `/x` → vrai ; absolu même origine → vrai ; `https://autre.example/x` → faux ; `//autre.example/x` → faux ; `javascript:alert(1)` → faux ; `http://` suivi d'un hôte presque identique (`https://site.example.evil.com/`, `https://site.example@evil.com/`) → faux ; chaîne illisible ou vide → faux sans exception. `doitAjouterJeton` : `post`/`POST`/`put`/`patch`/`delete` sur le même site → vrai ; `get`/`GET`/`head`/`options`/`trace` → faux ; `post` vers un autre site → faux. `lireJeton` : les deux balises → `{entete, valeur}` ; une balise manquante ou vide → nul. `creerMessage` : un texte `<img src=x onerror=alert(1)>` devient du texte (aucun nœud enfant élément), le texte fixe français n'est jamais le corps d'une réponse. Écrire d'abord les tests ; ils doivent échouer (fonctions absentes), puis passer.
+- [ ] **Step 2: Exécuter** `node --test src/test/js/` ; ÉCHEC attendu.
+- [ ] **Step 3: Refactorer** `socle.js` pour exposer ces fonctions sans changer l'effet des écouteurs dans le navigateur (relire les écouteurs `htmx:configRequest`, `htmx:responseError`, `htmx:sendError` : ils n'appellent plus que ces fonctions) ; `README.md` : la commande, ce qui est couvert (logique du jeton CSRF, contrôle de même site, messages sans HTML) et ce qui ne l'est pas (comportement réel dans un navigateur).
+- [ ] **Step 4: Exécuter** `node --test src/test/js/` ; PASSE ; puis `SocleSecuriteWebTest` (le test Java qui vérifie que `socle.js` contient `location.origin` doit rester vrai, ou être adapté) ; PASSE.
+- [ ] **Step 5: Commit** `test(front): tests JavaScript du socle avec Node, hors build Maven`.
+
 ### Task 5 : Thème — réglages, validation et fichier `/css/theme.css`
 
 **Files:**
