@@ -10,7 +10,7 @@
         <div class="dropdown-menu socle-apps-menu">
             <div class="socle-apps-grid">
                 <a th:each="t : ${tuiles != null ? tuiles : (apps != null ? apps.tuiles() : {})}"
-                   class="socle-tuile" th:href="${t.chemin()}">
+                   class="socle-tuile" th:href="@{${t.chemin()}}">
                     <i class="bi" th:classappend="${t.icone() != null ? t.icone() : 'bi-app'}"></i>
                     <span th:text="${t.libelle()}">Application</span>
                 </a>
@@ -19,7 +19,7 @@
     </div>
     <a class="socle-marque" href="/" th:text="${moduleActif != null ? moduleActif : 'Accueil'}">Accueil</a>
     <nav class="socle-menu-module" th:if="${menuModule != null}">
-        <a th:each="m : ${menuModule}" th:href="${m.chemin()}" th:text="${m.libelle()}">Lien</a>
+        <a th:each="m : ${menuModule}" th:href="@{${m.chemin()}}" th:text="${m.libelle()}">Lien</a>
     </nav>
     <div class="socle-topbar-fin"></div>
 </header>

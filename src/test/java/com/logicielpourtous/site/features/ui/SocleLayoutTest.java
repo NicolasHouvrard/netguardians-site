@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.context.WebContext;
 import org.thymeleaf.web.IWebExchange;
 import org.thymeleaf.web.servlet.JakartaServletWebApplication;
@@ -31,7 +31,7 @@ class SocleLayoutTest {
 			"/css/vendor/bootstrap-icons.min.css", "/css/socle.css", "/css/theme.css",
 			"/js/vendor/bootstrap.bundle.min.js", "/js/vendor/htmx.min.js", "/js/socle.js");
 
-	private TemplateEngine moteur;
+	private SpringTemplateEngine moteur;
 
 	@BeforeEach
 	void init() {
@@ -40,7 +40,7 @@ class SocleLayoutTest {
 		r.setSuffix(".html");
 		r.setTemplateMode(TemplateMode.HTML);
 		r.setCharacterEncoding("UTF-8");
-		moteur = new TemplateEngine();
+		moteur = new SpringTemplateEngine();
 		moteur.setTemplateResolver(r);
 		moteur.addDialect(new LayoutDialect());
 	}

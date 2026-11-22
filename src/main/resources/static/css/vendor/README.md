@@ -1,6 +1,6 @@
 # Fichiers tiers du socle (copies locales, aucun CDN)
 
-Telecharges une fois depuis https://cdn.jsdelivr.net/npm/ (versions exactes). Licence MIT pour tous.
+Telecharges une fois depuis https://cdn.jsdelivr.net/npm/ (versions exactes). Licences : MIT pour Bootstrap et Bootstrap Icons, BSD 2-Clause pour htmx (textes dans LICENSE-bootstrap.txt, LICENSE-bootstrap-icons.txt, LICENSE-htmx.txt, issus des paquets npm aux versions exactes).
 
 | Fichier | Version | Source | SHA-256 |
 |---|---|---|---|
