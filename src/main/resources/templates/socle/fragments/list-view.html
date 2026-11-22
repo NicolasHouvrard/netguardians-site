@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- colonnes = liste de {cle, libelle, tri} ; lignes = liste de tables {id, ...} ; urlLigne = chemin de base ou nul -->
+<div th:fragment="list-view(colonnes, lignes, urlLigne)" class="socle-liste table-responsive">
+    <table class="table table-hover table-sm align-middle mb-0">
+        <thead>
+        <tr>
+            <th scope="col" th:each="c : ${colonnes}">
+                <span th:text="${c.libelle}">Colonne</span>
+                <i th:if="${c['tri'] == true}" class="bi bi-arrow-down-up socle-tri" aria-hidden="true"></i>
+            </th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="l : ${lignes}">
+            <td th:each="c : ${colonnes}">
+                <a th:if="${urlLigne != null and cStat.first}" th:href="@{${urlLigne + '/{id}'}(id=${l.id})}"
+                   th:text="${l[c.cle]}">valeur</a>
+                <span th:unless="${urlLigne != null and cStat.first}" th:text="${l[c.cle]}">valeur</span>
+            </td>
+        </tr>
+        <tr th:if="${lignes == null or #lists.isEmpty(lignes)}">
+            <td class="text-muted text-center py-3" th:colspan="${#lists.size(colonnes)}">Aucun résultat</td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

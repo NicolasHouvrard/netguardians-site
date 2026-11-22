@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:if="${cas == 'statut'}"><div th:replace="~{socle/fragments/status-bar :: status-bar(${etats}, ${courant})}"></div></th:block>
+<th:block th:if="${cas == 'liste'}"><div th:replace="~{socle/fragments/list-view :: list-view(${colonnes}, ${lignes}, ${urlLigne})}"></div></th:block>
+<th:block th:if="${cas == 'panneau'}"><div th:replace="~{socle/fragments/control-panel :: control-panel(${titre}, ${fil}, ${actions}, ${recherche})}"></div></th:block>
+<th:block th:if="${cas == 'tuiles'}"><div th:replace="~{socle/fragments/tile-grid :: tile-grid(${tuilesDemo})}"></div></th:block>
+<th:block th:if="${cas == 'fiche'}"><div th:replace="~{socle/fragments/form-view :: form-view(${titre}, ${statut}, ${actions}, ~{::#contenu-fiche})}"></div></th:block>
+<template><p id="contenu-fiche">Contenu de la fiche</p></template>
+</body>
+</html>

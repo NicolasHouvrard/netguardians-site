@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- fil = liste de {libelle, url} ; actions = liste de {libelle, url} ; recherche = {url, cible} ou nul -->
+<div th:fragment="control-panel(titre, fil, actions, recherche)" class="socle-cp">
+    <nav aria-label="Fil d'Ariane" th:if="${fil != null and !#lists.isEmpty(fil)}">
+        <ol class="breadcrumb socle-fil mb-1">
+            <li class="breadcrumb-item" th:each="f : ${fil}">
+                <a th:if="${f['url'] != null}" th:href="@{${f['url']}}" th:text="${f['libelle']}">Accueil</a>
+                <span th:unless="${f['url'] != null}" th:text="${f['libelle']}">Courant</span>
+            </li>
+        </ol>
+    </nav>
+    <div class="socle-cp-ligne">
+        <h1 class="socle-cp-titre" th:text="${titre}">Titre</h1>
+        <div class="socle-cp-actions" th:if="${actions != null and !#lists.isEmpty(actions)}">
+            <a th:each="a : ${actions}" class="btn btn-primary btn-sm" role="button"
+               th:href="@{${a.url}}" th:text="${a.libelle}">Action</a>
+        </div>
+        <div class="socle-cp-recherche" th:if="${recherche != null}">
+            <input type="search" name="q" class="form-control form-control-sm" placeholder="Rechercher"
+                   aria-label="Rechercher" autocomplete="off"
+                   th:attr="hx-get=@{${recherche.url}},hx-trigger='keyup changed delay:300ms',hx-target=${recherche.cible},hx-push-url='false'">
+        </div>
+    </div>
+</div>
+</body>
+</html>

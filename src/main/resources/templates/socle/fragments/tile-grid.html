@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- tuiles = liste de Tuile (libelle(), icone(), chemin()) -->
+<div th:fragment="tile-grid(tuiles)" class="socle-tuiles">
+    <a th:each="t : ${tuiles}" class="socle-tuile-grande" th:href="@{${t.chemin()}}">
+        <i class="bi" th:classappend="${t.icone() != null ? t.icone() : 'bi-app'}"></i>
+        <span th:text="${t.libelle()}">Application</span>
+    </a>
+    <p th:if="${tuiles == null or #lists.isEmpty(tuiles)}" class="text-muted mb-0">Aucune application disponible</p>
+</div>
+</body>
+</html>

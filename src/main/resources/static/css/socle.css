@@ -57,3 +57,40 @@ body.socle {
     padding: var(--socle-panneau-padding);
 }
 .socle-zone { padding: var(--socle-contenu-padding); }
+
+/* Composants : panneau de controle, liste, fiche, barre de statut, tuiles */
+:root {
+    --socle-titre-taille: 1.25rem;
+    --socle-liste-entete-fond: #f1f3f5;
+    --socle-liste-survol: #eef2f7;
+    --socle-statut-fond: #e9ecef;
+    --socle-statut-texte: #495057;
+    --socle-statut-courant-fond: var(--socle-primaire);
+    --socle-statut-courant-texte: #ffffff;
+    --socle-fiche-fond: #ffffff;
+    --socle-fiche-padding: 1rem 1.25rem;
+    --socle-tuile-grande-taille: 7rem;
+}
+.socle-cp-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.socle-cp-titre { font-size: var(--socle-titre-taille); font-weight: 600; margin: 0; }
+.socle-cp-actions, .socle-fiche-actions { display: flex; gap: .5rem; }
+.socle-cp-recherche { margin-left: auto; min-width: 14rem; }
+.socle-fil { font-size: .85rem; }
+.socle-liste { background: var(--socle-panneau-fond); border: 1px solid var(--socle-panneau-bordure); border-radius: var(--socle-rayon); }
+.socle-liste thead th { background: var(--socle-liste-entete-fond); font-weight: 600; white-space: nowrap; }
+.socle-liste tbody tr:hover > * { background: var(--socle-liste-survol); }
+.socle-tri { opacity: .45; margin-left: .25rem; font-size: .75rem; }
+.socle-statuts { display: flex; gap: .25rem; list-style: none; margin: 0 0 0 auto; padding: 0; }
+.socle-statut { background: var(--socle-statut-fond); color: var(--socle-statut-texte); padding: .2rem .75rem; font-size: .8rem; border-radius: 1rem; }
+.socle-statut-courant { background: var(--socle-statut-courant-fond); color: var(--socle-statut-courant-texte); font-weight: 600; }
+.socle-fiche { background: var(--socle-fiche-fond); border: 1px solid var(--socle-panneau-bordure); border-radius: var(--socle-rayon); padding: var(--socle-fiche-padding); }
+.socle-fiche-entete { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; padding-bottom: .75rem; margin-bottom: .75rem; border-bottom: 1px solid var(--socle-panneau-bordure); }
+.socle-fiche-titre { font-size: var(--socle-titre-taille); margin: 0; }
+.socle-tuiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--socle-tuile-grande-taille), 1fr)); gap: .75rem; }
+.socle-tuile-grande {
+    display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: 1rem .5rem;
+    background: var(--socle-panneau-fond); border: 1px solid var(--socle-panneau-bordure);
+    border-radius: var(--socle-rayon); color: var(--socle-texte); text-decoration: none; text-align: center;
+}
+.socle-tuile-grande i { font-size: 2rem; color: var(--socle-primaire); }
+.socle-tuile-grande:hover { background: var(--socle-tuile-survol); }
