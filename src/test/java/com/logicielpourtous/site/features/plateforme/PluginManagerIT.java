@@ -46,6 +46,11 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
  */
 class PluginManagerIT {
 
+	/** Posés par preparer() avant le démarrage du contexte du coeur (lus par le moteur de gabarits du test). */
+	static volatile Path dossierCoeur;
+
+	static volatile PluginManager gestionnaire;
+
 	@Configuration
 	@EnableWebMvc
 	static class CoeurWeb {
@@ -59,6 +64,31 @@ class PluginManagerIT {
 		@Bean
 		PluginUiController pluginUiController() {
 			return new PluginUiController();
+		}
+
+		@Bean
+		PluginStatiquesController pluginStatiquesController() {
+			return new PluginStatiquesController();
+		}
+
+		/** Moteur de gabarits du test : mise en page du coeur (dossier temporaire) + gabarits des plugins actifs. */
+		@Bean
+		org.thymeleaf.spring6.view.ThymeleafViewResolver viewResolver() {
+			org.thymeleaf.templateresolver.FileTemplateResolver noyau = new org.thymeleaf.templateresolver.FileTemplateResolver();
+			noyau.setPrefix(dossierCoeur + "/");
+			noyau.setSuffix(".html");
+			noyau.setTemplateMode(org.thymeleaf.templatemode.TemplateMode.HTML);
+			noyau.setCharacterEncoding("UTF-8");
+			noyau.setOrder(100);
+			org.thymeleaf.spring6.SpringTemplateEngine moteur = new org.thymeleaf.spring6.SpringTemplateEngine();
+			moteur.addTemplateResolver(new ResolveurGabaritsPlugins(nom -> gestionnaire.actifs().get(nom)));
+			moteur.addTemplateResolver(ResolveurGabaritsPlugins.sansEspacePlugins(noyau));
+			moteur.addDialect(new nz.net.ultraq.thymeleaf.layoutdialect.LayoutDialect());
+			org.thymeleaf.spring6.view.ThymeleafViewResolver vr = new org.thymeleaf.spring6.view.ThymeleafViewResolver();
+			vr.setTemplateEngine(moteur);
+			vr.setCharacterEncoding("UTF-8");
+			vr.setOrder(1);
+			return vr;
 		}
 
 		@Bean
@@ -141,6 +171,11 @@ class PluginManagerIT {
 		ds.setMaximumPoolSize(4);
 		jdbc = new JdbcTemplate(ds);
 		nettoyerBase();
+		dossierCoeur = dossier.resolve("coeur");
+		Files.createDirectories(dossierCoeur.resolve("socle"));
+		Files.writeString(dossierCoeur.resolve("socle/layout.html"),
+				"<html xmlns:layout=\"http://www.ultraq.net.nz/thymeleaf/layout\"><body>CADRE-COEUR["
+						+ "<div layout:fragment=\"contenu\"></div>]</body></html>");
 		coeur = new AnnotationConfigWebApplicationContext();
 		coeur.setServletContext(new MockServletContext());
 		coeur.register(CoeurWeb.class);
@@ -156,6 +191,7 @@ class PluginManagerIT {
 		demarreur = new DemarreurPiege(ds, coeur);
 		manager = new PluginManager(proprietes, new ClesPubliques(JarDePluginDeTest.clesDeTest()), demarreur, routage,
 				contrats, new ReferencesEntrantes(ds), ds, new NettoyeurFuites(coeur, proprietes));
+		gestionnaire = manager;
 		mvc = MockMvcBuilders.webAppContextSetup(coeur).addFilters(new FiltreEnVol(routage)).build();
 	}
 
@@ -183,6 +219,8 @@ class PluginManagerIT {
 
 	private void nettoyerBase() {
 		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testnotes CASCADE");
+		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testpages CASCADE");
+		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testgabarits CASCADE");
 		jdbc.execute("DROP SCHEMA IF EXISTS plugin_dependant CASCADE");
 		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testfourni CASCADE");
 		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testconso CASCADE");
@@ -379,6 +417,96 @@ class PluginManagerIT {
 
 		manager.desinstaller("testpages");
 		assertThat(mvc.perform(get("/p/testpages/liste")).andReturn().getResponse().getStatus()).isEqualTo(404);
+	}
+
+	/**
+	 * Plugin « testgabarits » : une page rendue par gabarit (mise en page du coeur, texte du modèle), un fichier
+	 * statique, et des mappings pièges larges ({@code /{a}/{b}}) pour vérifier la réservation de {@code /static/}.
+	 */
+	private Path pluginGabarits(String version) {
+		return JarDePluginDeTest.creer(dossier.resolve("gabarits-" + version), "testgabarits", version,
+				Map.of("coeur-min", "0.0.0", "mise-a-jour", "chaud", "paquet", "gabarits", "configuration",
+						"gabarits.GabaritsConfiguration"),
+				Map.of(), Map.of("gabarits.GabaritsConfiguration", """
+						package gabarits;
+						@org.springframework.context.annotation.Configuration
+						@org.springframework.context.annotation.ComponentScan("gabarits")
+						public class GabaritsConfiguration {
+						}
+						""", "gabarits.GabaritsController", """
+						package gabarits;
+						@org.springframework.stereotype.Controller
+						public class GabaritsController {
+						    @org.springframework.web.bind.annotation.GetMapping("/page")
+						    public String page(org.springframework.ui.Model modele) {
+						        modele.addAttribute("texte", "<i>a&b</i>");
+						        return "plugins/testgabarits/page";
+						    }
+						    @org.springframework.web.bind.annotation.GetMapping("/{a}/{b}")
+						    @org.springframework.web.bind.annotation.ResponseBody
+						    public String piege2() { return "PLUGIN-PIEGE"; }
+						    @org.springframework.web.bind.annotation.GetMapping("/**")
+						    @org.springframework.web.bind.annotation.ResponseBody
+						    public String piegeTout() { return "PLUGIN-PIEGE"; }
+						}
+						"""),
+				Map.of("templates/plugins/testgabarits/page.html",
+						"<html xmlns:layout=\"http://www.ultraq.net.nz/thymeleaf/layout\" "
+								+ "xmlns:th=\"http://www.thymeleaf.org\" layout:decorate=\"~{socle/layout}\"><body>"
+								+ "<div layout:fragment=\"contenu\"><p th:text=\"${texte}\">x</p>GABARIT-V" + version
+								+ "</div></body></html>",
+						"static/app.css", "body{color:#" + (version.equals("1.0.0") ? "111" : "222") + "}"));
+	}
+
+	@Test
+	void un_plugin_rend_une_page_par_gabarit_avec_la_mise_en_page_du_coeur_puis_hot_update_et_desinstallation()
+			throws Exception {
+		installerOk(pluginGabarits("1.0.0"));
+		MockHttpServletResponse v1 = mvc.perform(get("/p/testgabarits/page")).andReturn().getResponse();
+		assertThat(v1.getStatus()).isEqualTo(200);
+		String html1 = v1.getContentAsString();
+		assertThat(html1).contains("CADRE-COEUR[").contains("GABARIT-V1.0.0").contains("&lt;i&gt;a&amp;b&lt;/i&gt;")
+				.doesNotContain("<i>");
+
+		installerOk(pluginGabarits("1.1.0"));
+		String html2 = mvc.perform(get("/p/testgabarits/page")).andReturn().getResponse().getContentAsString();
+		assertThat(html2).contains("GABARIT-V1.1.0").doesNotContain("GABARIT-V1.0.0");
+
+		manager.desinstaller("testgabarits");
+		MockHttpServletResponse apres = mvc.perform(get("/p/testgabarits/page")).andReturn().getResponse();
+		assertThat(apres.getStatus()).isEqualTo(404);
+		assertThat(apres.getContentAsString()).doesNotContain("GABARIT-V");
+	}
+
+	@Test
+	void l_espace_static_des_pages_est_reserve_au_noyau_meme_si_le_plugin_declare_des_mappings_larges()
+			throws Exception {
+		installerOk(pluginGabarits("1.0.0"));
+		// Sanity : les mappings pièges répondent bien hors de /static.
+		assertThat(mvc.perform(get("/p/testgabarits/x/y")).andReturn().getResponse().getContentAsString())
+				.isEqualTo("PLUGIN-PIEGE");
+
+		MockHttpServletResponse css = mvc.perform(get("/p/testgabarits/static/app.css")).andReturn().getResponse();
+		assertThat(css.getStatus()).isEqualTo(200);
+		assertThat(css.getContentAsString()).isEqualTo("body{color:#111}");
+		assertThat(css.getHeader("Content-Type")).isEqualTo("text/css");
+		assertThat(css.getHeader("X-Plugin")).isNull();
+
+		for (String chemin : new String[] { "/p/testgabarits/static/absent.css", "/p/testgabarits/static/x/y.css",
+				"/p/testgabarits/%73tatic/app.css", "/p/testgabarits/static/a.txt", "/p/testgabarits/static/",
+				"/p/testgabarits/static" }) {
+			MockHttpServletResponse r = mvc.perform(get(java.net.URI.create(chemin))).andReturn().getResponse();
+			assertThat(r.getHeader("X-Plugin")).as(chemin).isNull();
+			assertThat(r.getContentAsString()).as(chemin).doesNotContain("PLUGIN-");
+		}
+
+		// Mise à jour à chaud : le nouveau fichier est servi, puis plus rien après désinstallation.
+		installerOk(pluginGabarits("1.1.0"));
+		assertThat(mvc.perform(get("/p/testgabarits/static/app.css")).andReturn().getResponse().getContentAsString())
+				.isEqualTo("body{color:#222}");
+		manager.desinstaller("testgabarits");
+		assertThat(mvc.perform(get("/p/testgabarits/static/app.css")).andReturn().getResponse().getStatus())
+				.isEqualTo(404);
 	}
 
 	@Test
