@@ -84,6 +84,19 @@
     document.addEventListener('htmx:sendError', function () {
       afficherErreur('Connexion impossible. Vérifiez votre réseau puis réessayez.');
     });
+    // Affichage en direct de la valeur d'un curseur ou d'un selecteur de couleur : le texte est pose par
+    // textContent dans l'element dont l'id est donne par data-miroir.
+    document.addEventListener('input', function (evt) {
+      var cible = evt.target;
+      if (!cible || !cible.getAttribute) {
+        return;
+      }
+      var id = cible.getAttribute('data-miroir');
+      var el = id ? document.getElementById(id) : null;
+      if (el) {
+        el.textContent = cible.value;
+      }
+    });
     // HX-Redirect (session expiree) : suivi nativement par HTMX, rien a faire ici.
   }
 

@@ -131,4 +131,22 @@ class ThemeValeursTest {
         Set<String> presentes = ThemeValeurs.cles().stream().filter(c -> c.startsWith("app-")).collect(Collectors.toSet());
         assertThat(presentes).isEqualTo(attendues);
     }
+
+    @Test
+    void controleDecritLeGenreEtLesBornesDeChaqueCle() {
+        ThemeValeurs.Controle c = ThemeValeurs.controle("couleur-primaire");
+        assertThat(c.genre()).isEqualTo("couleur");
+        ThemeValeurs.Controle e = ThemeValeurs.controle("taille-texte");
+        assertThat(e.genre()).isEqualTo("entier");
+        assertThat(e.min()).isEqualTo(12);
+        assertThat(e.max()).isEqualTo(18);
+        assertThat(ThemeValeurs.controle("liste-densite").genre()).isEqualTo("choix");
+        assertThat(ThemeValeurs.controle("liste-densite").choix()).containsExactly("compact", "normal", "aere");
+        assertThat(ThemeValeurs.controle("police").genre()).isEqualTo("police");
+        assertThat(ThemeValeurs.controle("police").choix()).containsExactlyElementsOf(ThemeValeurs.policesAutorisees());
+        for (String cle : ThemeValeurs.cles()) {
+            assertThat(ThemeValeurs.controle(cle)).isNotNull();
+        }
+        assertThatThrownBy(() -> ThemeValeurs.controle("inconnue")).isInstanceOf(IllegalArgumentException.class);
+    }
 }

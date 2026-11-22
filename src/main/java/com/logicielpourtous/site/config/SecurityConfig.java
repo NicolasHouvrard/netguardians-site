@@ -309,7 +309,9 @@ public class SecurityConfig {
                 chemins.matcher("/intra/registrations/**"),
                 chemins.matcher(SelectionSocieteFilter.SELECTEUR),
                 // Gabarits du socle (HTMX) : le jeton part en en-tete depuis socle.js.
-                chemins.matcher("/admin/socle/**"));
+                chemins.matcher("/admin/socle/**"),
+                // Ecran Apparence : ecrit les reglages de theme servis a tous.
+                chemins.matcher("/admin/apparence/**"));
         RequestMatcher methodeModifiante = request -> !METHODES_SANS_EFFET.contains(request.getMethod());
         return new AndRequestMatcher(methodeModifiante, ecransSensibles);
     }

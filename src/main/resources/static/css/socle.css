@@ -120,3 +120,14 @@ body.socle .btn-primary {
 .app-couleur-rose { background: var(--socle-app-rose, #be185d); }
 .app-couleur-ardoise { background: var(--socle-app-ardoise, #475569); }
 .app-couleur-vert { background: var(--socle-app-vert, #15803d); }
+
+/* Apercu de l'ecran Apparence : memes composants, variables --socle-<cle> posees sur le conteneur. */
+.apercu-socle {
+    background: var(--socle-couleur-fond, #f6f7f9);
+    color: var(--socle-couleur-texte, #212529);
+    font-family: var(--socle-police, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif);
+    font-size: var(--socle-taille-texte, 15px);
+    border: 1px solid #d9dde3; border-radius: .5rem; overflow: hidden;
+}
+.apercu-socle .socle-topbar { position: static; }
+.apercu-socle .apercu-corps { padding: .75rem; display: grid; gap: .75rem; }

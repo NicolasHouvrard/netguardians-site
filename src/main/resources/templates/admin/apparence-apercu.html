@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- styleApercu : variables --socle-* generees cote serveur a partir de valeurs VALIDEES uniquement. -->
+<div th:fragment="apercu(styleApercu)" class="apercu-socle" th:style="${styleApercu}">
+    <header class="socle-topbar">
+        <span class="socle-marque">Aperçu</span>
+        <span class="socle-menu-module"><a href="#" tabindex="-1">Module</a></span>
+    </header>
+    <div class="apercu-corps">
+        <div th:replace="~{socle/fragments/tile-grid :: tile-grid(${apercuTuiles})}"></div>
+        <div class="d-flex gap-2">
+            <span class="socle-app-icone app-couleur-primaire"><i class="bi bi-app"></i></span>
+            <span class="socle-app-icone app-couleur-violet"><i class="bi bi-app"></i></span>
+            <span class="socle-app-icone app-couleur-sarcelle"><i class="bi bi-app"></i></span>
+            <span class="socle-app-icone app-couleur-orange"><i class="bi bi-app"></i></span>
+            <span class="socle-app-icone app-couleur-ambre"><i class="bi bi-app"></i></span>
+            <span class="socle-app-icone app-couleur-rose"><i class="bi bi-app"></i></span>
+            <span class="socle-app-icone app-couleur-ardoise"><i class="bi bi-app"></i></span>
+            <span class="socle-app-icone app-couleur-vert"><i class="bi bi-app"></i></span>
+        </div>
+        <div th:replace="~{socle/fragments/list-view :: list-view(${apercuColonnes}, ${apercuLignes}, null)}"></div>
+        <div th:replace="~{socle/fragments/status-bar :: status-bar(${apercuEtats}, 'actif')}"></div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary" tabindex="-1">Enregistrer</button>
+            <button type="button" class="btn btn-outline-secondary" tabindex="-1">Annuler</button>
+        </div>
+    </div>
+</div>
+
+<div th:fragment="erreur" class="alert alert-warning mb-0" role="alert">Aperçu indisponible : une valeur saisie est invalide.</div>
+
+<div th:fragment="refus" class="alert alert-danger mb-0" role="alert">Opération refusée.</div>
+
+<th:block th:fragment="vide"></th:block>
+</body>
+</html>

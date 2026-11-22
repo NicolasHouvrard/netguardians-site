@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- groupe : onglet (id, libelle, lignes). Tout texte passe par th:text / th:value (echappe). -->
+<div th:fragment="groupe(groupe)" th:id="'groupe-contenu-' + ${groupe.id()}" class="row g-3">
+    <div class="col-lg-6">
+        <form class="apparence-form" th:attr="hx-post=@{/admin/apparence/apercu}"
+              hx-trigger="change, submit" th:hx-target="'#apercu-' + ${groupe.id()}" hx-swap="innerHTML">
+            <div class="apparence-ligne border-bottom py-2" th:each="l : ${groupe.lignes()}">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <label class="fw-semibold flex-grow-1" th:for="'champ-' + ${l.cle()}" th:text="${l.libelle()}">Réglage</label>
+                    <span class="badge" th:classappend="${l.modifie()} ? 'text-bg-primary' : 'text-bg-secondary'"
+                          th:text="${l.modifie()} ? 'modifié' : 'hérité'">hérité</span>
+                </div>
+                <small class="text-muted d-block" th:if="${l.reference() != null and !l.modifie()}"
+                       th:text="'Suit : ' + ${l.reference()}">Suit</small>
+                <input type="hidden" name="cle" th:value="${l.cle()}">
+                <div class="d-flex align-items-center gap-2 mt-1" th:switch="${l.genre()}">
+                    <th:block th:case="'couleur'">
+                        <input type="color" class="form-control form-control-color" name="valeur"
+                               th:id="'champ-' + ${l.cle()}" th:value="${l.valeur()}" th:attr="data-miroir='affiche-' + ${l.cle()}">
+                        <code th:id="'affiche-' + ${l.cle()}" th:text="${l.valeur()}">#000000</code>
+                    </th:block>
+                    <th:block th:case="'entier'">
+                        <input type="range" class="form-range" name="valeur" th:id="'champ-' + ${l.cle()}"
+                               th:min="${l.min()}" th:max="${l.max()}" step="1" th:value="${l.valeur()}"
+                               th:attr="data-miroir='affiche-' + ${l.cle()}">
+                        <output th:id="'affiche-' + ${l.cle()}" th:text="${l.valeur()}">0</output>
+                    </th:block>
+                    <th:block th:case="*">
+                        <select class="form-select" name="valeur" th:id="'champ-' + ${l.cle()}">
+                            <option th:each="c : ${l.choix()}" th:value="${c}" th:text="${c}"
+                                    th:selected="${c == l.valeur()}">choix</option>
+                        </select>
+                    </th:block>
+                </div>
+                <div class="d-flex gap-2 mt-2">
+                    <button type="button" class="btn btn-sm btn-primary"
+                            th:attr="hx-post=@{/admin/apparence/{cle}(cle=${l.cle()})}"
+                            hx-include="closest .apparence-ligne" th:hx-target="'#groupe-contenu-' + ${groupe.id()}"
+                            hx-swap="outerHTML">Enregistrer</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" th:disabled="${!l.modifie()}"
+                            th:attr="hx-post=@{/admin/apparence/{cle}/reinitialiser(cle=${l.cle()})}"
+                            th:hx-target="'#groupe-contenu-' + ${groupe.id()}" hx-swap="outerHTML">Revenir à la valeur par défaut</button>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="col-lg-6">
+        <div class="position-sticky" style="top: 1rem;">
+            <h3 class="h6">Aperçu</h3>
+            <div th:id="'apercu-' + ${groupe.id()}">
+                <div th:replace="~{admin/apparence-apercu :: apercu(styleApercu=${styleApercu})}"></div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

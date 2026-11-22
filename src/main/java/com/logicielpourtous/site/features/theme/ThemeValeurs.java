@@ -31,7 +31,9 @@ public final class ThemeValeurs {
     private record Regle(Type type, int min, int max, Set<String> choix, String groupe) {
         static Regle couleur(String g) { return new Regle(Type.COULEUR, 0, 0, Set.of(), g); }
         static Regle entier(String g, int min, int max) { return new Regle(Type.ENTIER, min, max, Set.of(), g); }
-        static Regle choix(String g, String... c) { return new Regle(Type.ENUM, 0, 0, Set.of(c), g); }
+        static Regle choix(String g, String... c) {
+            return new Regle(Type.ENUM, 0, 0, Collections.unmodifiableSet(new java.util.LinkedHashSet<>(List.of(c))), g);
+        }
         static Regle police(String g) { return new Regle(Type.POLICE, 0, 0, Set.of(), g); }
     }
 
@@ -107,6 +109,28 @@ public final class ThemeValeurs {
     /** Identifiants de polices autorisees. */
     public static Set<String> policesAutorisees() {
         return POLICES.keySet();
+    }
+
+    /**
+     * Genre de controle d'un reglage pour l'ecran d'administration : {@code couleur}, {@code entier} (bornes
+     * min/max), {@code choix} (valeurs dans l'ordre) ou {@code police} (identifiants autorises).
+     */
+    public record Controle(String genre, int min, int max, List<String> choix) {
+    }
+
+    /** Description du controle d'une cle (cle inconnue : {@link IllegalArgumentException}). */
+    public static Controle controle(String cle) {
+        Regle r = regle(cle);
+        switch (r.type()) {
+            case COULEUR:
+                return new Controle("couleur", 0, 0, List.of());
+            case ENTIER:
+                return new Controle("entier", r.min(), r.max(), List.of());
+            case ENUM:
+                return new Controle("choix", 0, 0, List.copyOf(r.choix()));
+            default:
+                return new Controle("police", 0, 0, List.copyOf(POLICES.keySet()));
+        }
     }
 
     /** Identifiant du groupe d'une cle (voir {@link #GROUPES}). */
