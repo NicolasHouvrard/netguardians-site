@@ -179,15 +179,31 @@ class SocleFragmentsTest {
 	}
 
 	@Test
-	void onglets_chargent_au_premier_clic_avec_indicateur_et_libelle_en_texte() {
+	void onglets_premier_actif_et_charge_d_emblee_les_autres_au_premier_clic() {
 		FauxSlots slots = new FauxSlots(el("<b>x</b>", "/p/alpha/h?client=42"), el("Deux", "/p/beta/b"));
 		String html = rendre("onglets", m("uiSlots", slots, "emplacement", "demo.fiche.onglets", "idEntite", "42"));
 		assertThat(html).contains("nav-tabs").contains("data-bs-toggle=\"tab\"")
-				.contains("data-bs-target=\"#panneau-0\"").contains("data-bs-target=\"#panneau-1\"")
-				.contains("hx-trigger=\"click once\"").contains("hx-target=\"#panneau-0\"")
-				.contains("hx-get=\"/p/alpha/h?client=42\"").contains("id=\"panneau-1\"").contains("Chargement…")
-				.contains("&lt;b&gt;x&lt;/b&gt;").doesNotContain("<b>x").doesNotContain("hx-trigger=\"load\"");
-		assertThat(html.split("hx-trigger=\"click once\"", -1)).hasSize(3);
+				.contains("data-bs-target=\"#panneau-demo-fiche-onglets-0\"")
+				.contains("data-bs-target=\"#panneau-demo-fiche-onglets-1\"")
+				.contains("hx-target=\"#panneau-demo-fiche-onglets-0\"").contains("hx-get=\"/p/alpha/h?client=42\"")
+				.contains("id=\"panneau-demo-fiche-onglets-1\"").contains("Chargement…")
+				.contains("&lt;b&gt;x&lt;/b&gt;").doesNotContain("<b>x").doesNotContain("id=\"panneau-0\"");
+		// Premier onglet : actif, charge tout de suite (et au clic) ; second : seulement au premier clic.
+		assertThat(html).contains("hx-trigger=\"load, click once\"").contains("hx-trigger=\"click once\"");
+		assertThat(html.split("hx-trigger=\"load, click once\"", -1)).hasSize(2);
+		assertThat(html.split("hx-trigger=\"click once\"", -1)).hasSize(2);
+		assertThat(html.split("nav-link active", -1)).hasSize(2);
+		assertThat(html).contains("tab-pane fade show active");
+		assertThat(html.split("show active", -1)).hasSize(2);
+	}
+
+	@Test
+	void deux_fragments_onglets_sur_une_page_ont_des_identifiants_distincts() {
+		FauxSlots slots = new FauxSlots(el("Un", "/p/alpha/h"));
+		String a = rendre("onglets", m("uiSlots", slots, "emplacement", "demo.fiche.onglets", "idEntite", "1"));
+		String b = rendre("onglets", m("uiSlots", slots, "emplacement", "autre.zone.onglets", "idEntite", "1"));
+		assertThat(a).contains("id=\"panneau-demo-fiche-onglets-0\"").doesNotContain("autre-zone");
+		assertThat(b).contains("id=\"panneau-autre-zone-onglets-0\"").doesNotContain("demo-fiche");
 	}
 
 	@Test
@@ -208,7 +224,7 @@ class SocleFragmentsTest {
 		String html = mvc().perform(get("/admin/socle").requestAttr("uiSlots", slots)).andExpect(status().isOk())
 				.andReturn().getResponse().getContentAsString();
 		assertThat(slots.appels).isEqualTo(2);
-		assertThat(html).contains("hx-trigger=\"load\"").contains("hx-trigger=\"click once\"");
+		assertThat(html).contains("hx-trigger=\"load\"").contains("hx-trigger=\"load, click once\"");
 		String sans = mvc().perform(get("/admin/socle")).andExpect(status().isOk()).andReturn().getResponse()
 				.getContentAsString();
 		assertThat(sans).doesNotContain("click once");

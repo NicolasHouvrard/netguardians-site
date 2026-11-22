@@ -15,20 +15,26 @@
                 class="text-muted small" th:text="${e.libelle()}">Libellé</span></span>
     </th:block>
 </th:block>
-<!-- onglets : chaque panneau se charge au premier clic sur son onglet (hx-trigger="click once") -->
+<!-- onglets : le premier onglet est actif et charge son contenu tout de suite (hx-trigger="load, click once") ; les
+     autres se chargent au premier clic. Les identifiants de panneau portent l'emplacement (points remplaces par des
+     tirets) : deux fragments onglets sur une meme page ne se melangent pas. -->
 <th:block th:fragment="onglets(emplacement, idEntite)"
-          th:with="elements=${uiSlots != null ? uiSlots.elements(emplacement, idEntite) : {}}">
+          th:with="elements=${uiSlots != null ? uiSlots.elements(emplacement, idEntite) : {}},
+                   base=|panneau-${#strings.replace(emplacement, '.', '-')}|">
     <th:block th:if="${elements != null and !#lists.isEmpty(elements)}">
         <ul class="nav nav-tabs" role="tablist">
             <li class="nav-item" role="presentation" th:each="e, it : ${elements}">
-                <button type="button" class="nav-link" role="tab" data-bs-toggle="tab"
-                        th:attr="data-bs-target=|#panneau-${it.index}|,hx-get=@{${e.url()}},hx-trigger='click once',hx-target=|#panneau-${it.index}|"
+                <button type="button" role="tab" data-bs-toggle="tab"
+                        th:classappend="${it.first} ? 'active'"
+                        th:attr="data-bs-target=|#${base}-${it.index}|,hx-get=@{${e.url()}},hx-trigger=(${it.first} ? 'load, click once' : 'click once'),hx-target=|#${base}-${it.index}|,aria-selected=${it.first}"
+                        class="nav-link"
                         th:text="${e.libelle()}">Onglet</button>
             </li>
         </ul>
         <div class="tab-content pt-3">
             <div class="tab-pane fade" role="tabpanel" th:each="e, it : ${elements}"
-                 th:id="|panneau-${it.index}|">
+                 th:classappend="${it.first} ? 'show active'"
+                 th:id="|${base}-${it.index}|">
                 <span class="text-muted small">Chargement…</span>
             </div>
         </div>

@@ -48,7 +48,7 @@ public class EmplacementsAdvice {
 				return service.elements(emplacement, null, idEntite);
 			}
 			catch (RuntimeException e) {
-				log.warn("Emplacements : lecture en échec, liste vide", e);
+				log.warn("Emplacements : lecture en échec ({}), liste vide", e.getClass().getSimpleName());
 				return List.of();
 			}
 		}
