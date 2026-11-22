@@ -13,13 +13,13 @@ côté serveur, aucun build front), pour simplifier le développement et obtenir
 
 - Migration progressive de **tout le site** vers Thymeleaf + HTMX, avec une vision homogène ; l'apparence de la partie Thymeleaf déjà
   existante est modernisée aussi.
-- Interface proche d'**Odoo** (sélecteur d'applications, barre supérieure compacte, panneau de contrôle, listes et fiches avec barre de
-  statut), avec des couleurs plus modernes. Référence visuelle :
-  https://dribbble.com/shots/26500644-Enterprise-Resource-Planning-ERP-B2B-Analytics-Dashboard (la page n'a pas pu être lue
-  automatiquement : la palette viendra d'une capture d'écran fournie plus tard ; en attendant, la palette par défaut est un choix du
-  constructeur de conception et se règle ensuite dans l'écran d'apparence).
-- L'**apparence est réglable par une interface graphique** (couleurs, polices, épaisseur des traits, arrondis) par **l'admin de chaque
-  serveur**. Le serveur maître propose un **thème par défaut** ; chaque réglage est soit hérité du thème par défaut, soit modifié sur
+- Interface basée sur **Odoo** (sélecteur d'applications, barre supérieure compacte, panneau de contrôle, listes et fiches avec barre de
+  statut). La référence Dribbble est **abandonnée** (décision du 2026-11-22) : la palette par défaut, plus moderne qu'Odoo, est un
+  choix du constructeur de conception, réglable ensuite dans l'écran de personnalisation.
+- L'**apparence est réglable par un écran de personnalisation** (couleurs, polices, épaisseur des traits, arrondis) par **l'admin de chaque
+  serveur**, **gabarit par gabarit** : réglages généraux, puis réglages propres à la barre supérieure, aux tuiles d'accueil, aux vues liste,
+  aux vues fiche (dont la barre de statut) et aux boutons, chacun avec son aperçu. Il s'agit de réglages à valeurs contrôlées, jamais de
+  l'édition libre du HTML ou du CSS d'un gabarit. Le serveur maître propose un **thème par défaut** ; chaque réglage est soit hérité du thème par défaut, soit modifié sur
   ce serveur.
 - Approche retenue pour le thème par défaut : **A** : il est livré dans l'application (fichier versionné avec le code, mis à jour par le
   déploiement existant) ; les modifications de chaque serveur sont en base de données ; la source du thème par défaut est isolée
@@ -45,7 +45,9 @@ côté serveur, aucun build front), pour simplifier le développement et obtenir
 3. **Fichiers locaux** : Bootstrap 5.3.x (même version qu'aujourd'hui, pour ne pas changer l'aspect des gabarits existants), HTMX,
    un seul jeu d'icônes, polices hébergées.
 4. **Thème et écran « Apparence »** :
-   - variables CSS (couleurs, polices, épaisseur des traits, arrondis, taille du texte, densité) ;
+   - variables CSS (couleurs, polices, épaisseur des traits, arrondis, taille du texte, densité), **regroupées par gabarit** : général,
+     barre supérieure, tuiles, vue liste (densité des lignes, lignes alternées, style de l'en-tête), vue fiche (style de la barre de statut),
+     boutons ; chaque groupe se règle et se prévisualise séparément, et chaque réglage hérite du général tant qu'il n'est pas modifié ;
    - un thème par défaut dans l'application ; les réglages d'un serveur en base, chacun « hérité » ou « modifié » ;
    - une page réservée à l'admin du serveur, avec sélecteurs de couleur, curseurs, liste de polices, aperçu en direct par HTMX,
      bouton « revenir à la valeur par défaut » (par réglage et pour l'ensemble) ;
@@ -125,10 +127,12 @@ Choix du constructeur de conception, à contrôler (les deux premiers touchent �
   applique la règle à tout le préfixe (un plugin ne peut pas ajouter de chemins à `csrfCible()`).
 - **Mise en page et thème dans les écrans existants :** les cinq mises en page actuelles ne chargent **ni** le nouveau thème **ni** les
   nouveaux fichiers ; seul le nouveau gabarit de mise en page les charge. L'aspect des 216 gabarits ne change donc qu'au moment où leur
-  domaine est migré. Le fichier de thème est servi sur un chemin public (`/theme.css`) pour que les pages de connexion et publiques
-  utilisant la nouvelle mise en page le reçoivent.
+  domaine est migré. Le fichier de thème est servi sur un chemin public, **`/css/theme.css`** (et non `/theme.css` : la sécurité web
+  n'ouvre à tous que `/css/**`, `/js/**`, `/images/**` et les chemins d'une seule section sans point), pour que les pages de connexion et
+  publiques utilisant la nouvelle mise en page le reçoivent.
 - **URL de la page de démonstration et de l'écran d'apparence :** accueil à tuiles sur `/accueil` (session authentifiée, avec le sélecteur de
-  société existant) ; écran d'apparence sur `/admin/apparence` (rôle ADMIN).
+  société existant) ; attention : la règle de sécurité `/{slug}` ouvre aujourd'hui à **tous** toute adresse d'une seule section, donc
+  `/accueil` exige une règle explicite « authentifié » placée **avant** celle-ci ; écran d'apparence sur `/admin/apparence` (rôle ADMIN).
 - **Gabarits de plugin :** noms **préfixés** par le plugin (`plugins/<nom>/…`) pour qu'un plugin ne puisse jamais remplacer ni masquer un
   gabarit ou fragment du noyau ; un gabarit de plugin peut utiliser la mise en page et les fragments du noyau (`layout:decorate`,
   `th:replace`), jamais l'inverse. Les plugins sont signés et de confiance : les expressions de leurs gabarits peuvent accéder à leurs
