@@ -52,10 +52,13 @@ class ApparenceControllerTest {
     @Autowired private JdbcTemplate jdbc;
 
     private CustomUserDetails admin;
+    private long journalInitial;
 
     @BeforeEach
     void preparer() {
         jdbc.update("DELETE FROM theme_reglages");
+        Long n = jdbc.queryForObject("SELECT count(*) FROM theme_journal", Long.class);
+        journalInitial = n == null ? 0 : n;
         admin = compte("ADMIN", true);
     }
 
@@ -297,6 +300,80 @@ class ApparenceControllerTest {
         assertThat(html).contains("value=\"#");
     }
 
+    // ---------- fix : une seule valeur par enregistrement ----------
+
+    @Test
+    void enregistrementAvecPlusieursValeurs_400_rienEcrit_cssInchange() throws Exception {
+        String cssAvant = css();
+        MvcResult r = mockMvc.perform(post("/admin/apparence/couleur-primaire").param("valeur", "#1a2b3c")
+                .param("valeur", "#6c757d").with(user(admin)).with(csrf())).andExpect(status().isBadRequest()).andReturn();
+        assertThat(r.getResponse().getContentAsString()).doesNotContain("#1a2b3c").doesNotContain("#6c757d");
+        mockMvc.perform(post("/admin/apparence/couleur-primaire").header("HX-Request", "true")
+                .param("valeur", "#1a2b3c").param("valeur", "#1a2b3c").with(user(admin)).with(csrf()))
+                .andExpect(status().isBadRequest());
+        assertThat(reglages.count()).isZero();
+        assertThat(lignesJournal()).isZero();
+        assertThat(css()).isEqualTo(cssAvant);
+    }
+
+    @Test
+    void enregistrementAvecUneSeuleValeur_estEnregistre() throws Exception {
+        mockMvc.perform(post("/admin/apparence/couleur-primaire").param("valeur", "#1a2b3c")
+                .with(user(admin)).with(csrf())).andExpect(status().is3xxRedirection());
+        assertThat(service.reglages().get("couleur-primaire").valeur()).isEqualTo("#1a2b3c");
+        assertThat(lignesJournal()).isEqualTo(1);
+    }
+
+    @Test
+    void groupeRendu_aucunBoutonDEnregistrementDansUnFormulaireMultiChamps() throws Exception {
+        String html = mockMvc.perform(get("/admin/apparence").with(user(admin)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("<button\\b[^>]*>").matcher(html);
+        int enregistrer = 0;
+        int reinit = 0;
+        while (m.find()) {
+            String b = m.group();
+            java.util.regex.Matcher p = java.util.regex.Pattern.compile("hx-post=\"/admin/apparence/([^\"/]+)(/reinitialiser)?\"").matcher(b);
+            if (!p.find()) {
+                continue;
+            }
+            String cible = p.group(1);
+            if (cible.equals("apercu") || cible.equals("reinitialiser") && p.group(2) == null) {
+                continue; // reinitialisation globale
+            }
+            if (p.group(2) != null) {
+                assertThat(b).contains("hx-params=\"none\"");
+                reinit++;
+            } else {
+                assertThat(b).contains("hx-include=\"closest .apparence-ligne\"").contains("hx-params=\"valeur\"");
+                enregistrer++;
+            }
+        }
+        assertThat(enregistrer).isEqualTo(ThemeValeurs.cles().size());
+        assertThat(reinit).isEqualTo(ThemeValeurs.cles().size());
+        // Aucun <form> ne contient plusieurs champs "valeur".
+        java.util.regex.Matcher f = java.util.regex.Pattern.compile("(?s)<form\\b.*?</form>").matcher(html);
+        while (f.find()) {
+            assertThat(f.group().split("name=\"valeur\"", -1).length - 1).isLessThanOrEqualTo(1);
+        }
+        // Chaque ligne porte un seul champ "valeur".
+        for (String ligne : html.split("class=\"apparence-ligne")) {
+            if (ligne.contains("name=\"cle\"")) {
+                String corps = ligne.split("(?s)(?=<div class=\"[^\"]*apparence-ligne|<div class=\"col-lg-6)", 2)[0];
+                assertThat(corps.split("name=\"valeur\"", -1).length - 1).isLessThanOrEqualTo(1);
+            }
+        }
+    }
+
+    @Test
+    void apercuSuitLaCibleDUneReference() throws Exception {
+        // topbar-fond herite de couleur-primaire par defaut
+        String corps = mockMvc.perform(post("/admin/apparence/apercu").param("cle", "couleur-primaire")
+                .param("valeur", "#abcdef").with(user(admin)).with(csrf())).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(corps).contains("--socle-couleur-primaire:#abcdef").contains("--socle-topbar-fond:#abcdef");
+    }
+
     // ---------- utilitaires ----------
 
     private String css() throws Exception {
@@ -304,9 +381,8 @@ class ApparenceControllerTest {
     }
 
     private long lignesJournal() {
-        Long n = jdbc.queryForObject("SELECT count(*) FROM theme_journal WHERE modifie_par = ?", Long.class,
-                admin.getUserId());
-        return n == null ? 0 : n;
+        Long n = jdbc.queryForObject("SELECT count(*) FROM theme_journal", Long.class);
+        return (n == null ? 0 : n) - journalInitial;
     }
 
     private CustomUserDetails compte(String role, boolean persiste) {

@@ -4,8 +4,9 @@
 <!-- groupe : onglet (id, libelle, lignes). Tout texte passe par th:text / th:value (echappe). -->
 <div th:fragment="groupe(groupe)" th:id="'groupe-contenu-' + ${groupe.id()}" class="row g-3">
     <div class="col-lg-6">
-        <form class="apparence-form" th:attr="hx-post=@{/admin/apparence/apercu}"
-              hx-trigger="change, submit" th:hx-target="'#apercu-' + ${groupe.id()}" hx-swap="innerHTML">
+        <!-- Conteneur simple (PAS un formulaire) : htmx joindrait tous les champs d'un formulaire englobant a chaque bouton. -->
+        <div class="apparence-form" th:attr="hx-post=@{/admin/apparence/apercu}"
+              hx-trigger="change" hx-include="this" th:hx-target="'#apercu-' + ${groupe.id()}" hx-swap="innerHTML">
             <div class="apparence-ligne border-bottom py-2" th:each="l : ${groupe.lignes()}">
                 <div class="d-flex flex-wrap align-items-center gap-2">
                     <label class="fw-semibold flex-grow-1" th:for="'champ-' + ${l.cle()}" th:text="${l.libelle()}">Réglage</label>
@@ -37,14 +38,14 @@
                 <div class="d-flex gap-2 mt-2">
                     <button type="button" class="btn btn-sm btn-primary"
                             th:attr="hx-post=@{/admin/apparence/{cle}(cle=${l.cle()})}"
-                            hx-include="closest .apparence-ligne" th:hx-target="'#groupe-contenu-' + ${groupe.id()}"
+                            hx-include="closest .apparence-ligne" hx-params="valeur" th:hx-target="'#groupe-contenu-' + ${groupe.id()}"
                             hx-swap="outerHTML">Enregistrer</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" th:disabled="${!l.modifie()}"
                             th:attr="hx-post=@{/admin/apparence/{cle}/reinitialiser(cle=${l.cle()})}"
-                            th:hx-target="'#groupe-contenu-' + ${groupe.id()}" hx-swap="outerHTML">Revenir à la valeur par défaut</button>
+                            hx-params="none" th:hx-target="'#groupe-contenu-' + ${groupe.id()}" hx-swap="outerHTML">Revenir à la valeur par défaut</button>
                 </div>
             </div>
-        </form>
+        </div>
     </div>
     <div class="col-lg-6">
         <div class="position-sticky" style="top: 1rem;">

@@ -74,7 +74,7 @@ public class ApparenceController {
 	@GetMapping
 	public String page(Model model) {
 		model.addAttribute("groupes", groupes());
-		remplirApercu(model, styleApercu(effectives(), Map.of()));
+		remplirApercu(model, styleApercu(effectives(), suivis(), Map.of()));
 		model.addAttribute("titre", "Apparence");
 		model.addAttribute("moduleActif", "Apparence");
 		model.addAttribute("fil", List.of(Map.of("libelle", "Administration", "url", "/admin"), Map.of("libelle", "Apparence")));
@@ -93,7 +93,7 @@ public class ApparenceController {
 			for (int i = 0; i < cles.size(); i++) {
 				saisies.put(cles.get(i), ThemeValeurs.valider(cles.get(i), valeurs.get(i)));
 			}
-			String style = styleApercu(effectives(), saisies);
+			String style = styleApercu(effectives(), suivis(), saisies);
 			remplirApercu(model, style);
 			return VUE_APERCU;
 		} catch (RuntimeException e) {
@@ -118,7 +118,7 @@ public class ApparenceController {
 
 	@PostMapping("/{cle}")
 	public String enregistrer(@PathVariable("cle") String cle,
-			@RequestParam(name = "valeur", required = false) String valeur,
+			@RequestParam(name = "valeur", required = false) List<String> valeurs,
 			@AuthenticationPrincipal CustomUserDetails admin,
 			@RequestHeader(name = "HX-Request", required = false) String hx, Model model, HttpServletResponse reponse) {
 		Long id = identifiant(admin);
@@ -128,6 +128,11 @@ public class ApparenceController {
 		if (!ThemeValeurs.cles().contains(cle)) {
 			return refuser(reponse, HttpServletResponse.SC_NOT_FOUND);
 		}
+		// Contrat : exactement UNE valeur (jamais de jonction de plusieurs valeurs).
+		if (valeurs == null || valeurs.size() != 1) {
+			return refuser(reponse, HttpServletResponse.SC_BAD_REQUEST);
+		}
+		String valeur = valeurs.get(0);
 		try {
 			ThemeValeurs.valider(cle, valeur);
 		} catch (IllegalArgumentException e) {
@@ -174,13 +179,24 @@ public class ApparenceController {
 		}
 		String groupe = ThemeValeurs.groupe(cle);
 		model.addAttribute("groupe", groupes().stream().filter(g -> g.id().equals(groupe)).findFirst().orElseThrow());
-		remplirApercu(model, styleApercu(effectives(), Map.of()));
+		remplirApercu(model, styleApercu(effectives(), suivis(), Map.of()));
 		return VUE_GROUPE;
 	}
 
 	private Map<String, String> effectives() {
 		Map<String, String> m = new LinkedHashMap<>();
 		service.reglages().forEach((c, e) -> m.put(c, e.valeur()));
+		return m;
+	}
+
+	/** Cles dont la valeur par defaut suit une autre cle (heritage) et qui ne sont pas modifiees. */
+	private Map<String, String> suivis() {
+		Map<String, String> m = new LinkedHashMap<>();
+		service.reglages().forEach((c, e) -> {
+			if (e.reference() != null && e.origine() == Origine.HERITE) {
+				m.put(c, e.reference());
+			}
+		});
 		return m;
 	}
 
@@ -208,9 +224,16 @@ public class ApparenceController {
 	 * Variables {@code --socle-*} de l'apercu : valeurs effectives (deja validees) recouvertes par les saisies
 	 * VALIDEES, chacune re-generee par {@link ThemeValeurs#rendreCss}. Aucun texte de la requete n'y passe.
 	 */
-	private static String styleApercu(Map<String, String> effectives, Map<String, String> saisiesValidees) {
+	private static String styleApercu(Map<String, String> effectives, Map<String, String> suivis,
+			Map<String, String> saisiesValidees) {
 		Map<String, String> v = new LinkedHashMap<>(effectives);
 		v.putAll(saisiesValidees);
+		// Un reglage herite (non saisi) suit la valeur candidate de sa cible.
+		suivis.forEach((cle, cible) -> {
+			if (!saisiesValidees.containsKey(cle) && v.get(cible) != null) {
+				v.put(cle, v.get(cible));
+			}
+		});
 		StringBuilder sb = new StringBuilder();
 		for (String cle : ThemeValeurs.cles()) {
 			sb.append("--socle-").append(cle).append(':').append(ThemeValeurs.rendreCss(cle, v.get(cle))).append(';');
