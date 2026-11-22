@@ -27,6 +27,13 @@ public record ManifestePlugin(
 	/** Droit sûr : il est comparé tel quel aux droits de l'utilisateur. */
 	public static final Pattern DROIT_VALIDE = Pattern.compile("^[a-z][a-z0-9_.]{0,59}$");
 
+	/** Icône sûre : nom d'icône Bootstrap Icons, rendu {@code bi bi-<icône>} (jamais interprété comme HTML ou CSS). */
+	public static final Pattern ICONE_VALIDE = Pattern.compile("^[a-z0-9-]{1,40}$");
+
+	/** Couleurs de tuile autorisées (liste fermée : correspondent aux classes CSS {@code app-couleur-*}). */
+	public static final java.util.Set<String> COULEURS_TUILE = java.util.Set.of("primaire", "violet", "sarcelle",
+			"orange", "ambre", "rose", "ardoise", "vert");
+
 	/** Le nom est validé quelle que soit la façon de construire le manifeste (il entre dans du SQL et des URL). */
 	public ManifestePlugin {
 		if (nom == null || !NOM_VALIDE.matcher(nom).matches()) {
@@ -58,23 +65,32 @@ public record ManifestePlugin(
 				blocs(p));
 	}
 
-	/** Lit {@code entree.1}, {@code entree.2}, … : {@code ZONE|libellé|icône|chemin|droit}. */
+	/** Lit {@code entree.1}, {@code entree.2}, … : {@code ZONE|libellé|icône|chemin|droit[|couleur]}. */
 	private static List<EntreeNavigation> entrees(Properties p) {
 		List<EntreeNavigation> entrees = new ArrayList<>();
 		for (int n = 1; p.getProperty("entree." + n) != null; n++) {
 			String cle = "entree." + n;
-			String[] champs = champs(p.getProperty(cle), 5, cle, "ZONE|libellé|icône|chemin|droit");
+			String[] champs = champs(p.getProperty(cle), 5, 6, cle, "ZONE|libellé|icône|chemin|droit[|couleur]");
 			ZoneNavigation zone;
 			try {
 				zone = ZoneNavigation.valueOf(champs[0]);
 			}
 			catch (IllegalArgumentException e) {
-				throw new IllegalArgumentException("Zone inconnue dans " + cle + " : '" + champs[0]
+				throw new IllegalArgumentException("Zone inconnue dans " + cle + " : '" + court(champs[0])
 						+ "' (attendu : " + Arrays.toString(ZoneNavigation.values()) + ")");
 			}
 			verifierChemin(champs[3], cle);
 			verifierDroit(champs[4], cle);
-			entrees.add(new EntreeNavigation(zone, champs[1], champs[2], champs[3], champs[4]));
+			if (!ICONE_VALIDE.matcher(champs[2]).matches()) {
+				throw new IllegalArgumentException("icône invalide dans " + cle + " : '" + court(champs[2])
+						+ "' (attendu : " + ICONE_VALIDE.pattern() + ")");
+			}
+			String couleur = champs.length == 6 ? champs[5] : EntreeNavigation.COULEUR_PAR_DEFAUT;
+			if (!COULEURS_TUILE.contains(couleur)) {
+				throw new IllegalArgumentException("couleur invalide dans " + cle + " : '" + court(couleur)
+						+ "' (attendu : " + new TreeSet<>(COULEURS_TUILE) + ")");
+			}
+			entrees.add(new EntreeNavigation(zone, champs[1], champs[2], champs[3], champs[4], couleur));
 		}
 		verifierNumerotation(p, "entree.", entrees.size());
 		return List.copyOf(entrees);
@@ -118,15 +134,24 @@ public record ManifestePlugin(
 	}
 
 	private static String[] champs(String valeur, int attendus, String cle, String format) {
+		return champs(valeur, attendus, attendus, cle, format);
+	}
+
+	private static String[] champs(String valeur, int min, int max, String cle, String format) {
 		String[] champs = valeur.split("\\|", -1);
-		if (champs.length != attendus) {
-			throw new IllegalArgumentException("Format invalide pour " + cle + " : '" + valeur
+		if (champs.length < min || champs.length > max) {
+			throw new IllegalArgumentException("Format invalide pour " + cle + " : '" + court(valeur)
 					+ "' (attendu : " + format + ")");
 		}
 		for (int i = 0; i < champs.length; i++) {
 			champs[i] = champs[i].trim();
 		}
 		return champs;
+	}
+
+	/** Valeur du manifeste tronquée pour un message d'erreur (jamais d'écho d'une entrée démesurée). */
+	private static String court(String valeur) {
+		return valeur.length() <= 60 ? valeur : valeur.substring(0, 60) + "…";
 	}
 
 	private static void verifierChemin(String chemin, String cle) {

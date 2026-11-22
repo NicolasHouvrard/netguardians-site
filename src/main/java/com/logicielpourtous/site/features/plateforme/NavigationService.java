@@ -42,7 +42,32 @@ public class NavigationService {
 
 	/** Tuile renvoyée au front. */
 	public record Tuile(String plugin, String libelle, String icone, String chemin, ZoneNavigation zone,
-			String version) {
+			String version, String couleur) {
+
+		/** Tuile de couleur par défaut ({@code primaire}). */
+		public Tuile(String plugin, String libelle, String icone, String chemin, ZoneNavigation zone, String version) {
+			this(plugin, libelle, icone, chemin, zone, version, EntreeNavigation.COULEUR_PAR_DEFAUT);
+		}
+
+		/**
+		 * Adresse de l'écran, construite ICI : {@code /p/<plugin><chemin>}. {@code null} si le chemin pourrait mener
+		 * ailleurs que sous {@code /p/<plugin>} (début {@code //}, {@code ..}, antislash, espace, caractère de contrôle,
+		 * {@code %}, {@code ?}, {@code #}) : la tuile est alors omise, jamais affichée.
+		 */
+		public String url() {
+			if (plugin == null || chemin == null || !chemin.startsWith("/") || chemin.startsWith("//")
+					|| chemin.contains("..") || chemin.contains("\\") || chemin.indexOf('%') >= 0
+					|| chemin.indexOf('?') >= 0 || chemin.indexOf('#') >= 0) {
+				return null;
+			}
+			for (int i = 0; i < chemin.length(); i++) {
+				char c = chemin.charAt(i);
+				if (Character.isWhitespace(c) || Character.isISOControl(c)) {
+					return null;
+				}
+			}
+			return "/p/" + plugin + chemin;
+		}
 	}
 
 	/** Bloc de fiche client renvoyé au front. */
@@ -109,8 +134,8 @@ public class NavigationService {
 			}
 			for (EntreeNavigation e : m.entrees()) {
 				if (e.zone() == ZoneNavigation.ADMIN) {
-					resultat.add(new Tuile(m.nom(), e.libelle(), e.icone(), e.chemin(), e.zone(),
-							actif.getValue().version));
+					ajouter(resultat, new Tuile(m.nom(), e.libelle(), e.icone(), e.chemin(), e.zone(),
+							actif.getValue().version, e.couleur()));
 				}
 			}
 		}
@@ -175,8 +200,8 @@ public class NavigationService {
 			}
 			for (EntreeNavigation e : m.entrees()) {
 				if (zones.contains(e.zone()) && (e.zone() == ZoneNavigation.PUBLIQUE || contexte.autorise(e.droit()))) {
-					resultat.add(new Tuile(m.nom(), e.libelle(), e.icone(), e.chemin(), e.zone(),
-							actif.getValue().version));
+					ajouter(resultat, new Tuile(m.nom(), e.libelle(), e.icone(), e.chemin(), e.zone(),
+							actif.getValue().version, e.couleur()));
 				}
 			}
 		}
@@ -205,6 +230,15 @@ public class NavigationService {
 			}
 		}
 		return List.copyOf(resultat);
+	}
+
+	/** Ajoute la tuile sauf si son adresse n'est pas sûre (omise, jamais d'erreur vers la page). */
+	private static void ajouter(List<Tuile> resultat, Tuile t) {
+		if (t.url() == null) {
+			log.warn("Navigation : chemin refusé pour la tuile du plugin '{}', ignorée", t.plugin());
+			return;
+		}
+		resultat.add(t);
 	}
 
 	/** Plugins actifs ET pas en maintenance, triés par nom (relus à chaque appel). */

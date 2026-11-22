@@ -197,4 +197,43 @@ class ManifestePluginTest {
 
 		assertThatThrownBy(() -> ManifestePlugin.depuis(p)).isInstanceOf(IllegalArgumentException.class);
 	}
+
+	@Test
+	void entree_a_5_champs_garde_la_couleur_primaire_et_6_champs_lit_la_couleur() {
+		Properties p = completes();
+		p.setProperty("entree.1", "CLIENT|Mes factures|receipt|/client/factures|factures.voir");
+		p.setProperty("entree.2", "CLIENT|Clients|people|/clients|clients.voir|orange");
+
+		ManifestePlugin m = ManifestePlugin.depuis(p);
+
+		assertThat(m.entrees().get(0).couleur()).isEqualTo("primaire");
+		assertThat(m.entrees().get(1).couleur()).isEqualTo("orange");
+		assertThat(ManifestePlugin.COULEURS_TUILE).containsExactlyInAnyOrder("primaire", "violet", "sarcelle",
+				"orange", "ambre", "rose", "ardoise", "vert");
+		assertThat(new EntreeNavigation(ZoneNavigation.CLIENT, "L", "i", "/x", "a.b").couleur())
+			.isEqualTo("primaire");
+	}
+
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.ValueSource(strings = { "CLIENT|L|people|/x|a.b|red",
+			"CLIENT|L|people|/x|a.b|#fff", "CLIENT|L|people|/x|a.b|bg-orange-500", "CLIENT|L|<script>|/x|a.b",
+			"CLIENT|L|People|/x|a.b", "CLIENT|L|a b|/x|a.b",
+			"CLIENT|L|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|/x|a.b", "CLIENT|L|people|/x|a.b|orange|extra",
+			"CLIENT|L||/x|a.b" })
+	void entree_refuse_couleur_icone_ou_nombre_de_champs_invalides(String valeur) {
+		Properties p = completes();
+		p.setProperty("entree.1", valeur);
+
+		assertThatThrownBy(() -> ManifestePlugin.depuis(p)).isInstanceOf(IllegalArgumentException.class)
+			.satisfies(e -> assertThat(e.getMessage().length()).isLessThan(400));
+	}
+
+	@Test
+	void un_message_d_erreur_ne_reprend_pas_une_valeur_enorme() {
+		Properties p = completes();
+		p.setProperty("entree.1", "CLIENT|L|" + "a".repeat(5000) + "|/x|a.b");
+
+		assertThatThrownBy(() -> ManifestePlugin.depuis(p)).isInstanceOf(IllegalArgumentException.class)
+			.satisfies(e -> assertThat(e.getMessage().length()).isLessThan(400));
+	}
 }
