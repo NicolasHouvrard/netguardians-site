@@ -339,6 +339,48 @@ class PluginManagerIT {
 				.isEqualTo(404);
 	}
 
+	/** Plugin « testpages » sans table : un {@code @Controller} qui répond en texte (sans gabarit) sous /p/testpages. */
+	private Path pluginPages(String version) {
+		return JarDePluginDeTest.creer(dossier.resolve("pages-" + version), "testpages", version,
+				Map.of("coeur-min", "0.0.0", "mise-a-jour", "chaud", "paquet", "pages", "configuration",
+						"pages.PagesConfiguration"),
+				Map.of(), Map.of("pages.PagesConfiguration", """
+						package pages;
+						@org.springframework.context.annotation.Configuration
+						@org.springframework.context.annotation.ComponentScan("pages")
+						public class PagesConfiguration {
+						}
+						""", "pages.PageController", """
+						package pages;
+						@org.springframework.stereotype.Controller
+						public class PageController {
+						    @org.springframework.web.bind.annotation.GetMapping("/liste")
+						    @org.springframework.web.bind.annotation.ResponseBody
+						    public String liste() { return "page v%s"; }
+						}
+						""".formatted(version)));
+	}
+
+	@Test
+	void un_plugin_sert_ses_pages_sous_p_puis_la_mise_a_jour_a_chaud_et_la_desinstallation() throws Exception {
+		installerOk(pluginPages("1.0.0"));
+		MockHttpServletResponse v1 = mvc.perform(get("/p/testpages/liste")).andReturn().getResponse();
+		assertThat(v1.getStatus()).isEqualTo(200);
+		assertThat(v1.getContentAsString()).isEqualTo("page v1.0.0");
+		assertThat(v1.getHeader("X-Plugin")).startsWith("testpages@1.0.0#");
+		assertThat(mvc.perform(get("/api/plugins/testpages/liste")).andReturn().getResponse().getStatus())
+			.isEqualTo(404);
+
+		installerOk(pluginPages("1.1.0"));
+		MockHttpServletResponse v2 = mvc.perform(get("/p/testpages/liste")).andReturn().getResponse();
+		assertThat(v2.getStatus()).isEqualTo(200);
+		assertThat(v2.getContentAsString()).isEqualTo("page v1.1.0");
+		assertThat(v2.getHeader("X-Plugin")).startsWith("testpages@1.1.0#");
+
+		manager.desinstaller("testpages");
+		assertThat(mvc.perform(get("/p/testpages/liste")).andReturn().getResponse().getStatus()).isEqualTo(404);
+	}
+
 	@Test
 	void installation_initiale_puis_requete_ok() throws Exception {
 		ResultatInstallation r = manager.installer(jarV1());

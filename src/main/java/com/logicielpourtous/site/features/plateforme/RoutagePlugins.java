@@ -2,9 +2,14 @@ package com.logicielpourtous.site.features.plateforme;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
+import org.springframework.core.annotation.AnnotatedElementUtils;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.Ordered;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -26,6 +31,9 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 public class RoutagePlugins implements HandlerMapping, Ordered {
 
 	static final String PREFIXE = "/api/plugins/";
+
+	/** Pages HTML (et fragments HTMX) des plugins, servies sur la chaine web a session. */
+	static final String PREFIXE_PAGES = "/p/";
 
 	/** Attribut de requête : génération annoncée par {@link FiltreEnVol} (celle qui sera réellement servie). */
 	static final String ATTRIBUT_GENERATION = RoutagePlugins.class.getName() + ".generation";
@@ -67,11 +75,19 @@ public class RoutagePlugins implements HandlerMapping, Ordered {
 			 */
 			@Override
 			protected boolean isHandler(Class<?> beanType) {
-				return beanType.getClassLoader() == chargeurDuPlugin && super.isHandler(beanType);
+				// Doit etre un @Controller (donc recevoir l'un des deux prefixes) : une classe qui ne porterait que
+				// @RequestMapping serait sinon montee sans prefixe.
+				return beanType.getClassLoader() == chargeurDuPlugin
+						&& AnnotatedElementUtils.hasAnnotation(beanType, Controller.class) && super.isHandler(beanType);
 			}
 		};
 		mapping.setApplicationContext(gen.contexte);
-		mapping.setPathPrefixes(Map.of(PREFIXE + gen.nom, c -> true));
+		// Deux prefixes aux predicats DISJOINTS : une classe en recoit exactement un.
+		// @RestController (y compris par meta-annotation) -> API JSON ; autre @Controller -> pages HTML.
+		Map<String, Predicate<Class<?>>> prefixes = new LinkedHashMap<>();
+		prefixes.put(PREFIXE + gen.nom, c -> AnnotatedElementUtils.hasAnnotation(c, RestController.class));
+		prefixes.put(PREFIXE_PAGES + gen.nom, c -> !AnnotatedElementUtils.hasAnnotation(c, RestController.class));
+		mapping.setPathPrefixes(prefixes);
 		mapping.afterPropertiesSet();
 		gen.mapping = mapping;
 		return mapping;
@@ -106,11 +122,15 @@ public class RoutagePlugins implements HandlerMapping, Ordered {
 
 	/** Nom du plugin visé par un chemin {@code /api/plugins/<nom>/...}, ou {@code null} si le chemin n'en est pas un. */
 	static String nomDuPlugin(String chemin) {
-		if (chemin == null || !chemin.startsWith(PREFIXE)) {
+		if (chemin == null) {
 			return null;
 		}
-		int fin = chemin.indexOf('/', PREFIXE.length());
-		String nom = fin < 0 ? chemin.substring(PREFIXE.length()) : chemin.substring(PREFIXE.length(), fin);
+		String prefixe = chemin.startsWith(PREFIXE) ? PREFIXE : chemin.startsWith(PREFIXE_PAGES) ? PREFIXE_PAGES : null;
+		if (prefixe == null) {
+			return null;
+		}
+		int fin = chemin.indexOf('/', prefixe.length());
+		String nom = fin < 0 ? chemin.substring(prefixe.length()) : chemin.substring(prefixe.length(), fin);
 		return nom.isEmpty() ? null : nom;
 	}
 

@@ -311,7 +311,9 @@ public class SecurityConfig {
                 // Gabarits du socle (HTMX) : le jeton part en en-tete depuis socle.js.
                 chemins.matcher("/admin/socle/**"),
                 // Ecran Apparence : ecrit les reglages de theme servis a tous.
-                chemins.matcher("/admin/apparence/**"));
+                chemins.matcher("/admin/apparence/**"),
+                // Pages de plugin : TOUTE methode modifiante exige le jeton, par prefixe (aucune liste de chemins).
+                chemins.matcher("/p/**"));
         RequestMatcher methodeModifiante = request -> !METHODES_SANS_EFFET.contains(request.getMethod());
         return new AndRequestMatcher(methodeModifiante, ecransSensibles);
     }
@@ -345,6 +347,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/shop/**").permitAll()
                 .requestMatchers("/api/stripe/webhook/**").permitAll()
                 .requestMatchers("/admin/**").hasRole("ADMIN")
+                // Pages et fragments des plugins (RoutagePlugins) : session authentifiee obligatoire ; les droits
+                // metier sont verifies par le plugin. Sans plateforme active, aucun gestionnaire : 404.
+                .requestMatchers("/p/**").authenticated()
                 .requestMatchers("/intra/**").hasAnyRole("ADMIN", "USER", "COMMERCIAL", "TECHNICIEN", "MARKETING", "COMPTABLE")
                 .requestMatchers("/espace", "/espace/**").hasAnyRole("ADMIN", "CLIENT", "GESTIONNAIRE")
                 .anyRequest().authenticated()

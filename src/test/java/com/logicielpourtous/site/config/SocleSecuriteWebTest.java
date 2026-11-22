@@ -111,6 +111,52 @@ class SocleSecuriteWebTest {
         assertThat(js).contains("location.origin");
     }
 
+    @Test
+    void pagesDePlugin_anonyme_redirigeVersLogin() throws Exception {
+        mockMvc.perform(get("/p/x/y"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", org.hamcrest.Matchers.endsWith("/login")));
+        // Meme un chemin a un segment (que la regle /{slug} ouvre) : /p seul n'est pas une page publique.
+        mockMvc.perform(get("/p/x"))
+                .andExpect(status().isFound());
+    }
+
+    @Test
+    void pagesDePlugin_htmxAnonyme_repond200AvecHxRedirect() throws Exception {
+        mockMvc.perform(get("/p/x/y").header("HX-Request", "true"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("HX-Redirect", "/login"));
+        mockMvc.perform(post("/p/x/y").header("HX-Request", "true"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("HX-Redirect", "/login"));
+    }
+
+    @Test
+    void pagesDePlugin_postAuthentifieSansJeton_estRefuse_pourToutesLesMethodesModifiantes() throws Exception {
+        CustomUserDetails compte = compte("USER");
+        for (org.springframework.http.HttpMethod m : new org.springframework.http.HttpMethod[] {
+                org.springframework.http.HttpMethod.POST, org.springframework.http.HttpMethod.PUT,
+                org.springframework.http.HttpMethod.PATCH, org.springframework.http.HttpMethod.DELETE }) {
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                            .request(m, "/p/x/y").with(user(compte)))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void pagesDePlugin_postAuthentifieAvecJeton_neSeFaitPasRefuserParLeCsrf() throws Exception {
+        int statut = mockMvc.perform(post("/p/x/y").with(user(compte("USER"))).with(csrf()))
+                .andReturn().getResponse().getStatus();
+        assertThat(statut).isNotEqualTo(403);
+        assertThat(statut).isEqualTo(404);
+    }
+
+    @Test
+    void apiPlugins_resteSurLaChaineJwt_sansCsrfEtSans401Anonyme() throws Exception {
+        mockMvc.perform(post("/api/plugins/x/y")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/plugins/x/y")).andExpect(status().isUnauthorized());
+    }
+
     private CustomUserDetails compte(String role) {
         Tenant tenant = new Tenant();
         tenant.setName("Test Tenant");

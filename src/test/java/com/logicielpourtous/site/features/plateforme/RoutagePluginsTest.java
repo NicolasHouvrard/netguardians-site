@@ -184,6 +184,128 @@ class RoutagePluginsTest {
 	}
 
 	@Test
+	void nom_du_plugin_reconnait_les_deux_prefixes() {
+		assertThat(RoutagePlugins.nomDuPlugin("/api/plugins/clients/liste")).isEqualTo("clients");
+		assertThat(RoutagePlugins.nomDuPlugin("/api/plugins/clients")).isEqualTo("clients");
+		assertThat(RoutagePlugins.nomDuPlugin("/p/clients/liste")).isEqualTo("clients");
+		assertThat(RoutagePlugins.nomDuPlugin("/p/clients")).isEqualTo("clients");
+		assertThat(RoutagePlugins.nomDuPlugin("/p")).isNull();
+		assertThat(RoutagePlugins.nomDuPlugin("/p/")).isNull();
+		assertThat(RoutagePlugins.nomDuPlugin("/pages/x")).isNull();
+		assertThat(RoutagePlugins.nomDuPlugin("/p-x/y")).isNull();
+		assertThat(RoutagePlugins.nomDuPlugin("/api/plugins/")).isNull();
+		assertThat(RoutagePlugins.nomDuPlugin(null)).isNull();
+	}
+
+	/** Plugin « pages » : un {@code @RestController} (JSON) et un {@code @Controller} (page) sur le même chemin relatif. */
+	private PluginGeneration demarrerPlugin(String nom, Map<String, String> sources, Class<?>... duCoeur)
+			throws Exception {
+		Path jar = JarDePluginDeTest.creer(dossier.resolve(nom), nom, "1.0.0", Map.of(), Map.of(), sources);
+		Path copie = Files.createTempFile(dossier, "gen-", ".jar");
+		Files.copy(jar, copie, StandardCopyOption.REPLACE_EXISTING);
+		PluginGeneration gen = new PluginGeneration(nom, "1.0.0", copie);
+		gen.loader = new PluginClassLoader(gen.etiquette(), copie.toUri().toURL(), getClass().getClassLoader());
+		loaders.add(gen.loader);
+		org.springframework.context.annotation.AnnotationConfigApplicationContext ctx = new org.springframework.context.annotation.AnnotationConfigApplicationContext();
+		ctx.setParent(coeur);
+		ctx.setClassLoader(gen.loader);
+		List<Class<?>> classes = new ArrayList<>();
+		for (String c : sources.keySet()) {
+			classes.add(gen.loader.loadClass(c));
+		}
+		classes.addAll(List.of(duCoeur));
+		ctx.register(classes.toArray(Class<?>[]::new));
+		ctx.refresh();
+		contextes.add(ctx);
+		gen.contexte = ctx;
+		RoutagePlugins.creerMapping(gen);
+		return gen;
+	}
+
+	private static final Map<String, String> SOURCES_PAGES = Map.of("x.Api", """
+			package x;
+			@org.springframework.web.bind.annotation.RestController
+			public class Api {
+			    @org.springframework.web.bind.annotation.GetMapping("/json")
+			    public String json() { return "api"; }
+			}
+			""", "x.Page", """
+			package x;
+			@org.springframework.stereotype.Controller
+			public class Page {
+			    @org.springframework.web.bind.annotation.GetMapping("/page")
+			    @org.springframework.web.bind.annotation.ResponseBody
+			    public String page() { return "page"; }
+			}
+			""");
+
+	@Test
+	void un_rest_controller_n_est_joignable_que_sous_api_plugins() throws Exception {
+		PluginGeneration gen = demarrerPlugin("pages", SOURCES_PAGES);
+		routage.router("pages", gen);
+
+		mvc.perform(get("/api/plugins/pages/json")).andExpect(status().isOk());
+		mvc.perform(get("/p/pages/json")).andExpect(status().isNotFound());
+	}
+
+	@Test
+	void un_controller_n_est_joignable_que_sous_p() throws Exception {
+		PluginGeneration gen = demarrerPlugin("pages", SOURCES_PAGES);
+		routage.router("pages", gen);
+
+		mvc.perform(get("/p/pages/page"))
+			.andExpect(status().isOk())
+			.andExpect(header().string("X-Plugin", gen.etiquette()));
+		mvc.perform(get("/api/plugins/pages/page")).andExpect(status().isNotFound());
+	}
+
+	/** Contrôleur (page) chargé par le chargeur du cœur. */
+	@org.springframework.stereotype.Controller
+	public static class PageDuCoeur {
+
+		@org.springframework.web.bind.annotation.GetMapping("/fuite-page")
+		@org.springframework.web.bind.annotation.ResponseBody
+		public String fuite() {
+			return "coeur";
+		}
+
+	}
+
+	@Test
+	void un_controleur_du_coeur_dans_le_contexte_du_plugin_n_est_route_sous_aucun_prefixe() throws Exception {
+		PluginGeneration gen = demarrerPlugin("pages", SOURCES_PAGES, ControleurDuCoeur.class, PageDuCoeur.class);
+		routage.router("pages", gen);
+
+		mvc.perform(get("/p/pages/page")).andExpect(status().isOk());
+		for (String chemin : new String[] { "/p/pages/fuite-page", "/api/plugins/pages/fuite-page",
+				"/p/pages/fuite-du-coeur", "/api/plugins/pages/fuite-du-coeur", "/fuite-page" }) {
+			mvc.perform(get(chemin)).andExpect(status().isNotFound());
+		}
+	}
+
+	@Test
+	void maintenance_donne_503_sous_p() throws Exception {
+		PluginGeneration gen = demarrerPlugin("pages", SOURCES_PAGES);
+		routage.router("pages", gen);
+		routage.maintenance("pages", true);
+
+		mvc.perform(get("/p/pages/page"))
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(header().string("Retry-After", "2"));
+	}
+
+	@Test
+	void le_filtre_en_vol_compte_aussi_les_pages() throws Exception {
+		PluginGeneration gen = demarrerPlugin("pages", SOURCES_PAGES);
+		routage.router("pages", gen);
+		org.springframework.mock.web.MockHttpServletRequest requete = new org.springframework.mock.web.MockHttpServletRequest(
+				"GET", "/p/pages/page");
+		new FiltreEnVol(routage).doFilter(requete, new org.springframework.mock.web.MockHttpServletResponse(),
+				(req, rep) -> assertThat(gen.enVol.get()).isEqualTo(1));
+		assertThat(gen.enVol.get()).isZero();
+	}
+
+	@Test
 	void plugin_inconnu_donne_404() throws Exception {
 		mvc.perform(get("/api/plugins/inconnu/notes")).andExpect(status().isNotFound());
 	}
