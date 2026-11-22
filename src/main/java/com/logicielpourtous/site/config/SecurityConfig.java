@@ -301,7 +301,9 @@ public class SecurityConfig {
                 chemins.matcher("/intra/societes/reprise/**"),
                 // Approbation d'une ESN : ecrit au registre une ligne PARTENAIRE definitive.
                 chemins.matcher("/intra/registrations/**"),
-                chemins.matcher(SelectionSocieteFilter.SELECTEUR));
+                chemins.matcher(SelectionSocieteFilter.SELECTEUR),
+                // Gabarits du socle (HTMX) : le jeton part en en-tete depuis socle.js.
+                chemins.matcher("/admin/socle/**"));
         RequestMatcher methodeModifiante = request -> !METHODES_SANS_EFFET.contains(request.getMethod());
         return new AndRequestMatcher(methodeModifiante, ecransSensibles);
     }
@@ -363,7 +365,9 @@ public class SecurityConfig {
             )
             .exceptionHandling(exception -> exception
                 .authenticationEntryPoint((request, response, authException) -> {
-                    if ("htmx-request".equals(request.getHeader("HX-Request"))) {
+                    // HTMX envoie "HX-Request: true" : session expiree pendant un appel partiel -> redirection
+                    // complete cote navigateur (HX-Redirect) au lieu d'injecter la page de connexion dans un fragment.
+                    if ("true".equals(request.getHeader("HX-Request"))) {
                         response.setHeader("HX-Redirect", "/login");
                         response.setStatus(200);
                     } else {

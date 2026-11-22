@@ -8,6 +8,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import com.logicielpourtous.site.features.plateforme.NavigationService.Tuile;
@@ -59,7 +61,7 @@ public class SocleStyleguideController {
 		return "socle/styleguide";
 	}
 
-	@GetMapping("/admin/socle/liste")
+	@RequestMapping(path = "/admin/socle/liste", method = { RequestMethod.GET, RequestMethod.POST })
 	public String liste(@RequestParam(name = "q", defaultValue = "") String q,
 			@RequestHeader(name = "HX-Request", required = false) String hxRequest, Model model) {
 		remplirListe(model, q);
