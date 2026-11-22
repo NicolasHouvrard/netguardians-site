@@ -329,6 +329,8 @@ public class SecurityConfig {
                 .requestMatchers("/auth/session-token").permitAll()
                 // Selecteur de societe : avant la regle generique /{slug} (permitAll), qui l'ouvrirait aux anonymes.
                 .requestMatchers(SelectionSocieteFilter.SELECTEUR).authenticated()
+                // Accueil a tuiles : un seul segment, donc la regle /{slug} (permitAll) l'ouvrirait aux anonymes.
+                .requestMatchers("/accueil").authenticated()
                 // Controle de sante (agent de deploiement bleu-vert) : seul /actuator/health est expose.
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/reset-password", "/reset-password/**").permitAll()

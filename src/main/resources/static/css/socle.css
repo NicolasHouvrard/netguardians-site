@@ -94,3 +94,19 @@ body.socle {
 }
 .socle-tuile-grande i { font-size: 2rem; color: var(--socle-primaire); }
 .socle-tuile-grande:hover { background: var(--socle-tuile-survol); }
+
+/* Accueil a tuiles : carre d'icone colore. Couleurs fermees (liste du manifeste), surchargeables par le theme
+   via --socle-app-<nom> ; jamais de style en ligne issu des donnees d'un plugin. */
+.socle-app-icone {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 3.25rem; height: 3.25rem; border-radius: var(--socle-rayon); color: #fff;
+}
+.socle-app-icone i { font-size: 1.6rem; color: inherit; }
+.app-couleur-primaire { background: var(--socle-app-primaire, #0d6efd); }
+.app-couleur-violet { background: var(--socle-app-violet, #6f42c1); }
+.app-couleur-sarcelle { background: var(--socle-app-sarcelle, #0f9d9a); }
+.app-couleur-orange { background: var(--socle-app-orange, #f76707); }
+.app-couleur-ambre { background: var(--socle-app-ambre, #d99a00); }
+.app-couleur-rose { background: var(--socle-app-rose, #d6336c); }
+.app-couleur-ardoise { background: var(--socle-app-ardoise, #526173); }
+.app-couleur-vert { background: var(--socle-app-vert, #2f9e44); }
