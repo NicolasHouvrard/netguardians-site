@@ -159,7 +159,9 @@ class ThemeServiceTest {
             assertThat(m.matches()).as(l).isTrue();
             cles.add(m.group(1));
         }
-        assertThat(cles).containsExactlyElementsOf(ThemeValeurs.cles());
+        List<String> attendues = new ArrayList<>(ThemeValeurs.cles());
+        attendues.addAll(ThemeValeurs.nomsVariablesDerivees());
+        assertThat(cles).containsExactlyElementsOf(attendues);
         assertThat(css).doesNotContain("<").doesNotContain("url(").doesNotContain("@import").doesNotContain("/*");
     }
 
@@ -188,12 +190,48 @@ class ThemeServiceTest {
     }
 
     @Test
-    void sourceParDefautHostileNeProduitJamaisDeCss() {
+    void sourceParDefautHostileServLeFichierVideSansJamaisLeRecopier() {
         SourceMutable simulee = new SourceMutable();
         simulee.valeurs.putAll(source.valeurs());
         simulee.valeurs.put("couleur-fond", "red;}body{display:none");
         ThemeService s = new ThemeService(simulee, reglages, journal);
-        assertThatThrownBy(s::css).isInstanceOf(IllegalStateException.class);
+        assertThat(s.css()).isEqualTo(":root{}\n");
+        assertThat(s.versionCss()).isEqualTo("vide");
+    }
+
+    @Test
+    void pannePendantLaLectureDesReglages_serviLesDefautsSeuls() {
+        ThemeReglageRepository casse = org.mockito.Mockito.mock(ThemeReglageRepository.class);
+        org.mockito.Mockito.when(casse.findAll()).thenThrow(new IllegalStateException("base indisponible"));
+        ThemeService s = new ThemeService(source, casse, journal);
+        String css = s.css();
+        assertThat(css).startsWith(":root{\n").contains("--socle-couleur-primaire:#6d4c9f;");
+        assertThat(css).isEqualTo(new ThemeService(source, reglages, journal).css());
+    }
+
+    @Test
+    void chaqueChoixDonneSaVariableDerivee() {
+        String[][] cas = {
+            {"liste-densite", "compact", "--socle-liste-cellule-padding:.25rem .5rem;"},
+            {"liste-densite", "normal", "--socle-liste-cellule-padding:.5rem .75rem;"},
+            {"liste-densite", "aere", "--socle-liste-cellule-padding:.9rem 1rem;"},
+            {"liste-lignes-alternees", "oui", "--socle-liste-ligne-paire:#f8f9fa;"},
+            {"liste-lignes-alternees", "non", "--socle-liste-ligne-paire:transparent;"},
+            {"fiche-statut-style", "chevron", "--socle-statut-rayon:0;\n--socle-statut-pointe:10px;"},
+            {"fiche-statut-style", "pilule", "--socle-statut-rayon:999px;\n--socle-statut-pointe:0px;"},
+        };
+        for (String[] c : cas) {
+            service.definir(ADMIN_A, c[0], c[1]);
+            assertThat(service.css()).as(c[0] + "=" + c[1]).contains(c[2]);
+            assertThat(service.css()).doesNotContain("calc(").doesNotContain("polygon(");
+        }
+    }
+
+    @Test
+    void choixInvalideEnBaseRetombeSurLaDeriveeDuDefaut() {
+        jdbc.update("INSERT INTO theme_reglages (cle, valeur) VALUES ('liste-densite', 'enorme;}')");
+        String css = service.css();
+        assertThat(css).contains("--socle-liste-cellule-padding:.5rem .75rem;").doesNotContain("enorme");
     }
 
     @Test

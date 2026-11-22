@@ -139,34 +139,66 @@ public class ThemeService {
     }
 
     /** Identifiant de version du CSS : empreinte du fichier genere (change avec un reglage ou un nouveau defaut). */
-    @Transactional(readOnly = true)
     public String versionCss() {
         return rendu().version();
     }
 
-    @Transactional(readOnly = true)
     public String css() {
         return rendu().css();
     }
 
-    /** Le fichier CSS et sa version, calcules ensemble (une seule lecture de la base). */
-    @Transactional(readOnly = true)
+    /** Fichier de repli quand les valeurs par defaut elles-memes sont inutilisables : bloc vide, version fixe. */
+    static final Rendu VIDE = new Rendu(":root{}\n", "vide");
+
+    /**
+     * Le fichier CSS et sa version, calcules ensemble. Ne leve jamais pour une panne de donnees : defauts invalides
+     * -> fichier vide ; lecture des reglages impossible -> valeurs par defaut seules ; fichier refuse par la liste
+     * blanche -> valeurs par defaut seules (journal d'erreur, jamais d'echo de valeur).
+     */
     public Rendu rendu() {
-        Map<String, String> defauts = defauts();
+        Map<String, String> defauts;
+        try {
+            defauts = defauts();
+        } catch (RuntimeException e) {
+            LOG.error("Valeurs de thème par défaut inutilisables ({}), fichier de thème vide servi.", e.getClass().getSimpleName());
+            return VIDE;
+        }
+        Map<String, String> modifiees;
+        try {
+            modifiees = modifiees();
+        } catch (RuntimeException e) {
+            LOG.error("Lecture des réglages de thème impossible ({}), valeurs par défaut servies.", e.getClass().getSimpleName());
+            modifiees = Map.of();
+        }
         String css;
         try {
-            css = construire(defauts, modifiees());
+            css = construire(defauts, modifiees);
             if (!sain(css)) {
                 throw new IllegalStateException("CSS de thème refusé par la liste blanche.");
             }
         } catch (RuntimeException e) {
             LOG.error("CSS de thème avec réglages refusé ({}), retour aux valeurs par défaut.", e.getClass().getSimpleName());
-            css = construire(defauts, Map.of());
+            try {
+                css = construire(defauts, Map.of());
+            } catch (RuntimeException e2) {
+                return VIDE;
+            }
             if (!sain(css)) {
-                throw new IllegalStateException("CSS de thème par défaut refusé par la liste blanche.");
+                LOG.error("CSS de thème par défaut refusé par la liste blanche, fichier vide servi.");
+                return VIDE;
             }
         }
         return new Rendu(css, empreinte(css));
+    }
+
+    /** Valeur effective d'une cle (reglage ou defaut ; une reference est suivie vers sa cible). */
+    private static String effective(String cle, Map<String, String> defauts, Map<String, String> modifiees) {
+        String v = modifiees.containsKey(cle) ? modifiees.get(cle) : defauts.get(cle);
+        if (ThemeValeurs.estReference(v)) {
+            String cible = ThemeValeurs.cibleReference(v);
+            v = modifiees.containsKey(cible) ? modifiees.get(cible) : defauts.get(cible);
+        }
+        return v;
     }
 
     private static String construire(Map<String, String> defauts, Map<String, String> modifiees) {
@@ -174,6 +206,13 @@ public class ThemeService {
         for (String cle : ThemeValeurs.cles()) {
             String valeur = modifiees.containsKey(cle) ? modifiees.get(cle) : defauts.get(cle);
             sb.append("--socle-").append(cle).append(':').append(ThemeValeurs.rendreCss(cle, valeur)).append(";\n");
+        }
+        Map<String, String> derivees = ThemeValeurs.variablesDerivees(
+                effective("liste-densite", defauts, modifiees),
+                effective("liste-lignes-alternees", defauts, modifiees),
+                effective("fiche-statut-style", defauts, modifiees));
+        for (Map.Entry<String, String> d : derivees.entrySet()) {
+            sb.append("--socle-").append(d.getKey()).append(':').append(d.getValue()).append(";\n");
         }
         return sb.append("}\n").toString();
     }

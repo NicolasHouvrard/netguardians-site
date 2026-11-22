@@ -266,6 +266,39 @@ public final class ThemeValeurs {
         return Collections.unmodifiableMap(ok);
     }
 
+    // Variables DERIVEES des trois reglages a choix : valeurs CONSTANTES du code, jamais issues d'un texte saisi.
+    private static final Map<String, String> DENSITE_PADDING = Map.of(
+            "compact", ".25rem .5rem", "normal", ".5rem .75rem", "aere", ".9rem 1rem");
+    private static final Map<String, String> LIGNE_PAIRE = Map.of("oui", "#f8f9fa", "non", "transparent");
+    private static final Map<String, String> STATUT_RAYON = Map.of("chevron", "0", "pilule", "999px");
+    private static final Map<String, String> STATUT_POINTE = Map.of("chevron", "10px", "pilule", "0px");
+
+    /** Noms (sans {@code --socle-}) des variables derivees, dans leur ordre fixe d'emission. */
+    public static List<String> nomsVariablesDerivees() {
+        return List.of("liste-cellule-padding", "liste-ligne-paire", "statut-rayon", "statut-pointe");
+    }
+
+    /**
+     * Variables derivees a partir des valeurs EFFECTIVES (deja validees) des trois reglages a choix. Ordre de
+     * {@link #nomsVariablesDerivees()}.
+     */
+    public static Map<String, String> variablesDerivees(String densite, String alternees, String statutStyle) {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("liste-cellule-padding", constante(DENSITE_PADDING, densite));
+        m.put("liste-ligne-paire", constante(LIGNE_PAIRE, alternees));
+        m.put("statut-rayon", constante(STATUT_RAYON, statutStyle));
+        m.put("statut-pointe", constante(STATUT_POINTE, statutStyle));
+        return m;
+    }
+
+    private static String constante(Map<String, String> table, String cle) {
+        String v = cle == null ? null : table.get(cle);
+        if (v == null) {
+            throw new IllegalArgumentException(MSG_VALEUR);
+        }
+        return v;
+    }
+
     /** Est-ce une reference ({@code ref:<cle>}) ? */
     static boolean estReference(String valeur) {
         return valeur != null && valeur.startsWith(PREFIXE_REF);
