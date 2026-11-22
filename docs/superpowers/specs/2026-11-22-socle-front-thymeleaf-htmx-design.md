@@ -143,7 +143,7 @@ Choix du constructeur de conception, à contrôler (les deux premiers touchent �
   documentation OpenAPI déjà en place). Ordre annoncé : **utilisateurs** d'abord, puis **interventions** (déjà partiellement exposées),
   d'autres ensuite.
 - Chaque API ajoutée passe la même relecture de sécurité que le reste (qui peut l'appeler, quelles données, quelles limites) : si une
-  exposition ouvre une faille, elle n'est pas créée telle quelle. Le choix du format d'erreur commun, de la pagination, de la
+  exposition ouvre une faille, elle n'est pas créée telle quelle. Le choix du format d'erreur commun, de la pagination, du
   versionnage et du renouvellement du jeton est fait avec la première API créée, pas avant.
 - Le socle n'empêche rien : les pages HTMX (session) et les API JSON (jeton) sont des chaînes de sécurité distinctes. Une idée notée
   pour plus tard : exposer le thème du serveur en JSON pour que l'application mobile reprenne les mêmes couleurs.
