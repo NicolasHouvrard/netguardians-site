@@ -39,6 +39,8 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  * {@code templates/plugins/<nom>/....html} dans le jar) : routé sous {@code /p/<nom>} (session et CSRF) ;</li>
  * <li>une classe {@code @Controller} avec {@code @ResponseBody} au niveau de la classe est routée sous
  * {@code /p}, pas sous {@code /api/plugins} ;</li>
+ * <li>un plugin ne doit rendre que SES PROPRES gabarits {@code plugins/<nom>/...} : rendre ceux d'un autre plugin
+ * est techniquement possible mais non compté en vol (le jar peut être fermé pendant le rendu) et non supporté ;</li>
  * <li>ne jamais placer d'objet d'une classe du plugin dans la session HTTP ni dans les attributs flash : ils
  * retiendraient l'ancien chargeur de classes après une mise à jour à chaud.</li>
  * </ul>

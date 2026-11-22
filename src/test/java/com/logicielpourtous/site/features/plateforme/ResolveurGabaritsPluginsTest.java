@@ -20,6 +20,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.exceptions.TemplateInputException;
@@ -209,6 +212,62 @@ class ResolveurGabaritsPluginsTest {
 		// Même pour un plugin inconnu.
 		actifs.clear();
 		assertThatThrownBy(() -> rendre("plugins/demo/coeur")).isInstanceOf(TemplateInputException.class);
+	}
+
+	private void annoncer(PluginGeneration gen) {
+		MockHttpServletRequest requete = new MockHttpServletRequest();
+		requete.setAttribute(RoutagePlugins.ATTRIBUT_GENERATION, gen);
+		RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(requete));
+	}
+
+	@Test
+	void une_requete_en_cours_utilise_la_generation_annoncee_meme_retiree_des_actifs() throws Exception {
+		PluginGeneration gen = demo("v1");
+		// Pas dans les actifs (desinstallation en cours) : sans requete, rien ne se resout.
+		assertThat(resoudre("plugins/demo/page")).isNull();
+		annoncer(gen);
+		try {
+			assertThat(resoudre("plugins/demo/page")).isNotNull();
+			assertThat(rendre("plugins/demo/sous/dossier/fiche")).contains("fiche v1");
+		}
+		finally {
+			RequestContextHolder.resetRequestAttributes();
+		}
+		assertThat(resoudre("plugins/demo/page")).isNull();
+	}
+
+	@Test
+	void la_generation_annoncee_d_un_autre_plugin_n_est_pas_utilisee_pour_ce_nom() throws Exception {
+		PluginGeneration autre = generation("autre", "1.0.0",
+				Map.of("templates/plugins/autre/page.html", "<p>AUTRE</p>", "templates/plugins/demo/page.html",
+						"<p>PIRATE</p>"));
+		annoncer(autre);
+		try {
+			// demo n'est pas actif : la generation annoncee (autre) ne peut pas servir plugins/demo/...
+			assertThat(resoudre("plugins/demo/page")).isNull();
+			assertThat(resoudre("plugins/autre/page")).isNotNull();
+			// demo actif : on lit les actifs pour demo (lecture non comptee en vol), jamais le jar de « autre ».
+			actifs.put("demo", demo("v1"));
+			assertThat(rendre("plugins/demo/sous/dossier/fiche")).contains("fiche v1");
+		}
+		finally {
+			RequestContextHolder.resetRequestAttributes();
+		}
+	}
+
+	@Test
+	void le_garde_normalise_le_nom_avant_de_refuser() throws Exception {
+		FileTemplateResolver brut = new FileTemplateResolver();
+		brut.setPrefix(dossier.resolve("coeur") + "/");
+		brut.setSuffix(".html");
+		ITemplateResolver garde = ResolveurGabaritsPlugins.sansEspacePlugins(brut);
+		for (String nom : new String[] { "./plugins/x/p", " plugins/x/p", "socle/../plugins/x/p", "PLUGINS/x/p",
+				"//plugins/x/p", "\\plugins\\x\\p", "./../plugins/x/p", "a/b/../../plugins/x/p", "../layout",
+				"socle/../../etc/x", ".//./plugins/x/p", "\tplugins/x/p", "plugins/x/p " }) {
+			assertThat(garde.resolveTemplate(moteur.getConfiguration(), null, nom, Map.of())).as("[%s]", nom)
+					.isNull();
+		}
+		assertThat(garde.resolveTemplate(moteur.getConfiguration(), null, "socle/layout", Map.of())).isNotNull();
 	}
 
 	@Test

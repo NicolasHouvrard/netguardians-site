@@ -442,6 +442,17 @@ class PluginManagerIT {
 						        modele.addAttribute("texte", "<i>a&b</i>");
 						        return "plugins/testgabarits/page";
 						    }
+						    @org.springframework.web.bind.annotation.GetMapping("/bloque")
+						    public String bloque(org.springframework.ui.Model modele) throws Exception {
+						        java.nio.file.Path d = java.nio.file.Path.of(System.getProperty("test.gabarits.dir"));
+						        java.nio.file.Files.createFile(d.resolve("entre"));
+						        long fin = System.currentTimeMillis() + 20000;
+						        while (!java.nio.file.Files.exists(d.resolve("libere")) && System.currentTimeMillis() < fin) {
+						            Thread.sleep(20);
+						        }
+						        modele.addAttribute("texte", "BLOQUE-OK");
+						        return "plugins/testgabarits/page";
+						    }
 						    @org.springframework.web.bind.annotation.GetMapping("/{a}/{b}")
 						    @org.springframework.web.bind.annotation.ResponseBody
 						    public String piege2() { return "PLUGIN-PIEGE"; }
@@ -476,6 +487,47 @@ class PluginManagerIT {
 		MockHttpServletResponse apres = mvc.perform(get("/p/testgabarits/page")).andReturn().getResponse();
 		assertThat(apres.getStatus()).isEqualTo(404);
 		assertThat(apres.getContentAsString()).doesNotContain("GABARIT-V");
+	}
+
+	/** La desinstallation attend le drainage : la page deja en cours se rend avec la generation qui la compte. */
+	@Test
+	void le_rendu_d_une_page_en_cours_survit_a_la_desinstallation_du_plugin() throws Exception {
+		installerOk(pluginGabarits("1.0.0"));
+		Path signaux = Files.createDirectories(dossier.resolve("signaux"));
+		System.setProperty("test.gabarits.dir", signaux.toString());
+		java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+		try {
+			java.util.concurrent.Future<MockHttpServletResponse> requete = pool
+					.submit(() -> mvc.perform(get("/p/testgabarits/bloque")).andReturn().getResponse());
+			long limite = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+			while (!Files.exists(signaux.resolve("entre")) && System.nanoTime() < limite) {
+				Thread.sleep(20);
+			}
+			assertThat(signaux.resolve("entre")).exists();
+
+			java.util.concurrent.Future<Boolean> desinstallation = pool.submit(() -> manager.desinstaller("testgabarits"));
+			limite = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+			while (manager.actifs().containsKey("testgabarits") && System.nanoTime() < limite) {
+				Thread.sleep(20);
+			}
+			assertThat(manager.actifs()).as("plugin deja retire des actifs, drainage en cours").doesNotContainKey("testgabarits");
+			assertThat(desinstallation.isDone()).as("la desinstallation attend la requete en vol").isFalse();
+
+			Files.createFile(signaux.resolve("libere"));
+			MockHttpServletResponse reponse = requete.get(20, TimeUnit.SECONDS);
+			assertThat(reponse.getStatus()).isEqualTo(200);
+			assertThat(reponse.getContentAsString()).contains("CADRE-COEUR[").contains("BLOQUE-OK");
+			assertThat(desinstallation.get(20, TimeUnit.SECONDS)).isTrue();
+			assertThat(mvc.perform(get("/p/testgabarits/page")).andReturn().getResponse().getStatus()).isEqualTo(404);
+		}
+		finally {
+			Files.createDirectories(signaux);
+			if (!Files.exists(signaux.resolve("libere"))) {
+				Files.createFile(signaux.resolve("libere"));
+			}
+			pool.shutdownNow();
+			System.clearProperty("test.gabarits.dir");
+		}
 	}
 
 	@Test

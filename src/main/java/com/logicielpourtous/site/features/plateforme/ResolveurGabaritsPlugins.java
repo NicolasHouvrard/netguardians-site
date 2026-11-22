@@ -14,6 +14,9 @@ import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.thymeleaf.IEngineConfiguration;
 import org.thymeleaf.cache.NonCacheableCacheEntryValidity;
 import org.thymeleaf.templatemode.TemplateMode;
@@ -88,7 +91,10 @@ public class ResolveurGabaritsPlugins implements ITemplateResolver {
 			return null;
 		}
 		String nom = m.group(1);
-		PluginGeneration gen = actifs.apply(nom);
+		PluginGeneration gen = generationAnnoncee(nom);
+		if (gen == null) {
+			gen = actifs.apply(nom);
+		}
 		PluginClassLoader chargeur = gen == null ? null : gen.loader;
 		if (chargeur == null || !nom.equals(gen.nom)) {
 			return null;
@@ -101,6 +107,21 @@ public class ResolveurGabaritsPlugins implements ITemplateResolver {
 		}
 		return new TemplateResolution(new Ressource(url, gen.etiquette() + ":" + chemin, m.group(2)), true,
 				TemplateMode.HTML, false, NonCacheableCacheEntryValidity.INSTANCE);
+	}
+
+	/**
+	 * Génération annoncée (et comptée en vol) par {@link FiltreEnVol} pour la requête en cours, si elle est du plugin
+	 * {@code nom} : elle porte encore son jar même si le plugin vient d'être retiré des actifs (désinstallation qui
+	 * attend le drainage). Sans requête, ou pour un AUTRE plugin que celui de la requête, {@code null} : on lit alors
+	 * les actifs, et cette lecture n'est pas comptée en vol (un plugin ne doit rendre que ses propres gabarits).
+	 */
+	private static PluginGeneration generationAnnoncee(String nom) {
+		if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributs
+				&& attributs.getRequest().getAttribute(RoutagePlugins.ATTRIBUT_GENERATION) instanceof PluginGeneration annoncee
+				&& annoncee.nom.equals(nom)) {
+			return annoncee;
+		}
+		return null;
 	}
 
 	/**
@@ -132,12 +153,18 @@ public class ResolveurGabaritsPlugins implements ITemplateResolver {
 	}
 
 	private static boolean estEspacePlugins(String nom) {
-		int debut = 0;
-		while (debut < nom.length() && (nom.charAt(debut) == '/' || nom.charAt(debut) == '\\')) {
-			debut++;
+		String n = nom.strip().replace('\\', '/').replaceAll("/+", "/");
+		n = StringUtils.cleanPath(n);
+		// Après nettoyage, une remontée restante ne peut viser qu'un chemin hors du cœur : refusée.
+		if (n.contains("..")) {
+			return true;
 		}
-		String suite = nom.substring(debut).toLowerCase(Locale.ROOT);
-		return suite.startsWith("plugins") && (suite.length() == 7 || suite.charAt(7) == '/' || suite.charAt(7) == '\\');
+		int debut = 0;
+		while (debut < n.length() && (n.charAt(debut) == '/' || n.startsWith("./", debut))) {
+			debut += n.charAt(debut) == '/' ? 1 : 2;
+		}
+		String suite = n.substring(debut).toLowerCase(Locale.ROOT);
+		return suite.startsWith("plugins") && (suite.length() == 7 || suite.charAt(7) == '/');
 	}
 
 	/** Gabarit lu dans le jar du plugin (URL sans cache : chaque lecture ouvre et ferme son propre fichier). */
