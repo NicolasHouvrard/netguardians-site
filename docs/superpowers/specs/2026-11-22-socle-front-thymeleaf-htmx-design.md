@@ -136,6 +136,18 @@ Choix du constructeur de conception, à contrôler (les deux premiers touchent �
 - **Thème par défaut « hérité » :** lu en direct, jamais copié ; le cache du fichier de thème est invalidé à chaque changement d'un réglage
   et à chaque démarrage (son identifiant de version est dérivé du fichier par défaut et de la date du dernier réglage).
 
+## API pour l'application mobile (décision du propriétaire : hors du socle)
+
+- Le socle ne crée **aucune** API mobile. Une application Flutter est prévue **à la fin** du chantier, « le moment venu ».
+- Les API se créent **au fil de l'eau, avec chaque domaine migré**, sous `/api/v1/mobile/**` (chaîne existante : sans état, jeton JWT,
+  documentation OpenAPI déjà en place). Ordre annoncé : **utilisateurs** d'abord, puis **interventions** (déjà partiellement exposées),
+  d'autres ensuite.
+- Chaque API ajoutée passe la même relecture de sécurité que le reste (qui peut l'appeler, quelles données, quelles limites) : si une
+  exposition ouvre une faille, elle n'est pas créée telle quelle. Le choix du format d'erreur commun, de la pagination, de la
+  versionnage et du renouvellement du jeton est fait avec la première API créée, pas avant.
+- Le socle n'empêche rien : les pages HTMX (session) et les API JSON (jeton) sont des chaînes de sécurité distinctes. Une idée notée
+  pour plus tard : exposer le thème du serveur en JSON pour que l'application mobile reprenne les mêmes couleurs.
+
 ## Projets suivants (non détaillés ici)
 
 2. Écrans des lots A et B sur le socle : accueil à tuiles, plugin `clients`, plugin `partenaires` ; retrait du chargeur de front Angular et
