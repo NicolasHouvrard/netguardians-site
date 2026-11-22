@@ -1,3 +1,11 @@
+/* Polices hebergees (voir fonts/README.md). */
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url('/css/fonts/inter-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url('/css/fonts/inter-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Roboto'; font-style: normal; font-weight: 400; font-display: swap; src: url('/css/fonts/roboto-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Roboto'; font-style: normal; font-weight: 700; font-display: swap; src: url('/css/fonts/roboto-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Source Sans 3'; font-style: normal; font-weight: 400; font-display: swap; src: url('/css/fonts/source-sans-3-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Source Sans 3'; font-style: normal; font-weight: 700; font-display: swap; src: url('/css/fonts/source-sans-3-latin-700-normal.woff2') format('woff2'); }
+
 /* Socle : toutes les couleurs et tailles passent par des variables --socle-*.
    Les valeurs ci-dessous sont des reperes de secours ; /css/theme.css les remplace. */
 :root {

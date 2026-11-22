@@ -6,3 +6,4 @@ Dockerfile text eol=lf
 *.template text eol=lf
 mvnw text eol=lf
 src/main/resources/static/**/vendor/** -text
+src/main/resources/static/**/fonts/** -text
