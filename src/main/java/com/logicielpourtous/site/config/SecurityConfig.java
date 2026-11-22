@@ -39,6 +39,12 @@ import com.logicielpourtous.site.features.licence.LicenceServeurRepository;
 import com.logicielpourtous.site.features.sync.SecondaryServerRepository;
 import com.logicielpourtous.site.features.sync.SyncApiKeyAuthFilter;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationTrustResolver;
+import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.authentication.DelegatingAuthenticationEntryPoint;
@@ -374,8 +380,30 @@ public class SecurityConfig {
                         response.sendRedirect("/login");
                     }
                 })
+                .accessDeniedHandler(refusHtmx())
             );
         return http.build();
+    }
+
+    /**
+     * Refus d'acces de la chaine web. Le jeton CSRF vit dans la session : apres expiration, un POST HTMX
+     * echoue au filtre CSRF (avant l'autorisation, donc sans passer par le point d'entree). Pour un appel
+     * HTMX d'un visiteur ANONYME, on repond comme le point d'entree (200 + HX-Redirect vers /login). Tout
+     * autre cas (compte authentifie, jeton invalide ou absent, role insuffisant) garde le 403 par defaut.
+     */
+    private static AccessDeniedHandler refusHtmx() {
+        AccessDeniedHandler parDefaut = new AccessDeniedHandlerImpl();
+        AuthenticationTrustResolver resolveur = new AuthenticationTrustResolverImpl();
+        return (request, response, accessDeniedException) -> {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            boolean anonyme = auth == null || resolveur.isAnonymous(auth);
+            if (anonyme && "true".equals(request.getHeader("HX-Request"))) {
+                response.setHeader("HX-Redirect", "/login");
+                response.setStatus(200);
+            } else {
+                parDefaut.handle(request, response, accessDeniedException);
+            }
+        };
     }
 
     @Bean

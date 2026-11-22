@@ -13,6 +13,14 @@
     if (verbe === 'get') {
       return;
     }
+    // Jamais le jeton vers une autre origine : cible illisible ou differente -> pas d'en-tete.
+    try {
+      if (new URL(evt.detail.path, window.location.href).origin !== window.location.origin) {
+        return;
+      }
+    } catch (e) {
+      return;
+    }
     var entete = meta('_csrf_header');
     var jeton = meta('_csrf');
     if (entete && jeton) {

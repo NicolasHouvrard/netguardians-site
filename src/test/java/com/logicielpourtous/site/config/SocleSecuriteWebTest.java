@@ -83,6 +83,34 @@ class SocleSecuriteWebTest {
                 .contains("id=\"toasts\"").contains("/js/socle.js");
     }
 
+    @Test
+    void postHtmxAnonymeSansJeton_sessionExpiree_repond200AvecHxRedirect() throws Exception {
+        mockMvc.perform(post("/admin/socle/liste").header("HX-Request", "true"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("HX-Redirect", "/login"));
+        String corps = mockMvc.perform(post("/admin/socle/liste").header("HX-Request", "true"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(corps).isEmpty();
+    }
+
+    @Test
+    void postHtmxAdminAuthentifieSansJeton_resteRefuse() throws Exception {
+        mockMvc.perform(post("/admin/socle/liste").header("HX-Request", "true").with(user(compte("ADMIN"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void postHtmxNonAdminAvecJeton_resteRefuse() throws Exception {
+        mockMvc.perform(post("/admin/socle/liste").header("HX-Request", "true").with(user(compte("USER"))).with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void scriptDuSocle_necommuniquePasLeJetonAUneAutreOrigine() throws Exception {
+        String js = mockMvc.perform(get("/js/socle.js")).andReturn().getResponse().getContentAsString();
+        assertThat(js).contains("location.origin");
+    }
+
     private CustomUserDetails compte(String role) {
         Tenant tenant = new Tenant();
         tenant.setName("Test Tenant");
