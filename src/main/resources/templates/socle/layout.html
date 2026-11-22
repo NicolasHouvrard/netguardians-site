@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="_csrf" th:if="${_csrf != null}" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:if="${_csrf != null}" th:content="${_csrf.headerName}">
+    <title th:text="${titre != null ? titre : 'Logiciel pour tous'}">Logiciel pour tous</title>
+    <link rel="stylesheet" th:href="@{/css/vendor/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/vendor/bootstrap-icons.min.css}">
+    <link rel="stylesheet" th:href="@{/css/socle.css}">
+    <link rel="stylesheet" th:href="@{/css/theme.css}">
+    <script th:src="@{/js/vendor/bootstrap.bundle.min.js}" defer></script>
+    <script th:src="@{/js/vendor/htmx.min.js}" defer></script>
+    <script th:src="@{/js/socle.js}" defer></script>
+</head>
+<body class="socle">
+<div th:replace="~{socle/fragments/topbar :: topbar}"></div>
+<main class="socle-contenu">
+    <div class="socle-panneau" layout:fragment="panneau"></div>
+    <div class="socle-zone" layout:fragment="contenu"></div>
+</main>
+<div id="toasts" class="toast-container position-fixed bottom-0 end-0 p-3" aria-live="polite"></div>
+</body>
+</html>

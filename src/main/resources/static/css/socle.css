@@ -1,0 +1,59 @@
+/* Socle : toutes les couleurs et tailles passent par des variables --socle-*.
+   Les valeurs ci-dessous sont des reperes de secours ; /css/theme.css les remplace. */
+:root {
+    --socle-fond: #f6f7f9;
+    --socle-texte: #212529;
+    --socle-barre-hauteur: 46px;
+    --socle-barre-fond: #243b53;
+    --socle-barre-texte: #ffffff;
+    --socle-barre-survol: rgba(255, 255, 255, .15);
+    --socle-primaire: #0d6efd;
+    --socle-panneau-fond: #ffffff;
+    --socle-panneau-bordure: #dee2e6;
+    --socle-panneau-padding: .5rem 1rem;
+    --socle-contenu-padding: 1rem;
+    --socle-menu-fond: #ffffff;
+    --socle-menu-texte: #212529;
+    --socle-tuile-survol: #eef2f7;
+    --socle-rayon: .375rem;
+}
+body.socle {
+    background: var(--socle-fond);
+    color: var(--socle-texte);
+    padding-top: var(--socle-barre-hauteur);
+}
+.socle-topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1030;
+    height: var(--socle-barre-hauteur);
+    display: flex; align-items: center; gap: .75rem;
+    padding: 0 .75rem;
+    background: var(--socle-barre-fond);
+    color: var(--socle-barre-texte);
+}
+.socle-topbar a { color: var(--socle-barre-texte); text-decoration: none; }
+.socle-topbar-btn {
+    background: transparent; border: 0; color: var(--socle-barre-texte);
+    font-size: 1.15rem; line-height: 1; padding: .3rem .5rem; border-radius: var(--socle-rayon);
+}
+.socle-topbar-btn:hover { background: var(--socle-barre-survol); }
+.socle-marque { font-weight: 600; }
+.socle-menu-module { display: flex; gap: .25rem; }
+.socle-menu-module a { padding: .25rem .6rem; border-radius: var(--socle-rayon); font-size: .9rem; }
+.socle-menu-module a:hover { background: var(--socle-barre-survol); }
+.socle-topbar-fin { margin-left: auto; }
+.socle-apps-menu { background: var(--socle-menu-fond); color: var(--socle-menu-texte); padding: .5rem; }
+.socle-apps-grid { display: grid; grid-template-columns: repeat(3, 5.5rem); gap: .25rem; }
+.socle-tuile {
+    display: flex; flex-direction: column; align-items: center; gap: .25rem;
+    padding: .6rem .25rem; border-radius: var(--socle-rayon);
+    color: var(--socle-menu-texte) !important; font-size: .8rem; text-align: center;
+}
+.socle-tuile i { font-size: 1.6rem; color: var(--socle-primaire); }
+.socle-tuile:hover { background: var(--socle-tuile-survol); }
+.socle-panneau:empty { display: none; }
+.socle-panneau {
+    background: var(--socle-panneau-fond);
+    border-bottom: 1px solid var(--socle-panneau-bordure);
+    padding: var(--socle-panneau-padding);
+}
+.socle-zone { padding: var(--socle-contenu-padding); }
