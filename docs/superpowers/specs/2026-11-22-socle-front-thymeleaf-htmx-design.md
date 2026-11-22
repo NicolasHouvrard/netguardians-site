@@ -69,6 +69,18 @@ côté serveur, aucun build front), pour simplifier le développement et obtenir
    gabarits dans le jar du plugin actif, qui respecte la mise à jour à chaud et la désinstallation (cache de gabarits invalidé, aucune
    fuite de chargeur de classes : `FuiteMemoireIT`) et qui laisse les expressions des gabarits accéder aux types du plugin.
 
+7. **Emplacements d'extension (héritage de vues façon Odoo, idée du propriétaire).** Un écran « hôte » (du noyau ou d'un plugin) déclare des
+   **emplacements nommés** (ex. `clients.fiche.boutons`, `clients.fiche.onglets`) ; les autres plugins y ajoutent des éléments (bouton
+   d'accès rapide, onglet) **sans aucune dépendance** envers l'hôte. Adaptation à l'architecture existante : les plugins ont chacun leur
+   contexte Spring, donc l'injection d'une liste de fournisseurs n'est pas possible ; les extensions sont **déclarées dans le manifeste** (nouvelle
+   clé `ext.N=emplacement|libellé|chemin|droit|ordre`, lue comme `entree.N`), le noyau les lit pour les plugins actifs, filtre par **droit
+   de l'utilisateur** (comme les blocs actuels, et non par « modules du tenant »), trie par ordre, et un assistant Thymeleaf
+   (`uiSlots`, évalué à la demande) les met à disposition de tout gabarit. Le contenu d'un élément est une route GET du plugin sous
+   `/p/<nom>/…`, chargée par HTMX (les onglets à la demande, au premier clic ; les boutons au chargement). Le marqueur `{id}` du chemin est
+   remplacé par l'identifiant de l'entité affichée, **seulement s'il est numérique** (sinon l'élément est omis). Onglets et boutons utilisent
+   Bootstrap et HTMX (ni Alpine.js ni Tailwind). La route du plugin vérifie elle-même les droits et l'appartenance de l'entité (le filtre
+   d'affichage n'est pas une protection). Les blocs actuels (`bloc.N`) restent tels quels jusqu'au projet 2, qui les remplace.
+
 ## Hors périmètre / anti-objectifs
 
 - Migrer les écrans existants (projets suivants) ; fil d'activité, kanban, calendrier, mode sombre.
