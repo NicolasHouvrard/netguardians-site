@@ -80,6 +80,14 @@ côté serveur, aucun build front), pour simplifier le développement et obtenir
    remplacé par l'identifiant de l'entité affichée, **seulement s'il est numérique** (sinon l'élément est omis). Onglets et boutons utilisent
    Bootstrap et HTMX (ni Alpine.js ni Tailwind). La route du plugin vérifie elle-même les droits et l'appartenance de l'entité (le filtre
    d'affichage n'est pas une protection). Les blocs actuels (`bloc.N`) restent tels quels jusqu'au projet 2, qui les remplace.
+8. **Écran d'accueil façon Odoo (sélecteur d'applications, idée du propriétaire).** Chaque plugin déclare sa tuile dans son manifeste (`entree.N`,
+   que le noyau lit déjà) ; on y ajoute une **couleur** facultative prise dans une **liste fermée** (`primaire`, `violet`, `sarcelle`, `orange`,
+   `ambre`, `rose`, `ardoise`, `vert`), dont les teintes sont des **variables du thème** réglables dans l'écran d'apparence. L'icône est un nom
+   d'icône Bootstrap Icons validé (pas de chemin SVG ni de classe libre fournis par un plugin : rien qui puisse injecter du style). L'accueil
+   `/accueil` affiche la grille de tuiles autorisées, avec une recherche en direct par HTMX (délai de 150 ms, sans tenir compte de la casse ni
+   des accents, champ actif dès l'arrivée) à la place du filtre Alpine.js, et la navigation vers un module par `hx-boost`. Le même menu
+   d'applications (⊞) est présent en haut de **toutes** les pages du socle, fourni par un assistant paresseux (aucun coût pour les écrans qui ne
+   l'utilisent pas). Le filtre par « modules du tenant » est remplacé par le filtre par droit existant.
 
 ## Hors périmètre / anti-objectifs
 
