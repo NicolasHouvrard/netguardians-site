@@ -7,7 +7,11 @@ import com.logicielpourtous.site.sdk.GestionPartenairesContrat.CreationPartenair
 import com.logicielpourtous.site.sdk.GestionPartenairesContrat.ResultatPartenaire;
 import com.logicielpourtous.site.sdk.ManifestePlugin;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -31,6 +35,8 @@ import org.springframework.web.servlet.ModelAndView;
  */
 @Controller
 public class PartenairesPagesController {
+
+	private static final Logger JOURNAL = Logger.getLogger(PartenairesPagesController.class.getName());
 
 	private static final String V = "plugins/partenaires/";
 	private static final String BASE = "/p/partenaires";
@@ -159,7 +165,7 @@ public class PartenairesPagesController {
 
 	@GetMapping("/modele")
 	public String modele(@RequestParam(name = "ok", required = false) String ok, Model model) {
-		model.addAttribute("droits", new java.util.ArrayList<>(new TreeSet<>(contrat.modeleDroits())));
+		model.addAttribute("droits", droitsTries());
 		habiller(model, "Modèle de droits", ok);
 		return V + "modele";
 	}
@@ -205,7 +211,9 @@ public class PartenairesPagesController {
 	}
 
 	@ExceptionHandler(RuntimeException.class)
-	public ModelAndView erreur() {
+	public ModelAndView erreur(RuntimeException e) {
+		// detail uniquement dans le journal serveur, jamais dans la reponse
+		JOURNAL.log(Level.SEVERE, "Erreur inattendue dans les pages partenaires", e);
 		ModelAndView mav = new ModelAndView(V + "erreur");
 		mav.setStatus(HttpStatus.INTERNAL_SERVER_ERROR);
 		mav.addObject("titre", "Erreur");
@@ -216,6 +224,10 @@ public class PartenairesPagesController {
 	// ---- utilitaires
 
 	/** Identifiant numerique, et aucun parametre de chemin (;) dans l adresse brute (Spring les retire avant la liaison). */
+	private List<String> droitsTries() {
+		return new ArrayList<>(new TreeSet<>(contrat.modeleDroits()));
+	}
+
 	private static boolean valide(String identifiant, HttpServletRequest requete) {
 		return identifiant != null && !requete.getRequestURI().contains(";") && IDENTIFIANT.matcher(identifiant).matches();
 	}
@@ -227,7 +239,7 @@ public class PartenairesPagesController {
 	private ModelAndView refusModele() {
 		ModelAndView mav = new ModelAndView(V + "modele");
 		mav.setStatus(HttpStatus.BAD_REQUEST);
-		mav.addObject("droits", new java.util.ArrayList<>(new TreeSet<>(contrat.modeleDroits())));
+		mav.addObject("droits", droitsTries());
 		mav.addObject("titre", "Modèle de droits");
 		mav.addObject("moduleActif", "partenaires");
 		mav.addObject("erreur", MSG_DROIT);

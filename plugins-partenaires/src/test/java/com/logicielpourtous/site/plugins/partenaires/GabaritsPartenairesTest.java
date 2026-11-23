@@ -30,7 +30,7 @@ class GabaritsPartenairesTest {
 		Matcher m = Pattern.compile("<form\\b[^>]*>", Pattern.CASE_INSENSITIVE).matcher(html);
 		while (m.find()) {
 			String f = m.group();
-			if (f.toLowerCase().contains("method=\"post\"")) {
+			if (Pattern.compile("(?i)method\\s*=\\s*[\"']?post\\b").matcher(f).find()) {
 				assertTrue(f.contains("th:action="), "formulaire POST sans th:action : " + f);
 			}
 		}

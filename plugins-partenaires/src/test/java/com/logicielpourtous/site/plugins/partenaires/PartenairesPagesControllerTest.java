@@ -97,7 +97,8 @@ class PartenairesPagesControllerTest {
 			.andExpect(status().isConflict())
 			.andExpect(view().name(V + "partenaire-form"))
 			.andExpect(model().attributeExists("erreur"))
-			.andExpect(model().attributeExists("saisie"));
+			.andExpect(model().attribute("saisie", org.hamcrest.Matchers.hasEntry("siren", "123456789")))
+			.andExpect(model().attribute("saisie", org.hamcrest.Matchers.hasEntry("raisonSociale", "<b>X</b>")));
 	}
 
 	@Test
@@ -212,8 +213,8 @@ class PartenairesPagesControllerTest {
 	@ParameterizedTest
 	@ValueSource(strings = { "abc", "1;2", "..%2Fx", "1234567890123456", "-1", "1.5" })
 	void identifiantInvalideDonne404SansContrat(String id) throws Exception {
-		mvc.perform(get("/" + id + "/clients/nouveau")).andExpect(status().isNotFound());
-		mvc.perform(post("/" + id + "/clients").param("siren", "1")).andExpect(status().isNotFound());
+		mvc.perform(get("/" + id + "/clients/nouveau")).andExpect(status().isNotFound()).andExpect(view().name(V + "erreur"));
+		mvc.perform(post("/" + id + "/clients").param("siren", "1")).andExpect(status().isNotFound()).andExpect(view().name(V + "erreur"));
 		verifyNoInteractions(contrat);
 	}
 
@@ -263,7 +264,7 @@ class PartenairesPagesControllerTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = { "Mauvais Droit", "", "a1234567890123456789012345678901234567890123456789012345678901" })
+	@ValueSource(strings = { "Mauvais Droit", "" })
 	void droitInvalideRefuse(String droit) throws Exception {
 		when(contrat.modeleDroits()).thenReturn(Set.of("clients.lire"));
 		mvc.perform(post("/modele/ajouter").param("droit", droit)).andExpect(status().isBadRequest());
@@ -278,6 +279,51 @@ class PartenairesPagesControllerTest {
 		mvc.perform(post("/modele/retirer").param("droit", "clients.exporter"))
 			.andExpect(redirectedUrl("/p/partenaires/modele?ok=modele"));
 		verify(contrat, never()).remplacerModeleDroits(any());
+	}
+	@Test
+	void droitDe61CaracteresRefuseEtDe60Accepte() throws Exception {
+		when(contrat.modeleDroits()).thenReturn(Set.of("clients.lire"));
+		String trop = "a".repeat(61);
+		String limite = "a".repeat(60);
+		mvc.perform(post("/modele/ajouter").param("droit", trop)).andExpect(status().isBadRequest());
+		verify(contrat, never()).remplacerModeleDroits(any());
+		mvc.perform(post("/modele/ajouter").param("droit", limite))
+			.andExpect(redirectedUrl("/p/partenaires/modele?ok=modele"));
+		verify(contrat).remplacerModeleDroits(Set.of("clients.lire", limite));
+	}
+
+	@Test
+	void exceptionInattendueEstJournaliseeMaisAbsenteDeLaReponse() throws Exception {
+		java.util.logging.Logger journal = java.util.logging.Logger.getLogger(PartenairesPagesController.class.getName());
+		java.util.List<java.util.logging.LogRecord> enregistrements = new java.util.ArrayList<>();
+		java.util.logging.Handler capteur = new java.util.logging.Handler() {
+			@Override
+			public void publish(java.util.logging.LogRecord r) {
+				enregistrements.add(r);
+			}
+
+			@Override
+			public void flush() {
+			}
+
+			@Override
+			public void close() {
+			}
+		};
+		journal.addHandler(capteur);
+		try {
+			IllegalStateException cause = new IllegalStateException("detail-secret");
+			when(contrat.listerPartenaires()).thenThrow(cause);
+			var res = mvc.perform(get("/liste")).andExpect(status().isInternalServerError()).andReturn();
+			assertFalse(res.getModelAndView().getModel().toString().contains("detail-secret"));
+			assertFalse(res.getResponse().getContentAsString().contains("detail-secret"));
+			assertEquals(1, enregistrements.size());
+			assertEquals(java.util.logging.Level.SEVERE, enregistrements.get(0).getLevel());
+			assertEquals(cause, enregistrements.get(0).getThrown());
+		}
+		finally {
+			journal.removeHandler(capteur);
+		}
 	}
 
 }
