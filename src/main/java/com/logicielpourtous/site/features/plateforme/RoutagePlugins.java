@@ -42,7 +42,16 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  * <li>un plugin ne doit rendre que SES PROPRES gabarits {@code plugins/<nom>/...} : rendre ceux d'un autre plugin
  * est techniquement possible mais non compté en vol (le jar peut être fermé pendant le rendu) et non supporté ;</li>
  * <li>ne jamais placer d'objet d'une classe du plugin dans la session HTTP ni dans les attributs flash : ils
- * retiendraient l'ancien chargeur de classes après une mise à jour à chaud.</li>
+ * retiendraient l'ancien chargeur de classes après une mise à jour à chaud ;</li>
+ * <li>page ou fragment : le choix est celui du plugin. Les écrans du socle ne renvoient un fragment que pour une requête
+ * HTMX ordinaire ({@code HtmxRequetes#fragmentSeulement} : {@code HX-Request} sans {@code HX-Boosted} ni
+ * {@code HX-History-Restore-Request}). Une page de plugin qui répond par un fragment doit appliquer la même règle,
+ * sinon une navigation boostée (clic sur une tuile) ou une restauration de l'historique remplacerait tout le corps de
+ * la page par ce fragment ;</li>
+ * <li>noms d'attributs de modèle RÉSERVÉS au socle, à ne pas réutiliser pour autre chose : {@code apps},
+ * {@code uiSlots}, {@code tuiles}, {@code titre}, {@code moduleActif}, {@code menuModule}, {@code fil} ;</li>
+ * <li>le cœur applique aux pages {@code /p/**} les mêmes gardes que ses écrans : contexte de tenant et obligation de
+ * changer un mot de passe temporaire (redirection vers {@code /change-password}), avant tout intercepteur du plugin.</li>
  * </ul>
  */
 @Component
@@ -81,6 +90,15 @@ public class RoutagePlugins implements HandlerMapping, Ordered {
 	 * que {@link #ESPACE_UI} : aucun mapping de plugin ne peut y répondre ni y masquer les fichiers.
 	 */
 	private static final RequestMatcher ESPACE_STATIC = PathPatternRequestMatcher.pathPattern("/p/*/static/**");
+
+	/** Gardes du noyau (tenant, changement de mot de passe) appliqués aux pages {@code /p/**} ; {@code null} : aucun. */
+	private HandlerInterceptor gardesPages;
+
+	@org.springframework.beans.factory.annotation.Autowired
+	void setGardesPages(
+			@org.springframework.beans.factory.annotation.Qualifier("interceptorPagesPlugins") org.springframework.beans.factory.ObjectProvider<HandlerInterceptor> gardes) {
+		this.gardesPages = gardes.getIfAvailable();
+	}
 
 	private final Map<String, PluginGeneration> routes = new ConcurrentHashMap<>();
 
@@ -192,6 +210,10 @@ public class RoutagePlugins implements HandlerMapping, Ordered {
 				return true;
 			}
 		});
+		if (gardesPages != null && requete.getRequestURI().startsWith(requete.getContextPath() + PREFIXE_PAGES)) {
+			// Pages : mêmes gardes que les écrans du cœur (tenant, mot de passe temporaire), avant celles du plugin.
+			chaine.addInterceptor(0, gardesPages);
+		}
 		return chaine;
 	}
 

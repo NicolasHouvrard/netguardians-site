@@ -129,6 +129,13 @@ class SocleLayoutTest {
 	}
 
 	@Test
+	void configuration_htmx_sans_cache_d_historique_et_sans_requete_hors_site() {
+		String html = rendre(Map.of("titre", "T"));
+		assertThat(html).contains("<meta name=\"htmx-config\"")
+				.contains("\"historyCacheSize\":0").contains("\"selfRequestsOnly\":true");
+	}
+
+	@Test
 	void titre_sert_de_title() {
 		String html = rendre(Map.of("titre", "Mon titre"));
 		assertThat(html).containsPattern("<title>[^<]*Mon titre[^<]*</title>");

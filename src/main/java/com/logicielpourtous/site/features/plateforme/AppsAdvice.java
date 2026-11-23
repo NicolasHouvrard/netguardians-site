@@ -32,7 +32,8 @@ public class AppsAdvice {
 	}
 
 	/**
-	 * Tuile prête à afficher : {@code chemin()} est l'adresse serveur complète (même nom que les fragments du socle),
+	 * Tuile prête à afficher : {@code chemin()} est l'adresse serveur COMPLÈTE (même nom que les fragments du socle ;
+	 * attention, {@code NavigationService.Tuile#chemin()} est au contraire le chemin brut du manifeste),
 	 * {@code icone()} la classe Bootstrap Icons complète, {@code couleur()} un nom de la liste fermée.
 	 */
 	public record TuileApp(String libelle, String icone, String couleur, String url) {

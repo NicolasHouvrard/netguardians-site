@@ -7,7 +7,6 @@ import java.util.Map;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -64,9 +63,9 @@ public class SocleStyleguideController {
 
 	@RequestMapping(path = "/admin/socle/liste", method = { RequestMethod.GET, RequestMethod.POST })
 	public String liste(@RequestParam(name = "q", defaultValue = "") String q,
-			@RequestHeader(name = "HX-Request", required = false) String hxRequest, Model model) {
+			jakarta.servlet.http.HttpServletRequest requete, Model model) {
 		remplirListe(model, q);
-		if ("true".equalsIgnoreCase(hxRequest)) {
+		if (com.logicielpourtous.site.features.commun.HtmxRequetes.fragmentSeulement(requete)) {
 			return FRAGMENT_LISTE;
 		}
 		return pageComplete(model, q);

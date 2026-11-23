@@ -40,7 +40,11 @@ public class NavigationService {
 
 	private static final Logger log = LoggerFactory.getLogger(NavigationService.class);
 
-	/** Tuile renvoyée au front. */
+	/**
+	 * Tuile renvoyée au front. ATTENTION : {@code chemin()} est le chemin BRUT du manifeste (ex. {@code /clients}) ;
+	 * l'adresse complète est {@link #url()} ({@code /p/<plugin>/clients}), et c'est elle que porte
+	 * {@code AppsAdvice.TuileApp#chemin()} (même nom, autre sens).
+	 */
 	public record Tuile(String plugin, String libelle, String icone, String chemin, ZoneNavigation zone,
 			String version, String couleur) {
 

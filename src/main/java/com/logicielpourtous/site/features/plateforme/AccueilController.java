@@ -4,12 +4,14 @@ import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
 
+import com.logicielpourtous.site.features.commun.HtmxRequetes;
+
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import com.logicielpourtous.site.features.plateforme.AppsAdvice.Apps;
@@ -26,14 +28,14 @@ public class AccueilController {
 
 	@GetMapping("/accueil")
 	public String accueil(@RequestParam(name = "q", defaultValue = "") String q,
-			@RequestHeader(name = "HX-Request", required = false) String hxRequest,
-			@ModelAttribute("apps") Apps apps, Model model) {
+			HttpServletRequest requete,
+			@ModelAttribute(name = "apps", binding = false) Apps apps, Model model) {
 		String motif = normaliser(q);
 		List<TuileApp> grille = apps.tuiles().stream()
 				.filter(t -> motif.isEmpty() || normaliser(t.libelle()).contains(motif)).toList();
 		model.addAttribute("tuilesGrille", grille);
 		model.addAttribute("q", q);
-		if ("true".equalsIgnoreCase(hxRequest)) {
+		if (HtmxRequetes.fragmentSeulement(requete)) {
 			return "socle/accueil :: grille";
 		}
 		model.addAttribute("titre", "Accueil");

@@ -560,6 +560,59 @@ class PluginSocleIT {
 		mvc.perform(get("/p/demo/onglet").param("client", "42").with(user(gest))).andExpect(status().isNotFound());
 	}
 
+	// ---- (j) gardes du noyau sur les pages de plugin ---------------------------------------------------------------
+
+	@Test
+	void j_une_session_au_mot_de_passe_temporaire_est_redirigee_sur_les_pages_et_statiques_des_plugins()
+			throws Exception {
+		installer("1.0.0");
+		org.springframework.mock.web.MockHttpSession temporaire = new org.springframework.mock.web.MockHttpSession();
+		temporaire.setAttribute("MUST_CHANGE_PASSWORD", Boolean.TRUE);
+
+		// Même comportement que les écrans du cœur (témoin : /accueil).
+		mvc.perform(get("/accueil").with(user(gest)).session(temporaire)).andExpect(status().isFound())
+				.andExpect(header().string("Location", endsWith("/change-password")));
+		for (String chemin : new String[] { "/p/demo/", "/p/demo/onglet?client=42", "/p/demo/static/demo.css" }) {
+			MockHttpServletResponse r = mvc.perform(get(URI.create(chemin)).with(user(gest)).session(temporaire))
+					.andReturn().getResponse();
+			assertThat(r.getStatus()).as(chemin).isEqualTo(302);
+			assertThat(r.getHeader("Location")).as(chemin).endsWith("/change-password");
+			assertThat(r.getContentAsString()).as(chemin).doesNotContain("GABARIT-V").doesNotContain("body{");
+		}
+		// Appel HTMX et écriture : la même redirection que dans le cœur, et l'action du plugin n'est pas exécutée.
+		mvc.perform(get("/p/demo/").with(user(gest)).session(temporaire).header("HX-Request", "true"))
+				.andExpect(status().isFound()).andExpect(header().string("Location", endsWith("/change-password")));
+		MockHttpServletResponse ecriture = mvc.perform(post("/p/demo/action").with(user(gest)).with(csrf())
+				.session(temporaire)).andReturn().getResponse();
+		assertThat(ecriture.getStatus()).isEqualTo(302);
+		assertThat(ecriture.getContentAsString()).doesNotContain("action ok");
+		// Le contexte de tenant ne fuit pas hors de la requête.
+		assertThat(TenantContext.getCurrentTenant()).isNull();
+
+		// Une session ordinaire n'est pas touchée.
+		mvc.perform(get("/p/demo/").with(user(gest)).session(new org.springframework.mock.web.MockHttpSession()))
+				.andExpect(status().isOk());
+		mvc.perform(get("/p/demo/static/demo.css").with(user(gest))).andExpect(status().isOk());
+	}
+
+	// ---- (b2) navigation boostée vers les écrans du cœur -------------------------------------------------------------
+
+	@Test
+	void b2_les_ecrans_du_coeur_repondent_page_complete_a_une_navigation_boostee() throws Exception {
+		installer("1.0.0");
+		for (String entete : new String[] { "HX-Boosted", "HX-History-Restore-Request" }) {
+			assertThat(mvc.perform(get("/accueil").with(user(gest)).header("HX-Request", "true").header(entete, "true"))
+					.andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).as(entete)
+					.contains("<body class=\"socle\">");
+			assertThat(mvc.perform(get("/admin/socle").with(user(adminAvecDroit)).header("HX-Request", "true")
+					.header(entete, "true")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
+					.as(entete).contains("<body class=\"socle\">");
+		}
+		// Recherche en direct (HX-Request seul) : la grille seule. Le choix page/fragment d'un plugin lui appartient.
+		assertThat(mvc.perform(get("/accueil").with(user(gest)).header("HX-Request", "true")).andReturn().getResponse()
+				.getContentAsString()).doesNotContain("<body");
+	}
+
 	// ---- aides -------------------------------------------------------------------------------------------------------
 
 	/** Page complète d'une URL pour ce compte, en exigeant 200. */

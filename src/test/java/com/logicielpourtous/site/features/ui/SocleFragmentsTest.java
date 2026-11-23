@@ -258,6 +258,15 @@ class SocleFragmentsTest {
 	}
 
 	@Test
+	void controleur_navigation_boostee_ou_restauration_d_historique_recoit_la_page_complete() throws Exception {
+		for (String entete : new String[] { "HX-Boosted", "HX-History-Restore-Request" }) {
+			String html = mvc().perform(get("/admin/socle/liste").param("q", "alp").header("HX-Request", "true")
+					.header(entete, "true")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			assertThat(html).as(entete).contains("<html").contains("Alpha");
+		}
+	}
+
+	@Test
 	void controleur_echappe_la_recherche() throws Exception {
 		String html = mvc().perform(
 				get("/admin/socle/liste").param("q", "<script>x</script>").header("HX-Request", "true"))

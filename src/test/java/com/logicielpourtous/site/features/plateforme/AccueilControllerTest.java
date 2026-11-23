@@ -137,6 +137,18 @@ class AccueilControllerTest {
 	}
 
 	@Test
+	void f2_navigation_boostee_ou_restauration_d_historique_recoit_la_page_complete() throws Exception {
+		when(navigation.tuilesAutorisees(null)).thenReturn(List.of(tuile("Clients", "people", "orange")));
+		for (String entete : new String[] { "HX-Boosted", "HX-History-Restore-Request" }) {
+			String html = mvc.perform(get("/accueil").with(user(compte("USER"))).header("HX-Request", "true")
+					.header(entete, "true")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			assertThat(html).as(entete).contains("<html").contains("class=\"socle-topbar\"").contains("id=\"grille-apps\"");
+		}
+		// La recherche en direct (HX-Request seul) ne renvoie toujours que la grille.
+		assertThat(page("/accueil", true)).doesNotContain("<html").contains("id=\"grille-apps\"");
+	}
+
+	@Test
 	void h_la_tuile_porte_couleur_et_icone_sans_style_et_libelle_echappe() throws Exception {
 		when(navigation.tuilesAutorisees(null)).thenReturn(List.of(tuile("<b>x</b>", "people", "orange")));
 		String grille = page("/accueil", true);
