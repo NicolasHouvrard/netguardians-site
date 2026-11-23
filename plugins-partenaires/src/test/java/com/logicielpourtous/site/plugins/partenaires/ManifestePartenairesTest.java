@@ -30,7 +30,7 @@ class ManifestePartenairesTest {
 		assertEquals(ModeMiseAJour.CHAUD, m.miseAJour());
 		assertEquals("com.logicielpourtous.site.plugins.partenaires.PartenairesConfiguration", m.configuration());
 		assertEquals(1, m.entrees().size());
-		assertEquals(new EntreeNavigation(ZoneNavigation.ADMIN, "Partenaires", "apartment", "/partenaires",
+		assertEquals(new EntreeNavigation(ZoneNavigation.ADMIN, "Partenaires", "building", "/liste",
 				"partenaires.gerer"), m.entrees().get(0));
 		assertTrue(m.blocs().isEmpty(), "aucun bloc : les blocs ne sont pas lies a une zone");
 	}
