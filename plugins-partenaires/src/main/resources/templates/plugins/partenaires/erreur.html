@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{socle/layout}">
+<body>
+<div class="socle-zone" layout:fragment="contenu">
+    <div class="alert alert-warning" role="alert" th:if="${introuvable != null}">Page introuvable.</div>
+    <div class="alert alert-danger" role="alert" th:unless="${introuvable != null}">Une erreur est survenue. Réessayez plus tard.</div>
+    <a class="btn btn-outline-secondary" th:href="@{/p/partenaires/liste}">Retour à la liste</a>
+</div>
+</body>
+</html>
