@@ -59,7 +59,7 @@ public class PluginsEcranController {
 	/** Messages de succès : liste fermée, indexée par la valeur du paramètre {@code ok}. */
 	private static final Map<String, String> MESSAGES_OK = Map.of("publie", "Plugin publié dans le dépôt du Maître.",
 			"identique", "Plugin déjà publié (identique) : rien à faire.", "desinstalle",
-			"Plugin retiré du Maître jusqu'au prochain redémarrage. Pour un retrait durable, supprimez son jar du répertoire des plugins ou publiez une version supérieure.");
+			"Plugin retiré du Maître jusqu'au prochain redémarrage (les serveurs annexes ne sont pas touchés). Aucun retrait durable depuis cet écran : voir la documentation de publication.");
 
 	private final DepotPlugins depot;
 

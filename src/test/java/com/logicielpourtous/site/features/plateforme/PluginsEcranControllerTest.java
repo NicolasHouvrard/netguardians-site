@@ -153,7 +153,7 @@ class PluginsEcranControllerTest {
 	void le_message_de_desinstallation_dit_que_le_retrait_dure_jusqu_au_redemarrage() throws Exception {
 		String html = mvc.perform(get("/admin/plugins").param("ok", "desinstalle").with(admin())).andReturn()
 			.getResponse().getContentAsString();
-		assertThat(html).contains("jusqu&#39;au prochain redémarrage").doesNotContain("ne sera pas réinstallé");
+		assertThat(html).contains("jusqu&#39;au prochain redémarrage").contains("serveurs annexes ne sont pas touchés").doesNotContain("ne sera pas réinstallé").doesNotContain("publiez une version supérieure");
 	}
 
 	@Test

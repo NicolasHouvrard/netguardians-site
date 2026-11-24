@@ -59,8 +59,8 @@ if (-not (Test-Path -LiteralPath $Jar -PathType Leaf)) { Echec "jar introuvable 
 if (-not (Test-Path -LiteralPath $Cle -PathType Leaf)) { Echec "fichier de cle privee introuvable : $Cle" }
 if ($KeyId -notmatch '^[A-Za-z0-9._-]{1,64}$') { Echec "KeyId invalide (1 a 64 caracteres parmi A-Za-z0-9._-) : $KeyId" }
 
-$Jar = (Resolve-Path -LiteralPath $Jar).Path
-$Cle = (Resolve-Path -LiteralPath $Cle).Path
+$Jar = (Resolve-Path -LiteralPath $Jar).ProviderPath
+$Cle = (Resolve-Path -LiteralPath $Cle).ProviderPath
 $racine = Split-Path -Parent $PSScriptRoot
 
 # --- Java >= 25 --------------------------------------------------------------------------------
@@ -94,6 +94,7 @@ if (-not (Test-Path -LiteralPath $sdk -PathType Leaf)) {
 # --- Cles publiques ----------------------------------------------------------------------------
 if (-not $ClesPubliques) { $ClesPubliques = Join-Path $racine 'src\main\resources\plateforme\cles-publiques.properties' }
 if (-not (Test-Path -LiteralPath $ClesPubliques -PathType Leaf)) { Echec "fichier des cles publiques introuvable : $ClesPubliques" }
+$ClesPubliques = (Resolve-Path -LiteralPath $ClesPubliques).ProviderPath
 
 $classe = 'com.logicielpourtous.site.sdk.OutilSignature'
 

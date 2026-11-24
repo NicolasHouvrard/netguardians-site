@@ -91,7 +91,10 @@ Sur le poste de signature (Java 25 requis ; le script le cherche dans `JAVA_HOME
 
 Le script signe, puis **vérifie** la signature avec `cles-publiques.properties` ; il affiche le chemin du `.sig` à
 publier avec le jar. Il ne lit ni n'affiche la clé privée et n'en garde aucune copie. Si la vérification échoue, le
-`.sig` est supprimé et le code retour est non nul. **La signature reste toujours hors ligne** : ni l'écran
+`.sig` est supprimé et le code retour est non nul. La vérification utilise le fichier de clés publiques **de la
+copie locale du dépôt** : le tenir à jour (le récupérer avant de signer), sinon une clé récente peut être refusée à tort.
+Si PowerShell refuse d'exécuter le script (politique d'exécution) :
+`powershell -ExecutionPolicy Bypass -File .\outils\signer.ps1 -Jar ... -Cle ... -KeyId ...`. **La signature reste toujours hors ligne** : ni l'écran
 d'administration ni le Maître ne signent, et la clé privée n'est jamais envoyée au serveur.
 
 ## 4. Publier au Maître
@@ -103,9 +106,12 @@ Réservé à un compte `ROLE_ADMIN`, sur le Maître. Ouvrir `/admin/plugins`, ch
 avec l'API (mêmes réponses : version déjà publiée avec un contenu différent refusée, etc.). L'écran montre aussi le
 dépôt, les plugins installés et l'état des serveurs annexes.
 
-- **Désinstaller** : le bouton de l'écran retire le plugin du processus en cours. Cela **vaut jusqu'au prochain
-  redémarrage** : le jar reste sur le disque, donc le plugin peut revenir au redémarrage. Pour un retrait
-  durable : supprimer le jar du répertoire des plugins, ou publier une version supérieure.
+- **Désinstaller** : le bouton de l'écran retire le plugin **du Maître seulement** (jamais des serveurs annexes), et
+  **seulement jusqu'au prochain redémarrage** : le jar reste dans le répertoire des plugins et le plugin revient
+  au redémarrage. Il n'existe **pas de retrait durable depuis l'écran** : il faudrait supprimer tous les jars et
+  `.sig` du plugin du répertoire des plugins ET ses versions du dépôt du Maître (sinon le Maître le réinstalle au
+  tirage, environ 10 minutes plus tard). Publier une version supérieure n'est pas un retrait : c'est un
+  remplacement, qui s'applique aussi aux serveurs annexes. Voir le chapitre 5 pour le comportement du tireur.
 - **Limite d'envoi : 10 Mo** par jar. Au-delà, le comportement exact n'est pas garanti (message d'erreur
   possiblement absent ou connexion coupée).
 - Ne jamais envoyer la clé privée : l'écran ne la demande pas.
@@ -248,4 +254,5 @@ Pour la relancer à la main : `POST /api/plateforme/plugins/installer` sur le se
   Désormais le dossier de travail est `<repertoire-plugins>.work` (frère du répertoire des plugins). **Supprimer à la
   main** l'ancien `<plugins>/.work` après la mise à jour ; il n'est plus nettoyé.
 - **Taille** : 10 Mo à la publication (voir 4).
-- **Pas de téléversement depuis un navigateur** : API seulement.
+- **Téléversement depuis un navigateur** : seule la publication d'un jar DÉJÀ signé est possible, depuis l'écran
+  `/admin/plugins` (ou l'API) ; la signature, elle, ne se fait jamais dans le navigateur ni sur le serveur.
