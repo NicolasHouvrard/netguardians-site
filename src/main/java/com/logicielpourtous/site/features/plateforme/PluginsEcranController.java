@@ -38,8 +38,8 @@ import jakarta.servlet.http.HttpServletResponse;
  * <li>Les messages sont des textes fixes, sauf le message d'un refus d'invalidité du dépôt (déjà nettoyé, sans chemin de
  * fichier). Le message de succès vient d'une liste fermée, jamais du paramètre reçu. Tout texte dynamique est affiché
  * par {@code th:text}.</li>
- * <li>Limite d'envoi : 10 Mo (multipart global). Au-delà, Spring refuse la requête AVANT ce contrôleur : la réponse
- * est celle de l'application (pas d'écran dédié), voir {@code docs/plateforme-plugins-publication.md}.</li>
+ * <li>Limite d'envoi : 10 Mo (multipart global). Au-delà, le comportement exact (refus par le filtre CSRF ou
+ * par Tomcat, réponse obtenue) n'est ni garanti ni testé : ce contrôleur n'affiche pas de message dédié.</li>
  * </ul>
  */
 @Controller
@@ -59,7 +59,7 @@ public class PluginsEcranController {
 	/** Messages de succès : liste fermée, indexée par la valeur du paramètre {@code ok}. */
 	private static final Map<String, String> MESSAGES_OK = Map.of("publie", "Plugin publié dans le dépôt du Maître.",
 			"identique", "Plugin déjà publié (identique) : rien à faire.", "desinstalle",
-			"Plugin désinstallé du Maître. Il ne sera pas réinstallé à la même version : publiez une version plus haute pour le remettre en service.");
+			"Plugin retiré du Maître jusqu'au prochain redémarrage. Pour un retrait durable, supprimez son jar du répertoire des plugins ou publiez une version supérieure.");
 
 	private final DepotPlugins depot;
 
@@ -103,7 +103,7 @@ public class PluginsEcranController {
 			};
 		}
 		catch (IOException | RuntimeException e) {
-			log.error("Écran plugins : publication impossible : {}", e.getClass().getSimpleName());
+			log.error("Écran plugins : publication impossible", e);
 			return refuser(model, reponse, 500, "dépôt indisponible (voir le journal du Maître)");
 		}
 	}
@@ -144,7 +144,7 @@ public class PluginsEcranController {
 			return source.get();
 		}
 		catch (RuntimeException e) {
-			log.warn("Écran plugins : lecture de {} en échec : {}", quoi, e.getClass().getSimpleName());
+			log.warn("Écran plugins : lecture de {} en échec", quoi, e);
 			model.addAttribute("avertissement", "Une partie des informations est indisponible (voir le journal).");
 			return List.of();
 		}

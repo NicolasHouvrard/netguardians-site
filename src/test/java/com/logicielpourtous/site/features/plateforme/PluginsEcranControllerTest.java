@@ -150,6 +150,13 @@ class PluginsEcranControllerTest {
 	}
 
 	@Test
+	void le_message_de_desinstallation_dit_que_le_retrait_dure_jusqu_au_redemarrage() throws Exception {
+		String html = mvc.perform(get("/admin/plugins").param("ok", "desinstalle").with(admin())).andReturn()
+			.getResponse().getContentAsString();
+		assertThat(html).contains("jusqu&#39;au prochain redémarrage").doesNotContain("ne sera pas réinstallé");
+	}
+
+	@Test
 	void le_message_ok_vient_d_une_liste_fixe_jamais_du_parametre() throws Exception {
 		String html = mvc.perform(get("/admin/plugins").param("ok", "publie").with(admin())).andReturn()
 			.getResponse().getContentAsString();
