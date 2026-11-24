@@ -6,11 +6,14 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.env.Environment;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
+import com.logicielpourtous.site.features.commun.ServerRole;
+import com.logicielpourtous.site.features.commun.ServerRoleProperties;
 import com.logicielpourtous.site.features.plateforme.NavigationService.Tuile;
 import com.logicielpourtous.site.sdk.ManifestePlugin;
 
@@ -25,13 +28,19 @@ public class AppsAdvice {
 
 	private final NavigationService navigation;
 
-	public AppsAdvice(NavigationService navigation) {
+	/** Ce serveur est le Maître (même lecture de {@code app.role} que {@link SurServeurMaitre}). */
+	private final boolean maitre;
+
+	public AppsAdvice(NavigationService navigation, Environment environnement) {
 		this.navigation = navigation;
+		ServerRoleProperties role = new ServerRoleProperties();
+		role.setRole(environnement.getProperty("app.role"));
+		this.maitre = role.getRole() == ServerRole.MASTER;
 	}
 
 	@ModelAttribute("apps")
 	public Apps apps() {
-		return new Apps(navigation);
+		return new Apps(navigation, maitre);
 	}
 
 	/**
@@ -65,12 +74,19 @@ public class AppsAdvice {
 		private static final TuileApp TUILE_APPARENCE = new TuileApp("Apparence", "bi-palette", "primaire",
 				"/admin/apparence");
 
+		/** Écran du noyau : gestion des plugins, réservé à ROLE_ADMIN et au serveur Maître. */
+		private static final TuileApp TUILE_PLUGINS = new TuileApp("Plugins", "bi-puzzle", "primaire",
+				"/admin/plugins");
+
 		private final NavigationService navigation;
+
+		private final boolean maitre;
 
 		private List<TuileApp> tuiles;
 
-		Apps(NavigationService navigation) {
+		Apps(NavigationService navigation, boolean maitre) {
 			this.navigation = navigation;
+			this.maitre = maitre;
 		}
 
 		public synchronized List<TuileApp> tuiles() {
@@ -86,6 +102,9 @@ public class AppsAdvice {
 				}
 				if (adminDuServeur()) {
 					liste.add(TUILE_APPARENCE);
+					if (maitre) {
+						liste.add(TUILE_PLUGINS);
+					}
 				}
 				tuiles = List.copyOf(liste);
 			}

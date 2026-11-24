@@ -8,6 +8,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -31,7 +32,11 @@ class AppsAdviceTest {
 	}
 
 	private static Apps apps(NavigationService navigation) {
-		return new AppsAdvice(navigation).apps();
+		return apps(navigation, new MockEnvironment());
+	}
+
+	private static Apps apps(NavigationService navigation, MockEnvironment environnement) {
+		return new AppsAdvice(navigation, environnement).apps();
 	}
 
 	@Test
@@ -43,7 +48,7 @@ class AppsAdviceTest {
 
 		List<TuileApp> tuiles = apps(navigation).tuiles();
 
-		assertThat(tuiles).extracting(TuileApp::libelle).containsExactly("Clients", "Apparence");
+		assertThat(tuiles).extracting(TuileApp::libelle).containsExactly("Clients", "Apparence", "Plugins");
 		TuileApp apparence = tuiles.get(1);
 		assertThat(apparence.url()).isEqualTo("/admin/apparence");
 		assertThat(apparence.icone()).isEqualTo("bi-palette");
@@ -73,7 +78,36 @@ class AppsAdviceTest {
 		when(navigation.tuilesAutorisees(null)).thenThrow(new IllegalStateException("panne"));
 		connecte("ROLE_ADMIN");
 
-		assertThat(apps(navigation).tuiles()).extracting(TuileApp::libelle).containsExactly("Apparence");
+		assertThat(apps(navigation).tuiles()).extracting(TuileApp::libelle).containsExactly("Apparence", "Plugins");
+	}
+
+	@Test
+	void la_tuile_plugins_est_pour_l_admin_du_maitre_seulement() {
+		NavigationService navigation = mock(NavigationService.class);
+		when(navigation.tuilesAutorisees(null)).thenReturn(List.of());
+		connecte("ROLE_ADMIN");
+
+		TuileApp plugins = apps(navigation).tuiles().get(1);
+		assertThat(plugins.libelle()).isEqualTo("Plugins");
+		assertThat(plugins.url()).isEqualTo("/admin/plugins");
+		assertThat(plugins.icone()).isEqualTo("bi-puzzle");
+		assertThat(plugins.couleur()).isEqualTo("primaire");
+
+		// Rôle MASTER explicite, casse indifférente : toujours le Maître.
+		assertThat(apps(navigation, new MockEnvironment().withProperty("app.role", "master")).tuiles())
+			.extracting(TuileApp::libelle).contains("Plugins");
+		// Serveur annexe : Apparence reste, pas Plugins.
+		assertThat(apps(navigation, new MockEnvironment().withProperty("app.role", "PARTNER")).tuiles())
+			.extracting(TuileApp::libelle).containsExactly("Apparence");
+	}
+
+	@Test
+	void sans_role_admin_pas_de_tuile_plugins_meme_sur_le_maitre() {
+		NavigationService navigation = mock(NavigationService.class);
+		when(navigation.tuilesAutorisees(null)).thenReturn(List.of());
+		connecte("ROLE_GESTIONNAIRE");
+
+		assertThat(apps(navigation).tuiles()).isEmpty();
 	}
 
 }
