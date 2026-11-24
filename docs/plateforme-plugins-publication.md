@@ -80,7 +80,37 @@ java -cp plugins-sdk/target/site-plugins-sdk-0.0.1.jar com.logicielpourtous.site
 
 Code retour 0 = signature valide, 1 = refusée (la raison est affichée).
 
+### Signer avec le script
+
+Sur le poste de signature (Java 25 requis ; le script le cherche dans `JAVA_HOME`, dans
+`%USERPROFILE%\scoop\apps\temurin25-jdk\current` puis dans le `PATH`, et refuse un Java plus ancien) :
+
+```
+.\outils\signer.ps1 -Jar mon-plugin-1.2.0.jar -Cle C:\Cles\signature\prod-2026-11-a.prive -KeyId prod-2026-11-a
+```
+
+Le script signe, puis **vérifie** la signature avec `cles-publiques.properties` ; il affiche le chemin du `.sig` à
+publier avec le jar. Il ne lit ni n'affiche la clé privée et n'en garde aucune copie. Si la vérification échoue, le
+`.sig` est supprimé et le code retour est non nul. **La signature reste toujours hors ligne** : ni l'écran
+d'administration ni le Maître ne signent, et la clé privée n'est jamais envoyée au serveur.
+
 ## 4. Publier au Maître
+
+### Depuis l'écran `/admin/plugins` (recommandé)
+
+Réservé à un compte `ROLE_ADMIN`, sur le Maître. Ouvrir `/admin/plugins`, choisir le `.jar` et son `.jar.sig`
+(produit au chapitre 3), puis envoyer. Le Maître vérifie la signature, lit le manifeste et range le jar comme
+avec l'API (mêmes réponses : version déjà publiée avec un contenu différent refusée, etc.). L'écran montre aussi le
+dépôt, les plugins installés et l'état des serveurs annexes.
+
+- **Désinstaller** : le bouton de l'écran retire le plugin du processus en cours. Cela **vaut jusqu'au prochain
+  redémarrage** : le jar reste sur le disque, donc le plugin peut revenir au redémarrage. Pour un retrait
+  durable : supprimer le jar du répertoire des plugins, ou publier une version supérieure.
+- **Limite d'envoi : 10 Mo** par jar. Au-delà, le comportement exact n'est pas garanti (message d'erreur
+  possiblement absent ou connexion coupée).
+- Ne jamais envoyer la clé privée : l'écran ne la demande pas.
+
+### Avec `curl` (alternative)
 
 Réservé à un compte `ROLE_ADMIN`, sur le Maître seulement (`app.role=MASTER`, `app.plateforme.actif=true`).
 `https://MAITRE` ci-dessous est l'adresse du Maître.
