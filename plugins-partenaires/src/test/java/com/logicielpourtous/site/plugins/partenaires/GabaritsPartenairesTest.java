@@ -47,4 +47,19 @@ class GabaritsPartenairesTest {
 		}
 	}
 
+	@ParameterizedTest
+	@ValueSource(strings = { "partenaire-form", "client-form" })
+	void formulairesAfficheLesErreursParChamp(String vue) throws Exception {
+		try (InputStream in = getClass().getResourceAsStream("/templates/plugins/partenaires/" + vue + ".html")) {
+			String html = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+			assertTrue(html.contains("erreursChamps"));
+			assertTrue(html.contains("invalid-feedback"));
+			assertTrue(html.contains("is-invalid"));
+			assertTrue(html.contains("th:text=\"${erreursChamps['siren']}\""));
+			for (String champ : new String[] { "email", "nom" }) {
+				assertTrue(html.contains("erreursChamps['" + champ + "']"), champ);
+			}
+		}
+	}
+
 }

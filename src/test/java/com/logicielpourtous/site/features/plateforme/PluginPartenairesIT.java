@@ -356,9 +356,10 @@ class PluginPartenairesIT {
 		// SIREN invalide, raison sociale trop longue : 400.
 		r = envoyer("123", "Invalide SARL", email(), "Quatre Quatre");
 		assertThat(r.getStatus()).isEqualTo(400);
-		assertThat(r.getContentAsString()).contains("Données invalides");
+		assertThat(r.getContentAsString()).contains("SIREN invalide : 9 chiffres avec clé de contrôle correcte");
 		r = envoyer(siren(), "R".repeat(256), email(), "Cinq Cinq");
 		assertThat(r.getStatus()).isEqualTo(400);
+		assertThat(r.getContentAsString()).contains("Raison sociale obligatoire");
 
 		assertThat(compteurs()).isEqualTo(avant);
 	}

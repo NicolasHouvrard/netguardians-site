@@ -46,6 +46,11 @@ public class PartenairesPagesController {
 	private static final String MSG_EMAIL_PARTENAIRE = "Cette adresse e-mail est déjà utilisée.";
 	private static final String MSG_CLIENT_CONNU = "société déjà connue, une demande d'accès a été envoyée à son manager";
 	private static final String MSG_CLIENT_EMAIL = "cette adresse e-mail est déjà utilisée";
+	private static final String MSG_SIREN_INVALIDE = "SIREN invalide : 9 chiffres avec clé de contrôle correcte";
+	private static final String MSG_EMAIL_INVALIDE = "Adresse e-mail invalide (255 caractères au plus, un seul @, sans espace)";
+	private static final String MSG_NOM = "Nom obligatoire (255 caractères au plus)";
+	private static final String MSG_RAISON = "Raison sociale obligatoire (255 caractères au plus)";
+	private static final String MSG_TVA = "Le numéro de TVA ne correspond pas au SIREN.";
 	private static final String MSG_INVALIDE = "Données invalides : vérifiez les champs saisis.";
 	private static final String MSG_DROIT = "Droit invalide, ou modèle qui deviendrait vide.";
 
@@ -70,6 +75,7 @@ public class PartenairesPagesController {
 	public String nouveau(Model model) {
 		habiller(model, "Créer un partenaire", null);
 		model.addAttribute("saisie", Map.of());
+		model.addAttribute("erreursChamps", Map.of());
 		return V + "partenaire-form";
 	}
 
@@ -85,12 +91,21 @@ public class PartenairesPagesController {
 		saisie.put("raisonSociale", raisonSociale);
 		saisie.put("email", email);
 		saisie.put("nom", nom);
+		Map<String, String> erreurs = new LinkedHashMap<>();
+		String sirenNormalise = verifierSiren(siren, true, erreurs);
+		String tvaNormalisee = verifierTva(tva, sirenNormalise, erreurs);
+		verifierTexte("raisonSociale", raisonSociale, MSG_RAISON, erreurs);
+		verifierEmail(email, erreurs);
+		verifierTexte("nom", nom, MSG_NOM, erreurs);
+		if (!erreurs.isEmpty()) {
+			return refus("partenaire-form", "Créer un partenaire", saisie, erreurs, null);
+		}
 		ResultatPartenaire r;
 		try {
-			r = contrat.creerPartenaire(new CreationPartenaire(siren, videEnNull(tva), raisonSociale, email, nom));
+			r = contrat.creerPartenaire(new CreationPartenaire(sirenNormalise, tvaNormalisee, raisonSociale, email, nom));
 		}
 		catch (IllegalArgumentException e) {
-			return formulaire("partenaire-form", "Créer un partenaire", saisie, MSG_INVALIDE, HttpStatus.BAD_REQUEST,
+			return formulaire("partenaire-form", "Créer un partenaire", saisie, messageNoyau(e), HttpStatus.BAD_REQUEST,
 					null);
 		}
 		String issue = r == null ? null : r.issue();
@@ -137,13 +152,21 @@ public class PartenairesPagesController {
 		saisie.put("email", email);
 		saisie.put("nom", nom);
 		saisie.put("particulier", estParticulier ? "on" : null);
+		Map<String, String> erreurs = new LinkedHashMap<>();
+		String sirenNormalise = verifierSiren(siren, !estParticulier, erreurs);
+		String tvaNormalisee = verifierTva(tva, sirenNormalise, erreurs);
+		verifierEmail(email, erreurs);
+		verifierTexte("nom", nom, MSG_NOM, erreurs);
+		if (!erreurs.isEmpty()) {
+			return refus("client-form", "Créer un client", saisie, erreurs, partenaire);
+		}
 		ResultatCreation r;
 		try {
 			r = contrat.creerClientPourPartenaire(
-					new CreationClient(partenaire, estParticulier, videEnNull(siren), videEnNull(tva), false, email, nom));
+					new CreationClient(partenaire, estParticulier, sirenNormalise, tvaNormalisee, false, email, nom));
 		}
 		catch (IllegalArgumentException e) {
-			return formulaire("client-form", "Créer un client", saisie, MSG_INVALIDE, HttpStatus.BAD_REQUEST,
+			return formulaire("client-form", "Créer un client", saisie, messageNoyau(e), HttpStatus.BAD_REQUEST,
 					partenaire);
 		}
 		String issue = r == null ? null : r.issue();
@@ -260,6 +283,79 @@ public class PartenairesPagesController {
 		return mav;
 	}
 
+	private static ModelAndView refus(String vue, String titre, Map<String, String> saisie,
+			Map<String, String> erreurs, Long partenaireId) {
+		ModelAndView mav = formulaire(vue, titre, saisie, null, HttpStatus.BAD_REQUEST, partenaireId);
+		mav.addObject("erreursChamps", erreurs);
+		return mav;
+	}
+
+	/** SIREN : 9 chiffres (espaces ignores) et cle de Luhn ; vide accepte (null) si non requis. */
+	private static String verifierSiren(String siren, boolean requis, Map<String, String> erreurs) {
+		String s = siren == null ? "" : siren.replaceAll("[\\s.\\-]", "");
+		if (s.isEmpty() && !requis) {
+			return null;
+		}
+		if (!s.matches("[0-9]{9}") || !luhn(s)) {
+			erreurs.put("siren", MSG_SIREN_INVALIDE);
+			return null;
+		}
+		return s;
+	}
+
+	/** TVA normalisee (majuscules, sans espace, point ni tiret) ; vide = null (calculee par le noyau) ; francaise : doit correspondre au SIREN. */
+	private static String verifierTva(String tva, String siren, Map<String, String> erreurs) {
+		String t = tva == null ? "" : tva.replaceAll("[\\s.\\-]", "").toUpperCase(java.util.Locale.ROOT);
+		if (t.isEmpty()) {
+			return null;
+		}
+		if (siren != null) {
+			long cle = (12 + 3 * (Long.parseLong(siren) % 97)) % 97;
+			if (!t.equals("FR" + String.format("%02d", cle) + siren)) {
+				erreurs.put("tva", MSG_TVA);
+			}
+		}
+		return t;
+	}
+
+	/** Message du noyau s'il est court et non vide (textes fixes), sinon texte generique ; journalise en WARNING. */
+	private static String messageNoyau(IllegalArgumentException e) {
+		JOURNAL.log(Level.WARNING, "Demande refusee par le noyau : {0}", e.getMessage());
+		String m = e.getMessage();
+		return m == null || m.isBlank() || m.length() > 200 ? MSG_INVALIDE : m;
+	}
+
+	private static boolean luhn(String chiffres) {
+		int somme = 0;
+		for (int i = 0; i < chiffres.length(); i++) {
+			int d = chiffres.charAt(chiffres.length() - 1 - i) - 48;
+			if (i % 2 == 1) {
+				d *= 2;
+				if (d > 9) {
+					d -= 9;
+				}
+			}
+			somme += d;
+		}
+		return somme % 10 == 0;
+	}
+
+	private static void verifierTexte(String champ, String valeur, String message, Map<String, String> erreurs) {
+		if (valeur == null || valeur.isBlank() || valeur.length() > 255) {
+			erreurs.put(champ, message);
+		}
+	}
+
+	/** E-mail : non vide, 255 au plus, un seul @ avec du texte de chaque cote, sans espace. */
+	private static void verifierEmail(String email, Map<String, String> erreurs) {
+		int a = email == null ? -1 : email.indexOf(64);
+		boolean ok = email != null && !email.isBlank() && email.length() <= 255 && a > 0 && a < email.length() - 1
+				&& email.indexOf(64, a + 1) < 0 && email.chars().noneMatch(Character::isWhitespace);
+		if (!ok) {
+			erreurs.put("email", MSG_EMAIL_INVALIDE);
+		}
+	}
+
 	private static ModelAndView formulaire(String vue, String titre, Map<String, String> saisie, String erreur,
 			HttpStatus statut, Long partenaireId) {
 		ModelAndView mav = new ModelAndView(V + vue);
@@ -267,6 +363,7 @@ public class PartenairesPagesController {
 		mav.addObject("titre", titre);
 		mav.addObject("moduleActif", "partenaires");
 		mav.addObject("saisie", saisie);
+		mav.addObject("erreursChamps", Map.of());
 		if (erreur != null) {
 			mav.addObject("erreur", erreur);
 		}
