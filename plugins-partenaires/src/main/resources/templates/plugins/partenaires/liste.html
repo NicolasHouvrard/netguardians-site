@@ -24,6 +24,8 @@
             <td th:text="${p.raisonSociale()}">Société</td>
             <td th:text="${p.etat()}">ACTIF</td>
             <td class="text-end">
+                <a class="btn btn-sm btn-outline-secondary"
+                   th:href="@{/p/partenaires/{id}/clients(id=${p.societeId()})}">Clients</a>
                 <a class="btn btn-sm btn-outline-primary"
                    th:href="@{/p/partenaires/{id}/clients/nouveau(id=${p.societeId()})}">Créer un client</a>
             </td>

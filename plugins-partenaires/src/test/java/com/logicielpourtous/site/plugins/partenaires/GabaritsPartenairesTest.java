@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -15,7 +16,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class GabaritsPartenairesTest {
 
 	@ParameterizedTest
-	@ValueSource(strings = { "liste", "partenaire-form", "client-form", "modele", "refuse", "erreur" })
+	@ValueSource(strings = { "liste", "partenaire-form", "client-form", "modele", "refuse", "erreur", "clients" })
 	void gabaritConforme(String vue) throws Exception {
 		String chemin = "/templates/plugins/partenaires/" + vue + ".html";
 		String html;
@@ -59,6 +60,28 @@ class GabaritsPartenairesTest {
 			for (String champ : new String[] { "email", "nom" }) {
 				assertTrue(html.contains("erreursChamps['" + champ + "']"), champ);
 			}
+		}
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = { "clients" })
+	void clientsAfficheLesChampsParThText(String vue) throws Exception {
+		try (InputStream in = getClass().getResourceAsStream("/templates/plugins/partenaires/" + vue + ".html")) {
+			String html = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+			for (String champ : new String[] { "raisonSociale", "siren", "origine", "depuis" }) {
+				assertTrue(html.contains(champ + "()"), champ);
+			}
+			assertTrue(html.contains("Aucun client pour ce partenaire"));
+			assertTrue(html.contains("/clients/nouveau"));
+		}
+	}
+
+	@Test
+	void listeAUnLienClientsParLigne() throws Exception {
+		try (InputStream in = getClass().getResourceAsStream("/templates/plugins/partenaires/liste.html")) {
+			String html = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+			assertTrue(html.contains("/clients(id="));
+			assertTrue(html.contains(">Clients<"));
 		}
 	}
 

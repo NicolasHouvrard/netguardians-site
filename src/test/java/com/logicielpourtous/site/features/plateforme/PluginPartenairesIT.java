@@ -382,6 +382,34 @@ class PluginPartenairesIT {
 				.doesNotContain("<script>alert(1)").doesNotContain("<img src=x onerror=1>");
 	}
 
+	// ---- (f2) liste des clients d'un partenaire -----------------------------------------------------------------
+
+	@Test
+	void f2_liste_des_clients_du_partenaire_echappee_reservee_a_l_admin_et_cloisonnee() throws Exception {
+		Map<String, String> p = creerPartenaire("Liste Partenaire SARL", "Liste Manager", null);
+		Map<String, String> autre = creerPartenaire("Autre Partenaire SARL", "Autre Manager", null);
+		long partenaireId = societeIdPartenaire(p.get("siren"));
+		long autreId = societeIdPartenaire(autre.get("siren"));
+		String sirenClient = siren();
+		mvc.perform(post("/p/partenaires/" + partenaireId + "/clients").param("siren", sirenClient)
+				.param("email", email()).param("nom", HOSTILE_NOM).with(user(admin)).with(csrf()))
+				.andExpect(status().isFound());
+		String sirenAutre = siren();
+		mvc.perform(post("/p/partenaires/" + autreId + "/clients").param("siren", sirenAutre)
+				.param("email", email()).param("nom", "Client Autre Partenaire").with(user(admin)).with(csrf()))
+				.andExpect(status().isFound());
+
+		String html = page("/p/partenaires/" + partenaireId + "/clients", admin);
+		assertThat(html).contains(sirenClient).contains("PARTENAIRE")
+				.contains("&quot;&gt;&lt;img src=x onerror=1&gt;").doesNotContain("<img src=x")
+				.doesNotContain(sirenAutre).doesNotContain("Client Autre Partenaire");
+
+		mvc.perform(get("/p/partenaires/" + partenaireId + "/clients").with(user(gestionnaire)))
+				.andExpect(status().isForbidden());
+		mvc.perform(get("/p/partenaires/abc/clients").with(user(admin))).andExpect(status().isNotFound());
+		mvc.perform(get("/p/partenaires/999999999/clients").with(user(admin))).andExpect(status().isNotFound());
+	}
+
 	// ---- (f) client pour un partenaire : tenant du partenaire, lien d'origine, journal ------------------------------
 
 	@Test

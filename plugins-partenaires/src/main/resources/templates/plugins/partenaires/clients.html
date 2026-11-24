@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{socle/layout}">
+<body>
+<div class="socle-zone" layout:fragment="contenu">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-0">Clients du partenaire <span th:text="${partenaireId}">1</span></h1>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary" th:href="@{/p/partenaires/liste}">Retour à la liste</a>
+            <a class="btn btn-primary" th:href="@{/p/partenaires/{id}/clients/nouveau(id=${partenaireId})}">Créer un client</a>
+        </div>
+    </div>
+    <p class="text-muted" th:if="${#lists.isEmpty(clients)}">Aucun client pour ce partenaire</p>
+    <table class="table table-hover align-middle" th:unless="${#lists.isEmpty(clients)}">
+        <thead>
+        <tr><th>Raison sociale</th><th>SIREN</th><th>Origine</th><th>Depuis</th></tr>
+        </thead>
+        <tbody>
+        <tr th:each="c : ${clients}">
+            <td th:text="${c.raisonSociale()}">Société</td>
+            <td th:text="${c.siren()}">123456789</td>
+            <td th:text="${c.origine()}">PARTENAIRE</td>
+            <td th:text="${c.depuis()}">2025-01-01T00:00:00Z</td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

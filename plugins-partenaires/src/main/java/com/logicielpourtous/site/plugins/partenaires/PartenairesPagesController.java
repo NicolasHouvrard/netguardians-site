@@ -124,6 +124,28 @@ public class PartenairesPagesController {
 
 	// ---- client d'un partenaire (l'identifiant du partenaire vient uniquement du chemin)
 
+	@GetMapping("/{partenaireId}/clients")
+	public ModelAndView clients(@PathVariable("partenaireId") String partenaireId, HttpServletRequest requete) {
+		if (!valide(partenaireId, requete)) {
+			return introuvable();
+		}
+		long id = Long.parseLong(partenaireId);
+		List<GestionPartenairesContrat.ClientResume> liste;
+		try {
+			liste = contrat.listerClientsDuPartenaire(id);
+		}
+		catch (IllegalArgumentException e) {
+			JOURNAL.log(Level.WARNING, "Partenaire introuvable pour la liste des clients : {0}", e.getMessage());
+			return introuvable();
+		}
+		ModelAndView mav = new ModelAndView(V + "clients");
+		mav.addObject("clients", liste);
+		mav.addObject("partenaireId", id);
+		mav.addObject("titre", "Clients du partenaire");
+		mav.addObject("moduleActif", "partenaires");
+		return mav;
+	}
+
 	@GetMapping("/{partenaireId}/clients/nouveau")
 	public ModelAndView nouveauClient(@PathVariable("partenaireId") String partenaireId,
 			HttpServletRequest requete) {

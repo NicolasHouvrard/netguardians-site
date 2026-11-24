@@ -160,7 +160,7 @@ class PartenairesPagesControllerTest {
 		return new ResultActions[] { mvc.perform(get("/liste")), mvc.perform(pOk()),
 				mvc.perform(cOk(12)), mvc.perform(get("/modele")),
 				mvc.perform(post("/modele/ajouter").param("droit", "clients.exporter")),
-				mvc.perform(post("/modele/retirer").param("droit", "clients.exporter")) };
+				mvc.perform(post("/modele/retirer").param("droit", "clients.exporter")), mvc.perform(get("/12/clients")) };
 	}
 
 	private void toutLeContratLeve(RuntimeException e) {
@@ -168,6 +168,7 @@ class PartenairesPagesControllerTest {
 		when(contrat.creerPartenaire(any())).thenThrow(e);
 		when(contrat.creerClientPourPartenaire(any())).thenThrow(e);
 		when(contrat.modeleDroits()).thenThrow(e);
+		when(contrat.listerClientsDuPartenaire(org.mockito.ArgumentMatchers.anyLong())).thenThrow(e);
 	}
 
 	@Test
@@ -522,6 +523,35 @@ class PartenairesPagesControllerTest {
 	@Test
 	void tvaClientSocieteIncoherenteRefusee() throws Exception {
 		refuseChampClient(cOk(42, "tva", "FR00732829320"), "tva");
+	}
+
+	// liste des clients d'un partenaire
+
+	@Test
+	void clientsDuPartenaireAfficheLaListe() throws Exception {
+		var l = List.of(new GestionPartenairesContrat.ClientResume(3L, "732829320", "Acme", java.time.Instant.EPOCH, "PARTENAIRE"));
+		when(contrat.listerClientsDuPartenaire(42L)).thenReturn(l);
+		mvc.perform(get("/42/clients"))
+			.andExpect(status().isOk())
+			.andExpect(view().name(V + "clients"))
+			.andExpect(model().attribute("clients", l))
+			.andExpect(model().attribute("partenaireId", 42L))
+			.andExpect(model().attribute("moduleActif", "partenaires"))
+			.andExpect(model().attributeExists("titre"));
+	}
+
+	@Test
+	void clientsDuPartenaireInconnuDonne404PageErreur() throws Exception {
+		when(contrat.listerClientsDuPartenaire(42L)).thenThrow(new IllegalArgumentException("detail-interne"));
+		var r = mvc.perform(get("/42/clients")).andExpect(status().isNotFound()).andExpect(view().name(V + "erreur")).andReturn();
+		assertFalse(r.getModelAndView().getModel().toString().contains("detail-interne"));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = { "abc", "1;2", "..%2Fx", "1234567890123456", "-1", "1.5" })
+	void clientsIdentifiantInvalide404SansContrat(String id) throws Exception {
+		mvc.perform(get("/" + id + "/clients")).andExpect(status().isNotFound());
+		verifyNoInteractions(contrat);
 	}
 
 }
