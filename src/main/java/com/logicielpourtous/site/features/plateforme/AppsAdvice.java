@@ -1,10 +1,13 @@
 package com.logicielpourtous.site.features.plateforme;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
@@ -58,6 +61,10 @@ public class AppsAdvice {
 
 		private static final Logger log = LoggerFactory.getLogger(Apps.class);
 
+		/** Écran du noyau (pas d'un plugin) : réglage du thème du serveur, réservé à ROLE_ADMIN. */
+		private static final TuileApp TUILE_APPARENCE = new TuileApp("Apparence", "bi-palette", "primaire",
+				"/admin/apparence");
+
 		private final NavigationService navigation;
 
 		private List<TuileApp> tuiles;
@@ -68,16 +75,28 @@ public class AppsAdvice {
 
 		public synchronized List<TuileApp> tuiles() {
 			if (tuiles == null) {
+				List<TuileApp> liste = new ArrayList<>();
 				try {
-					tuiles = navigation.tuilesAutorisees(null).stream().filter(t -> t.url() != null)
-							.map(TuileApp::depuis).toList();
+					navigation.tuilesAutorisees(null).stream().filter(t -> t.url() != null).map(TuileApp::depuis)
+							.forEach(liste::add);
 				}
 				catch (RuntimeException e) {
 					log.warn("Accueil : lecture des applications en échec, liste vide", e);
-					tuiles = List.of();
+					liste.clear();
 				}
+				if (adminDuServeur()) {
+					liste.add(TUILE_APPARENCE);
+				}
+				tuiles = List.copyOf(liste);
 			}
 			return tuiles;
+		}
+
+		/** Même condition que la règle de sécurité de {@code /admin/**} : rôle ROLE_ADMIN. */
+		private static boolean adminDuServeur() {
+			Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+			return auth != null && auth.isAuthenticated() && auth.getAuthorities().stream()
+					.anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
 		}
 
 	}
