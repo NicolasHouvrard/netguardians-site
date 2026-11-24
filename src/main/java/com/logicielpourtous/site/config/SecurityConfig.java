@@ -312,6 +312,8 @@ public class SecurityConfig {
                 chemins.matcher("/admin/socle/**"),
                 // Ecran Apparence : ecrit les reglages de theme servis a tous.
                 chemins.matcher("/admin/apparence/**"),
+                // Ecran Plugins : publication au depot et desinstallation (ecrivent sur le Maitre).
+                chemins.matcher("/admin/plugins/**"),
                 // Pages de plugin : TOUTE methode modifiante exige le jeton, par prefixe (aucune liste de chemins).
                 chemins.matcher("/p/**"));
         RequestMatcher methodeModifiante = request -> !METHODES_SANS_EFFET.contains(request.getMethod());

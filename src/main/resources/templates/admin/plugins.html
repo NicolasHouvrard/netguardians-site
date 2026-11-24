@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{socle/layout}">
+<body>
+<div class="socle-panneau" layout:fragment="panneau">
+    <div th:replace="~{socle/fragments/control-panel :: control-panel(${titre}, ${fil}, null, null)}"></div>
+</div>
+<div class="socle-zone" layout:fragment="contenu">
+    <div class="alert alert-success" role="status" th:if="${message != null}" th:text="${message}">Succès</div>
+    <div class="alert alert-danger" role="alert" th:if="${erreur != null}" th:text="${erreur}">Erreur</div>
+    <div class="alert alert-warning" role="status" th:if="${avertissement != null}" th:text="${avertissement}">Avertissement</div>
+
+    <section class="mb-4">
+        <h2 class="h5">Publier une version</h2>
+        <p class="text-muted small">Envoyez le jar du plugin et son fichier de signature (<code>.sig</code>) produits hors
+            ligne : la clé privée ne passe jamais par ce serveur ni par le navigateur. Taille maximale : 10 Mo.</p>
+        <form method="post" th:action="@{/admin/plugins/publier}" enctype="multipart/form-data" class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label" for="plugin-jar">Jar du plugin</label>
+                <input class="form-control" type="file" id="plugin-jar" name="jar" accept=".jar" required>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label" for="plugin-sig">Signature (.sig)</label>
+                <input class="form-control" type="file" id="plugin-sig" name="sig" accept=".sig,application/json" required>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Publier</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="mb-4">
+        <h2 class="h5">Dépôt du Maître</h2>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+                <thead>
+                <tr><th>Plugin</th><th>Version</th><th>Mise à jour</th><th>Cœur min.</th><th>Cœur max.</th><th>Taille</th><th>SHA-256</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="e : ${catalogue}">
+                    <td th:text="${e.nom()}">nom</td>
+                    <td th:text="${e.version()}">1.0.0</td>
+                    <td th:text="${e.miseAJour()}">coeur</td>
+                    <td th:text="${e.coeurMin()}">1.0.0</td>
+                    <td th:text="${e.coeurMax() != null ? e.coeurMax() : '—'}">—</td>
+                    <td th:text="${e.taille()} + ' o'">0 o</td>
+                    <td><code th:text="${#strings.abbreviate(e.sha256(), 16)}">sha</code></td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(catalogue)}"><td colspan="7" class="text-muted">Aucune version publiée.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="mb-4">
+        <h2 class="h5">Installés sur le Maître</h2>
+        <p class="text-muted small">Désinstaller retire le plugin du Maître ; il n'est pas réinstallé à la même version
+            (publiez une version plus haute pour le remettre en service).</p>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+                <thead><tr><th>Plugin</th><th>Version</th><th>État</th><th></th></tr></thead>
+                <tbody>
+                <tr th:each="p : ${installes}">
+                    <td th:text="${p.nom()}">nom</td>
+                    <td th:text="${p.version()}">1.0.0</td>
+                    <td th:text="${p.etat()}">ACTIF</td>
+                    <td class="text-end">
+                        <form method="post" th:action="@{/admin/plugins/{nom}/desinstaller(nom=${p.nom()})}"
+                              hx-boost="true" hx-confirm="Désinstaller ce plugin du Maître ?">
+                            <button type="submit" class="btn btn-outline-danger btn-sm">Désinstaller</button>
+                        </form>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(installes)}"><td colspan="4" class="text-muted">Aucun plugin installé.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="mb-4">
+        <h2 class="h5">Serveurs annexes</h2>
+        <p class="text-muted small">Derniers états rapportés par les serveurs annexes (texte non fiable, affiché tel quel).</p>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+                <thead><tr><th>Serveur</th><th>Plugin</th><th>Version</th><th>Statut</th><th>Raisons</th><th>Metaspace</th><th>Rapporté le</th></tr></thead>
+                <tbody>
+                <tr th:each="s : ${serveurs}">
+                    <td th:text="${s.licenceServeurId()}">1</td>
+                    <td th:text="${s.nom()}">nom</td>
+                    <td th:text="${s.version()}">1.0.0</td>
+                    <td th:text="${s.statut()}">OK</td>
+                    <td>
+                        <ul class="mb-0 ps-3"><li th:each="r : ${s.raisons()}" th:text="${r}">raison</li></ul>
+                    </td>
+                    <td th:text="${s.metaspace() != null ? s.metaspace().metaspaceMo() + ' / ' + s.metaspace().seuilMo() + ' Mo' + (s.metaspace().redemarrageRecommande() ? ' (redémarrage recommandé)' : '') : '—'}">—</td>
+                    <td th:text="${s.rapporteLe()}">date</td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(serveurs)}"><td colspan="7" class="text-muted">Aucun état rapporté.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+</body>
+</html>

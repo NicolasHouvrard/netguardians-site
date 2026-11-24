@@ -20,7 +20,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.core.io.InputStreamResource;
-import org.springframework.data.domain.Limit;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
@@ -132,9 +131,13 @@ public class DistributionController {
 
 	private final EtatPluginServeurRepository etats;
 
-	public DistributionController(DepotPlugins depot, EtatPluginServeurRepository etats) {
+	private final LectureEtatsServeurs lecture;
+
+	public DistributionController(DepotPlugins depot, EtatPluginServeurRepository etats,
+			LectureEtatsServeurs lecture) {
 		this.depot = depot;
 		this.etats = etats;
+		this.lecture = lecture;
 	}
 
 	@GetMapping("/api/licence/plugins/catalogue")
@@ -234,14 +237,7 @@ public class DistributionController {
 				throw new IllegalArgumentException("limite invalide (entier positif attendu)");
 			}
 		}
-		return etats.findAllByOrderByLicenceServeurIdAscNomAsc(Limit.of(Math.min(n, LISTE_MAX)))
-			.stream()
-			.map(e -> new EtatServeur(e.getLicenceServeurId(), e.getNom(), e.getVersion(), e.getStatut(),
-					e.getRaisons() == null || e.getRaisons().isEmpty() ? List.of() : List.of(e.getRaisons().split("\n")),
-					e.getRapporteLe(),
-					e.getMetaspaceMo() == null || e.getSeuilMo() == null || e.getRedemarrageRecommande() == null ? null
-							: new MetaspaceServeur(e.getMetaspaceMo(), e.getSeuilMo(), e.getRedemarrageRecommande())))
-			.toList();
+		return lecture.derniers(Math.min(n, LISTE_MAX));
 	}
 
 	@ExceptionHandler(IllegalArgumentException.class)
