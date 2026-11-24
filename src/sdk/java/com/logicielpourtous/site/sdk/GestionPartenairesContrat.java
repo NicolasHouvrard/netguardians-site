@@ -35,6 +35,14 @@ public interface GestionPartenairesContrat {
 	List<PartenaireResume> listerPartenaires();
 
 	/**
+	 * Clients d'un partenaire, du plus recent au plus ancien (date du lien).
+	 *
+	 * @throws SecurityException si l'appelant n'est pas l'admin du serveur maitre (verifie par le noyau)
+	 * @throws IllegalArgumentException si la societe est inconnue ou n'a pas la capacite partenaire
+	 */
+	List<ClientResume> listerClientsDuPartenaire(long partenaireSocieteId);
+
+	/**
 	 * Droits du modele applique par defaut aux nouveaux partenaires.
 	 *
 	 * @throws SecurityException si l'appelant n'est pas l'admin du serveur maitre (verifie par le noyau)
@@ -55,6 +63,10 @@ public interface GestionPartenairesContrat {
 
 	/** {@code issue} : CREE, SIREN_DEJA_CONNU ou EMAIL_DEJA_UTILISE ; {@code societeId} seulement pour CREE. */
 	record ResultatPartenaire(String issue, Long societeId) {
+	}
+
+	/** Client d'un partenaire ; {@code origine} est la valeur de liens_clients.origine, {@code depuis} la date du lien. */
+	record ClientResume(long societeId, String siren, String raisonSociale, java.time.Instant depuis, String origine) {
 	}
 
 	/** Resume d'un partenaire ; {@code etat} est l'etat courant du partenaire. */

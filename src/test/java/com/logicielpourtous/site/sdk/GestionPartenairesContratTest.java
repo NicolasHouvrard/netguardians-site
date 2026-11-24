@@ -32,4 +32,14 @@ class GestionPartenairesContratTest {
 		assertThat(resume.etat()).isEqualTo("ACTIF");
 	}
 
+	@Test
+	void clientResumeConserveSesValeurs() {
+		var t = java.time.Instant.parse("2025-01-01T00:00:00Z");
+		var resume = new GestionPartenairesContrat.ClientResume(3L, "732829320", "Acme", t, "PARTENAIRE");
+
+		assertThat(resume.societeId()).isEqualTo(3L);
+		assertThat(resume.depuis()).isEqualTo(t);
+		assertThat(resume.origine()).isEqualTo("PARTENAIRE");
+	}
+
 }

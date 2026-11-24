@@ -1,5 +1,7 @@
 package com.logicielpourtous.site.features.clients;
 
+import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -7,6 +9,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.logicielpourtous.site.features.commun.Tenant;
 import com.logicielpourtous.site.features.commun.TenantRepository;
@@ -51,10 +54,12 @@ class GestionPartenairesContratImpl implements GestionPartenairesContrat {
 
 	private final EtatPartenaireRepository etats;
 
+	private final LienClientRepository liens;
+
 	GestionPartenairesContratImpl(IdentiteContrat identite, CreationPartenaireService creation,
 			JournalActionsMaitre journal, ModeleDroitsPartenaireService modele, AnnuaireClientsContratImpl annuaire,
 			SocieteIdentiteRepository societes, CapaciteSocieteRepository capacites, TenantRepository tenants,
-			EtatPartenaireRepository etats) {
+			EtatPartenaireRepository etats, LienClientRepository liens) {
 		this.identite = identite;
 		this.creation = creation;
 		this.journal = journal;
@@ -64,6 +69,7 @@ class GestionPartenairesContratImpl implements GestionPartenairesContrat {
 		this.capacites = capacites;
 		this.tenants = tenants;
 		this.etats = etats;
+		this.liens = liens;
 	}
 
 	/** Echec ferme : toute anomalie de lecture de l'identite, ou toute identite incomplete, est un refus. */
@@ -150,6 +156,24 @@ class GestionPartenairesContratImpl implements GestionPartenairesContrat {
 			return new PartenaireResume(s.getId(), s.getSiren(), t == null ? null : t.getName(),
 					etat == null ? "ACTIF" : etat.getEtat());
 		}).toList();
+	}
+
+	/** Garde admin en premier ; partenaire inconnu ou sans capacite PARTENAIRE : IllegalArgumentException. */
+	@Override
+	@Transactional(readOnly = true)
+	public List<ClientResume> listerClientsDuPartenaire(long partenaireSocieteId) {
+		adminDuMaitre();
+		societes.findById(partenaireSocieteId)
+			.filter(s -> capacites.existsBySocieteIdAndCapacite(s.getId(), TypeCapacite.PARTENAIRE))
+			.orElseThrow(() -> new IllegalArgumentException("Société partenaire inconnue ou sans capacité partenaire."));
+		Map<Long, Instant> depuis = liens.findByPartenaireSocieteId(partenaireSocieteId)
+			.stream()
+			.collect(Collectors.toMap(LienClient::getClientSocieteId, LienClient::getDepuis));
+		return annuaire.clientsDuPartenaire(partenaireSocieteId)
+			.stream()
+			.map(c -> new ClientResume(c.societeId(), c.siren(), c.nom(), depuis.get(c.societeId()), c.origine()))
+			.sorted(Comparator.comparing(ClientResume::depuis, Comparator.nullsLast(Comparator.reverseOrder())))
+			.toList();
 	}
 
 	@Override

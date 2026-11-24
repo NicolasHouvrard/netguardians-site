@@ -163,6 +163,7 @@ class GestionPartenairesContratTest {
         m.put("listerPartenaires", () -> contrat.listerPartenaires());
         m.put("modeleDroits", () -> contrat.modeleDroits());
         m.put("remplacerModeleDroits", () -> contrat.remplacerModeleDroits(Set.of("x.y")));
+        m.put("listerClientsDuPartenaire", () -> contrat.listerClientsDuPartenaire(partenaire));
         return m;
     }
 
@@ -386,4 +387,50 @@ class GestionPartenairesContratTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM journal_actions_maitre WHERE admin_user_id = ?",
                 Long.class, ADMIN)).isZero();
     }
+
+    // --- Clients d'un partenaire ---
+
+    @Test
+    void clientsDuPartenaireInconnuOuSansCapaciteRefuses() {
+        Long p = partenaire();
+        adminDuMaitre();
+        Long client = contrat.creerClientPourPartenaire(demandeClient(p)).societeId();
+        assertThatThrownBy(() -> contrat.listerClientsDuPartenaire(999_999_999L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Société partenaire inconnue ou sans capacité partenaire.");
+        assertThatThrownBy(() -> contrat.listerClientsDuPartenaire(client))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Société partenaire inconnue ou sans capacité partenaire.");
+    }
+
+    @Test
+    void clientsDuPartenaireSansClientListeVide() {
+        Long p = partenaire();
+        adminDuMaitre();
+        assertThat(contrat.listerClientsDuPartenaire(p)).isEmpty();
+    }
+
+    @Test
+    void clientsDuPartenaireTriesParDateDecroissanteSansceuxDesAutres() {
+        Long p = partenaire();
+        Long autre = partenaire();
+        adminDuMaitre();
+        CreationClient d1 = demandeClient(p);
+        CreationClient d2 = demandeClient(p);
+        Long c1 = contrat.creerClientPourPartenaire(d1).societeId();
+        Long c2 = contrat.creerClientPourPartenaire(d2).societeId();
+        Long cAutre = contrat.creerClientPourPartenaire(demandeClient(autre)).societeId();
+        jdbc.update("UPDATE liens_clients SET depuis = '2024-01-01T00:00:00Z' WHERE client_societe_id = ?", c1);
+        jdbc.update("UPDATE liens_clients SET depuis = '2025-06-01T00:00:00Z' WHERE client_societe_id = ?", c2);
+
+        List<GestionPartenairesContrat.ClientResume> liste = contrat.listerClientsDuPartenaire(p);
+
+        assertThat(liste).extracting(GestionPartenairesContrat.ClientResume::societeId).containsExactly(c2, c1);
+        assertThat(liste).extracting(GestionPartenairesContrat.ClientResume::societeId).doesNotContain(cAutre);
+        assertThat(liste.get(0).siren()).isEqualTo(d2.siren());
+        assertThat(liste.get(0).origine()).isEqualTo("PARTENAIRE");
+        assertThat(liste.get(0).raisonSociale()).isEqualTo("Bob Client");
+        assertThat(liste.get(0).depuis()).isEqualTo(java.time.Instant.parse("2025-06-01T00:00:00Z"));
+    }
+
 }
