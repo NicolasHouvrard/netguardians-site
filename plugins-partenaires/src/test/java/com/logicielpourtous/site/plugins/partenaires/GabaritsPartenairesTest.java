@@ -36,4 +36,15 @@ class GabaritsPartenairesTest {
 		}
 	}
 
+	@ParameterizedTest
+	@ValueSource(strings = { "partenaire-form", "client-form" })
+	void champSirenAssezLongPourLesEspaces(String vue) throws Exception {
+		try (InputStream in = getClass().getResourceAsStream("/templates/plugins/partenaires/" + vue + ".html")) {
+			String html = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+			Matcher m = Pattern.compile("<input[^>]*id=\"siren\"[^>]*>").matcher(html);
+			assertTrue(m.find());
+			assertFalse(m.group().contains("maxlength=\"9\""), "maxlength=9 tronque un SIREN saisi avec espaces");
+		}
+	}
+
 }

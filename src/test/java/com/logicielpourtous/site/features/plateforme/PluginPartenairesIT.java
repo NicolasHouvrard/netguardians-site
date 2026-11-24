@@ -398,7 +398,7 @@ class PluginPartenairesIT {
 				.andExpect(status().isFound())
 				.andExpect(header().string("Location", endsWith("/p/partenaires/liste?ok=client")));
 		String emailParticulier = email();
-		mvc.perform(post("/p/partenaires/" + partenaireId + "/clients").param("particulier", "on")
+		mvc.perform(post("/p/partenaires/" + partenaireId + "/clients").param("particulier", "on").param("siren", "").param("tva", "")
 				.param("email", emailParticulier).param("nom", "Client Particulier").with(user(admin)).with(csrf()))
 				.andExpect(status().isFound())
 				.andExpect(header().string("Location", endsWith("/p/partenaires/liste?ok=client")));

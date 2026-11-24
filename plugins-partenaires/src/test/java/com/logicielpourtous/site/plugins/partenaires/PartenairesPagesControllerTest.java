@@ -326,4 +326,30 @@ class PartenairesPagesControllerTest {
 		}
 	}
 
+	@Test
+	void particulierAvecChampsVidesTransmetNull() throws Exception {
+		when(contrat.creerClientPourPartenaire(any())).thenReturn(new ResultatCreation("CREE", 9L));
+		mvc.perform(post("/42/clients").param("particulier", "on")
+			.param("siren", "")
+			.param("tva", "  ")
+			.param("email", "c@d.fr")
+			.param("nom", "Zoe")).andExpect(redirectedUrl("/p/partenaires/liste?ok=client"));
+		ArgumentCaptor<CreationClient> c = ArgumentCaptor.forClass(CreationClient.class);
+		verify(contrat).creerClientPourPartenaire(c.capture());
+		assertEquals(new CreationClient(42L, true, null, null, false, "c@d.fr", "Zoe"), c.getValue());
+	}
+
+	@Test
+	void tvaPartenaireVideTransmetNull() throws Exception {
+		when(contrat.creerPartenaire(any())).thenReturn(new ResultatPartenaire("CREE", 5L));
+		mvc.perform(post("/").param("siren", "123456789")
+			.param("tva", "")
+			.param("raisonSociale", "Acme")
+			.param("email", "a@b.fr")
+			.param("nom", "Jean")).andExpect(redirectedUrl("/p/partenaires/liste?ok=partenaire"));
+		ArgumentCaptor<CreationPartenaire> c = ArgumentCaptor.forClass(CreationPartenaire.class);
+		verify(contrat).creerPartenaire(c.capture());
+		assertEquals(new CreationPartenaire("123456789", null, "Acme", "a@b.fr", "Jean"), c.getValue());
+	}
+
 }

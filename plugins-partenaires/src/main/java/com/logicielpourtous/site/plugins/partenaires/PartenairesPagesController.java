@@ -87,7 +87,7 @@ public class PartenairesPagesController {
 		saisie.put("nom", nom);
 		ResultatPartenaire r;
 		try {
-			r = contrat.creerPartenaire(new CreationPartenaire(siren, tva, raisonSociale, email, nom));
+			r = contrat.creerPartenaire(new CreationPartenaire(siren, videEnNull(tva), raisonSociale, email, nom));
 		}
 		catch (IllegalArgumentException e) {
 			return formulaire("partenaire-form", "Créer un partenaire", saisie, MSG_INVALIDE, HttpStatus.BAD_REQUEST,
@@ -140,7 +140,7 @@ public class PartenairesPagesController {
 		ResultatCreation r;
 		try {
 			r = contrat.creerClientPourPartenaire(
-					new CreationClient(partenaire, estParticulier, siren, tva, false, email, nom));
+					new CreationClient(partenaire, estParticulier, videEnNull(siren), videEnNull(tva), false, email, nom));
 		}
 		catch (IllegalArgumentException e) {
 			return formulaire("client-form", "Créer un client", saisie, MSG_INVALIDE, HttpStatus.BAD_REQUEST,
@@ -224,6 +224,11 @@ public class PartenairesPagesController {
 	// ---- utilitaires
 
 	/** Identifiant numerique, et aucun parametre de chemin (;) dans l adresse brute (Spring les retire avant la liaison). */
+	/** Un champ de formulaire laisse vide arrive en chaine vide : le contrat attend null. */
+	private static String videEnNull(String valeur) {
+		return valeur == null || valeur.isBlank() ? null : valeur;
+	}
+
 	private List<String> droitsTries() {
 		return new ArrayList<>(new TreeSet<>(contrat.modeleDroits()));
 	}
