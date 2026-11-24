@@ -40,6 +40,8 @@ configurer_ecoute_nginx() {
   cat > "$fichier_serveur" <<EOF
 server {
   listen ${adresse_ip_liaison}:${port_ecoute};
+  # Envois de plugins (jar + signature, limite applicative 10 Mo) : sans cela Nginx plafonne a 1 Mo (413).
+  client_max_body_size 12m;
   location / {
     proxy_pass http://site_actif;
     proxy_set_header Host \$host;

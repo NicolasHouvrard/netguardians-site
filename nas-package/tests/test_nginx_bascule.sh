@@ -23,6 +23,14 @@ test_configurer_ecoute_nginx_cree_le_bloc_server_au_bon_format_si_absent() {
     && grep -q "proxy_pass http://site_actif;" "$dir/server.conf"
 }
 
+test_configurer_ecoute_nginx_autorise_les_envois_de_plugins_jusqu_a_12_mo() {
+  # sans cette directive Nginx applique 1 Mo et refuse (413) les jars de plugins avant l'application (limite 10 Mo)
+  dir=$(mktemp -d)
+  source "$NAS_PKG_DIR/lib/nginx_bascule.sh"
+  configurer_ecoute_nginx "$dir/server.conf" "100.64.0.12" 8072
+  grep -q "client_max_body_size 12m;" "$dir/server.conf"
+}
+
 test_configurer_ecoute_nginx_ecrase_les_en_tetes_x_forwarded_plutot_que_de_les_relayer() {
   # sans ces directives, un client pourrait injecter son propre X-Forwarded-For
   # et le faire relayer tel quel a l'application (usurpation d'IP dans les logs)
