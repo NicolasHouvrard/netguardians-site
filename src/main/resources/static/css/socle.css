@@ -1,0 +1,133 @@
+/* Polices hebergees (voir fonts/README.md). */
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url('fonts/inter-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url('fonts/inter-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Roboto'; font-style: normal; font-weight: 400; font-display: swap; src: url('fonts/roboto-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Roboto'; font-style: normal; font-weight: 700; font-display: swap; src: url('fonts/roboto-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Source Sans 3'; font-style: normal; font-weight: 400; font-display: swap; src: url('fonts/source-sans-3-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Source Sans 3'; font-style: normal; font-weight: 700; font-display: swap; src: url('fonts/source-sans-3-latin-700-normal.woff2') format('woff2'); }
+
+/* Socle : les couleurs, tailles et styles reglables passent par les variables --socle-<cle> du theme
+   (voir ThemeValeurs) ; la valeur apres la virgule est un repere de secours, remplace par /css/theme.css.
+   Un test (ThemeSocleCssTest) garantit que chaque variable utilisee ici est une cle du theme ou une variable derivee. */
+body.socle {
+    background: var(--socle-couleur-fond, #f6f7f9);
+    color: var(--socle-couleur-texte, #212529);
+    font-family: var(--socle-police, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+    font-size: var(--socle-taille-texte, 15px);
+    padding-top: var(--socle-topbar-hauteur, 46px);
+}
+.socle-topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1030;
+    height: var(--socle-topbar-hauteur, 46px);
+    display: flex; align-items: center; gap: .75rem;
+    padding: 0 .75rem;
+    background: var(--socle-topbar-fond, #6d4c9f);
+    color: var(--socle-topbar-texte, #ffffff);
+}
+.socle-topbar a { color: var(--socle-topbar-texte, #ffffff); text-decoration: none; }
+.socle-topbar-btn {
+    background: transparent; border: 0; color: var(--socle-topbar-texte, #ffffff);
+    font-size: 1.15rem; line-height: 1; padding: .3rem .5rem; border-radius: var(--socle-arrondi, 8px);
+}
+.socle-topbar-btn:hover { background: rgba(255, 255, 255, .15); }
+.socle-marque { font-weight: 600; }
+.socle-menu-module { display: flex; gap: .25rem; }
+.socle-menu-module a { padding: .25rem .6rem; border-radius: var(--socle-arrondi, 8px); font-size: .9rem; }
+.socle-menu-module a:hover { background: rgba(255, 255, 255, .15); }
+.socle-topbar-fin { margin-left: auto; }
+.socle-apps-menu { background: #ffffff; color: var(--socle-couleur-texte, #212529); padding: .5rem; }
+.socle-apps-grid { display: grid; grid-template-columns: repeat(3, 5.5rem); gap: .25rem; }
+.socle-tuile {
+    display: flex; flex-direction: column; align-items: center; gap: .25rem;
+    padding: .6rem .25rem; border-radius: var(--socle-tuile-arrondi, 12px);
+    color: var(--socle-couleur-texte, #212529) !important; font-size: .8rem; text-align: center;
+}
+.socle-tuile i { font-size: 1.6rem; color: var(--socle-couleur-primaire, #6d4c9f); }
+.socle-tuile:hover { background: #eef2f7; }
+.socle-panneau:empty { display: none; }
+.socle-panneau {
+    background: #ffffff;
+    border-bottom: var(--socle-epaisseur-trait, 1px) solid var(--socle-couleur-bordure, #d9dde3);
+    padding: .5rem 1rem;
+}
+.socle-zone { padding: 1rem; }
+
+/* Boutons */
+body.socle .btn { border-radius: var(--socle-bouton-arrondi, 8px); }
+body.socle .btn-primary {
+    background-color: var(--socle-bouton-primaire-fond, #6d4c9f);
+    border-color: var(--socle-bouton-primaire-fond, #6d4c9f);
+}
+
+/* Composants : panneau de controle, liste, fiche, barre de statut, tuiles */
+.socle-cp-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.socle-cp-titre { font-size: 1.25rem; font-weight: 600; margin: 0; }
+.socle-cp-actions, .socle-fiche-actions { display: flex; gap: .5rem; }
+.socle-cp-recherche { margin-left: auto; min-width: 14rem; }
+.socle-fil { font-size: .85rem; color: var(--socle-couleur-secondaire, #475569); }
+.socle-liste {
+    background: #ffffff;
+    border: var(--socle-epaisseur-trait, 1px) solid var(--socle-couleur-bordure, #d9dde3);
+    border-radius: var(--socle-arrondi, 8px);
+}
+.socle-liste .table > :not(caption) > * > * { padding: var(--socle-liste-cellule-padding, .5rem .75rem); }
+.socle-liste thead th { background: var(--socle-liste-entete-fond, #e9ecf1); font-weight: 600; white-space: nowrap; }
+.socle-liste tbody tr:nth-child(even) > * { background-color: var(--socle-liste-ligne-paire, #f8f9fa); }
+.socle-liste tbody tr:hover > * { background: #eef2f7; }
+.socle-tri { opacity: .45; margin-left: .25rem; font-size: .75rem; color: var(--socle-couleur-secondaire, #475569); }
+.socle-statuts { display: flex; gap: .25rem; list-style: none; margin: 0 0 0 auto; padding: 0; }
+.socle-statut {
+    background: #e9ecef; color: var(--socle-couleur-secondaire, #475569);
+    padding: .2rem .75rem; font-size: .8rem;
+    border-radius: var(--socle-statut-rayon, 0);
+    clip-path: polygon(0 0, calc(100% - var(--socle-statut-pointe, 10px)) 0, 100% 50%, calc(100% - var(--socle-statut-pointe, 10px)) 100%, 0 100%);
+}
+.socle-statut-courant { background: var(--socle-fiche-statut-actif-fond, #15803d); color: #ffffff; font-weight: 600; }
+.socle-fiche {
+    background: #ffffff;
+    border: var(--socle-epaisseur-trait, 1px) solid var(--socle-couleur-bordure, #d9dde3);
+    border-radius: var(--socle-arrondi, 8px); padding: 1rem 1.25rem;
+}
+.socle-fiche-entete {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; padding-bottom: .75rem; margin-bottom: .75rem;
+    border-bottom: var(--socle-epaisseur-trait, 1px) solid var(--socle-couleur-bordure, #d9dde3);
+}
+.socle-fiche-titre { font-size: 1.25rem; margin: 0; }
+.socle-tuiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr)); gap: .75rem; }
+.socle-tuile-grande {
+    display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: 1rem .5rem;
+    background: var(--socle-tuile-fond, #ffffff);
+    border: var(--socle-epaisseur-trait, 1px) solid var(--socle-couleur-bordure, #d9dde3);
+    border-radius: var(--socle-tuile-arrondi, 12px); color: var(--socle-couleur-texte, #212529);
+    text-decoration: none; text-align: center;
+}
+.socle-tuile-grande i { font-size: 2rem; color: var(--socle-couleur-primaire, #6d4c9f); }
+.socle-tuile-grande:hover { background: #eef2f7; }
+
+/* Accueil a tuiles : carre d'icone colore. Couleurs fermees (liste du manifeste), surchargeables par le theme
+   via --socle-app-<nom> ; jamais de style en ligne issu des donnees d'un plugin. */
+.socle-app-icone {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: var(--socle-tuile-taille-icone, 40px); height: var(--socle-tuile-taille-icone, 40px);
+    border-radius: var(--socle-tuile-arrondi, 12px); color: #fff;
+}
+.socle-app-icone i { font-size: 1.6rem; color: inherit; }
+.app-couleur-primaire { background: var(--socle-app-primaire, #1d4ed8); }
+.app-couleur-violet { background: var(--socle-app-violet, #7c3aed); }
+.app-couleur-sarcelle { background: var(--socle-app-sarcelle, #0f766e); }
+.app-couleur-orange { background: var(--socle-app-orange, #c2410c); }
+.app-couleur-ambre { background: var(--socle-app-ambre, #b45309); }
+.app-couleur-rose { background: var(--socle-app-rose, #be185d); }
+.app-couleur-ardoise { background: var(--socle-app-ardoise, #475569); }
+.app-couleur-vert { background: var(--socle-app-vert, #15803d); }
+
+/* Apercu de l'ecran Apparence : memes composants, variables --socle-<cle> posees sur le conteneur. */
+.apercu-socle {
+    background: var(--socle-couleur-fond, #f6f7f9);
+    color: var(--socle-couleur-texte, #212529);
+    font-family: var(--socle-police, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif);
+    font-size: var(--socle-taille-texte, 15px);
+    border: 1px solid var(--socle-couleur-bordure, #d9dde3); border-radius: .5rem; overflow: hidden;
+}
+.apercu-socle .socle-topbar { position: static; }
+.apercu-socle .apercu-corps { padding: .75rem; display: grid; gap: .75rem; }

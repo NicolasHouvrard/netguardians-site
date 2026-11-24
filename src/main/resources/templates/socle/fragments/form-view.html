@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- statut = {etats, courant} ou nul ; actions = liste de {libelle, url} ; contenu = fragment (~{...}) -->
+<section th:fragment="form-view(titre, statut, actions, contenu)" class="socle-fiche">
+    <header class="socle-fiche-entete">
+        <h2 class="socle-fiche-titre" th:text="${titre}">Titre</h2>
+        <div class="socle-fiche-actions" th:if="${actions != null and !#lists.isEmpty(actions)}">
+            <a th:each="a : ${actions}" class="btn btn-primary btn-sm" role="button"
+               th:href="@{${a.url}}" th:text="${a.libelle}">Action</a>
+        </div>
+        <th:block th:if="${statut != null}">
+            <div th:replace="~{socle/fragments/status-bar :: status-bar(${statut.etats}, ${statut.courant})}"></div>
+        </th:block>
+    </header>
+    <div class="socle-fiche-corps" th:insert="${contenu}"></div>
+</section>
+</body>
+</html>

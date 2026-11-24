@@ -66,6 +66,34 @@ public class WebConfig implements WebMvcConfigurer {
                 connector.setMaxPartCount(-1));
     }
 
+    /**
+     * Gardes du noyau appliqués aux pages des plugins ({@code /p/**}), dont le mapping est celui du plugin et non celui
+     * du cœur : le contexte de tenant, puis l'obligation de changer un mot de passe temporaire (mêmes beans et même
+     * ordre que dans {@link #addInterceptors}). Injecté par {@code RoutagePlugins}.
+     */
+    @Bean("interceptorPagesPlugins")
+    public org.springframework.web.servlet.HandlerInterceptor interceptorPagesPlugins() {
+        return new org.springframework.web.servlet.HandlerInterceptor() {
+            @Override
+            public boolean preHandle(jakarta.servlet.http.HttpServletRequest request,
+                    jakarta.servlet.http.HttpServletResponse response, Object handler) throws Exception {
+                tenantInterceptor.preHandle(request, response, handler);
+                if (!passwordChangeInterceptor.preHandle(request, response, handler)) {
+                    // Refusé : afterCompletion ne sera pas appelé pour cet intercepteur, on libère le tenant ici.
+                    tenantInterceptor.afterCompletion(request, response, handler, null);
+                    return false;
+                }
+                return true;
+            }
+
+            @Override
+            public void afterCompletion(jakarta.servlet.http.HttpServletRequest request,
+                    jakarta.servlet.http.HttpServletResponse response, Object handler, Exception ex) throws Exception {
+                tenantInterceptor.afterCompletion(request, response, handler, ex);
+            }
+        };
+    }
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(tenantInterceptor).order(1)

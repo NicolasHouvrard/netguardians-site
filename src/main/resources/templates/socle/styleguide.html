@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{socle/layout}">
+<body>
+<div class="socle-panneau" layout:fragment="panneau">
+    <div th:replace="~{socle/fragments/control-panel :: control-panel(${titre}, ${fil}, ${actionsPanneau}, ${recherche})}"></div>
+</div>
+<div class="socle-zone" layout:fragment="contenu">
+    <h2 class="h5">Liste</h2>
+    <div id="liste" class="mb-4">
+        <div th:replace="~{socle/fragments/list-view :: list-view(${colonnes}, ${lignes}, ${urlLigne})}"></div>
+    </div>
+    <h2 class="h5">Fiche</h2>
+    <div class="mb-4"
+         th:replace="~{socle/fragments/form-view :: form-view('Fiche de démonstration', ${statutFiche}, ${actionsFiche}, ~{socle/styleguide-fiche :: contenu})}"></div>
+    <h2 class="h5 mt-4">Emplacements d'extension (fiche de démonstration n° <span th:text="${idDemo}">42</span>)</h2>
+    <div class="mb-4">
+        <div class="mb-2" th:replace="~{socle/fragments/slots :: boutons('demo.fiche.boutons', ${idDemo})}"></div>
+        <div th:replace="~{socle/fragments/slots :: onglets('demo.fiche.onglets', ${idDemo})}"></div>
+    </div>
+    <h2 class="h5 mt-4">Barre de statut</h2>
+    <div class="mb-4" th:replace="~{socle/fragments/status-bar :: status-bar(${etats}, ${courant})}"></div>
+    <h2 class="h5">Tuiles</h2>
+    <div th:replace="~{socle/fragments/tile-grid :: tile-grid(${tuilesDemo})}"></div>
+</div>
+</body>
+</html>

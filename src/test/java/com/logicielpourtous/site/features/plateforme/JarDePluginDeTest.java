@@ -86,6 +86,12 @@ public final class JarDePluginDeTest {
 	 */
 	public static Path creer(Path dossier, String nom, String version, Map<String, String> proprietes,
 			Map<String, String> migrations, Map<String, String> sources) {
+		return creer(dossier, nom, version, proprietes, migrations, sources, Map.of());
+	}
+
+	/** Comme ci-dessus, avec en plus des fichiers quelconques (chemin dans le jar vers contenu), ex. {@code ui/main.js}. */
+	public static Path creer(Path dossier, String nom, String version, Map<String, String> proprietes,
+			Map<String, String> migrations, Map<String, String> sources, Map<String, String> ressources) {
 		try {
 			Files.createDirectories(dossier);
 			Path jar = dossier.resolve(nom + "-" + version + ".jar");
@@ -97,6 +103,9 @@ public final class JarDePluginDeTest {
 				ajouter(jos, "plugin.properties", props.toString());
 				for (Map.Entry<String, String> m : migrations.entrySet()) {
 					ajouter(jos, "db/plugin/" + nom + "/" + m.getKey(), m.getValue());
+				}
+				for (Map.Entry<String, String> f : ressources.entrySet()) {
+					ajouter(jos, f.getKey(), f.getValue());
 				}
 				if (!sources.isEmpty()) {
 					Path classes = compiler(dossier.resolve("classes-" + nom + "-" + version), sources);
@@ -218,6 +227,19 @@ public final class JarDePluginDeTest {
 						"notes.NotesConfiguration"),
 				migrations, Map.of("notes.Note", NOTE, "notes.NoteRepository", NOTE_REPOSITORY,
 						"notes.NotesConfiguration", NOTES_CONFIGURATION, "notes.NotesController", NOTES_CONTROLLER));
+	}
+
+	/** {@link #pluginNotes} avec des classes et des fichiers de plus (ex. un contrôleur piège, {@code ui/main.js}). */
+	public static Path pluginNotes(Path dossier, String version, Map<String, String> migrations,
+			Map<String, String> sourcesEnPlus, Map<String, String> fichiers) {
+		Map<String, String> sources = new java.util.HashMap<>(Map.of("notes.Note", NOTE, "notes.NoteRepository",
+				NOTE_REPOSITORY, "notes.NotesConfiguration", NOTES_CONFIGURATION, "notes.NotesController",
+				NOTES_CONTROLLER));
+		sources.putAll(sourcesEnPlus);
+		return creer(dossier, "testnotes", version,
+				Map.of("coeur-min", "0.0.0", "mise-a-jour", "chaud", "paquet", "notes", "configuration",
+						"notes.NotesConfiguration"),
+				migrations, sources, fichiers);
 	}
 
 	/** Compile les sources (classe complète vers code) dans {@code sortie} et renvoie ce dossier. */

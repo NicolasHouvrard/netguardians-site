@@ -6,6 +6,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
+import com.logicielpourtous.site.sdk.ManifestePlugin;
+
 /** Une instance chargée d'un plugin : nom, version, chargeur de classes et contexte Spring enfant. */
 public class PluginGeneration {
 
@@ -29,6 +31,9 @@ public class PluginGeneration {
 	 */
 	String signature;
 
+	/** Manifeste de cette génération, posé à l'activation ; {@code null} tant qu'elle n'est pas active. */
+	volatile ManifestePlugin manifeste;
+
 	PluginClassLoader loader;
 
 	ConfigurableApplicationContext contexte;
@@ -43,6 +48,11 @@ public class PluginGeneration {
 		this.nom = nom;
 		this.version = version;
 		this.jarCopie = jarCopie;
+	}
+
+	/** Manifeste de la génération (ses entrées de navigation et blocs de fiche), ou {@code null}. */
+	public ManifestePlugin manifeste() {
+		return manifeste;
 	}
 
 	public String etiquette() {

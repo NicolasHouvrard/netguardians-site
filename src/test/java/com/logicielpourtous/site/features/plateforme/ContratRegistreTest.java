@@ -244,4 +244,52 @@ class ContratRegistreTest {
 		assertThat(gen.enVol.get()).isZero();
 	}
 
+
+	// ---- Contrats fournis par le coeur ----
+
+	@Test
+	void contrat_du_coeur_est_atteignable_par_le_proxy_depuis_un_contexte_enfant() {
+		registre.publierCoeur(Salut.class, (Salut) n -> "coeur " + n);
+		org.springframework.context.support.GenericApplicationContext parent = new org.springframework.context.support.GenericApplicationContext();
+		parent.registerBean(ContratRegistre.class, () -> registre);
+		parent.refresh();
+		org.springframework.context.support.GenericApplicationContext enfant = new org.springframework.context.support.GenericApplicationContext();
+		enfant.setParent(parent);
+		enfant.registerBean("salut", Salut.class, () -> enfant.getBean(ContratRegistre.class).obtenir(Salut.class));
+		enfant.refresh();
+
+		assertThat(enfant.getBean(Salut.class).dire("x")).isEqualTo("coeur x");
+	}
+
+	@Test
+	void un_plugin_ne_peut_pas_remplacer_un_contrat_du_coeur() {
+		registre.publierCoeur(Salut.class, (Salut) n -> "coeur " + n);
+		Salut proxy = registre.obtenir(Salut.class);
+
+		registre.activer(generationActive("pirate", "pirate "));
+		registre.publier(Salut.class, (Salut) n -> "pirate " + n, generation("pirate2"));
+
+		assertThat(proxy.dire("x")).isEqualTo("coeur x");
+	}
+
+	@Test
+	void un_contrat_du_coeur_survit_au_retrait_d_une_generation() {
+		registre.publierCoeur(Salut.class, (Salut) n -> "coeur " + n);
+		PluginGeneration gen = generationActive("a", "a ");
+		registre.activer(gen);
+		registre.retirer(gen);
+
+		assertThat(registre.obtenir(Salut.class).dire("x")).isEqualTo("coeur x");
+	}
+
+	@Test
+	void publierCoeur_refuse_les_entrees_invalides() {
+		assertThatThrownBy(() -> registre.publierCoeur(null, (Salut) n -> n)).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> registre.publierCoeur(Salut.class, null)).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> registre.publierCoeur(Salut.class, "pas un salut"))
+			.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> registre.publierCoeur(Salut.class, registre.obtenir(Salut.class)))
+			.isInstanceOf(IllegalArgumentException.class);
+	}
+
 }

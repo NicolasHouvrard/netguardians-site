@@ -17,6 +17,12 @@ public class ContratRegistre {
 	private record Fournisseur(Object impl, PluginGeneration generation) {
 	}
 
+	/** Pseudo-génération des contrats fournis par le cœur (jamais activée ni retirée). */
+	private static final PluginGeneration COEUR = new PluginGeneration("coeur", "0", java.nio.file.Path.of("coeur"));
+
+	/** Types dont le fournisseur est le cœur : aucun plugin ne peut les remplacer. */
+	private final Set<Class<?>> typesCoeur = ConcurrentHashMap.newKeySet();
+
 	private final Map<Class<?>, Fournisseur> fournisseurs = new ConcurrentHashMap<>();
 
 	private final Map<Class<?>, Object> proxies = new ConcurrentHashMap<>();
@@ -55,7 +61,30 @@ public class ContratRegistre {
 			throw new IllegalArgumentException("Le proxy du registre ne peut pas être publié comme fournisseur de "
 					+ type.getName());
 		}
+		if (typesCoeur.contains(type)) {
+			return; // contrat fourni par le cœur : jamais remplacé par un plugin
+		}
 		fournisseurs.put(type, new Fournisseur(impl, generation));
+	}
+
+	/**
+	 * Publie un contrat implémenté par le cœur lui-même : pas de génération, jamais retiré, et jamais remplacé par un
+	 * plugin (un plugin qui implémenterait le même type est ignoré).
+	 */
+	public synchronized void publierCoeur(Class<?> type, Object impl) {
+		if (type == null || impl == null) {
+			throw new IllegalArgumentException("Le type et l'implémentation du contrat sont obligatoires");
+		}
+		if (!type.isInstance(impl)) {
+			throw new IllegalArgumentException("L'implémentation ne réalise pas le contrat " + type.getName());
+		}
+		obtenir(type);
+		if (estUnProxyDuRegistre(impl)) {
+			throw new IllegalArgumentException("Le proxy du registre ne peut pas être publié comme fournisseur de "
+					+ type.getName());
+		}
+		typesCoeur.add(type);
+		fournisseurs.put(type, new Fournisseur(impl, COEUR));
 	}
 
 	/**
@@ -66,6 +95,9 @@ public class ContratRegistre {
 	public synchronized void activer(PluginGeneration generation) {
 		actives.add(generation);
 		for (Class<?> type : proxies.keySet()) {
+			if (typesCoeur.contains(type)) {
+				continue;
+			}
 			Object impl = chercher(type, generation);
 			if (impl != null) {
 				fournisseurs.put(type, new Fournisseur(impl, generation));

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{socle/layout}">
+<body>
+<div class="socle-panneau" layout:fragment="panneau">
+    <div th:replace="~{socle/fragments/control-panel :: control-panel(${titre}, ${fil}, null, null)}"></div>
+</div>
+<div class="socle-zone" layout:fragment="contenu">
+    <div class="d-flex justify-content-end mb-2">
+        <button type="button" class="btn btn-outline-danger btn-sm" th:attr="hx-post=@{/admin/apparence/reinitialiser}"
+                hx-confirm="Remettre TOUS les réglages d'apparence à leur valeur par défaut ?">Tout réinitialiser</button>
+    </div>
+    <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item" role="presentation" th:each="g, it : ${groupes}">
+            <button type="button" class="nav-link" th:classappend="${it.first} ? 'active'" role="tab"
+                    data-bs-toggle="tab" th:attr="data-bs-target='#groupe-' + ${g.id()}"
+                    th:text="${g.libelle()}">Groupe</button>
+        </li>
+    </ul>
+    <div class="tab-content pt-3">
+        <div class="tab-pane fade" th:each="g, it : ${groupes}" th:id="'groupe-' + ${g.id()}"
+             th:classappend="${it.first} ? 'show active'" role="tabpanel">
+            <div th:replace="~{admin/apparence-groupe :: groupe(${g})}"></div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

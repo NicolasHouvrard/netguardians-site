@@ -14,7 +14,7 @@ class VerificateurMiseAJourTest {
 	private static final Map<String, String> DESTRUCTIVE = Map.of("V2__x.sql", "DROP TABLE factures;");
 
 	private static ManifestePlugin manifeste(ModeMiseAJour mode, String min, String max) {
-		return new ManifestePlugin("p", "1.0.0", min, max, mode, "pk", "pk.C", List.of(), List.of());
+		return new ManifestePlugin("p", "1.0.0", min, max, mode, "pk", "pk.C", List.of(), List.of(), List.of(), List.of());
 	}
 
 	@Test
@@ -84,7 +84,7 @@ class VerificateurMiseAJourTest {
 
 	private static ManifestePlugin chaud(String version) {
 		return new ManifestePlugin("p", version, "0.0.0", null, ModeMiseAJour.CHAUD, "pk", "pk.C", List.of(),
-				List.of());
+				List.of(), List.of(), List.of());
 	}
 
 	@Test
@@ -178,7 +178,7 @@ class VerificateurMiseAJourTest {
 
 	private static ManifestePlugin avecPaquet(String paquet, String configuration) {
 		return new ManifestePlugin("p", "1.0.0", "0.0.0", null, ModeMiseAJour.CHAUD, paquet, configuration, List.of(),
-				List.of());
+				List.of(), List.of(), List.of());
 	}
 
 	@Test

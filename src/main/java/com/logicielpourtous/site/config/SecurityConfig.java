@@ -39,6 +39,12 @@ import com.logicielpourtous.site.features.licence.LicenceServeurRepository;
 import com.logicielpourtous.site.features.sync.SecondaryServerRepository;
 import com.logicielpourtous.site.features.sync.SyncApiKeyAuthFilter;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationTrustResolver;
+import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.authentication.DelegatingAuthenticationEntryPoint;
@@ -171,7 +177,7 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain angularApiFilterChain(HttpSecurity http) throws Exception {
         http
-            .securityMatcher("/api/auth/**", "/api/intra/**", "/api/espace/**", "/api/plateforme/**", "/api/plugins/**")
+            .securityMatcher("/api/auth/**", "/api/intra/**", "/api/espace/**", "/api/plateforme/**", "/api/plugins/**", "/api/navigation/**")
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -183,7 +189,11 @@ public class SecurityConfig {
                 // Plateforme de plugins : administration reservee a ADMIN ; API des plugins ouvertes a tout compte
                 // authentifie, sauf un jeton "choix de societe en attente".
                 .requestMatchers("/api/plateforme/**").hasRole("ADMIN")
-                .requestMatchers("/api/plugins/**").access(authentifieHorsSelection())
+                // Front d'un plugin : un <script type="module"> ne peut pas porter de jeton. Seule exception de
+                // /api/plugins/** : GET sur UN fichier d'un dossier ui/ versionne (code statique js/css/json du plugin
+                // actif, valide par PluginUiController ; ni sous-dossier ni listing). Tout le reste exige un jeton.
+                .requestMatchers(HttpMethod.GET, "/api/plugins/{nom}/ui/{version}/{fichier}").permitAll()
+                .requestMatchers("/api/plugins/**", "/api/navigation/**").access(authentifieHorsSelection())
                 .requestMatchers("/api/intra/admin/**").hasRole("ADMIN")
                 // ESN_USER est une autorité synthétique posée par CustomUserDetails
                 // pour TOUS les rôles de type ESN (y compris les rôles custom par tenant).
@@ -207,7 +217,8 @@ public class SecurityConfig {
         parChemin.put(
             new OrRequestMatcher(
                 PathPatternRequestMatcher.pathPattern("/api/plateforme/**"),
-                PathPatternRequestMatcher.pathPattern("/api/plugins/**")),
+                PathPatternRequestMatcher.pathPattern("/api/plugins/**"),
+                PathPatternRequestMatcher.pathPattern("/api/navigation/**")),
             new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED));
         DelegatingAuthenticationEntryPoint delegue = new DelegatingAuthenticationEntryPoint(parChemin);
         delegue.setDefaultEntryPoint(new Http403ForbiddenEntryPoint());
@@ -296,7 +307,13 @@ public class SecurityConfig {
                 chemins.matcher("/intra/societes/reprise/**"),
                 // Approbation d'une ESN : ecrit au registre une ligne PARTENAIRE definitive.
                 chemins.matcher("/intra/registrations/**"),
-                chemins.matcher(SelectionSocieteFilter.SELECTEUR));
+                chemins.matcher(SelectionSocieteFilter.SELECTEUR),
+                // Gabarits du socle (HTMX) : le jeton part en en-tete depuis socle.js.
+                chemins.matcher("/admin/socle/**"),
+                // Ecran Apparence : ecrit les reglages de theme servis a tous.
+                chemins.matcher("/admin/apparence/**"),
+                // Pages de plugin : TOUTE methode modifiante exige le jeton, par prefixe (aucune liste de chemins).
+                chemins.matcher("/p/**"));
         RequestMatcher methodeModifiante = request -> !METHODES_SANS_EFFET.contains(request.getMethod());
         return new AndRequestMatcher(methodeModifiante, ecransSensibles);
     }
@@ -316,6 +333,8 @@ public class SecurityConfig {
                 .requestMatchers("/auth/session-token").permitAll()
                 // Selecteur de societe : avant la regle generique /{slug} (permitAll), qui l'ouvrirait aux anonymes.
                 .requestMatchers(SelectionSocieteFilter.SELECTEUR).authenticated()
+                // Accueil a tuiles : un seul segment, donc la regle /{slug} (permitAll) l'ouvrirait aux anonymes.
+                .requestMatchers("/accueil").authenticated()
                 // Controle de sante (agent de deploiement bleu-vert) : seul /actuator/health est expose.
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/reset-password", "/reset-password/**").permitAll()
@@ -328,6 +347,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/shop/**").permitAll()
                 .requestMatchers("/api/stripe/webhook/**").permitAll()
                 .requestMatchers("/admin/**").hasRole("ADMIN")
+                // Pages et fragments des plugins (RoutagePlugins) : session authentifiee obligatoire ; les droits
+                // metier sont verifies par le plugin. Sans plateforme active, aucun gestionnaire : 404.
+                .requestMatchers("/p/**").authenticated()
                 .requestMatchers("/intra/**").hasAnyRole("ADMIN", "USER", "COMMERCIAL", "TECHNICIEN", "MARKETING", "COMPTABLE")
                 .requestMatchers("/espace", "/espace/**").hasAnyRole("ADMIN", "CLIENT", "GESTIONNAIRE")
                 .anyRequest().authenticated()
@@ -358,15 +380,39 @@ public class SecurityConfig {
             )
             .exceptionHandling(exception -> exception
                 .authenticationEntryPoint((request, response, authException) -> {
-                    if ("htmx-request".equals(request.getHeader("HX-Request"))) {
+                    // HTMX envoie "HX-Request: true" : session expiree pendant un appel partiel -> redirection
+                    // complete cote navigateur (HX-Redirect) au lieu d'injecter la page de connexion dans un fragment.
+                    if ("true".equals(request.getHeader("HX-Request"))) {
                         response.setHeader("HX-Redirect", "/login");
                         response.setStatus(200);
                     } else {
                         response.sendRedirect("/login");
                     }
                 })
+                .accessDeniedHandler(refusHtmx())
             );
         return http.build();
+    }
+
+    /**
+     * Refus d'acces de la chaine web. Le jeton CSRF vit dans la session : apres expiration, un POST HTMX
+     * echoue au filtre CSRF (avant l'autorisation, donc sans passer par le point d'entree). Pour un appel
+     * HTMX d'un visiteur ANONYME, on repond comme le point d'entree (200 + HX-Redirect vers /login). Tout
+     * autre cas (compte authentifie, jeton invalide ou absent, role insuffisant) garde le 403 par defaut.
+     */
+    private static AccessDeniedHandler refusHtmx() {
+        AccessDeniedHandler parDefaut = new AccessDeniedHandlerImpl();
+        AuthenticationTrustResolver resolveur = new AuthenticationTrustResolverImpl();
+        return (request, response, accessDeniedException) -> {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            boolean anonyme = auth == null || resolveur.isAnonymous(auth);
+            if (anonyme && "true".equals(request.getHeader("HX-Request"))) {
+                response.setHeader("HX-Redirect", "/login");
+                response.setStatus(200);
+            } else {
+                parDefaut.handle(request, response, accessDeniedException);
+            }
+        };
     }
 
     @Bean

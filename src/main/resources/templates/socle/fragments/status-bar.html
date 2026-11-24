@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- etats = liste de {code, libelle} ; courant = code de l'etat courant -->
+<ol th:fragment="status-bar(etats, courant)" class="socle-statuts" aria-label="Statut">
+    <li th:each="e : ${etats}" class="socle-statut"
+        th:classappend="${e.code == courant} ? 'socle-statut-courant'"
+        th:attr="aria-current=${e.code == courant} ? 'step'"
+        th:text="${e.libelle}">Etat</li>
+</ol>
+</body>
+</html>

@@ -55,6 +55,8 @@ class InscriptionClientTest {
     @Autowired private InscriptionSocieteService service;
     @Autowired private RegistreSocietes registre;
     @Autowired private SocieteIdentiteRepository identites;
+    @Autowired private com.logicielpourtous.site.features.identite.EmailsUtilises emailsUtilises;
+    @Autowired private com.logicielpourtous.site.features.identite.AttributionCapacites attributionCapacites;
     @Autowired private DemandeSocieteConnueRepository demandes;
     @Autowired private CustomerRepository customerRepository;
     @Autowired private SiteRepository siteRepository;
@@ -322,7 +324,7 @@ class InscriptionClientTest {
                                                     List<EnregistrementConcurrentException> conflits,
                                                     boolean toujoursEnConflit) {
         AtomicInteger recherches = new AtomicInteger();
-        return new RegistreSocietes(identites) {
+        return new RegistreSocietes(identites, emailsUtilises, attributionCapacites) {
             @Override
             public Optional<SocieteIdentite> trouver(IdentiteSociete identite) {
                 if (recherches.incrementAndGet() == 1) {

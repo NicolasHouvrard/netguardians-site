@@ -49,6 +49,10 @@ public class Appartenance implements java.io.Serializable {
     @Column(name = "customer_id")
     private Long customerId;
 
+    /** Societe du registre ({@code societes_identites.id}) visee par l'appartenance ; nul pour l'existant. */
+    @Column(name = "societe_id")
+    private Long societeId;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
         name = "appartenances_roles",

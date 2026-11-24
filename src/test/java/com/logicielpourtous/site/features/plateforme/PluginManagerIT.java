@@ -46,6 +46,11 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
  */
 class PluginManagerIT {
 
+	/** Posés par preparer() avant le démarrage du contexte du coeur (lus par le moteur de gabarits du test). */
+	static volatile Path dossierCoeur;
+
+	static volatile PluginManager gestionnaire;
+
 	@Configuration
 	@EnableWebMvc
 	static class CoeurWeb {
@@ -56,6 +61,36 @@ class PluginManagerIT {
 		}
 
 		/** Registre du cœur : les plugins consommateurs l'injectent depuis le contexte parent. */
+		@Bean
+		PluginUiController pluginUiController() {
+			return new PluginUiController();
+		}
+
+		@Bean
+		PluginStatiquesController pluginStatiquesController() {
+			return new PluginStatiquesController();
+		}
+
+		/** Moteur de gabarits du test : mise en page du coeur (dossier temporaire) + gabarits des plugins actifs. */
+		@Bean
+		org.thymeleaf.spring6.view.ThymeleafViewResolver viewResolver() {
+			org.thymeleaf.templateresolver.FileTemplateResolver noyau = new org.thymeleaf.templateresolver.FileTemplateResolver();
+			noyau.setPrefix(dossierCoeur + "/");
+			noyau.setSuffix(".html");
+			noyau.setTemplateMode(org.thymeleaf.templatemode.TemplateMode.HTML);
+			noyau.setCharacterEncoding("UTF-8");
+			noyau.setOrder(100);
+			org.thymeleaf.spring6.SpringTemplateEngine moteur = new org.thymeleaf.spring6.SpringTemplateEngine();
+			moteur.addTemplateResolver(new ResolveurGabaritsPlugins(nom -> gestionnaire.actifs().get(nom)));
+			moteur.addTemplateResolver(ResolveurGabaritsPlugins.sansEspacePlugins(noyau));
+			moteur.addDialect(new nz.net.ultraq.thymeleaf.layoutdialect.LayoutDialect());
+			org.thymeleaf.spring6.view.ThymeleafViewResolver vr = new org.thymeleaf.spring6.view.ThymeleafViewResolver();
+			vr.setTemplateEngine(moteur);
+			vr.setCharacterEncoding("UTF-8");
+			vr.setOrder(1);
+			return vr;
+		}
+
 		@Bean
 		ContratRegistre contratRegistre() {
 			return new ContratRegistre();
@@ -136,6 +171,11 @@ class PluginManagerIT {
 		ds.setMaximumPoolSize(4);
 		jdbc = new JdbcTemplate(ds);
 		nettoyerBase();
+		dossierCoeur = dossier.resolve("coeur");
+		Files.createDirectories(dossierCoeur.resolve("socle"));
+		Files.writeString(dossierCoeur.resolve("socle/layout.html"),
+				"<html xmlns:layout=\"http://www.ultraq.net.nz/thymeleaf/layout\"><body>CADRE-COEUR["
+						+ "<div layout:fragment=\"contenu\"></div>]</body></html>");
 		coeur = new AnnotationConfigWebApplicationContext();
 		coeur.setServletContext(new MockServletContext());
 		coeur.register(CoeurWeb.class);
@@ -151,6 +191,7 @@ class PluginManagerIT {
 		demarreur = new DemarreurPiege(ds, coeur);
 		manager = new PluginManager(proprietes, new ClesPubliques(JarDePluginDeTest.clesDeTest()), demarreur, routage,
 				contrats, new ReferencesEntrantes(ds), ds, new NettoyeurFuites(coeur, proprietes));
+		gestionnaire = manager;
 		mvc = MockMvcBuilders.webAppContextSetup(coeur).addFilters(new FiltreEnVol(routage)).build();
 	}
 
@@ -178,6 +219,8 @@ class PluginManagerIT {
 
 	private void nettoyerBase() {
 		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testnotes CASCADE");
+		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testpages CASCADE");
+		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testgabarits CASCADE");
 		jdbc.execute("DROP SCHEMA IF EXISTS plugin_dependant CASCADE");
 		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testfourni CASCADE");
 		jdbc.execute("DROP SCHEMA IF EXISTS plugin_testconso CASCADE");
@@ -294,6 +337,286 @@ class PluginManagerIT {
 	private void installerOk(Path jar) {
 		ResultatInstallation r = manager.installer(jar);
 		assertThat(r.statut()).as(r.raisons().toString()).isEqualTo(ResultatInstallation.Statut.OK);
+	}
+
+	private static final String CONTROLEUR_PIEGE = """
+			package notes;
+			import org.springframework.web.bind.annotation.*;
+			@RestController
+			public class PiegeController {
+			    @GetMapping("/{a}/{b}/{c}")
+			    public String troisSegments() { return "PLUGIN-3"; }
+			    @GetMapping("/**")
+			    public String tout() { return "PLUGIN-TOUT"; }
+			}
+			""";
+
+	/** L'espace /ui d'un plugin appartient au noyau : aucun mapping du plugin ne peut le revendiquer (il est ouvert sans jeton). */
+	@Test
+	void l_espace_ui_est_reserve_au_noyau_meme_si_le_plugin_declare_des_mappings_larges() throws Exception {
+		Path jar = JarDePluginDeTest.pluginNotes(dossier.resolve("piege"), "1.0.0", Map.of("V1__note.sql", V1),
+				Map.of("notes.PiegeController", CONTROLEUR_PIEGE), Map.of("ui/main.js", "console.log('ui');"));
+		installerOk(jar);
+		// Sanity : les mappings pièges fonctionnent bien hors de /ui.
+		MockHttpServletResponse hors = mvc.perform(get("/api/plugins/testnotes/x/y/z")).andReturn().getResponse();
+		assertThat(hors.getContentAsString()).isEqualTo("PLUGIN-3");
+
+		MockHttpServletResponse ui = mvc.perform(get("/api/plugins/testnotes/ui/1.0.0/main.js")).andReturn().getResponse();
+		assertThat(ui.getStatus()).isEqualTo(200);
+		assertThat(ui.getContentAsString()).isEqualTo("console.log('ui');");
+		assertThat(ui.getHeader("X-Plugin")).isNull();
+
+		for (String chemin : new String[] { "/api/plugins/testnotes/ui/1.0.0/absent.js",
+				"/api/plugins/testnotes/ui/x/y/z", "/api/plugins/testnotes/%75i/1.0.0/main.js",
+				"/api/plugins/testnotes/ui/1.0.0/sous/dossier.js" }) {
+			MockHttpServletResponse r = mvc.perform(get(java.net.URI.create(chemin))).andReturn().getResponse();
+			assertThat(r.getHeader("X-Plugin")).as(chemin).isNull();
+			assertThat(r.getContentAsString()).as(chemin).doesNotContain("PLUGIN-");
+		}
+		assertThat(mvc.perform(get("/api/plugins/testnotes/ui/1.0.0/absent.js")).andReturn().getResponse().getStatus())
+				.isEqualTo(404);
+	}
+
+	/** Plugin « testpages » sans table : un {@code @Controller} qui répond en texte (sans gabarit) sous /p/testpages. */
+	private Path pluginPages(String version) {
+		return JarDePluginDeTest.creer(dossier.resolve("pages-" + version), "testpages", version,
+				Map.of("coeur-min", "0.0.0", "mise-a-jour", "chaud", "paquet", "pages", "configuration",
+						"pages.PagesConfiguration"),
+				Map.of(), Map.of("pages.PagesConfiguration", """
+						package pages;
+						@org.springframework.context.annotation.Configuration
+						@org.springframework.context.annotation.ComponentScan("pages")
+						public class PagesConfiguration {
+						}
+						""", "pages.PageController", """
+						package pages;
+						@org.springframework.stereotype.Controller
+						public class PageController {
+						    @org.springframework.web.bind.annotation.GetMapping("/liste")
+						    @org.springframework.web.bind.annotation.ResponseBody
+						    public String liste() { return "page v%s"; }
+						}
+						""".formatted(version)));
+	}
+
+	@Test
+	void un_plugin_sert_ses_pages_sous_p_puis_la_mise_a_jour_a_chaud_et_la_desinstallation() throws Exception {
+		installerOk(pluginPages("1.0.0"));
+		MockHttpServletResponse v1 = mvc.perform(get("/p/testpages/liste")).andReturn().getResponse();
+		assertThat(v1.getStatus()).isEqualTo(200);
+		assertThat(v1.getContentAsString()).isEqualTo("page v1.0.0");
+		assertThat(v1.getHeader("X-Plugin")).startsWith("testpages@1.0.0#");
+		assertThat(mvc.perform(get("/api/plugins/testpages/liste")).andReturn().getResponse().getStatus())
+			.isEqualTo(404);
+
+		installerOk(pluginPages("1.1.0"));
+		MockHttpServletResponse v2 = mvc.perform(get("/p/testpages/liste")).andReturn().getResponse();
+		assertThat(v2.getStatus()).isEqualTo(200);
+		assertThat(v2.getContentAsString()).isEqualTo("page v1.1.0");
+		assertThat(v2.getHeader("X-Plugin")).startsWith("testpages@1.1.0#");
+
+		manager.desinstaller("testpages");
+		assertThat(mvc.perform(get("/p/testpages/liste")).andReturn().getResponse().getStatus()).isEqualTo(404);
+	}
+
+	/** Plugin « testslots » : déclare {@code ext.1} et sert, sous /p/testslots, le fragment de l'onglet. */
+	private Path pluginSlots(String version, boolean avecExtension) {
+		Map<String, String> manifeste = new java.util.HashMap<>(Map.of("coeur-min", "0.0.0", "mise-a-jour", "chaud",
+				"paquet", "slots", "configuration", "slots.SlotsConfiguration"));
+		if (avecExtension) {
+			manifeste.put("ext.1", "demo.fiche.onglets|Historique|/onglet?client={id}|historique.lire|5");
+		}
+		return JarDePluginDeTest.creer(dossier.resolve("slots-" + version), "testslots", version, manifeste, Map.of(),
+				Map.of("slots.SlotsConfiguration", """
+						package slots;
+						@org.springframework.context.annotation.Configuration
+						@org.springframework.context.annotation.ComponentScan("slots")
+						public class SlotsConfiguration {
+						}
+						""", "slots.OngletController", """
+						package slots;
+						@org.springframework.stereotype.Controller
+						public class OngletController {
+						    @org.springframework.web.bind.annotation.GetMapping("/onglet")
+						    @org.springframework.web.bind.annotation.ResponseBody
+						    public String onglet(@org.springframework.web.bind.annotation.RequestParam("client") String client) {
+						        return "<p>onglet client " + client + "</p>";
+						    }
+						}
+						"""));
+	}
+
+	@Test
+	void un_plugin_contribue_un_onglet_dont_l_adresse_est_servie_puis_il_disparait_a_la_desinstallation()
+			throws Exception {
+		ControleDroits droitsDeTest = org.mockito.Mockito.mock(ControleDroits.class);
+		org.mockito.Mockito.when(droitsDeTest.autorise(7L, 42L, "historique.lire")).thenReturn(true);
+		com.logicielpourtous.site.sdk.IdentiteContrat identite = org.mockito.Mockito
+			.mock(com.logicielpourtous.site.sdk.IdentiteContrat.class);
+		org.mockito.Mockito.when(identite.courante()).thenReturn(
+				new com.logicielpourtous.site.sdk.IdentiteContrat.IdentiteCourante(7L, java.util.Set.of(), 42L, 1L, "PARTNER"));
+		EmplacementsService emplacements = new EmplacementsService(manager, droitsDeTest, identite);
+
+		installerOk(pluginSlots("1.0.0", true));
+		List<EmplacementsService.ElementAffiche> elements = emplacements.elements("demo.fiche.onglets", null, "12");
+		assertThat(elements).hasSize(1);
+		assertThat(elements.get(0).url()).isEqualTo("/p/testslots/onglet?client=12");
+		MockHttpServletResponse fragment = mvc.perform(get(elements.get(0).url())).andReturn().getResponse();
+		assertThat(fragment.getStatus()).isEqualTo(200);
+		assertThat(fragment.getContentAsString()).isEqualTo("<p>onglet client 12</p>");
+
+		// Mise à jour à chaud sans extension : l'onglet disparaît sans redémarrage.
+		installerOk(pluginSlots("1.1.0", false));
+		assertThat(emplacements.elements("demo.fiche.onglets", null, "12")).isEmpty();
+		installerOk(pluginSlots("1.2.0", true));
+		assertThat(emplacements.elements("demo.fiche.onglets", null, "12")).hasSize(1);
+
+		manager.desinstaller("testslots");
+		assertThat(emplacements.elements("demo.fiche.onglets", null, "12")).isEmpty();
+		assertThat(mvc.perform(get("/p/testslots/onglet?client=12")).andReturn().getResponse().getStatus())
+			.isEqualTo(404);
+	}
+
+	/**
+	 * Plugin « testgabarits » : une page rendue par gabarit (mise en page du coeur, texte du modèle), un fichier
+	 * statique, et des mappings pièges larges ({@code /{a}/{b}}) pour vérifier la réservation de {@code /static/}.
+	 */
+	private Path pluginGabarits(String version) {
+		return JarDePluginDeTest.creer(dossier.resolve("gabarits-" + version), "testgabarits", version,
+				Map.of("coeur-min", "0.0.0", "mise-a-jour", "chaud", "paquet", "gabarits", "configuration",
+						"gabarits.GabaritsConfiguration"),
+				Map.of(), Map.of("gabarits.GabaritsConfiguration", """
+						package gabarits;
+						@org.springframework.context.annotation.Configuration
+						@org.springframework.context.annotation.ComponentScan("gabarits")
+						public class GabaritsConfiguration {
+						}
+						""", "gabarits.GabaritsController", """
+						package gabarits;
+						@org.springframework.stereotype.Controller
+						public class GabaritsController {
+						    @org.springframework.web.bind.annotation.GetMapping("/page")
+						    public String page(org.springframework.ui.Model modele) {
+						        modele.addAttribute("texte", "<i>a&b</i>");
+						        return "plugins/testgabarits/page";
+						    }
+						    @org.springframework.web.bind.annotation.GetMapping("/bloque")
+						    public String bloque(org.springframework.ui.Model modele) throws Exception {
+						        java.nio.file.Path d = java.nio.file.Path.of(System.getProperty("test.gabarits.dir"));
+						        java.nio.file.Files.createFile(d.resolve("entre"));
+						        long fin = System.currentTimeMillis() + 20000;
+						        while (!java.nio.file.Files.exists(d.resolve("libere")) && System.currentTimeMillis() < fin) {
+						            Thread.sleep(20);
+						        }
+						        modele.addAttribute("texte", "BLOQUE-OK");
+						        return "plugins/testgabarits/page";
+						    }
+						    @org.springframework.web.bind.annotation.GetMapping("/{a}/{b}")
+						    @org.springframework.web.bind.annotation.ResponseBody
+						    public String piege2() { return "PLUGIN-PIEGE"; }
+						    @org.springframework.web.bind.annotation.GetMapping("/**")
+						    @org.springframework.web.bind.annotation.ResponseBody
+						    public String piegeTout() { return "PLUGIN-PIEGE"; }
+						}
+						"""),
+				Map.of("templates/plugins/testgabarits/page.html",
+						"<html xmlns:layout=\"http://www.ultraq.net.nz/thymeleaf/layout\" "
+								+ "xmlns:th=\"http://www.thymeleaf.org\" layout:decorate=\"~{socle/layout}\"><body>"
+								+ "<div layout:fragment=\"contenu\"><p th:text=\"${texte}\">x</p>GABARIT-V" + version
+								+ "</div></body></html>",
+						"static/app.css", "body{color:#" + (version.equals("1.0.0") ? "111" : "222") + "}"));
+	}
+
+	@Test
+	void un_plugin_rend_une_page_par_gabarit_avec_la_mise_en_page_du_coeur_puis_hot_update_et_desinstallation()
+			throws Exception {
+		installerOk(pluginGabarits("1.0.0"));
+		MockHttpServletResponse v1 = mvc.perform(get("/p/testgabarits/page")).andReturn().getResponse();
+		assertThat(v1.getStatus()).isEqualTo(200);
+		String html1 = v1.getContentAsString();
+		assertThat(html1).contains("CADRE-COEUR[").contains("GABARIT-V1.0.0").contains("&lt;i&gt;a&amp;b&lt;/i&gt;")
+				.doesNotContain("<i>");
+
+		installerOk(pluginGabarits("1.1.0"));
+		String html2 = mvc.perform(get("/p/testgabarits/page")).andReturn().getResponse().getContentAsString();
+		assertThat(html2).contains("GABARIT-V1.1.0").doesNotContain("GABARIT-V1.0.0");
+
+		manager.desinstaller("testgabarits");
+		MockHttpServletResponse apres = mvc.perform(get("/p/testgabarits/page")).andReturn().getResponse();
+		assertThat(apres.getStatus()).isEqualTo(404);
+		assertThat(apres.getContentAsString()).doesNotContain("GABARIT-V");
+	}
+
+	/** La desinstallation attend le drainage : la page deja en cours se rend avec la generation qui la compte. */
+	@Test
+	void le_rendu_d_une_page_en_cours_survit_a_la_desinstallation_du_plugin() throws Exception {
+		installerOk(pluginGabarits("1.0.0"));
+		Path signaux = Files.createDirectories(dossier.resolve("signaux"));
+		System.setProperty("test.gabarits.dir", signaux.toString());
+		java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+		try {
+			java.util.concurrent.Future<MockHttpServletResponse> requete = pool
+					.submit(() -> mvc.perform(get("/p/testgabarits/bloque")).andReturn().getResponse());
+			long limite = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+			while (!Files.exists(signaux.resolve("entre")) && System.nanoTime() < limite) {
+				Thread.sleep(20);
+			}
+			assertThat(signaux.resolve("entre")).exists();
+
+			java.util.concurrent.Future<Boolean> desinstallation = pool.submit(() -> manager.desinstaller("testgabarits"));
+			limite = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+			while (manager.actifs().containsKey("testgabarits") && System.nanoTime() < limite) {
+				Thread.sleep(20);
+			}
+			assertThat(manager.actifs()).as("plugin deja retire des actifs, drainage en cours").doesNotContainKey("testgabarits");
+			assertThat(desinstallation.isDone()).as("la desinstallation attend la requete en vol").isFalse();
+
+			Files.createFile(signaux.resolve("libere"));
+			MockHttpServletResponse reponse = requete.get(20, TimeUnit.SECONDS);
+			assertThat(reponse.getStatus()).isEqualTo(200);
+			assertThat(reponse.getContentAsString()).contains("CADRE-COEUR[").contains("BLOQUE-OK");
+			assertThat(desinstallation.get(20, TimeUnit.SECONDS)).isTrue();
+			assertThat(mvc.perform(get("/p/testgabarits/page")).andReturn().getResponse().getStatus()).isEqualTo(404);
+		}
+		finally {
+			Files.createDirectories(signaux);
+			if (!Files.exists(signaux.resolve("libere"))) {
+				Files.createFile(signaux.resolve("libere"));
+			}
+			pool.shutdownNow();
+			System.clearProperty("test.gabarits.dir");
+		}
+	}
+
+	@Test
+	void l_espace_static_des_pages_est_reserve_au_noyau_meme_si_le_plugin_declare_des_mappings_larges()
+			throws Exception {
+		installerOk(pluginGabarits("1.0.0"));
+		// Sanity : les mappings pièges répondent bien hors de /static.
+		assertThat(mvc.perform(get("/p/testgabarits/x/y")).andReturn().getResponse().getContentAsString())
+				.isEqualTo("PLUGIN-PIEGE");
+
+		MockHttpServletResponse css = mvc.perform(get("/p/testgabarits/static/app.css")).andReturn().getResponse();
+		assertThat(css.getStatus()).isEqualTo(200);
+		assertThat(css.getContentAsString()).isEqualTo("body{color:#111}");
+		assertThat(css.getHeader("Content-Type")).isEqualTo("text/css");
+		assertThat(css.getHeader("X-Plugin")).isNull();
+
+		for (String chemin : new String[] { "/p/testgabarits/static/absent.css", "/p/testgabarits/static/x/y.css",
+				"/p/testgabarits/%73tatic/app.css", "/p/testgabarits/static/a.txt", "/p/testgabarits/static/",
+				"/p/testgabarits/static" }) {
+			MockHttpServletResponse r = mvc.perform(get(java.net.URI.create(chemin))).andReturn().getResponse();
+			assertThat(r.getHeader("X-Plugin")).as(chemin).isNull();
+			assertThat(r.getContentAsString()).as(chemin).doesNotContain("PLUGIN-");
+		}
+
+		// Mise à jour à chaud : le nouveau fichier est servi, puis plus rien après désinstallation.
+		installerOk(pluginGabarits("1.1.0"));
+		assertThat(mvc.perform(get("/p/testgabarits/static/app.css")).andReturn().getResponse().getContentAsString())
+				.isEqualTo("body{color:#222}");
+		manager.desinstaller("testgabarits");
+		assertThat(mvc.perform(get("/p/testgabarits/static/app.css")).andReturn().getResponse().getStatus())
+				.isEqualTo(404);
 	}
 
 	@Test

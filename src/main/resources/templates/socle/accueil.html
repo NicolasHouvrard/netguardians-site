@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{socle/layout}">
+<body>
+<div class="socle-zone" layout:fragment="contenu">
+    <div class="socle-accueil-recherche mb-3">
+        <input type="search" name="q" class="form-control" placeholder="Rechercher une application" autofocus
+               autocomplete="off" aria-label="Rechercher une application" th:value="${q}"
+               hx-get="/accueil" hx-trigger="keyup changed delay:150ms, search" hx-target="#grille-apps"
+               hx-swap="outerHTML" hx-push-url="false">
+    </div>
+    <div th:replace="~{socle/accueil :: grille}"></div>
+</div>
+<!-- tuilesGrille = liste de TuileApp (libelle(), icone(), couleur(), url()) ; aucun style en ligne issu des plugins -->
+<div th:fragment="grille" id="grille-apps" class="socle-tuiles">
+    <a th:each="t : ${tuilesGrille}" class="socle-tuile-grande" th:href="@{${t.url()}}" hx-boost="true">
+        <span class="socle-app-icone" th:classappend="'app-couleur-' + ${t.couleur()}"><i class="bi" th:classappend="${t.icone()}"></i></span>
+        <span th:text="${t.libelle()}">Application</span>
+    </a>
+    <p th:if="${tuilesGrille == null or #lists.isEmpty(tuilesGrille)}" class="text-muted mb-0">Aucune application disponible</p>
+</div>
+</body>
+</html>
