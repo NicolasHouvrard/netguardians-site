@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{socle/layout}">
+<body>
+<div class="socle-zone" layout:fragment="contenu">
+    <h1 class="h4 mb-3">Espace client</h1>
+    <p>L'espace client n'est pas encore disponible : voici le périmètre qui vous est accordé.</p>
+    <dl class="row">
+        <dt class="col-sm-3">Société cliente</dt>
+        <dd class="col-sm-9" th:text="${societeId}">1</dd>
+        <dt class="col-sm-3">Droits accordés</dt>
+        <dd class="col-sm-9">
+            <span class="text-muted" th:if="${#lists.isEmpty(droits)}">Aucun</span>
+            <span class="badge text-bg-secondary me-1" th:each="d : ${droits}" th:text="${d}">droit</span>
+        </dd>
+    </dl>
+</div>
+</body>
+</html>

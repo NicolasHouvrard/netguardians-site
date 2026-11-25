@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{socle/layout}">
+<body>
+<div class="socle-zone" layout:fragment="contenu">
+    <div class="alert alert-success" role="alert" th:if="${succes != null}" th:text="${succes}">Succès</div>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-0" th:text="${fiche.resume().nom()}">Client</h1>
+        <a class="btn btn-outline-secondary" th:href="@{/p/clients/liste}">Retour à la liste</a>
+    </div>
+    <dl class="row">
+        <dt class="col-sm-3">SIREN</dt>
+        <dd class="col-sm-9" th:text="${fiche.resume().siren()}">123456789</dd>
+        <dt class="col-sm-3">N° de TVA</dt>
+        <dd class="col-sm-9" th:text="${fiche.resume().tva()}">FR00123456789</dd>
+        <dt class="col-sm-3">Origine</dt>
+        <dd class="col-sm-9" th:text="${fiche.resume().origine()}">PARTENAIRE</dd>
+        <dt class="col-sm-3">Capacités</dt>
+        <dd class="col-sm-9">
+            <span class="text-muted" th:if="${#lists.isEmpty(fiche.capacites())}">Aucune</span>
+            <span class="badge text-bg-secondary me-1" th:each="k : ${fiche.capacites()}" th:text="${k}">capacite</span>
+        </dd>
+    </dl>
+    <form method="post" th:action="@{/p/clients/{id}/entrer(id=${fiche.resume().societeId()})}">
+        <button type="submit" class="btn btn-primary">Entrer dans l'espace</button>
+    </form>
+</div>
+</body>
+</html>
