@@ -20,7 +20,8 @@ class PluginClientsCompatibiliteTest {
 		ManifestePlugin m = LecteurManifeste.lire(JarClientsReel.localiser());
 		assertEquals("clients", m.nom());
 		assertEquals(1, m.entrees().size());
-		assertEquals(1, m.blocs().size());
+		assertEquals("1.1.0", m.version());
+		assertEquals(0, m.blocs().size());
 		for (String coeur : new String[] { "0.0.0", "0.0.1-SNAPSHOT", "1.2.3" }) {
 			var verdict = VerificateurMiseAJour.verifier(m, Map.of(), Set.of(), coeur, null);
 			assertTrue(verdict.accepte(), "refusé pour le coeur " + coeur + " : " + verdict.raisons());
