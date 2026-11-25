@@ -98,7 +98,9 @@ public final class SignatureJar {
 			return refus("jar illisible");
 		}
 		catch (IllegalArgumentException e) {
-			return refus("JSON invalide : " + e.getMessage());
+			// Le détail de l'analyseur commence déjà par « JSON ... » : pas de préfixe supplémentaire (sinon répétition).
+			return refus("fichier de signature illisible (" + e.getMessage()
+					+ ") : utilisez le .sig produit par l'outil de signature pour ce jar");
 		}
 		catch (Exception | LinkageError e) {
 			return refus("vérification impossible : " + e.getClass().getSimpleName());

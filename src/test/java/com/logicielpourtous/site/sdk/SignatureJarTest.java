@@ -105,6 +105,17 @@ class SignatureJarTest {
 		assertThat(SignatureJar.verifier(jar, bonne, cles()).valide()).isTrue();
 	}
 
+	@Test
+	void un_fichier_sig_illisible_donne_un_message_actionnable_sans_repetition() {
+		for (String illisible : new String[] { "pas du json", "{", "[]", "\u0000\u0001 binaire" }) {
+			String raison = SignatureJar.verifier(jar, illisible, cles()).raison();
+			assertThat(raison).as("raison : %s", illisible)
+				.contains("fichier de signature illisible")
+				.contains("outil de signature")
+				.doesNotContain("JSON invalide : JSON");
+		}
+	}
+
 	private static String extraireSignature(String json) {
 		return json.replaceAll(".*\"signature\"\s*:\s*\"([^\"]*)\".*", "$1");
 	}
