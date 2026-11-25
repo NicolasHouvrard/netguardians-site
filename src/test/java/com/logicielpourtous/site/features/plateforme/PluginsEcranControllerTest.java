@@ -192,8 +192,12 @@ class PluginsEcranControllerTest {
 	@Test
 	void trop_volumineux_413() throws Exception {
 		when(depot.publier(any(), any()))
-			.thenThrow(new DepotPlugins.DepotRefuse(DepotPlugins.Motif.TROP_VOLUMINEUX, "interne"));
-		mvc.perform(envoi(true).with(admin()).with(csrf())).andExpect(status().isPayloadTooLarge());
+			.thenThrow(new DepotPlugins.DepotRefuse(DepotPlugins.Motif.TROP_VOLUMINEUX,
+					"jar trop volumineux : plus de 3 Mo (app.plateforme.taille-max-jar-mo)"));
+		// la limite annoncée est celle réellement configurée dans le dépôt, pas un « 10 Mo » en dur
+		String html = mvc.perform(envoi(true).with(admin()).with(csrf())).andExpect(status().isPayloadTooLarge())
+			.andReturn().getResponse().getContentAsString();
+		assertThat(html).contains("plus de 3 Mo").doesNotContain("10 Mo au plus");
 	}
 
 	@Test

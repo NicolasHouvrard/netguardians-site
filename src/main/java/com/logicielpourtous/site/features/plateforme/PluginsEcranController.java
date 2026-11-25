@@ -99,7 +99,8 @@ public class PluginsEcranController {
 				case INVALIDE -> refuser(model, reponse, 400, e.getMessage());
 				case CONFLIT -> refuser(model, reponse, 409,
 						"version déjà publiée avec un contenu différent : publier un numéro plus haut");
-				case TROP_VOLUMINEUX -> refuser(model, reponse, 413, "jar trop volumineux (10 Mo au plus)");
+				// message du dépôt : déjà nettoyé et porte la limite réellement configurée
+				case TROP_VOLUMINEUX -> refuser(model, reponse, 413, e.getMessage());
 			};
 		}
 		catch (IOException | RuntimeException e) {
