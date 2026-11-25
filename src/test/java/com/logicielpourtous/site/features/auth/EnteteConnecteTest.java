@@ -26,4 +26,13 @@ class EnteteConnecteTest {
         }
         assertThat(trouves).isGreaterThanOrEqualTo(1);
     }
+
+    @Test
+    void marqueDeLaBarreDuSocle_pointeVersAccueil() throws Exception {
+        String html = new String(new ClassPathResource("templates/socle/fragments/topbar.html").getInputStream()
+                .readAllBytes(), StandardCharsets.UTF_8);
+        Matcher m = Pattern.compile("<a\\b([^>]*socle-marque[^>]*)>").matcher(html);
+        assertThat(m.find()).isTrue();
+        assertThat(m.group(1)).contains("href=\"/accueil\"");
+    }
 }

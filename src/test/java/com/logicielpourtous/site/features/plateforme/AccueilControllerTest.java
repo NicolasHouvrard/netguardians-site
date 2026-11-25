@@ -118,14 +118,15 @@ class AccueilControllerTest {
 	@Test
 	void d_aucune_tuile_affiche_le_message() throws Exception {
 		when(navigation.tuilesAutorisees(null)).thenReturn(List.of());
-		assertThat(page("/accueil", false)).contains("Aucune application disponible");
+		// Plus aucun compte connecte n'a une grille vide (tuile « Mon espace ») : le message vient d'une recherche sans resultat.
+		assertThat(page("/accueil?q=zzzintrouvable", false)).contains("Aucune application disponible");
 	}
 
 	@Test
 	void e_service_en_echec_affiche_le_message_en_200() throws Exception {
 		when(navigation.tuilesAutorisees(null)).thenThrow(new IllegalStateException("boum secret"));
 		String html = page("/accueil", false);
-		assertThat(html).contains("Aucune application disponible").doesNotContain("boum secret");
+		assertThat(html).contains("Espace ESN").doesNotContain("boum secret");
 	}
 
 	@Test
