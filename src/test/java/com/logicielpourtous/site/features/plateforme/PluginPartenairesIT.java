@@ -352,7 +352,7 @@ class PluginPartenairesIT {
 		// Même e-mail, autre SIREN : 409.
 		r = envoyer(siren(), "Doublon Mail SARL", p.get("email"), "Trois Trois");
 		assertThat(r.getStatus()).isEqualTo(409);
-		assertThat(r.getContentAsString()).contains("Cette adresse e-mail est déjà utilisée.");
+		assertThat(r.getContentAsString()).contains("Cette adresse e-mail est déjà utilisée : cochez");
 		// SIREN invalide, raison sociale trop longue : 400.
 		r = envoyer("123", "Invalide SARL", email(), "Quatre Quatre");
 		assertThat(r.getStatus()).isEqualTo(400);
@@ -362,6 +362,46 @@ class PluginPartenairesIT {
 		assertThat(r.getContentAsString()).contains("Raison sociale obligatoire");
 
 		assertThat(compteurs()).isEqualTo(avant);
+	}
+
+	// ---- (d2) compte existant : rattachement explicite ou 409 sans rien écrire -------------------------------------------
+
+	@Test
+	void partenaire_cree_avec_le_compte_existant_de_l_admin() throws Exception {
+		String sirenNeuf = siren();
+		long usersAvant = compter("users");
+		List<String> rolesAvant = rolesDe(adminUser.getEmail());
+		Long tenantAvant = jdbc.queryForObject("SELECT tenant_id FROM users WHERE id = ?", Long.class, adminUser.getId());
+
+		MockHttpServletResponse r = mvc.perform(post("/p/partenaires/").param("siren", sirenNeuf)
+				.param("raisonSociale", "Rattache SARL").param("email", adminUser.getEmail()).param("nom", "Admin Rattache")
+				.param("rattacherCompteExistant", "on").with(user(admin)).with(csrf())).andReturn().getResponse();
+		assertThat(r.getStatus()).isEqualTo(302);
+		assertThat(r.getHeader("Location")).endsWith("/p/partenaires/liste?ok=partenaire");
+
+		long societeId = societeIdPartenaire(sirenNeuf);
+		assertThat(compter("users")).as("aucun nouvel utilisateur").isEqualTo(usersAvant);
+		assertThat(jdbc.queryForObject(
+				"SELECT count(*) FROM appartenances WHERE user_id = ? AND societe_id = ?", Long.class, adminUser.getId(),
+				societeId)).isEqualTo(1L);
+		assertThat(jdbc.queryForList("SELECT r.name FROM appartenances_roles ar JOIN roles r ON r.id = ar.role_id "
+				+ "JOIN appartenances a ON a.id = ar.appartenance_id WHERE a.user_id = ? AND a.societe_id = ?",
+				String.class, adminUser.getId(), societeId)).containsExactly("ROLE_GESTIONNAIRE");
+		assertThat(rolesDe(adminUser.getEmail())).containsExactlyInAnyOrderElementsOf(rolesAvant);
+		assertThat(jdbc.queryForObject("SELECT tenant_id FROM users WHERE id = ?", Long.class, adminUser.getId()))
+				.isEqualTo(tenantAvant);
+	}
+
+	@Test
+	void adresse_existante_sans_la_case_donne_409_et_rien_n_est_ecrit() throws Exception {
+		Compteurs avant = compteurs();
+		String sirenNeuf = siren();
+		MockHttpServletResponse r = envoyer(sirenNeuf, "Sans Case SARL", adminUser.getEmail(), "Admin Sans Case");
+		assertThat(r.getStatus()).isEqualTo(409);
+		assertThat(r.getContentAsString()).contains("cochez");
+		assertThat(compteurs()).isEqualTo(avant);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM societes_identites WHERE siren = ?", Long.class, sirenNeuf))
+				.isZero();
 	}
 
 	// ---- (e) texte hostile : toujours échappé ----------------------------------------------------------------------
@@ -525,13 +565,13 @@ class PluginPartenairesIT {
 		Map<String, String> p = creerPartenaire("Chaud Partenaire SARL", "Chaud Manager", null);
 		assertThat(page("/p/partenaires/liste", admin)).contains("Chaud Partenaire SARL");
 
-		Path v2 = JarPartenairesReel.deriver(RACINE.resolve("jar-" + UUID.randomUUID()), "1.1.0", "Partenaires V2");
+		Path v2 = JarPartenairesReel.deriver(RACINE.resolve("jar-" + UUID.randomUUID()), "1.2.0", "Partenaires V2");
 		installer(v2);
 
 		MockHttpServletResponse liste = mvc.perform(get("/p/partenaires/liste").with(user(admin))).andReturn()
 				.getResponse();
 		assertThat(liste.getStatus()).as("X-Plugin=" + liste.getHeader("X-Plugin") + " actifs=" + manager.actifs().keySet() + " corps=" + liste.getContentAsString()).isEqualTo(200);
-		assertThat(liste.getHeader("X-Plugin")).startsWith("partenaires@1.1.0#");
+		assertThat(liste.getHeader("X-Plugin")).startsWith("partenaires@1.2.0#");
 		assertThat(liste.getContentAsString()).contains("Chaud Partenaire SARL").contains("<body class=\"socle\">");
 		assertThat(page("/accueil", admin)).contains("Partenaires V2").contains("href=\"/p/partenaires/liste\"");
 		assertThat(page("/p/partenaires/nouveau", admin)).contains("<form");
@@ -720,6 +760,14 @@ class PluginPartenairesIT {
 			jdbc.update("DELETE FROM users WHERE email = ?", email);
 		}
 		societes.add(societeDuTest);
+		// Tenants propres aux partenaires (même sans utilisateur créé : cas du compte existant rattaché).
+		for (Long id : societes) {
+			if (!id.equals(societeDuTest)) {
+				tenantsCrees.addAll(jdbc.queryForList(
+						"SELECT proprietaire_tenant_id FROM societes_identites WHERE id = ? AND proprietaire_tenant_id IS NOT NULL AND type = 'PARTENAIRE'",
+						Long.class, id));
+			}
+		}
 		for (Long id : societes) {
 			jdbc.update("DELETE FROM liens_clients WHERE client_societe_id = ? OR partenaire_societe_id = ?", id, id);
 			jdbc.update("DELETE FROM reglages_manager WHERE client_societe_id = ?", id);

@@ -43,7 +43,7 @@ public class PartenairesPagesController {
 	private static final Pattern IDENTIFIANT = Pattern.compile("^[0-9]{1,15}$");
 
 	private static final String MSG_SIREN = "Ce SIREN est déjà enregistré.";
-	private static final String MSG_EMAIL_PARTENAIRE = "Cette adresse e-mail est déjà utilisée.";
+	private static final String MSG_EMAIL_PARTENAIRE = "Cette adresse e-mail est déjà utilisée : cochez « Rattacher le compte existant » pour en faire le manager de ce partenaire.";
 	private static final String MSG_CLIENT_CONNU = "société déjà connue, une demande d'accès a été envoyée à son manager";
 	private static final String MSG_CLIENT_EMAIL = "cette adresse e-mail est déjà utilisée";
 	private static final String MSG_SIREN_INVALIDE = "SIREN invalide : 9 chiffres avec clé de contrôle correcte";
@@ -84,13 +84,16 @@ public class PartenairesPagesController {
 			@RequestParam(name = "tva", required = false) String tva,
 			@RequestParam(name = "raisonSociale", required = false) String raisonSociale,
 			@RequestParam(name = "email", required = false) String email,
-			@RequestParam(name = "nom", required = false) String nom) {
+			@RequestParam(name = "nom", required = false) String nom,
+			@RequestParam(name = "rattacherCompteExistant", required = false) String rattacher) {
+		boolean rattacherCompte = rattacher != null && !rattacher.isBlank() && !"false".equalsIgnoreCase(rattacher);
 		Map<String, String> saisie = new LinkedHashMap<>();
 		saisie.put("siren", siren);
 		saisie.put("tva", tva);
 		saisie.put("raisonSociale", raisonSociale);
 		saisie.put("email", email);
 		saisie.put("nom", nom);
+		saisie.put("rattacherCompteExistant", rattacherCompte ? "on" : null);
 		Map<String, String> erreurs = new LinkedHashMap<>();
 		String sirenNormalise = verifierSiren(siren, true, erreurs);
 		String tvaNormalisee = verifierTva(tva, sirenNormalise, erreurs);
@@ -102,7 +105,8 @@ public class PartenairesPagesController {
 		}
 		ResultatPartenaire r;
 		try {
-			r = contrat.creerPartenaire(new CreationPartenaire(sirenNormalise, tvaNormalisee, raisonSociale, email, nom));
+			r = contrat.creerPartenaire(new CreationPartenaire(sirenNormalise, tvaNormalisee, raisonSociale, email, nom,
+					rattacherCompte));
 		}
 		catch (IllegalArgumentException e) {
 			return formulaire("partenaire-form", "Créer un partenaire", saisie, messageNoyau(e), HttpStatus.BAD_REQUEST,

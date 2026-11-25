@@ -26,7 +26,7 @@ class ManifestePartenairesTest {
 		}
 		ManifestePlugin m = ManifestePlugin.depuis(p);
 		assertEquals("partenaires", m.nom());
-		assertEquals("1.0.0", m.version());
+		assertEquals("1.1.0", m.version());
 		assertEquals(ModeMiseAJour.CHAUD, m.miseAJour());
 		assertEquals("com.logicielpourtous.site.plugins.partenaires.PartenairesConfiguration", m.configuration());
 		assertEquals(1, m.entrees().size());

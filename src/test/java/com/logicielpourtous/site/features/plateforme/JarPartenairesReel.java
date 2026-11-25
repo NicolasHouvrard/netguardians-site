@@ -19,7 +19,7 @@ import java.util.jar.JarOutputStream;
  */
 final class JarPartenairesReel {
 
-	static final Path JAR = Path.of("plugins-partenaires", "target", "partenaires-1.0.0.jar");
+	static final Path JAR = Path.of("plugins-partenaires", "target", "partenaires-1.1.0.jar");
 
 	private JarPartenairesReel() {
 	}
@@ -37,7 +37,7 @@ final class JarPartenairesReel {
 	static Path copieSignee(Path dossier) {
 		try {
 			Files.createDirectories(dossier);
-			Path copie = dossier.resolve("partenaires-1.0.0.jar");
+			Path copie = dossier.resolve("partenaires-1.1.0.jar");
 			Files.copy(localiser(), copie);
 			return JarDePluginDeTest.signer(copie);
 		}

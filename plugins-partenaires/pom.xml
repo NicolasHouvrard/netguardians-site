@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.logicielpourtous</groupId>
 	<artifactId>site-plugin-partenaires</artifactId>
-	<version>1.0.0</version>
+	<version>1.1.0</version>
 	<packaging>jar</packaging>
 	<name>site-plugin-partenaires</name>
 	<description>Plugin partenaires : creation de partenaires et de leurs clients par l'administrateur du serveur maitre</description>
