@@ -293,7 +293,7 @@ class PluginSocleIT {
 				.doesNotContain("Aucune application disponible").doesNotContain("Demo admin").doesNotContain("/p/demo/admin");
 
 		String sans = page("/accueil", sansDroit);
-		assertThat(sans).contains("Aucune application disponible").doesNotContain("Demo V1").doesNotContain("/p/demo/");
+		assertThat(sans).contains("Mon espace").doesNotContain("Demo V1").doesNotContain("/p/demo/");
 
 		// Admin du maître : la tuile ADMIN s'ajoute à celle de sa société (il a le droit), et vient seule sans le droit.
 		assertThat(page("/accueil", adminAvecDroit)).contains("Demo V1").contains("href=\"/p/demo/admin\"")
@@ -485,7 +485,7 @@ class PluginSocleIT {
 				.isEqualTo(404);
 		assertThat(mvc.perform(post("/p/demo/action").with(user(gest)).with(csrf())).andReturn().getResponse()
 				.getStatus()).isEqualTo(404);
-		assertThat(page("/accueil", gest)).doesNotContain("Demo V1").contains("Aucune application disponible");
+		assertThat(page("/accueil", gest)).doesNotContain("Demo V1").contains("Mon espace");
 		assertThat(page("/accueil", adminAvecDroit)).doesNotContain("Demo admin");
 		assertThat(page("/admin/socle", adminAvecDroit)).doesNotContain("Historique demo")
 				.doesNotContain("/p/demo/onglet");

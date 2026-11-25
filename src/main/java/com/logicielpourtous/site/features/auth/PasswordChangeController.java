@@ -13,8 +13,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.util.List;
-
 @Controller
 @RequestMapping("/change-password")
 public class PasswordChangeController {
@@ -54,11 +52,7 @@ public class PasswordChangeController {
         userRepository.save(user);
         session.removeAttribute("MUST_CHANGE_PASSWORD");
 
-        boolean isEsnUser = userDetails.getAuthorities().stream()
-                .anyMatch(a -> List.of("ROLE_ADMIN", "ROLE_USER", "ROLE_COMMERCIAL",
-                                       "ROLE_TECHNICIEN", "ROLE_MARKETING", "ROLE_COMPTABLE")
-                               .contains(a.getAuthority()));
         ra.addFlashAttribute("successMessage", "Mot de passe modifié avec succès.");
-        return "redirect:" + (isEsnUser ? "/intra" : "/espace");
+        return "redirect:/accueil";
     }
 }

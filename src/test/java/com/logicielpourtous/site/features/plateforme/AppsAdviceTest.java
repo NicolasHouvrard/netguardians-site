@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -13,7 +14,10 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.logicielpourtous.site.features.auth.CustomUserDetails;
 import com.logicielpourtous.site.features.plateforme.AppsAdvice.Apps;
+import com.logicielpourtous.site.features.role.Role;
+import com.logicielpourtous.site.features.user.User;
 import com.logicielpourtous.site.features.plateforme.AppsAdvice.TuileApp;
 import com.logicielpourtous.site.features.plateforme.NavigationService.Tuile;
 import com.logicielpourtous.site.sdk.ZoneNavigation;
@@ -48,7 +52,7 @@ class AppsAdviceTest {
 
 		List<TuileApp> tuiles = apps(navigation).tuiles();
 
-		assertThat(tuiles).extracting(TuileApp::libelle).containsExactly("Clients", "Apparence", "Plugins", "Serveurs", "Comptes licence", "Fédération", "Conflits", "Doublons sociétés");
+		assertThat(tuiles).extracting(TuileApp::libelle).containsExactly("Clients", "Apparence", "Plugins", "Serveurs", "Comptes licence", "Fédération", "Conflits", "Doublons sociétés", "Console admin");
 		TuileApp apparence = tuiles.get(1);
 		assertThat(apparence.url()).isEqualTo("/admin/apparence");
 		assertThat(apparence.icone()).isEqualTo("bi-palette");
@@ -61,7 +65,7 @@ class AppsAdviceTest {
 		when(navigation.tuilesAutorisees(null)).thenReturn(List.of());
 		connecte("ROLE_GESTIONNAIRE", "ROLE_USER");
 
-		assertThat(apps(navigation).tuiles()).isEmpty();
+		assertThat(apps(navigation).tuiles()).extracting(TuileApp::libelle).containsExactly("Mon espace");
 	}
 
 	@Test
@@ -78,7 +82,7 @@ class AppsAdviceTest {
 		when(navigation.tuilesAutorisees(null)).thenThrow(new IllegalStateException("panne"));
 		connecte("ROLE_ADMIN");
 
-		assertThat(apps(navigation).tuiles()).extracting(TuileApp::libelle).containsExactly("Apparence", "Plugins", "Serveurs", "Comptes licence", "Fédération", "Conflits", "Doublons sociétés");
+		assertThat(apps(navigation).tuiles()).extracting(TuileApp::libelle).containsExactly("Apparence", "Plugins", "Serveurs", "Comptes licence", "Fédération", "Conflits", "Doublons sociétés", "Console admin");
 	}
 
 	@Test
@@ -98,7 +102,7 @@ class AppsAdviceTest {
 			.extracting(TuileApp::libelle).contains("Plugins");
 		// Serveur annexe : Apparence reste, pas Plugins.
 		assertThat(apps(navigation, new MockEnvironment().withProperty("app.role", "PARTNER")).tuiles())
-			.extracting(TuileApp::libelle).containsExactly("Apparence");
+			.extracting(TuileApp::libelle).containsExactly("Apparence", "Console admin");
 	}
 
 	@Test
@@ -123,7 +127,76 @@ class AppsAdviceTest {
 		when(navigation.tuilesAutorisees(null)).thenReturn(List.of());
 		connecte("ROLE_GESTIONNAIRE");
 
-		assertThat(apps(navigation).tuiles()).isEmpty();
+		assertThat(apps(navigation).tuiles()).extracting(TuileApp::libelle).doesNotContain("Plugins", "Apparence");
+	}
+
+	private static CustomUserDetails detailsAvecRole(Role role) {
+		User u = new User();
+		u.setEmail("e@exemple.fr");
+		u.setPassword("x");
+		u.setActive(true);
+		u.setRoles(Set.of(role));
+		return new CustomUserDetails(u);
+	}
+
+	private static void connecteAvecPrincipal(Object principal, String... roles) {
+		SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal, "x",
+				java.util.Arrays.stream(roles).map(SimpleGrantedAuthority::new).toList()));
+	}
+
+	private static NavigationService navigationVide() {
+		NavigationService navigation = mock(NavigationService.class);
+		when(navigation.tuilesAutorisees(null)).thenReturn(List.of());
+		return navigation;
+	}
+
+	@Test
+	void admin_du_maitre_recoit_la_console_admin() {
+		connecte("ROLE_ADMIN");
+		List<TuileApp> tuiles = apps(navigationVide(), new MockEnvironment().withProperty("app.role", "MASTER")).tuiles();
+		TuileApp console = tuiles.get(tuiles.size() - 1);
+		assertThat(console.libelle()).isEqualTo("Console admin");
+		assertThat(console.url()).isEqualTo("/admin/console");
+		assertThat(console.icone()).isEqualTo("bi-gear");
+		assertThat(tuiles).extracting(TuileApp::libelle).doesNotContain("Espace ESN", "Mon espace");
+	}
+
+	@Test
+	void admin_d_un_serveur_annexe_recoit_la_console_admin() {
+		connecte("ROLE_ADMIN");
+		assertThat(apps(navigationVide(), new MockEnvironment().withProperty("app.role", "PARTNER")).tuiles())
+			.extracting(TuileApp::libelle).containsExactly("Apparence", "Console admin");
+	}
+
+	@Test
+	void utilisateur_esn_recoit_espace_esn_et_pas_mon_espace() {
+		connecteAvecPrincipal(detailsAvecRole(new Role("TECH", "Tech", "ESN")), "ROLE_ESN_USER");
+		List<TuileApp> tuiles = apps(navigationVide()).tuiles();
+		assertThat(tuiles).extracting(TuileApp::libelle).containsExactly("Espace ESN");
+		assertThat(tuiles.get(0).url()).isEqualTo("/intra");
+		assertThat(tuiles.get(0).icone()).isEqualTo("bi-building");
+	}
+
+	@Test
+	void client_simple_recoit_mon_espace() {
+		connecteAvecPrincipal(detailsAvecRole(new Role("CLIENT", "Client", "CLIENT")), "ROLE_CLIENT");
+		List<TuileApp> tuiles = apps(navigationVide()).tuiles();
+		assertThat(tuiles).extracting(TuileApp::libelle).containsExactly("Mon espace");
+		assertThat(tuiles.get(0).url()).isEqualTo("/espace");
+		assertThat(tuiles.get(0).icone()).isEqualTo("bi-person-circle");
+	}
+
+	@Test
+	void principal_d_un_autre_type_pas_de_tuile_esn_mais_mon_espace() {
+		connecteAvecPrincipal("autre", "ROLE_ESN_USER");
+		assertThat(apps(navigationVide()).tuiles()).extracting(TuileApp::libelle).containsExactly("Mon espace");
+	}
+
+	@Test
+	void anonyme_aucune_tuile_d_espace() {
+		SecurityContextHolder.getContext().setAuthentication(new org.springframework.security.authentication
+				.AnonymousAuthenticationToken("k", "anonymousUser", List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"))));
+		assertThat(apps(navigationVide()).tuiles()).isEmpty();
 	}
 
 }

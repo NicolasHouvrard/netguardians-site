@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{socle/layout}">
+<body>
+<div class="socle-zone" layout:fragment="contenu">
+    <div class="alert alert-danger" role="alert" th:if="${erreur != null}" th:text="${erreur}">Erreur</div>
+    <h1 class="h4 mb-3">Créer un client</h1>
+    <form method="post" th:action="@{/p/clients/}" class="col-md-6">
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="particulier" name="particulier"
+                   th:checked="${saisie['particulier'] != null}">
+            <label class="form-check-label" for="particulier">Client particulier</label>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="siren">SIREN</label>
+            <input class="form-control" th:classappend="${erreursChamps['siren'] != null} ? ' is-invalid'" id="siren" name="siren" maxlength="14" th:value="${saisie['siren']}">
+            <div class="invalid-feedback" th:if="${erreursChamps['siren'] != null}" th:text="${erreursChamps['siren']}">Erreur</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="tva">N° de TVA</label>
+            <input class="form-control" th:classappend="${erreursChamps['tva'] != null} ? ' is-invalid'" id="tva" name="tva" maxlength="20" th:value="${saisie['tva']}">
+            <div class="invalid-feedback" th:if="${erreursChamps['tva'] != null}" th:text="${erreursChamps['tva']}">Erreur</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="nom">Nom</label>
+            <input class="form-control" th:classappend="${erreursChamps['nom'] != null} ? ' is-invalid'" id="nom" name="nom" maxlength="255" th:value="${saisie['nom']}">
+            <div class="invalid-feedback" th:if="${erreursChamps['nom'] != null}" th:text="${erreursChamps['nom']}">Erreur</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="email">Adresse e-mail</label>
+            <input class="form-control" th:classappend="${erreursChamps['email'] != null} ? ' is-invalid'" id="email" name="email" type="email" maxlength="255"
+                   th:value="${saisie['email']}">
+            <div class="invalid-feedback" th:if="${erreursChamps['email'] != null}" th:text="${erreursChamps['email']}">Erreur</div>
+        </div>
+        <button type="submit" class="btn btn-primary">Créer le client</button>
+        <a class="btn btn-link" th:href="@{/p/clients/liste}">Annuler</a>
+    </form>
+</div>
+</body>
+</html>

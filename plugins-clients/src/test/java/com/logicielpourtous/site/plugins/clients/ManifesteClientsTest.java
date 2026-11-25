@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 class ManifesteClientsTest {
 
 	@Test
-	void manifesteValideAvecSesEntreesEtSonBloc() throws Exception {
+	void manifesteValideAvecSonEntreeEtSansBloc() throws Exception {
 		Properties p = new Properties();
 		try (InputStream in = getClass().getResourceAsStream("/plugin.properties")) {
 			assertNotNull(in, "plugin.properties absent du classpath");
@@ -25,14 +25,13 @@ class ManifesteClientsTest {
 		}
 		ManifestePlugin m = ManifestePlugin.depuis(p);
 		assertEquals("clients", m.nom());
-		assertEquals("1.0.0", m.version());
+		assertEquals("1.1.0", m.version());
 		assertEquals(ModeMiseAJour.CHAUD, m.miseAJour());
 		assertEquals("com.logicielpourtous.site.plugins.clients.ClientsConfiguration", m.configuration());
 		assertEquals(1, m.entrees().size());
-		assertEquals(new EntreeNavigation(ZoneNavigation.PARTENAIRE, "Clients", "people", "/clients", "clients.lire"),
+		assertEquals(new EntreeNavigation(ZoneNavigation.PARTENAIRE, "Clients", "people", "/liste", "clients.lire"),
 				m.entrees().get(0));
-		assertEquals(1, m.blocs().size());
-		assertEquals("/blocs/resume", m.blocs().get(0).chemin());
+		assertEquals(0, m.blocs().size());
 	}
 
 }

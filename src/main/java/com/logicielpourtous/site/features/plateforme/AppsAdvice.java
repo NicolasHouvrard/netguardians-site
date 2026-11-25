@@ -7,11 +7,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
+import com.logicielpourtous.site.features.auth.CustomUserDetails;
 import com.logicielpourtous.site.features.commun.ServerRole;
 import com.logicielpourtous.site.features.commun.ServerRoleProperties;
 import com.logicielpourtous.site.features.plateforme.NavigationService.Tuile;
@@ -89,6 +91,18 @@ public class AppsAdvice {
 				new TuileApp("Conflits", "bi-exclamation-triangle", "primaire", "/intra/licence/conflits"),
 				new TuileApp("Doublons sociétés", "bi-files", "primaire", "/intra/societes/doublons"));
 
+		/** Ancien espace des administrateurs (destination de connexion d'avant {@code /accueil}). */
+		private static final TuileApp TUILE_CONSOLE_ADMIN = new TuileApp("Console admin", "bi-gear", "primaire",
+				"/admin/console");
+
+		/** Ancien espace des utilisateurs ESN (non administrateurs). */
+		private static final TuileApp TUILE_ESPACE_ESN = new TuileApp("Espace ESN", "bi-building", "primaire",
+				"/intra");
+
+		/** Ancien espace des autres utilisateurs connectés (ni admin, ni ESN). */
+		private static final TuileApp TUILE_MON_ESPACE = new TuileApp("Mon espace", "bi-person-circle", "primaire",
+				"/espace");
+
 		private final NavigationService navigation;
 
 		private final boolean maitre;
@@ -116,6 +130,19 @@ public class AppsAdvice {
 					if (maitre) {
 						liste.add(TUILE_PLUGINS);
 						liste.addAll(TUILES_SERVEURS);
+					}
+				}
+				// Anciennes destinations de connexion (même logique que CustomTenantSuccessHandler avant /accueil).
+				Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+				if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
+					if (adminDuServeur()) {
+						liste.add(TUILE_CONSOLE_ADMIN);
+					}
+					else if (auth.getPrincipal() instanceof CustomUserDetails d && d.hasEsnRole()) {
+						liste.add(TUILE_ESPACE_ESN);
+					}
+					else {
+						liste.add(TUILE_MON_ESPACE);
 					}
 				}
 				tuiles = List.copyOf(liste);

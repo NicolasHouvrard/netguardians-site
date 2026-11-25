@@ -12,12 +12,14 @@ import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 
 /**
- * Aide de test : le VRAI jar du plugin « clients », celui que produit {@code mvn -f plugins-clients/pom.xml package}.
- * Jamais d'ignorance silencieuse : un jar absent fait ÉCHOUER le test, avec la commande à lancer.
+ * Aide de test : le VRAI jar du plugin « clients », celui que produit {@code mvn -B -o -f plugins-clients/pom.xml
+ * package}. Jamais d'ignorance silencieuse : un jar absent fait ÉCHOUER le test, avec la commande à lancer. Les jars
+ * rendus au test sont des COPIES signées avec la clé de test, dans un dossier du test : rien n'est écrit dans
+ * {@code target/}.
  */
 final class JarClientsReel {
 
-	static final Path JAR = Path.of("plugins-clients", "target", "clients-1.0.0.jar");
+	static final Path JAR = Path.of("plugins-clients", "target", "clients-1.1.0.jar");
 
 	private JarClientsReel() {
 	}
@@ -26,17 +28,29 @@ final class JarClientsReel {
 	static Path localiser() {
 		if (!Files.isRegularFile(JAR)) {
 			throw new IllegalStateException("Jar du plugin clients introuvable : " + JAR.toAbsolutePath()
-					+ ". Construisez-le d'abord : mvn -f plugins-clients/pom.xml package");
+					+ ". Construisez-le d'abord : mvn -B -o -f plugins-clients/pom.xml package");
 		}
 		return JAR;
 	}
 
+	/** Copie du vrai jar dans {@code dossier}, signée avec la clé de test. */
+	static Path copieSignee(Path dossier) {
+		try {
+			Files.createDirectories(dossier);
+			Path copie = dossier.resolve("clients-1.1.0.jar");
+			Files.copy(localiser(), copie);
+			return JarDePluginDeTest.signer(copie);
+		}
+		catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
+	}
+
 	/**
-	 * Dérive une autre version du vrai jar : mêmes classes, {@code plugin.properties} avec la version donnée et les
-	 * lignes de manifeste en plus, et {@code ui/main.js} remplacé par {@code contenuMain}. Écrit
-	 * {@code <dossier>/clients-<version>.jar}.
+	 * Dérive une autre version du vrai jar : mêmes classes et mêmes gabarits, {@code plugin.properties} avec la version
+	 * donnée et le libellé de la tuile {@code entree.1} remplacé ; signée avec la clé de test.
 	 */
-	static Path deriver(Path dossier, String version, String lignesEnPlus, String contenuMain) {
+	static Path deriver(Path dossier, String version, String libelleTuile) {
 		try {
 			Files.createDirectories(dossier);
 			Path sortie = dossier.resolve("clients-" + version + ".jar");
@@ -52,11 +66,9 @@ final class JarClientsReel {
 					jos.putNextEntry(new JarEntry(e.getName()));
 					if (e.getName().equals("plugin.properties")) {
 						String props = new String(source.getInputStream(e).readAllBytes(), StandardCharsets.UTF_8);
-						String neuf = props.replaceAll("(?m)^version=.*$", "version=" + version);
-						jos.write((neuf.stripTrailing() + "\n" + lignesEnPlus + "\n").getBytes(StandardCharsets.UTF_8));
-					}
-					else if (e.getName().equals("ui/main.js")) {
-						jos.write(contenuMain.getBytes(StandardCharsets.UTF_8));
+						String neuf = props.replaceAll("(?m)^version=.*$", "version=" + version)
+							.replace("PARTENAIRE|Clients|", "PARTENAIRE|" + libelleTuile + "|");
+						jos.write(neuf.getBytes(StandardCharsets.UTF_8));
 					}
 					else if (!e.isDirectory()) {
 						source.getInputStream(e).transferTo(jos);
@@ -64,7 +76,7 @@ final class JarClientsReel {
 					jos.closeEntry();
 				}
 			}
-			return sortie;
+			return JarDePluginDeTest.signer(sortie);
 		}
 		catch (IOException e) {
 			throw new UncheckedIOException(e);
