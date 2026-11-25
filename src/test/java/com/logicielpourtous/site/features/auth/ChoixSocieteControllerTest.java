@@ -160,8 +160,8 @@ class ChoixSocieteControllerTest {
         MvcResult r = mockMvc.perform(post("/choisir-societe").with(user(multiSocietes(null))).with(csrf())
                         .param("appartenanceId", String.valueOf(idAlpha)))
                 .andExpect(status().is3xxRedirection())
-                // Task 4 : meme destination que la connexion d'un compte d'une seule societe (ADMIN -> console).
-                .andExpect(redirectedUrl("/admin/console"))
+                // Task 4 : meme destination que la connexion d'un compte d'une seule societe (desormais /accueil pour tous).
+                .andExpect(redirectedUrl("/accueil"))
                 .andReturn();
         // Jeton court pour l'auto-connexion Angular, portant la societe choisie.
         jakarta.servlet.http.Cookie cookie = r.getResponse().getCookie("_intra_jwt");
@@ -183,7 +183,7 @@ class ChoixSocieteControllerTest {
         MvcResult r2 = mockMvc.perform(post("/choisir-societe").with(user(multiSocietes(null))).with(csrf())
                         .param("appartenanceId", String.valueOf(idBeta)))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/espace"))
+                .andExpect(redirectedUrl("/accueil"))
                 .andReturn();
         assertThat(r2.getResponse().getCookie("_intra_jwt")).isNull();
         MockHttpSession session2 = (MockHttpSession) r2.getRequest().getSession(false);

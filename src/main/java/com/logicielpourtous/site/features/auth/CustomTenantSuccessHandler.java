@@ -129,7 +129,7 @@ public class CustomTenantSuccessHandler implements AuthenticationSuccessHandler 
     /**
      * Destination d'un compte qui a une societe (connexion, ou choix de societe par le selecteur) : retour a
      * Angular avec un jeton si la connexion venait d'Angular, sinon changement de mot de passe obligatoire,
-     * sinon page d'accueil selon les droits ; pose le cookie {@code _intra_jwt} pour un admin ou un ESN.
+     * sinon la page d'accueil commune ; pose le cookie {@code _intra_jwt} pour un admin ou un ESN.
      * Les jetons portent la societe active d'une personne de plusieurs societes.
      *
      * @return l'URL vers laquelle rediriger
@@ -162,9 +162,7 @@ public class CustomTenantSuccessHandler implements AuthenticationSuccessHandler 
             response.addCookie(jwtCookie);
         }
 
-        if (isAdmin)        return "/admin/console";
-        else if (isEsnUser) return "/intra";
-        else                return "/espace";
+        return "/accueil";
     }
 
     /** Remplace l'authentification de la requête et de la session (survit à la requête suivante). */

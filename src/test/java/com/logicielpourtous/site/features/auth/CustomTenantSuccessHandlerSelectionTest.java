@@ -162,7 +162,7 @@ class CustomTenantSuccessHandlerSelectionTest {
 
         handler.onAuthenticationSuccess(req, resp, auth(seul));
 
-        assertThat(resp.getRedirectedUrl()).isEqualTo("/admin/console");
+        assertThat(resp.getRedirectedUrl()).isEqualTo("/accueil");
         assertThat(req.getSession().getAttribute("CURRENT_TENANT_ID")).isEqualTo("schema_fiche");
         assertThat(resp.getCookie("_intra_jwt")).isNotNull();
         // Task 4 : une seule societe, jeton d'avant (sans revendication de societe).
@@ -181,10 +181,63 @@ class CustomTenantSuccessHandlerSelectionTest {
         assertThat(req.getSession().getAttribute("CURRENT_TENANT_ID")).isEqualTo("schema_alpha");
         assertThat(TenantContext.getCurrentTenant()).isEqualTo("schema_alpha");
         // Les droits sont ceux de la societe active (ADMIN dans Alpha), pas ceux d'un rechargement en attente.
-        assertThat(resp.getRedirectedUrl()).isEqualTo("/admin/console");
+        assertThat(resp.getRedirectedUrl()).isEqualTo("/accueil");
         // Task 4 : le jeton porte la societe active (sinon le filtre JWT le refuserait).
         assertThat(resp.getCookie("_intra_jwt").getValue()).isEqualTo("jeton-societe");
         verify(jwtTokenProvider).generate(actif, 10L);
+    }
+
+    @Test
+    void utilisateurEsn_arriveSurAccueil() {
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        String url = handler.destinationApresConnexion(resp, detailsAvecRole(new Role("TECH", "Tech", "ESN")),
+                false, false);
+        assertThat(url).isEqualTo("/accueil");
+    }
+
+    @Test
+    void utilisateurNiAdminNiEsn_arriveSurAccueil() {
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        String url = handler.destinationApresConnexion(resp, detailsAvecRole(new Role("CLIENT", "Client", "CLIENT")),
+                false, false);
+        assertThat(url).isEqualTo("/accueil");
+    }
+
+    @Test
+    void motDePasseAChanger_versChangePassword_memePourUnAdmin() {
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        String url = handler.destinationApresConnexion(resp, detailsAvecRole(new Role("ADMIN", "Admin", "ESN")),
+                true, false);
+        assertThat(url).isEqualTo("/change-password");
+    }
+
+    @Test
+    void depuisAngular_urlAngularAvecJeton() {
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        String url = handler.destinationApresConnexion(resp, detailsAvecRole(new Role("CLIENT", "Client", "CLIENT")),
+                false, true);
+        assertThat(url).startsWith("http://angular/login").contains("?token=");
+    }
+
+    @Test
+    void admin_et_esn_recoivent_toujours_le_cookie_jwt_court() {
+        MockHttpServletResponse admin = new MockHttpServletResponse();
+        handler.destinationApresConnexion(admin, detailsAvecRole(new Role("ADMIN", "Admin", "ESN")), false, false);
+        MockHttpServletResponse esn = new MockHttpServletResponse();
+        handler.destinationApresConnexion(esn, detailsAvecRole(new Role("TECH", "Tech", "ESN")), false, false);
+        MockHttpServletResponse autre = new MockHttpServletResponse();
+        handler.destinationApresConnexion(autre, detailsAvecRole(new Role("CLIENT", "Client", "CLIENT")), false, false);
+
+        assertThat(admin.getCookie("_intra_jwt")).isNotNull();
+        assertThat(admin.getCookie("_intra_jwt").getMaxAge()).isEqualTo(300);
+        assertThat(esn.getCookie("_intra_jwt")).isNotNull();
+        assertThat(esn.getCookie("_intra_jwt").getMaxAge()).isEqualTo(300);
+        assertThat(autre.getCookie("_intra_jwt")).isNull();
+    }
+
+    private CustomUserDetails detailsAvecRole(Role role) {
+        user.setRoles(Set.of(role));
+        return new CustomUserDetails(user);
     }
 
     private CustomUserDetails multi(Long active) {
