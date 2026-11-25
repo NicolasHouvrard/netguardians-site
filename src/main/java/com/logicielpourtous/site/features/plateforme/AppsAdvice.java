@@ -78,6 +78,17 @@ public class AppsAdvice {
 		private static final TuileApp TUILE_PLUGINS = new TuileApp("Plugins", "bi-puzzle", "primaire",
 				"/admin/plugins");
 
+		/**
+		 * Écrans du noyau de gestion des serveurs et de la fédération (pages sous {@code /intra/licence} et
+		 * {@code /intra/societes}, réservées à ROLE_ADMIN par leurs contrôleurs) : sans ces tuiles, aucun menu n'y mène.
+		 */
+		private static final List<TuileApp> TUILES_SERVEURS = List.of(
+				new TuileApp("Serveurs", "bi-hdd-network", "primaire", "/intra/licence/serveurs"),
+				new TuileApp("Comptes licence", "bi-key", "primaire", "/intra/licence/comptes"),
+				new TuileApp("Fédération", "bi-diagram-3", "primaire", "/intra/licence/federation"),
+				new TuileApp("Conflits", "bi-exclamation-triangle", "primaire", "/intra/licence/conflits"),
+				new TuileApp("Doublons sociétés", "bi-files", "primaire", "/intra/societes/doublons"));
+
 		private final NavigationService navigation;
 
 		private final boolean maitre;
@@ -104,6 +115,7 @@ public class AppsAdvice {
 					liste.add(TUILE_APPARENCE);
 					if (maitre) {
 						liste.add(TUILE_PLUGINS);
+						liste.addAll(TUILES_SERVEURS);
 					}
 				}
 				tuiles = List.copyOf(liste);

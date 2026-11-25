@@ -48,7 +48,7 @@ class AppsAdviceTest {
 
 		List<TuileApp> tuiles = apps(navigation).tuiles();
 
-		assertThat(tuiles).extracting(TuileApp::libelle).containsExactly("Clients", "Apparence", "Plugins");
+		assertThat(tuiles).extracting(TuileApp::libelle).containsExactly("Clients", "Apparence", "Plugins", "Serveurs", "Comptes licence", "Fédération", "Conflits", "Doublons sociétés");
 		TuileApp apparence = tuiles.get(1);
 		assertThat(apparence.url()).isEqualTo("/admin/apparence");
 		assertThat(apparence.icone()).isEqualTo("bi-palette");
@@ -78,7 +78,7 @@ class AppsAdviceTest {
 		when(navigation.tuilesAutorisees(null)).thenThrow(new IllegalStateException("panne"));
 		connecte("ROLE_ADMIN");
 
-		assertThat(apps(navigation).tuiles()).extracting(TuileApp::libelle).containsExactly("Apparence", "Plugins");
+		assertThat(apps(navigation).tuiles()).extracting(TuileApp::libelle).containsExactly("Apparence", "Plugins", "Serveurs", "Comptes licence", "Fédération", "Conflits", "Doublons sociétés");
 	}
 
 	@Test
@@ -99,6 +99,22 @@ class AppsAdviceTest {
 		// Serveur annexe : Apparence reste, pas Plugins.
 		assertThat(apps(navigation, new MockEnvironment().withProperty("app.role", "PARTNER")).tuiles())
 			.extracting(TuileApp::libelle).containsExactly("Apparence");
+	}
+
+	@Test
+	void les_tuiles_de_gestion_des_serveurs_pointent_vers_les_pages_existantes_et_restent_au_maitre() {
+		NavigationService navigation = mock(NavigationService.class);
+		when(navigation.tuilesAutorisees(null)).thenReturn(List.of());
+		connecte("ROLE_ADMIN");
+
+		List<TuileApp> tuiles = apps(navigation).tuiles();
+		assertThat(tuiles).extracting(TuileApp::url).contains("/intra/licence/serveurs", "/intra/licence/comptes",
+				"/intra/licence/federation", "/intra/licence/conflits", "/intra/societes/doublons");
+		assertThat(tuiles).allSatisfy(t -> assertThat(t.icone()).startsWith("bi-"));
+
+		// serveur annexe : ni ces tuiles ni Plugins (seul Apparence reste, déjà testé plus haut)
+		assertThat(apps(navigation, new MockEnvironment().withProperty("app.role", "PARTNER")).tuiles())
+			.extracting(TuileApp::url).doesNotContain("/intra/licence/serveurs", "/intra/societes/doublons");
 	}
 
 	@Test
