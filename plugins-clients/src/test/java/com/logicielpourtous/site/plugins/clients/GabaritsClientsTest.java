@@ -58,7 +58,7 @@ class GabaritsClientsTest {
 		assertTrue(m.find());
 		assertTrue(m.group().contains("maxlength=\"14\""), "SIREN : maxlength 14 pour les espaces saisis");
 		assertTrue(html.contains("name=\"particulier\""));
-		assertTrue(html.contains("name=\"etrangere\""));
+		assertFalse(html.contains("etrangere"), "le noyau refuse les societes etrangeres : pas de case");
 		assertTrue(html.contains("@{/p/clients/}"));
 		assertTrue(html.contains("invalid-feedback") && html.contains("is-invalid"));
 		for (String champ : new String[] { "siren", "tva", "email", "nom" }) {

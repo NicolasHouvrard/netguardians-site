@@ -11,11 +11,6 @@
                    th:checked="${saisie['particulier'] != null}">
             <label class="form-check-label" for="particulier">Client particulier</label>
         </div>
-        <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" id="etrangere" name="etrangere"
-                   th:checked="${saisie['etrangere'] != null}">
-            <label class="form-check-label" for="etrangere">Société étrangère</label>
-        </div>
         <div class="mb-3">
             <label class="form-label" for="siren">SIREN</label>
             <input class="form-control" th:classappend="${erreursChamps['siren'] != null} ? ' is-invalid'" id="siren" name="siren" maxlength="14" th:value="${saisie['siren']}">

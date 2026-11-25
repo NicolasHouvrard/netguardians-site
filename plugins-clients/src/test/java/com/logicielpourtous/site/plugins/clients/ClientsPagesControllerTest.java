@@ -1,6 +1,7 @@
 package com.logicielpourtous.site.plugins.clients;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -199,15 +200,33 @@ class ClientsPagesControllerTest {
 	@Test
 	void creation_particulier_avec_siren_et_tva_vides_est_acceptee() throws Exception {
 		when(annuaire.creerClient(any())).thenReturn(new ResultatCreation("CREE", 43L));
-		mvc.perform(valide("particulier", "on", "siren", "", "tva", "", "etrangere", "on"))
+		mvc.perform(valide("particulier", "on", "siren", "", "tva", ""))
 			.andExpect(status().is3xxRedirection())
 			.andExpect(redirectedUrl("/p/clients/43/fiche?ok=cree"));
 		ArgumentCaptor<CreationClient> c = ArgumentCaptor.forClass(CreationClient.class);
 		verify(annuaire).creerClient(c.capture());
 		assertTrue(c.getValue().particulier());
-		assertTrue(c.getValue().etrangere());
+		assertFalse(c.getValue().etrangere());
 		assertNull(c.getValue().siren());
 		assertNull(c.getValue().tva());
+	}
+
+	@Test
+	void creation_non_particulier_sans_siren_donne_une_erreur_sur_le_champ_siren() throws Exception {
+		mvc.perform(valide("siren", ""))
+			.andExpect(status().isBadRequest())
+			.andExpect(view().name(V + "client-form"))
+			.andExpect(model().attribute("erreursChamps", Matchers.hasKey("siren")));
+		verify(annuaire, never()).creerClient(any());
+	}
+
+	@Test
+	void un_parametre_etrangere_envoye_est_ignore_le_contrat_recoit_false() throws Exception {
+		when(annuaire.creerClient(any())).thenReturn(new ResultatCreation("CREE", 44L));
+		mvc.perform(valide("etrangere", "on")).andExpect(status().is3xxRedirection());
+		ArgumentCaptor<CreationClient> c = ArgumentCaptor.forClass(CreationClient.class);
+		verify(annuaire).creerClient(c.capture());
+		assertFalse(c.getValue().etrangere());
 	}
 
 	@Test

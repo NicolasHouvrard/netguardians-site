@@ -108,24 +108,21 @@ public class ClientsPagesController {
 
 	@PostMapping("/")
 	public ModelAndView creer(@RequestParam(name = "particulier", required = false) String particulier,
-			@RequestParam(name = "etrangere", required = false) String etrangere,
 			@RequestParam(name = "siren", required = false) String siren,
 			@RequestParam(name = "tva", required = false) String tva,
 			@RequestParam(name = "email", required = false) String email,
 			@RequestParam(name = "nom", required = false) String nom) {
 		long partenaire = exiger(DROIT_CREER);
 		boolean estParticulier = coche(particulier);
-		boolean estEtrangere = coche(etrangere);
 		Map<String, String> saisie = new LinkedHashMap<>();
 		saisie.put("siren", siren);
 		saisie.put("tva", tva);
 		saisie.put("email", email);
 		saisie.put("nom", nom);
 		saisie.put("particulier", estParticulier ? "on" : null);
-		saisie.put("etrangere", estEtrangere ? "on" : null);
 		Map<String, String> erreurs = new LinkedHashMap<>();
-		// SIREN facultatif pour un particulier (et pour une societe etrangere, qui n'en a pas)
-		String sirenNormalise = verifierSiren(siren, !estParticulier && !estEtrangere, erreurs);
+		// SIREN facultatif uniquement pour un particulier ; le noyau refuse les societes etrangeres : jamais lu de la requete
+		String sirenNormalise = verifierSiren(siren, !estParticulier, erreurs);
 		String tvaNormalisee = verifierTva(tva, sirenNormalise, erreurs);
 		verifierEmail(email, erreurs);
 		verifierTexte("nom", nom, MSG_NOM, erreurs);
@@ -137,7 +134,7 @@ public class ClientsPagesController {
 		ResultatCreation r;
 		try {
 			r = annuaire.creerClient(new CreationClient(partenaire, estParticulier, sirenNormalise, tvaNormalisee,
-					estEtrangere, email, nom));
+					false, email, nom));
 		}
 		catch (IllegalArgumentException e) {
 			return formulaire(saisie, messageNoyau(e), HttpStatus.BAD_REQUEST);
