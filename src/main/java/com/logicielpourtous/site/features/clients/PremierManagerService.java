@@ -1,5 +1,6 @@
 package com.logicielpourtous.site.features.clients;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,6 +30,11 @@ class PremierManagerService {
 		this.roles = roles;
 		this.tenants = tenants;
 		this.passwordEncoder = passwordEncoder;
+	}
+
+	/** Compte actif existant pour cette adresse (casse ignorée) ; vide si aucun compte ou si le compte est inactif. */
+	Optional<User> trouverActif(String emailNormalise) {
+		return users.findByEmailIgnoreCase(emailNormalise).filter(User::isActive);
 	}
 
 	/** Compte du premier manager : mot de passe aléatoire inutilisable, à définir via « mot de passe oublié ». */

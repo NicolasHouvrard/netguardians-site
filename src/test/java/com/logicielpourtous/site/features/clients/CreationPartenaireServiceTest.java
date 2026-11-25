@@ -3,6 +3,7 @@ package com.logicielpourtous.site.features.clients;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 
 import java.time.Duration;
@@ -20,7 +21,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.logicielpourtous.site.features.commun.Tenant;
+import com.logicielpourtous.site.features.commun.TenantRepository;
+import com.logicielpourtous.site.features.identite.EmailsUtilises;
 import com.logicielpourtous.site.features.identite.RegistreSocietes;
+import com.logicielpourtous.site.features.role.RoleRepository;
+import com.logicielpourtous.site.features.user.User;
+import com.logicielpourtous.site.features.user.UserRepository;
 import com.logicielpourtous.site.features.identite.SocieteDejaConnueException;
 import com.logicielpourtous.site.features.identite.SocieteIdentite;
 
@@ -39,7 +46,11 @@ class CreationPartenaireServiceTest {
     @Autowired private DroitsService droits;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private TransactionTemplate tx;
+    @Autowired private UserRepository users;
+    @Autowired private TenantRepository tenantsRepo;
+    @Autowired private RoleRepository rolesRepo;
     @MockitoSpyBean private RegistreSocietes registre;
+    @MockitoSpyBean private EmailsUtilises emailsUtilises;
 
     private final List<String> sirens = new ArrayList<>();
     private final List<String> emails = new ArrayList<>();
@@ -307,5 +318,166 @@ class CreationPartenaireServiceTest {
         assertThat(compter("societes_identites")).isEqualTo(identites);
         assertThat(compter("users")).isEqualTo(users);
         assertThat(schemas()).isEqualTo(schemas);
+    }
+
+    private User compteExistant(String email, boolean actif) {
+        Tenant origine = tenantsRepo.findAll().get(0);
+        User u = new User();
+        u.setEmail(email);
+        u.setFullName("Compte Existant");
+        u.setPassword("$2a$10$hashquelconquepourletest");
+        u.setTenant(origine);
+        u.setActive(actif);
+        rolesRepo.findByName("ROLE_ADMIN").ifPresent(r -> u.getRoles().add(r));
+        return users.saveAndFlush(u);
+    }
+
+    private CreationPartenaire avecCase(String siren, String email) {
+        return new CreationPartenaire(siren, null, "Maison Test SARL", email, "Alice Martin", true);
+    }
+
+    @Test
+    void sans_la_case_une_adresse_connue_reste_refusee_sans_ecriture() {
+        String email = email();
+        compteExistant(email, true);
+        long tenants = compter("tenants");
+        long identites = compter("societes_identites");
+        long nbUsers = compter("users");
+        long appartenances = compter("appartenances");
+        long schemas = schemas();
+
+        ResultatPartenaire r = service.creer(demande(siren(), email));
+
+        assertThat(r.issue()).isEqualTo("EMAIL_DEJA_UTILISE");
+        assertThat(compter("tenants")).isEqualTo(tenants);
+        assertThat(compter("societes_identites")).isEqualTo(identites);
+        assertThat(compter("users")).isEqualTo(nbUsers);
+        assertThat(compter("appartenances")).isEqualTo(appartenances);
+        assertThat(schemas()).isEqualTo(schemas);
+    }
+
+    @Test
+    void avec_la_case_et_une_adresse_connue_le_compte_est_rattache_sans_creer_de_compte() {
+        String email = email();
+        User existant = compteExistant(email, true);
+        Long tenantOrigine = existant.getTenant().getId();
+        String motDePasse = existant.getPassword();
+        long nbUsers = compter("users");
+        List<String> rolesAvant = jdbc.queryForList(
+                "SELECT r.name FROM users_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = ?",
+                String.class, existant.getId());
+
+        ResultatPartenaire r = service.creer(avecCase(siren(), email));
+
+        assertThat(r.issue()).isEqualTo("CREE");
+        assertThat(compter("users")).isEqualTo(nbUsers);
+        Long tenantPartenaire = jdbc.queryForObject(
+                "SELECT proprietaire_tenant_id FROM societes_identites WHERE id = ?", Long.class, r.societeId());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM appartenances WHERE user_id = ?", Long.class,
+                existant.getId())).isEqualTo(1L);
+        assertThat(jdbc.queryForObject("SELECT tenant_id FROM appartenances WHERE user_id = ? AND societe_id = ?",
+                Long.class, existant.getId(), r.societeId())).isEqualTo(tenantPartenaire);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM appartenances a JOIN appartenances_roles ar ON ar.appartenance_id = a.id "
+                        + "JOIN roles ro ON ro.id = ar.role_id WHERE a.user_id = ? AND a.societe_id = ? "
+                        + "AND ro.name = 'ROLE_GESTIONNAIRE'", Long.class, existant.getId(), r.societeId()))
+                .isEqualTo(1L);
+        assertThat(jdbc.queryForObject("SELECT tenant_id FROM users WHERE id = ?", Long.class, existant.getId()))
+                .isEqualTo(tenantOrigine);
+        assertThat(jdbc.queryForObject("SELECT full_name FROM users WHERE id = ?", String.class, existant.getId()))
+                .isEqualTo("Compte Existant");
+        assertThat(jdbc.queryForObject("SELECT password FROM users WHERE id = ?", String.class, existant.getId()))
+                .isEqualTo(motDePasse);
+        assertThat(jdbc.queryForObject("SELECT must_change_password FROM users WHERE id = ?", Boolean.class,
+                existant.getId())).isNotEqualTo(Boolean.TRUE);
+        assertThat(jdbc.queryForList(
+                "SELECT r.name FROM users_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = ?",
+                String.class, existant.getId())).containsExactlyInAnyOrderElementsOf(rolesAvant);
+        assertThat(droits.autorise(existant.getId(), r.societeId(), "clients.creer")).isTrue();
+    }
+
+    @Test
+    void avec_la_case_et_une_adresse_inconnue_un_compte_est_cree_comme_avant() {
+        String email = email();
+        long nbUsers = compter("users");
+
+        ResultatPartenaire r = service.creer(avecCase(siren(), email));
+
+        assertThat(r.issue()).isEqualTo("CREE");
+        assertThat(compter("users")).isEqualTo(nbUsers + 1);
+        assertThat(jdbc.queryForObject("SELECT must_change_password FROM users WHERE email = ?", Boolean.class,
+                email)).isTrue();
+    }
+
+    @Test
+    void compte_inactif_avec_la_case_est_refuse_sans_ecriture() {
+        String email = email();
+        compteExistant(email, false);
+        long tenants = compter("tenants");
+        long identites = compter("societes_identites");
+        long nbUsers = compter("users");
+        long appartenances = compter("appartenances");
+        long schemas = schemas();
+
+        ResultatPartenaire r = service.creer(avecCase(siren(), email));
+
+        assertThat(r.issue()).isEqualTo("EMAIL_DEJA_UTILISE");
+        assertThat(compter("tenants")).isEqualTo(tenants);
+        assertThat(compter("societes_identites")).isEqualTo(identites);
+        assertThat(compter("users")).isEqualTo(nbUsers);
+        assertThat(compter("appartenances")).isEqualTo(appartenances);
+        assertThat(schemas()).isEqualTo(schemas);
+    }
+
+    @Test
+    void adresse_utilisee_sans_compte_utilisateur_est_refusee_sans_ecriture() {
+        String email = email();
+        doReturn(true).when(emailsUtilises).estUtilise(email);
+        long tenants = compter("tenants");
+        long identites = compter("societes_identites");
+        long nbUsers = compter("users");
+        long schemas = schemas();
+
+        ResultatPartenaire r = service.creer(avecCase(siren(), email));
+
+        assertThat(r.issue()).isEqualTo("EMAIL_DEJA_UTILISE");
+        assertThat(compter("tenants")).isEqualTo(tenants);
+        assertThat(compter("societes_identites")).isEqualTo(identites);
+        assertThat(compter("users")).isEqualTo(nbUsers);
+        assertThat(schemas()).isEqualTo(schemas);
+    }
+
+    @Test
+    void l_ancien_constructeur_a_cinq_parametres_existe_et_vaut_false() throws Exception {
+        var ctor = CreationPartenaire.class.getConstructor(String.class, String.class, String.class, String.class,
+                String.class);
+        CreationPartenaire c = ctor.newInstance("1", "2", "3", "4", "5");
+        assertThat(c.rattacherCompteExistant()).isFalse();
+        assertThat(CreationPartenaire.class.getConstructor(String.class, String.class, String.class, String.class,
+                String.class, boolean.class)).isNotNull();
+    }
+
+    @Test
+    void siren_deja_connu_avec_la_case_est_refuse_et_rien_n_est_ecrit() {
+        String siren = siren();
+        assertThat(service.creer(demande(siren, email())).issue()).isEqualTo("CREE");
+        String email = email();
+        User existant = compteExistant(email, true);
+        long tenants = compter("tenants");
+        long identites = compter("societes_identites");
+        long nbUsers = compter("users");
+        long appartenances = compter("appartenances");
+        long schemas = schemas();
+
+        ResultatPartenaire r = service.creer(avecCase(siren, email));
+
+        assertThat(r.issue()).isEqualTo("SIREN_DEJA_CONNU");
+        assertThat(compter("tenants")).isEqualTo(tenants);
+        assertThat(compter("societes_identites")).isEqualTo(identites);
+        assertThat(compter("users")).isEqualTo(nbUsers);
+        assertThat(compter("appartenances")).isEqualTo(appartenances);
+        assertThat(schemas()).isEqualTo(schemas);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM appartenances WHERE user_id = ?", Long.class,
+                existant.getId())).isZero();
     }
 }

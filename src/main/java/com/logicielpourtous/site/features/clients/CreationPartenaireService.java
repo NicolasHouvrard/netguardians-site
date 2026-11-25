@@ -98,8 +98,15 @@ class CreationPartenaireService {
 		}
 
 		// Tous les refus métier sont tranchés AVANT la première écriture : rien n'est écrit dans ces cas.
+		User compteExistant = null;
 		if (emailsUtilises.estUtilise(email)) {
-			return new ResultatPartenaire(EMAIL_DEJA_UTILISE, null);
+			// Rattachement explicite d'un compte existant : seulement s'il est actif ; sinon refus comme avant.
+			if (demande.rattacherCompteExistant()) {
+				compteExistant = premierManager.trouverActif(email).orElse(null);
+			}
+			if (compteExistant == null) {
+				return new ResultatPartenaire(EMAIL_DEJA_UTILISE, null);
+			}
 		}
 		if (registre.trouver(identite).isPresent()) {
 			return new ResultatPartenaire(SIREN_DEJA_CONNU, null);
@@ -122,7 +129,8 @@ class CreationPartenaireService {
 		capacite.setCapacite(TypeCapacite.PARTENAIRE);
 		capacites.saveAndFlush(capacite);
 
-		User premier = premierManager.creer(email, nom, tenant.getId());
+		// Compte existant : ni création, ni changement de ses rôles globaux, tenant, nom ou mot de passe.
+		User premier = compteExistant != null ? compteExistant : premierManager.creer(email, nom, tenant.getId());
 		managers.ajouterUtilisateur(premier.getId(), societeId, Set.of());
 
 		// Copie du modèle À CET INSTANT : une modification ultérieure du modèle ne touche pas ce partenaire.

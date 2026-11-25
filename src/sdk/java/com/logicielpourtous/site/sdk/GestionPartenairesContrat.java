@@ -58,7 +58,16 @@ public interface GestionPartenairesContrat {
 	void remplacerModeleDroits(Set<String> droits);
 
 	/** Demande de creation d'un partenaire ; la validation des valeurs (y compris nulles) est faite par le noyau. */
-	record CreationPartenaire(String siren, String tva, String raisonSociale, String email, String nom) {
+	record CreationPartenaire(String siren, String tva, String raisonSociale, String email, String nom,
+			boolean rattacherCompteExistant) {
+
+		/**
+		 * Constructeur historique (sans rattachement d'un compte existant) : conserve pour les plugins deja installes,
+		 * {@code rattacherCompteExistant} vaut false.
+		 */
+		public CreationPartenaire(String siren, String tva, String raisonSociale, String email, String nom) {
+			this(siren, tva, raisonSociale, email, nom, false);
+		}
 	}
 
 	/** {@code issue} : CREE, SIREN_DEJA_CONNU ou EMAIL_DEJA_UTILISE ; {@code societeId} seulement pour CREE. */
