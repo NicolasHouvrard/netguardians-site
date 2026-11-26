@@ -39,8 +39,17 @@ test_configurer_ecoute_nginx_ecrase_les_en_tetes_x_forwarded_plutot_que_de_les_r
   configurer_ecoute_nginx "$dir/server.conf" "100.64.0.12" 8072
   grep -Fq 'proxy_set_header X-Real-IP $remote_addr;' "$dir/server.conf" \
     && grep -Fq 'proxy_set_header X-Forwarded-For $remote_addr;' "$dir/server.conf" \
-    && grep -Fq 'proxy_set_header X-Forwarded-Proto $scheme;' "$dir/server.conf" \
+    && grep -Fq 'proxy_set_header X-Forwarded-Proto $site_proto;' "$dir/server.conf" \
     && grep -Fq 'proxy_set_header Host $host;' "$dir/server.conf"
+}
+
+test_configurer_ecoute_nginx_conserve_le_x_forwarded_proto_recu_en_amont() {
+  # le trafic VPS -> NAS est en clair dans le tunnel : $scheme vaut http et ecraserait le https recu du VPS
+  # (l'application construirait alors des adresses http://). La map garde le https recu, sinon $scheme.
+  dir=$(mktemp -d)
+  source "$NAS_PKG_DIR/lib/nginx_bascule.sh"
+  configurer_ecoute_nginx "$dir/server.conf" "100.64.0.12" 8072
+  grep -Fq 'map $http_x_forwarded_proto $site_proto {' "$dir/server.conf"     && grep -Fq 'default $scheme;' "$dir/server.conf"     && grep -Fq 'https https;' "$dir/server.conf"     && grep -Fq 'proxy_set_header X-Forwarded-Proto $site_proto;' "$dir/server.conf"     && ! grep -Fq 'X-Forwarded-Proto $scheme' "$dir/server.conf"     && [ "$(grep -n 'map \$http_x_forwarded_proto' "$dir/server.conf" | cut -d: -f1)" -lt "$(grep -n '^server {' "$dir/server.conf" | cut -d: -f1)" ]
 }
 
 test_configurer_ecoute_nginx_place_proxy_pass_dans_un_bloc_location() {

@@ -37,7 +37,14 @@ configurer_ecoute_nginx() {
     return 0
   fi
 
+  # La map (contexte http) garde le X-Forwarded-Proto https recu du VPS : le trafic VPS -> NAS est en clair dans
+  # le tunnel, donc $scheme vaut http et ecraserait sinon le https d'origine.
   cat > "$fichier_serveur" <<EOF
+map \$http_x_forwarded_proto \$site_proto {
+  default \$scheme;
+  https https;
+}
+
 server {
   listen ${adresse_ip_liaison}:${port_ecoute};
   # Envois de plugins (jar + signature, limite applicative 10 Mo) : sans cela Nginx plafonne a 1 Mo (413).
@@ -47,7 +54,7 @@ server {
     proxy_set_header Host \$host;
     proxy_set_header X-Real-IP \$remote_addr;
     proxy_set_header X-Forwarded-For \$remote_addr;
-    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_set_header X-Forwarded-Proto \$site_proto;
   }
 }
 EOF
