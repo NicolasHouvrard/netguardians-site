@@ -85,4 +85,17 @@ class GabaritsPartenairesTest {
 		}
 	}
 
+	@Test
+	void formulairePartenaireContientLaCaseDecocheeParDefautEtGardeSonEtat() throws Exception {
+		try (InputStream in = getClass().getResourceAsStream("/templates/plugins/partenaires/partenaire-form.html")) {
+			String html = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+			Matcher m = Pattern.compile("<input[^>]*name=\"rattacherCompteExistant\"[^>]*>").matcher(html);
+			assertTrue(m.find(), "case rattacherCompteExistant absente");
+			assertTrue(m.group().contains("type=\"checkbox\""));
+			assertFalse(m.group().matches("(?s).*\schecked(\s|=|/|>).*"), "ne doit pas etre cochee en dur");
+			assertTrue(m.group().contains("th:checked=\"${saisie['rattacherCompteExistant'] != null}\""));
+			assertTrue(html.contains("Rattacher le compte existant si cette adresse a déjà un compte"));
+		}
+	}
+
 }

@@ -18,6 +18,7 @@ import com.logicielpourtous.site.features.identite.RegistreSocietes;
 import com.logicielpourtous.site.features.identite.SocieteDejaConnueException;
 import com.logicielpourtous.site.features.identite.SocieteIdentite;
 import com.logicielpourtous.site.features.identite.TypeSociete;
+import com.logicielpourtous.site.features.user.AppartenanceRepository;
 import com.logicielpourtous.site.features.user.User;
 import com.logicielpourtous.site.sdk.GestionPartenairesContrat.CreationPartenaire;
 import com.logicielpourtous.site.sdk.GestionPartenairesContrat.ResultatPartenaire;
@@ -38,6 +39,8 @@ class CreationPartenaireService {
 
 	private static final String EMAIL_DEJA_UTILISE = "EMAIL_DEJA_UTILISE";
 
+	private static final String COMPTE_SANS_SOCIETE = "COMPTE_SANS_SOCIETE";
+
 	private final TenantManagementService tenants;
 
 	private final RegistreSocietes registre;
@@ -56,9 +59,12 @@ class CreationPartenaireService {
 
 	private final EtatPartenaireRepository etats;
 
+	private final AppartenanceRepository appartenances;
+
 	CreationPartenaireService(TenantManagementService tenants, RegistreSocietes registre, EmailsUtilises emailsUtilises,
 			CapaciteSocieteRepository capacites, PremierManagerService premierManager, ManagersService managers,
-			DroitsService droits, ModeleDroitsPartenaireService modele, EtatPartenaireRepository etats) {
+			DroitsService droits, ModeleDroitsPartenaireService modele, EtatPartenaireRepository etats,
+			AppartenanceRepository appartenances) {
 		this.tenants = tenants;
 		this.registre = registre;
 		this.emailsUtilises = emailsUtilises;
@@ -68,6 +74,7 @@ class CreationPartenaireService {
 		this.droits = droits;
 		this.modele = modele;
 		this.etats = etats;
+		this.appartenances = appartenances;
 	}
 
 	/**
@@ -98,8 +105,20 @@ class CreationPartenaireService {
 		}
 
 		// Tous les refus métier sont tranchés AVANT la première écriture : rien n'est écrit dans ces cas.
+		User compteExistant = null;
 		if (emailsUtilises.estUtilise(email)) {
-			return new ResultatPartenaire(EMAIL_DEJA_UTILISE, null);
+			// Rattachement explicite d'un compte existant : seulement s'il est actif ; sinon refus comme avant.
+			if (demande.rattacherCompteExistant()) {
+				compteExistant = premierManager.trouverActif(email).orElse(null);
+			}
+			if (compteExistant == null) {
+				return new ResultatPartenaire(EMAIL_DEJA_UTILISE, null);
+			}
+			// Un compte sans aucune appartenance n'aurait pas de société de session dans l'espace du partenaire (son
+			// tenant d'origine differe de celui de la société) : le manager serait inutilisable. Refus avant écriture.
+			if (appartenances.findByUserIdOrderById(compteExistant.getId()).isEmpty()) {
+				return new ResultatPartenaire(COMPTE_SANS_SOCIETE, null);
+			}
 		}
 		if (registre.trouver(identite).isPresent()) {
 			return new ResultatPartenaire(SIREN_DEJA_CONNU, null);
@@ -122,7 +141,8 @@ class CreationPartenaireService {
 		capacite.setCapacite(TypeCapacite.PARTENAIRE);
 		capacites.saveAndFlush(capacite);
 
-		User premier = premierManager.creer(email, nom, tenant.getId());
+		// Compte existant : ni création, ni changement de ses rôles globaux, tenant, nom ou mot de passe.
+		User premier = compteExistant != null ? compteExistant : premierManager.creer(email, nom, tenant.getId());
 		managers.ajouterUtilisateur(premier.getId(), societeId, Set.of());
 
 		// Copie du modèle À CET INSTANT : une modification ultérieure du modèle ne touche pas ce partenaire.

@@ -119,8 +119,8 @@ class PluginsEcranIT {
 
 	private static MockMultipartHttpServletRequestBuilder envoi(byte[] jar, byte[] sig) {
 		return multipart("/admin/plugins/publier")
-			.file(new MockMultipartFile("jar", "../../partenaires-1.0.0.jar", "application/java-archive", jar))
-			.file(new MockMultipartFile("sig", "partenaires-1.0.0.jar.sig", "application/json", sig));
+			.file(new MockMultipartFile("jar", "../../partenaires-1.1.0.jar", "application/java-archive", jar))
+			.file(new MockMultipartFile("sig", "partenaires-1.1.0.jar.sig", "application/json", sig));
 	}
 
 	private static MockMultipartHttpServletRequestBuilder envoi(Path jar) throws IOException {
@@ -145,7 +145,7 @@ class PluginsEcranIT {
 
 		String html = mvc.perform(get("/admin/plugins").with(admin())).andExpect(status().isOk()).andReturn()
 			.getResponse().getContentAsString();
-		assertThat(html).contains("partenaires").contains("1.0.0");
+		assertThat(html).contains("partenaires").contains("1.1.0");
 	}
 
 	@Test
@@ -182,7 +182,7 @@ class PluginsEcranIT {
 		mvc.perform(envoi(jar).with(admin()).with(csrf())).andExpect(status().isFound());
 		List<Path> avant = DepotControllerTest.fichiers(DEPOT);
 
-		Path autre = JarPartenairesReel.deriver(RACINE.resolve("autre-" + UUID.randomUUID()), "1.0.0", "Autre libellé");
+		Path autre = JarPartenairesReel.deriver(RACINE.resolve("autre-" + UUID.randomUUID()), "1.1.0", "Autre libellé");
 		String html = mvc.perform(envoi(autre).with(admin()).with(csrf())).andExpect(status().isConflict()).andReturn()
 			.getResponse().getContentAsString();
 

@@ -34,6 +34,10 @@
                    th:value="${saisie['email']}">
             <div class="invalid-feedback" th:if="${erreursChamps['email'] != null}" th:text="${erreursChamps['email']}">Erreur</div>
         </div>
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="rattacherCompteExistant" name="rattacherCompteExistant" th:checked="${saisie['rattacherCompteExistant'] != null}">
+            <label class="form-check-label" for="rattacherCompteExistant">Rattacher le compte existant si cette adresse a déjà un compte</label>
+        </div>
         <button type="submit" class="btn btn-primary">Créer le partenaire</button>
         <a class="btn btn-link" th:href="@{/p/partenaires/liste}">Annuler</a>
     </form>

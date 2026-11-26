@@ -133,6 +133,41 @@ class PartenairesPagesControllerTest {
 	}
 
 	@Test
+	void la_case_cochee_transmet_true_au_contrat_et_decochee_false() throws Exception {
+		when(contrat.creerPartenaire(any())).thenReturn(new ResultatPartenaire("CREE", 5L));
+		mvc.perform(pOk("rattacherCompteExistant", "on")).andExpect(status().is3xxRedirection());
+		mvc.perform(pOk()).andExpect(status().is3xxRedirection());
+		mvc.perform(pOk("rattacherCompteExistant", "false")).andExpect(status().is3xxRedirection());
+		ArgumentCaptor<CreationPartenaire> c = ArgumentCaptor.forClass(CreationPartenaire.class);
+		verify(contrat, org.mockito.Mockito.times(3)).creerPartenaire(c.capture());
+		assertEquals(true, c.getAllValues().get(0).rattacherCompteExistant());
+		assertEquals(false, c.getAllValues().get(1).rattacherCompteExistant());
+		assertEquals(false, c.getAllValues().get(2).rattacherCompteExistant());
+	}
+
+	@Test
+	void message_d_adresse_deja_utilisee_dit_de_cocher_la_case() throws Exception {
+		when(contrat.creerPartenaire(any())).thenReturn(new ResultatPartenaire("EMAIL_DEJA_UTILISE", null));
+		mvc.perform(pOk("rattacherCompteExistant", "on"))
+			.andExpect(status().isConflict())
+			.andExpect(model().attribute("erreur",
+					"Cette adresse e-mail est déjà utilisée : cochez « Rattacher le compte existant » pour en faire le manager de ce partenaire."))
+			.andExpect(model().attribute("saisie", org.hamcrest.Matchers.hasEntry("rattacherCompteExistant", "on")));
+	}
+
+	@Test
+	void compte_sans_societe_donne_409_texte_fixe_et_garde_la_saisie_et_la_case() throws Exception {
+		when(contrat.creerPartenaire(any())).thenReturn(new ResultatPartenaire("COMPTE_SANS_SOCIETE", null));
+		mvc.perform(pOk("rattacherCompteExistant", "on"))
+			.andExpect(status().isConflict())
+			.andExpect(view().name(V + "partenaire-form"))
+			.andExpect(model().attribute("erreur",
+					"Ce compte n'appartient à aucune société : il ne peut pas être rattaché comme manager."))
+			.andExpect(model().attribute("saisie", org.hamcrest.Matchers.hasEntry("rattacherCompteExistant", "on")))
+			.andExpect(model().attribute("saisie", org.hamcrest.Matchers.hasEntry("siren", "732829320")));
+	}
+
+	@Test
 	void demandeInvalideDonne400SansDetailInterne() throws Exception {
 		when(contrat.creerPartenaire(any())).thenThrow(new IllegalArgumentException("Le SIREN est invalide."));
 		var r = mvc.perform(pOk())
