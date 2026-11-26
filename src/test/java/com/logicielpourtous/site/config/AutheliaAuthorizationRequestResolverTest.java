@@ -17,7 +17,7 @@ class AutheliaAuthorizationRequestResolverTest {
         return ClientRegistration.withRegistrationId(id)
                 .clientId("site").clientSecret("pas-un-secret")
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
+                .redirectUri("{baseUrl}/{action}/oauth2/code/{registrationId}")
                 .scope("openid", "email")
                 .authorizationUri("https://auth.example.org/authorize")
                 .tokenUri("https://auth.example.org/token")
@@ -57,5 +57,66 @@ class AutheliaAuthorizationRequestResolverTest {
         assertThat(nous.getAdditionalParameters().keySet()).isEqualTo(leur.getAdditionalParameters().keySet());
         assertThat(nous.getScopes()).isEqualTo(leur.getScopes());
         assertThat(nous.getRedirectUri()).isEqualTo(leur.getRedirectUri());
+    }
+
+    private static MockHttpServletRequest requeteDerriereProxy(String id) {
+        MockHttpServletRequest r = requete(id);
+        r.setScheme("http");
+        r.setServerName("master.logicielpourtous.com");
+        r.setServerPort(80);
+        r.addHeader("X-Forwarded-Proto", "https");
+        r.addHeader("X-Forwarded-Host", "master.logicielpourtous.com");
+        r.addHeader("X-Forwarded-Port", "443");
+        return r;
+    }
+
+    private static String redirectUri(OAuth2AuthorizationRequest req) {
+        return req.getRedirectUri();
+    }
+
+    @Test
+    void l_adresse_de_retour_est_slash_login_slash_oauth2_slash_code_slash_authelia() {
+        // Requete derriere le proxy du VPS (https en amont), comme en production.
+        var filtre = new org.springframework.web.filter.ForwardedHeaderFilter();
+        MockHttpServletRequest brute = requeteDerriereProxy("authelia");
+        brute.setRequestURI("/oauth2/authorization/authelia");
+        OAuth2AuthorizationRequest req = resolver.resolve(avecEnTetes(filtre, brute));
+
+        assertThat(redirectUri(req)).isEqualTo("https://master.logicielpourtous.com/login/oauth2/code/authelia");
+        assertThat(req.getAuthorizationRequestUri()).contains("code_challenge=").contains("code_challenge_method=S256");
+    }
+
+    @Test
+    void meme_adresse_de_retour_pour_google_inchange() {
+        var filtre = new org.springframework.web.filter.ForwardedHeaderFilter();
+        MockHttpServletRequest brute = requeteDerriereProxy("google");
+        brute.setRequestURI("/oauth2/authorization/google");
+        OAuth2AuthorizationRequest req = resolver.resolve(avecEnTetes(filtre, brute));
+
+        assertThat(redirectUri(req)).isEqualTo("https://master.logicielpourtous.com/login/oauth2/code/google");
+    }
+
+    @Test
+    void sans_x_forwarded_proto_l_adresse_de_retour_reste_en_http() {
+        MockHttpServletRequest r = requete("authelia");
+        r.setRequestURI("/oauth2/authorization/authelia");
+        r.setServerName("master.logicielpourtous.com");
+
+        assertThat(redirectUri(resolver.resolve(r)))
+                .isEqualTo("http://master.logicielpourtous.com/login/oauth2/code/authelia");
+    }
+
+    /** Applique ForwardedHeaderFilter (server.forward-headers-strategy=framework) et rend la requete enveloppee. */
+    private static jakarta.servlet.http.HttpServletRequest avecEnTetes(
+            org.springframework.web.filter.ForwardedHeaderFilter filtre, MockHttpServletRequest brute) {
+        java.util.concurrent.atomic.AtomicReference<jakarta.servlet.http.HttpServletRequest> out =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        try {
+            filtre.doFilter(brute, new org.springframework.mock.web.MockHttpServletResponse(), (rq, rs) ->
+                    out.set((jakarta.servlet.http.HttpServletRequest) rq));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        return out.get();
     }
 }
