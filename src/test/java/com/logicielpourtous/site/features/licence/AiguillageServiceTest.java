@@ -105,6 +105,18 @@ class AiguillageServiceTest {
     }
 
     @Test
+    void l_adresse_du_maitre_est_validee_https_seulement() {
+        appartenance(300L, "Societe du Maitre", null);
+        for (String mauvaise : new String[] {"http://maitre.exemple.test", "javascript:alert(1)", "https://u@maitre.test", "https://m.test/chemin"}) {
+            AiguillageService s = new AiguillageService(serveurs, users, appartenances, validateur, mauvaise);
+            assertThat(s.aiguiller(APPELANT, "jeton")).as(mauvaise).isEmpty();
+        }
+        AiguillageService ok = new AiguillageService(serveurs, users, appartenances, validateur, " https://maitre.exemple.test/ ");
+        assertThat(ok.aiguiller(APPELANT, "jeton")).extracting(AiguillageService.Destination::urlPublique)
+                .containsExactly("https://maitre.exemple.test");
+    }
+
+    @Test
     void serveur_revoque_ou_sans_adresse_est_omis() {
         serveur(21L, "c21", "https://revoque.exemple.test", LicenceServeur.LicenceServeurStatut.REVOQUE);
         serveur(22L, "c22", null, LicenceServeur.LicenceServeurStatut.ACTIF);

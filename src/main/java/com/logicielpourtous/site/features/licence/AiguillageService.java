@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,7 +44,20 @@ public class AiguillageService {
         this.users = users;
         this.appartenances = appartenances;
         this.validateur = validateur;
-        this.maitreUrlPublique = maitreUrlPublique == null ? "" : maitreUrlPublique.trim();
+        this.maitreUrlPublique = normaliserMaitre(maitreUrlPublique);
+    }
+
+    /** Meme regle que les adresses des serveurs (https seulement) ; invalide = non configuree, avec avertissement. */
+    private static String normaliserMaitre(String valeur) {
+        try {
+            String n = ServeurAccueilService.normaliser(valeur);
+            return n == null ? "" : n;
+        } catch (IllegalArgumentException e) {
+            LoggerFactory.getLogger(AiguillageService.class).warn(
+                    "app.auth.authelia.maitre-url-publique invalide (https://hote[:port] attendu) : ignoree, "
+                            + "les societes hebergees par le Maitre ne seront pas proposees.");
+            return "";
+        }
     }
 
     public List<Destination> aiguiller(Long licenceServeurId, String idToken) {
