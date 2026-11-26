@@ -70,7 +70,10 @@ public interface GestionPartenairesContrat {
 		}
 	}
 
-	/** {@code issue} : CREE, SIREN_DEJA_CONNU ou EMAIL_DEJA_UTILISE ; {@code societeId} seulement pour CREE. */
+	/**
+	 * {@code issue} : CREE, SIREN_DEJA_CONNU, EMAIL_DEJA_UTILISE ou COMPTE_SANS_SOCIETE (rattachement demande d'un
+	 * compte existant qui n'a aucune appartenance : refuse, rien n'est ecrit) ; {@code societeId} seulement pour CREE.
+	 */
 	record ResultatPartenaire(String issue, Long societeId) {
 	}
 

@@ -1,5 +1,6 @@
 package com.logicielpourtous.site.features.clients;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -32,9 +33,16 @@ class PremierManagerService {
 		this.passwordEncoder = passwordEncoder;
 	}
 
-	/** Compte actif existant pour cette adresse (casse ignorée) ; vide si aucun compte ou si le compte est inactif. */
+	/**
+	 * Compte actif existant pour cette adresse (casse ignorée) ; vide si aucun compte, si le compte est inactif, ou si
+	 * plusieurs comptes ne diffèrent que par la casse (ambigu : jamais de choix arbitraire).
+	 */
 	Optional<User> trouverActif(String emailNormalise) {
-		return users.findByEmailIgnoreCase(emailNormalise).filter(User::isActive);
+		List<User> trouves = users.findAllByEmailIgnoreCase(emailNormalise);
+		if (trouves.size() != 1) {
+			return Optional.empty();
+		}
+		return Optional.of(trouves.get(0)).filter(User::isActive);
 	}
 
 	/** Compte du premier manager : mot de passe aléatoire inutilisable, à définir via « mot de passe oublié ». */

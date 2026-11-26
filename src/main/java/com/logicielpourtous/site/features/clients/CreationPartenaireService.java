@@ -18,6 +18,7 @@ import com.logicielpourtous.site.features.identite.RegistreSocietes;
 import com.logicielpourtous.site.features.identite.SocieteDejaConnueException;
 import com.logicielpourtous.site.features.identite.SocieteIdentite;
 import com.logicielpourtous.site.features.identite.TypeSociete;
+import com.logicielpourtous.site.features.user.AppartenanceRepository;
 import com.logicielpourtous.site.features.user.User;
 import com.logicielpourtous.site.sdk.GestionPartenairesContrat.CreationPartenaire;
 import com.logicielpourtous.site.sdk.GestionPartenairesContrat.ResultatPartenaire;
@@ -38,6 +39,8 @@ class CreationPartenaireService {
 
 	private static final String EMAIL_DEJA_UTILISE = "EMAIL_DEJA_UTILISE";
 
+	private static final String COMPTE_SANS_SOCIETE = "COMPTE_SANS_SOCIETE";
+
 	private final TenantManagementService tenants;
 
 	private final RegistreSocietes registre;
@@ -56,9 +59,12 @@ class CreationPartenaireService {
 
 	private final EtatPartenaireRepository etats;
 
+	private final AppartenanceRepository appartenances;
+
 	CreationPartenaireService(TenantManagementService tenants, RegistreSocietes registre, EmailsUtilises emailsUtilises,
 			CapaciteSocieteRepository capacites, PremierManagerService premierManager, ManagersService managers,
-			DroitsService droits, ModeleDroitsPartenaireService modele, EtatPartenaireRepository etats) {
+			DroitsService droits, ModeleDroitsPartenaireService modele, EtatPartenaireRepository etats,
+			AppartenanceRepository appartenances) {
 		this.tenants = tenants;
 		this.registre = registre;
 		this.emailsUtilises = emailsUtilises;
@@ -68,6 +74,7 @@ class CreationPartenaireService {
 		this.droits = droits;
 		this.modele = modele;
 		this.etats = etats;
+		this.appartenances = appartenances;
 	}
 
 	/**
@@ -106,6 +113,11 @@ class CreationPartenaireService {
 			}
 			if (compteExistant == null) {
 				return new ResultatPartenaire(EMAIL_DEJA_UTILISE, null);
+			}
+			// Un compte sans aucune appartenance n'aurait pas de société de session dans l'espace du partenaire (son
+			// tenant d'origine differe de celui de la société) : le manager serait inutilisable. Refus avant écriture.
+			if (appartenances.findByUserIdOrderById(compteExistant.getId()).isEmpty()) {
+				return new ResultatPartenaire(COMPTE_SANS_SOCIETE, null);
 			}
 		}
 		if (registre.trouver(identite).isPresent()) {

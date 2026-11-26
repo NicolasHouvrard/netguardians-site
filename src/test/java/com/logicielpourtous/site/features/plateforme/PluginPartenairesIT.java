@@ -152,6 +152,9 @@ class PluginPartenairesIT {
 	@Autowired
 	private CustomUserDetailsService detailsService;
 
+	@Autowired
+	private com.logicielpourtous.site.sdk.IdentiteContrat identite;
+
 	private Tenant tenantDuTest;
 
 	private Long societeDuTest;
@@ -368,10 +371,15 @@ class PluginPartenairesIT {
 
 	@Test
 	void partenaire_cree_avec_le_compte_existant_de_l_admin() throws Exception {
+		// Profil réel de l'administrateur : UNE appartenance existante, dans le tenant du Maître, sans société.
+		jdbc.update("UPDATE appartenances SET societe_id = NULL WHERE user_id = ?", adminUser.getId());
+		Long appartenanceOrigine = jdbc.queryForObject("SELECT id FROM appartenances WHERE user_id = ?", Long.class,
+				adminUser.getId());
 		String sirenNeuf = siren();
 		long usersAvant = compter("users");
 		List<String> rolesAvant = rolesDe(adminUser.getEmail());
-		Long tenantAvant = jdbc.queryForObject("SELECT tenant_id FROM users WHERE id = ?", Long.class, adminUser.getId());
+		Map<String, Object> compteAvant = jdbc.queryForMap(
+				"SELECT tenant_id, full_name, password FROM users WHERE id = ?", adminUser.getId());
 
 		MockHttpServletResponse r = mvc.perform(post("/p/partenaires/").param("siren", sirenNeuf)
 				.param("raisonSociale", "Rattache SARL").param("email", adminUser.getEmail()).param("nom", "Admin Rattache")
@@ -380,16 +388,55 @@ class PluginPartenairesIT {
 		assertThat(r.getHeader("Location")).endsWith("/p/partenaires/liste?ok=partenaire");
 
 		long societeId = societeIdPartenaire(sirenNeuf);
+		Long tenantPartenaire = jdbc.queryForObject("SELECT proprietaire_tenant_id FROM societes_identites WHERE id = ?",
+				Long.class, societeId);
 		assertThat(compter("users")).as("aucun nouvel utilisateur").isEqualTo(usersAvant);
-		assertThat(jdbc.queryForObject(
-				"SELECT count(*) FROM appartenances WHERE user_id = ? AND societe_id = ?", Long.class, adminUser.getId(),
-				societeId)).isEqualTo(1L);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM appartenances WHERE user_id = ?", Long.class,
+				adminUser.getId())).as("deux appartenances").isEqualTo(2L);
+		Long appartenancePartenaire = jdbc.queryForObject(
+				"SELECT id FROM appartenances WHERE user_id = ? AND societe_id = ?", Long.class, adminUser.getId(),
+				societeId);
+		assertThat(jdbc.queryForObject("SELECT tenant_id FROM appartenances WHERE id = ?", Long.class,
+				appartenancePartenaire)).isEqualTo(tenantPartenaire);
 		assertThat(jdbc.queryForList("SELECT r.name FROM appartenances_roles ar JOIN roles r ON r.id = ar.role_id "
-				+ "JOIN appartenances a ON a.id = ar.appartenance_id WHERE a.user_id = ? AND a.societe_id = ?",
-				String.class, adminUser.getId(), societeId)).containsExactly("ROLE_GESTIONNAIRE");
-		assertThat(rolesDe(adminUser.getEmail())).containsExactlyInAnyOrderElementsOf(rolesAvant);
-		assertThat(jdbc.queryForObject("SELECT tenant_id FROM users WHERE id = ?", Long.class, adminUser.getId()))
-				.isEqualTo(tenantAvant);
+				+ "WHERE ar.appartenance_id = ?", String.class, appartenancePartenaire))
+				.containsExactly("ROLE_GESTIONNAIRE");
+		assertThat(jdbc.queryForMap("SELECT tenant_id, full_name, password FROM users WHERE id = ?", adminUser.getId()))
+				.isEqualTo(compteAvant);
+		assertThat(rolesDe(adminUser.getEmail())).containsExactlyInAnyOrderElementsOf(rolesAvant).contains("ROLE_ADMIN");
+
+		// Session : choix de la société du partenaire, puis de l'appartenance d'origine.
+		CustomUserDetails choixPartenaire = tx.execute(s -> (CustomUserDetails) detailsService
+				.charger(adminUser.getEmail(), appartenancePartenaire));
+		assertThat(choixPartenaire.selectionRequise()).isFalse();
+		assertThat(identiteDe(choixPartenaire).societeId()).isEqualTo(societeId);
+		CustomUserDetails choixOrigine = tx.execute(s -> (CustomUserDetails) detailsService
+				.charger(adminUser.getEmail(), appartenanceOrigine));
+		assertThat(identiteDe(choixOrigine).roles()).contains("ROLE_ADMIN");
+		// Sans choix : l'écran de choix de société est exigé (deux appartenances).
+		CustomUserDetails sansChoix = tx.execute(s -> (CustomUserDetails) detailsService.charger(adminUser.getEmail(),
+				null));
+		assertThat(sansChoix.selectionRequise()).isTrue();
+	}
+
+	@Test
+	void compte_sans_appartenance_donne_409_et_rien_n_est_ecrit() throws Exception {
+		jdbc.update("DELETE FROM appartenances_roles WHERE appartenance_id IN (SELECT id FROM appartenances WHERE user_id = ?)",
+				adminUser.getId());
+		jdbc.update("DELETE FROM appartenances WHERE user_id = ?", adminUser.getId());
+		Compteurs avant = compteurs();
+		String sirenNeuf = siren();
+
+		MockHttpServletResponse r = mvc.perform(post("/p/partenaires/").param("siren", sirenNeuf)
+				.param("raisonSociale", "Sans Societe SARL").param("email", adminUser.getEmail())
+				.param("nom", "Admin Sans Societe").param("rattacherCompteExistant", "on").with(user(admin)).with(csrf()))
+				.andReturn().getResponse();
+
+		assertThat(r.getStatus()).isEqualTo(409);
+		assertThat(r.getContentAsString()).contains("Ce compte n&#39;appartient à aucune société");
+		assertThat(compteurs()).isEqualTo(avant);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM societes_identites WHERE siren = ?", Long.class, sirenNeuf))
+				.isZero();
 	}
 
 	@Test
@@ -614,6 +661,19 @@ class PluginPartenairesIT {
 		mvc.perform(req.with(user(admin)).with(csrf())).andExpect(status().isFound())
 				.andExpect(header().string("Location", endsWith("/p/partenaires/liste?ok=partenaire")));
 		return Map.of("siren", siren, "email", email, "nom", nom);
+	}
+
+	/** Identité courante vue par le noyau pour cette session (contexte de sécurité positionné puis nettoyé). */
+	private com.logicielpourtous.site.sdk.IdentiteContrat.IdentiteCourante identiteDe(CustomUserDetails compte) {
+		try {
+			SecurityContextHolder.getContext().setAuthentication(
+					new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(compte, null,
+							compte.getAuthorities()));
+			return identite.courante();
+		}
+		finally {
+			SecurityContextHolder.clearContext();
+		}
 	}
 
 	private long societeIdPartenaire(String siren) {

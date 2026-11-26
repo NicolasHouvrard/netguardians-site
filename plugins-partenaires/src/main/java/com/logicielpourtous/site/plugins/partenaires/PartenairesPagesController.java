@@ -44,6 +44,7 @@ public class PartenairesPagesController {
 
 	private static final String MSG_SIREN = "Ce SIREN est déjà enregistré.";
 	private static final String MSG_EMAIL_PARTENAIRE = "Cette adresse e-mail est déjà utilisée : cochez « Rattacher le compte existant » pour en faire le manager de ce partenaire.";
+	private static final String MSG_COMPTE_SANS_SOCIETE = "Ce compte n'appartient à aucune société : il ne peut pas être rattaché comme manager.";
 	private static final String MSG_CLIENT_CONNU = "société déjà connue, une demande d'accès a été envoyée à son manager";
 	private static final String MSG_CLIENT_EMAIL = "cette adresse e-mail est déjà utilisée";
 	private static final String MSG_SIREN_INVALIDE = "SIREN invalide : 9 chiffres avec clé de contrôle correcte";
@@ -121,6 +122,10 @@ public class PartenairesPagesController {
 		}
 		if ("EMAIL_DEJA_UTILISE".equals(issue)) {
 			return formulaire("partenaire-form", "Créer un partenaire", saisie, MSG_EMAIL_PARTENAIRE,
+					HttpStatus.CONFLICT, null);
+		}
+		if ("COMPTE_SANS_SOCIETE".equals(issue)) {
+			return formulaire("partenaire-form", "Créer un partenaire", saisie, MSG_COMPTE_SANS_SOCIETE,
 					HttpStatus.CONFLICT, null);
 		}
 		throw new IllegalStateException("Issue de creation inattendue.");

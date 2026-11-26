@@ -156,6 +156,18 @@ class PartenairesPagesControllerTest {
 	}
 
 	@Test
+	void compte_sans_societe_donne_409_texte_fixe_et_garde_la_saisie_et_la_case() throws Exception {
+		when(contrat.creerPartenaire(any())).thenReturn(new ResultatPartenaire("COMPTE_SANS_SOCIETE", null));
+		mvc.perform(pOk("rattacherCompteExistant", "on"))
+			.andExpect(status().isConflict())
+			.andExpect(view().name(V + "partenaire-form"))
+			.andExpect(model().attribute("erreur",
+					"Ce compte n'appartient à aucune société : il ne peut pas être rattaché comme manager."))
+			.andExpect(model().attribute("saisie", org.hamcrest.Matchers.hasEntry("rattacherCompteExistant", "on")))
+			.andExpect(model().attribute("saisie", org.hamcrest.Matchers.hasEntry("siren", "732829320")));
+	}
+
+	@Test
 	void demandeInvalideDonne400SansDetailInterne() throws Exception {
 		when(contrat.creerPartenaire(any())).thenThrow(new IllegalArgumentException("Le SIREN est invalide."));
 		var r = mvc.perform(pOk())

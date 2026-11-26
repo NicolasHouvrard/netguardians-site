@@ -17,6 +17,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmailIgnoreCase(String email);
 
+    /** Tous les comptes de cette adresse (casse ignorée) : sans exception si des adresses ne diffèrent que par la casse. */
+    List<User> findAllByEmailIgnoreCase(String email);
+
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.roles WHERE u.email = :email")
     Optional<User> findByEmailWithRoles(@Param("email") String email);
 
