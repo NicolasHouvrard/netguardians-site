@@ -25,8 +25,14 @@ Ordre conseillé : 1, 2, 3, 4, 5, puis la vérification (point 9). Ne migrez les
    **DN de base** affiché (par exemple `dc=CHANGER_MOI,dc=local`).
 2. Dans le paquet, créer l'unité d'organisation ou le conteneur des utilisateurs (par défaut `cn=users`) et un groupe
    `administrateurs` pour les administrateurs du site.
-3. Créer un compte de lecture seule `authelia` : c'est lui qu'Authelia utilise pour chercher les utilisateurs. Lui donner un mot de passe fort et
-   unique, sans droit d'écriture.
+3. Créer un compte de service `authelia` : c'est lui qu'Authelia utilise pour chercher les utilisateurs. Lui donner un mot de passe fort et
+   unique. **Deux options pour les mots de passe des utilisateurs** :
+   - **(a) retenue par défaut dans l'exemple (recommandée tant que l'outil de migration n'existe pas)** : la réinitialisation de mot de passe
+     par Authelia est désactivée (`password_reset.disable: true`) et le compte de service reste en **lecture seule**. Les mots de passe sont définis par
+     l'administration directement dans le LDAP. Le lien de réinitialisation par e-mail du site ne s'applique pas aux comptes du LDAP ;
+   - **(b)** activer la réinitialisation par Authelia (`disable: false`) ; elle s'exécute avec le compte de service, qui doit alors avoir une écriture
+     **limitée à l'attribut `userPassword`** (liste de contrôle d'accès du LDAP Synology/OpenLDAP), et **jamais** à `mail` ni aux autres attributs :
+     qui peut modifier l'e-mail d'un utilisateur peut prendre le compte du site correspondant.
 4. Créer les utilisateurs. Pour chacun : identifiant (l'e-mail est un bon choix), nom, et surtout l'attribut **`mail` obligatoire et unique**.
    Le site rattache la personne à son compte existant par cet e-mail.
 5. **Réserver l'écriture à l'administration.** Celui qui peut modifier l'e-mail d'un utilisateur dans le LDAP peut prendre le compte
@@ -46,7 +52,12 @@ Fichiers de départ : `compose.exemple.yml` et `configuration.exemple.yml`.
    `openssl rand -hex 64`), `ldap_password` (mot de passe du compte `authelia`), `smtp_password`, et la clé privée de signature
    `oidc_jwks_rsa.pem` (`openssl genrsa -out oidc_jwks_rsa.pem 4096`).
 3. Copier `configuration.exemple.yml` vers `config/configuration.yml` et renseigner : DN de base LDAP, adresse `ldaps://100.64.0.2:636`
-   (adresse privée du NAS), nom du groupe des administrateurs, SMTP.
+   (adresse privée du NAS), nom du groupe des administrateurs, SMTP. L'exemple utilise l'e-mail (`mail`) comme identifiant de connexion
+   (`attributes.username`, repris dans `users_filter`) et désactive la réinitialisation par Authelia (option (a) du point 1). Les règles `access_control` ne
+   servent pas ici : l'accès des clients est réglé par `authorization_policies`. Le cookie de session est limité au portail `auth.logicielpourtous.com`
+   (à vérifier avec la documentation d'Authelia de votre version, 4.39). « Se souvenir de moi » est désactivé (`remember_me: -1`) : la déconnexion
+   n'étant que locale (point 7), une session longue sur un poste partagé resterait ouverte ; on peut accepter une durée courte si le confort prime,
+   au prix de ce risque.
 4. **Un client confidentiel par serveur.** Pour chaque serveur (Maître, VPS, puis chaque serveur ajouté) :
    - choisir un `client_id` propre (`site-maitre`, `site-vps`, ...) ;
    - générer un secret aléatoire long, le noter pour le serveur concerné, et en calculer l'**empreinte** :
@@ -85,7 +96,10 @@ Fichier de départ : `nginx-auth.exemple.conf`.
 ## 4. Propriétés du site, serveur par serveur
 
 Détail complet : `docs/exemples/authelia/proprietes-site.exemple.md`. Valeurs en variables d'environnement du serveur (les secrets ne sont jamais écrits dans
-un fichier du dépôt) :
+un fichier du dépôt). **Deux noms équivalents existent** : (1) `AUTHELIA_CLIENT_ID`, `AUTHELIA_CLIENT_SECRET`, `AUTHELIA_ISSUER_URI`,
+`MAITRE_URL_PUBLIQUE`, valables si vous **décommentez** les lignes correspondantes de `application.properties.example` (copiées dans votre
+`application.properties`) ; (2) `SPRING_SECURITY_OAUTH2_CLIENT_*` et `APP_AUTH_AUTHELIA_*`, qui fonctionnent sans modifier le fichier. Dans le
+conteneur, utilisez **une seule** de ces deux formes (la forme (1), lignes décommentées, est la plus lisible) et ne les mélangez pas :
 
 **Chaque serveur (Maître et secondaires)** :
 
@@ -96,6 +110,9 @@ un fichier du dépôt) :
 Les trois sont nécessaires : tant qu'une seule est vide, la connexion par Authelia est absente et le site se comporte comme avant.
 (Variables équivalentes : `SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHELIA_CLIENT_ID`, `..._CLIENT_SECRET`,
 `SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_AUTHELIA_ISSUER_URI`.) Garder `server.forward-headers-strategy=native`.
+
+**Authelia doit être configuré sur CHAQUE serveur cible** (Maître, VPS, serveurs de partenaires et de clients) : un serveur vers lequel l'aiguillage renvoie
+un utilisateur mais dont les propriétés Authelia sont absentes affiche « momentanément indisponible ».
 
 **Sur le Maître en plus** :
 
@@ -128,7 +145,8 @@ Les administrateurs passent au LDAP (avec double facteur). Pour ne jamais être 
 Principe (outil d'export à venir) :
 
 - export des comptes **sans mot de passe** ; l'identifiant LDAP est l'e-mail ;
-- chaque personne définit son mot de passe via un lien de réinitialisation envoyé par e-mail (fonction de réinitialisation d'Authelia) ;
+- mot de passe : avec l'option (a) du point 1 (par défaut), l'administration le définit dans le LDAP et le transmet par un canal sûr ; avec l'option (b),
+  chaque personne le définit via le lien de réinitialisation d'Authelia envoyé par e-mail ;
 - tant qu'un compte n'est pas dans le LDAP, la connexion locale continue de fonctionner comme avant.
 
 En attendant l'outil, on peut créer les premiers utilisateurs à la main dans le LDAP (point 1), avec le même e-mail que leur compte du site.
@@ -140,8 +158,11 @@ En attendant l'outil, on peut créer les premiers utilisateurs à la main dans l
 - **E-mail vérifié obligatoire** pour tous les fournisseurs OpenID Connect (Authelia, Google). Il n'y a pas de connexion Microsoft par cette voie.
 - **Déconnexion** : locale seulement dans cette première version. Se déconnecter d'un serveur ne ferme pas la session Authelia, qui
   reste ouverte jusqu'à son expiration : sur un poste partagé, fermer aussi le navigateur.
-- **Authelia ou LDAP indisponible** : seule la connexion locale fonctionne. Le bouton « Se connecter avec le compte unique » renvoie à la page
-  de connexion avec un message clair, et le formulaire local reste utilisable.
+- **Authelia ou LDAP indisponible** : seule la connexion locale fonctionne. Si le site n'a pas encore pu joindre Authelia, le bouton renvoie à la page
+  de connexion avec le message « momentanément indisponible ». Une fois la découverte d'Authelia mise en cache (après une première connexion réussie),
+  une panne ultérieure mène le bouton vers une erreur de passerelle du Nginx (502) : seul le formulaire de connexion local reste utilisable.
+- **Comptes non synchronisés entre serveurs** : si le compte d'une personne n'existe pas sur le serveur cible, le navigateur peut tourner en boucle de
+  redirection (symptôme `ERR_TOO_MANY_REDIRECTS`). Cause : compte absent sur le serveur cible ; remède : créer ou déménager le compte (point 6).
 - **Plusieurs sociétés / serveurs** : une personne appartenant à plusieurs sociétés voit une page de choix ; une seule destination
   entraîne la redirection directe vers `/oauth2/authorization/authelia` du serveur concerné (route `/connexion/aiguillage` côté serveur
   secondaire ; `POST /api/licence/aiguillage` côté Maître, réservé aux serveurs de licence actifs authentifiés par leur clé).
@@ -167,8 +188,9 @@ Commencer avec UN utilisateur et UN serveur (le Maître), avant d'étendre.
    `https://master.logicielpourtous.com/login/oauth2/code/authelia` et arrivée dans le site (choix de société si plusieurs appartenances).
 5. Essais de refus attendus : un utilisateur LDAP sans compte du site, ou dont l'e-mail n'existe pas, voit « Connexion impossible avec ce compte. » ;
    aucun compte n'est créé.
-6. Arrêter Authelia un instant : le bouton ramène à la page de connexion avec un message d'indisponibilité, et le formulaire local fonctionne.
-   Redémarrer Authelia.
+6. Arrêter Authelia un instant : si une connexion par Authelia a déjà réussi depuis le démarrage du site, le bouton mène à une erreur de
+   passerelle du Nginx (502), pas au message « momentanément indisponible » (qui n'apparaît que si le site n'a pas encore joint Authelia). Seul le
+   formulaire de connexion local reste utilisable. Redémarrer Authelia.
 7. Étendre : ajouter le client du VPS (Authelia, propriétés du VPS, puis URL publique et identifiant client dans la page « Fédération »).
    Un utilisateur dont la société est hébergée ailleurs, qui se connecte via le VPS, doit être renvoyé vers le bon serveur sans retaper son
    mot de passe.

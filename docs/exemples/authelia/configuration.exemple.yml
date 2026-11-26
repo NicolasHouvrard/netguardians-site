@@ -11,8 +11,12 @@ log:
 
 # --- Annuaire : LDAP du NAS, joint par le reseau prive uniquement ---------------------------------------
 authentication_backend:
+  # OPTION (a) RETENUE PAR DEFAUT : la reinitialisation de mot de passe par Authelia est DESACTIVEE. Les mots de passe sont
+  # definis par l'administration dans le LDAP, et le compte de service ci-dessous reste en lecture seule.
+  # Option (b) : mettre « disable: false » ET donner au compte de service une ecriture LIMITEE a l'attribut userPassword
+  # (ACL du LDAP), JAMAIS a « mail » ni aux autres attributs (voir docs/connexion-authelia.md, point 1).
   password_reset:
-    disable: false
+    disable: true
   ldap:
     implementation: custom
     address: 'ldaps://100.64.0.2:636'      # adresse privee du NAS (reseau Tailscale/Headscale), jamais une adresse publique
@@ -21,32 +25,31 @@ authentication_backend:
     base_dn: 'dc=CHANGER_MOI,dc=local'      # base DN affichee par le paquet LDAP de Synology
     additional_users_dn: 'cn=users'
     additional_groups_dn: 'cn=groups'
-    users_filter: '(&({username_attribute}={input})(objectClass=posixAccount))'
+    users_filter: '(&({username_attribute}={input})(objectClass=posixAccount))'   # {username_attribute} = attributes.username ci-dessous
     groups_filter: '(&(|(member={dn})(memberUid={username}))(objectClass=posixGroup))'
     attributes:
-      username: 'uid'
+      username: 'mail'                       # identifiant de connexion = e-mail (si vous preferez « uid », changez ici ET dans la doc)
       mail: 'mail'                           # l'e-mail de l'annuaire fait foi pour le rattachement au compte du site
       display_name: 'cn'
       group_name: 'cn'
-    user: 'uid=authelia,cn=users,dc=CHANGER_MOI,dc=local'   # compte de lecture seule dedie
+    user: 'uid=authelia,cn=users,dc=CHANGER_MOI,dc=local'   # compte de service dedie, LECTURE SEULE (option a)
     # le mot de passe vient de AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE
 
 # --- Politique d'acces -----------------------------------------------------------------------------------
+# Usage OpenID Connect seul : l'acces des clients du site est gouverne par authorization_policies (plus bas), pas par des
+# regles access_control (qui servent a proteger des sites derriere Authelia par Nginx). On garde donc « deny » sans regle.
 access_control:
   default_policy: deny
-  rules:
-    - domain: 'auth.logicielpourtous.com'
-      policy: one_factor
 
 session:
   # secret : AUTHELIA_SESSION_SECRET_FILE
   cookies:
-    - domain: 'logicielpourtous.com'
+    - domain: 'auth.logicielpourtous.com'    # cookie limite au portail ; a verifier avec la documentation d'Authelia de votre version (4.39)
       authelia_url: 'https://auth.logicielpourtous.com'
       default_redirection_url: 'https://master.logicielpourtous.com'
       expiration: '1h'
       inactivity: '15m'
-      remember_me: '1M'
+      remember_me: -1                         # « se souvenir de moi » desactive : la deconnexion n'est que locale (voir doc, point 7)
 
 regulation:                                  # limitation des essais
   max_retries: 5
