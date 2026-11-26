@@ -63,7 +63,7 @@
             <div th:if="${#lists.isEmpty(serveurs)}" class="text-center py-4 text-muted">Aucun serveur enrôlé.</div>
             <table th:unless="${#lists.isEmpty(serveurs)}" class="table table-sm align-middle mb-0">
                 <thead class="table-light">
-                <tr><th>#</th><th>Rôle</th><th>Statut</th><th>Adresse Headscale</th><th>URL publique (https://hôte)</th></tr>
+                <tr><th>#</th><th>Rôle</th><th>Statut</th><th>Adresse Headscale</th><th>URL publique (https://hôte)</th><th>Identifiant client OpenID Connect</th></tr>
                 </thead>
                 <tbody>
                 <tr th:each="s : ${serveurs}" th:classappend="${s.statut.name() == 'REVOQUE' ? ' opacity-50' : ''}">
@@ -76,6 +76,14 @@
                               class="d-flex gap-2">
                             <input type="text" name="urlPublique" class="form-control form-control-sm"
                                    th:value="${s.urlPublique}" placeholder="https://app.exemple.com">
+                            <button type="submit" class="btn btn-sm btn-outline-primary">OK</button>
+                        </form>
+                    </td>
+                    <td>
+                        <form th:action="@{/intra/licence/federation/serveurs/{id}/oidc-client(id=${s.id})}" method="post"
+                              class="d-flex gap-2">
+                            <input type="text" name="oidcClientId" class="form-control form-control-sm" maxlength="100"
+                                   th:value="${s.oidcClientId}" placeholder="identifiant du client Authelia">
                             <button type="submit" class="btn btn-sm btn-outline-primary">OK</button>
                         </form>
                     </td>

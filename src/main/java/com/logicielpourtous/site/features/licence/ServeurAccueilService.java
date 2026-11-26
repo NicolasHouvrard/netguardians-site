@@ -99,6 +99,11 @@ public class ServeurAccueilService {
 
     /** Renvoie l'URL sans {@code /} final ; vide ou {@code null} renvoie {@code null} (effacement). */
     public String normaliserUrlPublique(String url) {
+        return normaliser(url);
+    }
+
+    /** Meme regle, utilisable sans instance (adresse publique du Maitre lue dans la configuration). */
+    public static String normaliser(String url) {
         if (url == null || url.isBlank()) {
             return null;
         }

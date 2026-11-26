@@ -30,6 +30,7 @@ import com.logicielpourtous.site.features.commun.TenantRepository;
 public class FederationAdminController {
 
     private static final String PAGE = "redirect:/intra/licence/federation";
+    private static final java.util.regex.Pattern OIDC_CLIENT_ID = java.util.regex.Pattern.compile("^[A-Za-z0-9._-]{1,100}$");
 
     private final ServeurAccueilService serveurAccueilService;
     private final TenantRepository tenantRepository;
@@ -85,6 +86,34 @@ public class FederationAdminController {
             serveur.setUrlPublique(serveurAccueilService.normaliserUrlPublique(urlPublique));
             licenceServeurRepository.save(serveur);
             ra.addFlashAttribute("successMessage", "URL publique enregistrée.");
+        } catch (IllegalArgumentException e) {
+            ra.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return PAGE;
+    }
+
+    /** Identifiant de client OpenID Connect du serveur aupres d'Authelia : 1 a 100 caracteres parmi A-Z a-z 0-9 . _ - ; vide = effacer. */
+    @PostMapping("/serveurs/{id}/oidc-client")
+    public String definirOidcClientId(@PathVariable Long id,
+                                      @RequestParam(required = false) String oidcClientId,
+                                      RedirectAttributes ra) {
+        requireMaster();
+        try {
+            LicenceServeur serveur = licenceServeurRepository.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Serveur introuvable."));
+            String valeur = oidcClientId == null || oidcClientId.isBlank() ? null : oidcClientId.trim();
+            if (valeur != null) {
+                if (!OIDC_CLIENT_ID.matcher(valeur).matches()) {
+                    throw new IllegalArgumentException(
+                            "Identifiant de client invalide : 1 à 100 caractères parmi lettres, chiffres, point, tiret et souligné.");
+                }
+                if (licenceServeurRepository.existsByOidcClientIdAndIdNot(valeur, id)) {
+                    throw new IllegalArgumentException("Cet identifiant de client est déjà utilisé par un autre serveur.");
+                }
+            }
+            serveur.setOidcClientId(valeur);
+            licenceServeurRepository.save(serveur);
+            ra.addFlashAttribute("successMessage", "Identifiant de client enregistré.");
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
         }

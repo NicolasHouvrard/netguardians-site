@@ -42,13 +42,18 @@ import com.logicielpourtous.site.features.commun.ReessaiRetryAfter;
  */
 @Component
 @ConditionalOnProperty(name = "app.licence.master-url")
-public class LicenceClient {
+public class LicenceClient implements com.logicielpourtous.site.features.commun.AiguillageMaitre {
 
     private static final String JETONS_PATH = "/api/licence/jetons";
     private static final String NOUVEAUX_SERVEURS_PATH = "/api/licence/nouveaux-serveurs";
     private static final String CODE_PARTENAIRE_PATH = "/api/licence/code-partenaire";
+    private static final String AIGUILLAGE_PATH = "/api/licence/aiguillage";
+
+    /** Delai (connexion, pool, lecture) de l'appel d'aiguillage, fait pendant la requete de l'utilisateur. */
+    private static final java.time.Duration DELAI_AIGUILLAGE = java.time.Duration.ofSeconds(3);
 
     private final RestClient restClient;
+    private final RestClient restClientAiguillage;
     private final EtatLicenceLocaleRepository etatLicenceLocaleRepository;
     private final ObjectMapper objectMapper;
     private final ReessaiRetryAfter reessai;
@@ -65,6 +70,8 @@ public class LicenceClient {
                          ObjectMapper objectMapper, ReessaiRetryAfter reessai) {
         this.reessai = reessai;
         this.restClient = RestClient.builder().requestFactory(ReessaiRetryAfter.fabriqueRequetes()).baseUrl(masterUrl).build();
+        this.restClientAiguillage = RestClient.builder()
+                .requestFactory(ReessaiRetryAfter.fabriqueRequetes(DELAI_AIGUILLAGE)).baseUrl(masterUrl).build();
         this.etatLicenceLocaleRepository = etatLicenceLocaleRepository;
         this.objectMapper = objectMapper;
     }
@@ -127,6 +134,32 @@ public class LicenceClient {
                 .body(corps)
                 .retrieve()
                 .toBodilessEntity());
+    }
+
+    /**
+     * Aiguillage de la connexion unique : demande au maitre ou habite l'identite portee par ce jeton d'identite (le
+     * maitre le valide). Authentifie par la cle de licence du serveur. Le jeton est un secret : il n'est ni journalise
+     * ni reporte dans une exception. Pas de rejeu automatique (l'utilisateur est devant son ecran, la requete porte
+     * un jeton a usage court).
+     */
+    @Override
+    public List<Destination> aiguiller(String idToken) {
+        String corps = write(new AiguillageController.Requete(idToken));
+        String cle = requireCleApi();
+        String reponse = restClientAiguillage.post()
+                .uri(AIGUILLAGE_PATH)
+                .header(LicenceApiKeyAuthFilter.HEADER, cle)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(corps)
+                .retrieve()
+                .body(String.class);
+        AiguillageController.Reponse lue = read(reponse, new TypeReference<AiguillageController.Reponse>() {});
+        if (lue == null || lue.serveurs() == null) {
+            return List.of();
+        }
+        return lue.serveurs().stream()
+                .map(d -> new Destination(d.societeId(), d.nomSociete(), d.urlPublique()))
+                .toList();
     }
 
     private String requireCleApi() {

@@ -1,0 +1,23 @@
+# Exemple : Authelia sur le VPS (Docker Compose). Aucun secret ici : les secrets sont des FICHIERS
+# (voir docs/connexion-authelia.md, etape 2), montes en lecture seule et jamais ajoutes au depot.
+services:
+  authelia:
+    image: authelia/authelia:4.39        # 4.39 ou plus recent ; epinglez une version precise une fois testee
+    container_name: authelia
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9091:9091"            # visible seulement par le Nginx du VPS, jamais directement d'Internet
+    environment:
+      TZ: Europe/Paris
+      # Autorise la syntaxe {{ secret "..." }} dans configuration.yml (pour la cle privee OpenID Connect).
+      X_AUTHELIA_CONFIG_FILTERS: template
+      # Secrets lus dans des fichiers (variables natives d'Authelia, suffixe _FILE).
+      AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE: /secrets/jwt_reset_password
+      AUTHELIA_SESSION_SECRET_FILE: /secrets/session
+      AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE: /secrets/storage_encryption_key
+      AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET_FILE: /secrets/oidc_hmac
+      AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE: /secrets/ldap_password
+      AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE: /secrets/smtp_password
+    volumes:
+      - ./config:/config                 # configuration.yml + base SQLite (a SAUVEGARDER)
+      - ./secrets:/secrets:ro            # un fichier par secret, droits 0400, jamais dans le depot

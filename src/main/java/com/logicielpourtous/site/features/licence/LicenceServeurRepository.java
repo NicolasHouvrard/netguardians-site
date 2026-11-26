@@ -42,4 +42,6 @@ public interface LicenceServeurRepository extends JpaRepository<LicenceServeur, 
     Optional<LicenceServeur> findByCodeEnrolement(String codeEnrolement);
 
     Optional<LicenceServeur> findByCleApiHash(String cleApiHash);
+
+    boolean existsByOidcClientIdAndIdNot(String oidcClientId, Long id);
 }

@@ -160,6 +160,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/licence/plugins/catalogue").hasRole(LicenceApiKeyAuthFilter.ROLE)
                 .requestMatchers(HttpMethod.GET, "/api/licence/plugins/*/*/jar", "/api/licence/plugins/*/*/sig").hasRole(LicenceApiKeyAuthFilter.ROLE)
                 .requestMatchers(HttpMethod.POST, "/api/licence/plugins/etat").hasRole(LicenceApiKeyAuthFilter.ROLE)
+                // Connexion unique : aiguillage d'une identite Authelia vers le serveur de sa societe.
+                .requestMatchers(HttpMethod.POST, "/api/licence/aiguillage").hasRole(LicenceApiKeyAuthFilter.ROLE)
                 .anyRequest().denyAll()
             )
             .exceptionHandling(ex -> ex
@@ -308,6 +310,8 @@ public class SecurityConfig {
                 // Approbation d'une ESN : ecrit au registre une ligne PARTENAIRE definitive.
                 chemins.matcher("/intra/registrations/**"),
                 chemins.matcher(SelectionSocieteFilter.SELECTEUR),
+                // Choix du serveur apres connexion unique (formulaire ecrit avec th:action : jeton ajoute).
+                chemins.matcher("/connexion/aiguillage"),
                 // Gabarits du socle (HTMX) : le jeton part en en-tete depuis socle.js.
                 chemins.matcher("/admin/socle/**"),
                 // Ecran Apparence : ecrit les reglages de theme servis a tous.
@@ -322,7 +326,8 @@ public class SecurityConfig {
 
     @Bean
     @Order(3)
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http,
+            org.springframework.security.oauth2.client.registration.ClientRegistrationRepository registrations) throws Exception {
         http
             // CSRF CIBLE : exige uniquement sur les ecrans sensibles listes dans csrfCible() ; le reste de
             // l'interface web est inchange pour l'instant (extension par lots, apres audit des formulaires).
@@ -332,6 +337,8 @@ public class SecurityConfig {
                 .requestMatchers("/app", "/app/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/", "/register", "/register/confirm", "/register/email-sent", "/register/societe-connue","/register/verify", "/register/resend", "/login", "/public/**", "/error", "/access-denied").permitAll()
+                // Aiguillage apres connexion unique (compte absent ici) : l'utilisateur n'est pas connecte.
+                .requestMatchers("/connexion/aiguillage").permitAll()
                 .requestMatchers("/auth/session-token").permitAll()
                 // Selecteur de societe : avant la regle generique /{slug} (permitAll), qui l'ouvrirait aux anonymes.
                 .requestMatchers(SelectionSocieteFilter.SELECTEUR).authenticated()
@@ -365,8 +372,13 @@ public class SecurityConfig {
                 .successHandler(successHandler)
                 .failureHandler(authFailureHandler)
                 .permitAll())
+            .addFilterBefore(new AutheliaIndisponibleFilter(registrations),
+                org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter.class)
             .oauth2Login(oauth2 -> oauth2
                 .loginPage("/login")
+                // Compte inconnu ici (serveur secondaire) : aiguillage ; sinon retour a /login?error comme avant.
+                .failureHandler(new com.logicielpourtous.site.features.auth.AiguillageEchecHandler())
+                .authorizationEndpoint(ae -> ae.authorizationRequestResolver(new AutheliaAuthorizationRequestResolver(registrations)))
                 .successHandler(successHandler)
                 .userInfoEndpoint(ui -> ui
                     .userService(socialLoginUserService)

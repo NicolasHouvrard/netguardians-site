@@ -137,6 +137,40 @@ class FederationAdminControllerTest {
     }
 
     @Test
+    void postOidcClient_valide_enregistre_vide_efface_invalide_refuse() throws Exception {
+        LicenceServeur serveur = serveur(LicenceServeur.LicenceServeurStatut.ACTIF, "100.64.9.9");
+        String id = "srv-" + UUID.randomUUID();
+
+        mockMvc.perform(post(PAGE + "/serveurs/{id}/oidc-client", serveur.getId())
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
+                        .param("oidcClientId", "  " + id + "  "))
+                .andExpect(flash().attributeExists("successMessage"));
+        assertThat(licenceServeurRepository.findById(serveur.getId()).orElseThrow().getOidcClientId()).isEqualTo(id);
+
+        for (String mauvais : new String[] {"<b>x</b>", "a b", "x".repeat(101), "é"}) {
+            mockMvc.perform(post(PAGE + "/serveurs/{id}/oidc-client", serveur.getId())
+                            .with(user(adminPrincipal(tenantRepository))).with(csrf())
+                            .param("oidcClientId", mauvais))
+                    .andExpect(flash().attributeExists("errorMessage"));
+        }
+        assertThat(licenceServeurRepository.findById(serveur.getId()).orElseThrow().getOidcClientId()).isEqualTo(id);
+
+        // deja utilise par un autre serveur : refuse, sans modifier
+        LicenceServeur autre = serveur(LicenceServeur.LicenceServeurStatut.ACTIF, "100.64.9.7");
+        mockMvc.perform(post(PAGE + "/serveurs/{id}/oidc-client", autre.getId())
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
+                        .param("oidcClientId", id))
+                .andExpect(flash().attributeExists("errorMessage"));
+        assertThat(licenceServeurRepository.findById(autre.getId()).orElseThrow().getOidcClientId()).isNull();
+
+        mockMvc.perform(post(PAGE + "/serveurs/{id}/oidc-client", serveur.getId())
+                        .with(user(adminPrincipal(tenantRepository))).with(csrf())
+                        .param("oidcClientId", " "))
+                .andExpect(flash().attributeExists("successMessage"));
+        assertThat(licenceServeurRepository.findById(serveur.getId()).orElseThrow().getOidcClientId()).isNull();
+    }
+
+    @Test
     void postUrl_http_refusee_sansRienModifier() throws Exception {
         LicenceServeur serveur = serveur(LicenceServeur.LicenceServeurStatut.ACTIF, "100.64.9.9");
 

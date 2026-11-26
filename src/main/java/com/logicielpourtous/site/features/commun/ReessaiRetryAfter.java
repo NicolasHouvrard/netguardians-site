@@ -66,14 +66,36 @@ public final class ReessaiRetryAfter {
      * erreur d'E/S (comportement par defaut du client) sont conserves.
      */
     public static ClientHttpRequestFactory fabriqueRequetes() {
-        return new HttpComponentsClientHttpRequestFactory(HttpClients.custom()
+        return new HttpComponentsClientHttpRequestFactory(clientSansReessai().build());
+    }
+
+    private static org.apache.hc.client5.http.impl.classic.HttpClientBuilder clientSansReessai() {
+        return HttpClients.custom()
                 .useSystemProperties()
                 .setRetryStrategy(new DefaultHttpRequestRetryStrategy() {
                     @Override
                     public boolean retryRequest(HttpResponse response, int execCount, HttpContext context) {
                         return false;
                     }
-                })
+                });
+    }
+
+
+    /**
+     * Comme {@link #fabriqueRequetes()}, mais avec des delais courts (connexion, attente d'une connexion libre du pool,
+     * lecture) : pour un appel fait pendant la requete d'un utilisateur, qui ne doit jamais bloquer un fil sans limite.
+     * Les delais sont portes par une fabrique DEDIEE : les autres appels du client gardent leur comportement.
+     */
+    public static ClientHttpRequestFactory fabriqueRequetes(Duration delai) {
+        org.apache.hc.core5.util.Timeout timeout = org.apache.hc.core5.util.Timeout.of(delai);
+        return new HttpComponentsClientHttpRequestFactory(clientSansReessai()
+                .setConnectionManager(org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder.create()
+                        .useSystemProperties()
+                        .setDefaultConnectionConfig(org.apache.hc.client5.http.config.ConnectionConfig.custom()
+                                .setConnectTimeout(timeout).setSocketTimeout(timeout).build())
+                        .build())
+                .setDefaultRequestConfig(org.apache.hc.client5.http.config.RequestConfig.custom()
+                        .setConnectionRequestTimeout(timeout).setResponseTimeout(timeout).build())
                 .build());
     }
 

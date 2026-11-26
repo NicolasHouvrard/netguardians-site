@@ -10,10 +10,12 @@
  *
  * <p>Dépendance externe déclarée explicitement, vérifiée par {@code ModularityTests} : {@code commun}
  * ({@code TenantContext}, vidé en fin de requête de plugin par {@code FiltreEnVol} ; {@code ServerRoleProperties} ;
- * {@code CleMaitre}, clé API de licence pour le tirage). {@code CleMaitre} est une interface de {@code commun}
+ * {@code CleMaitre}, clé API de licence pour le tirage) et {@code auth} (lecture du compte courant par
+ * {@code AppsAdvice} : {@code CustomUserDetails}, pour la tuile « Espace ESN » ; {@code auth} ne dépend jamais de
+ * {@code plateforme}). {@code CleMaitre} est une interface de {@code commun}
  * implémentée par le module {@code licence} : {@code plateforme} ne dépend donc pas de {@code licence}, et
  * {@code licence} ne dépend jamais de {@code plateforme} (aucun cycle). Le SDK partagé
  * ({@code com.logicielpourtous.site.sdk}) est hors de la racine {@code features} analysée par Modulith.
  */
-@org.springframework.modulith.ApplicationModule(allowedDependencies = {"commun"})
+@org.springframework.modulith.ApplicationModule(allowedDependencies = {"commun", "auth"})
 package com.logicielpourtous.site.features.plateforme;

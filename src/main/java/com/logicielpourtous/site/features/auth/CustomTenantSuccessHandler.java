@@ -62,6 +62,9 @@ public class CustomTenantSuccessHandler implements AuthenticationSuccessHandler 
                                         HttpServletResponse response,
                                         Authentication authentication) throws IOException {
 
+        // Une connexion reussie ne laisse pas le jeton d'identite de l'aiguillage dans la session authentifiee.
+        AiguillageRequis.retirer(request.getSession(false));
+
         String username = authentication.getName();
 
         User user = userRepository.findByEmail(username)

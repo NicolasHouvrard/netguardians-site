@@ -20,7 +20,13 @@
                         <i class="fas fa-shield-halved me-1"></i>
                         Vérification anti-robot échouée. Veuillez réessayer.
                     </div>
-                    <div th:if="${param.error != null and param.error[0] != 'captcha'}" class="alert alert-danger">
+                    <div th:if="${param.error != null and param.error[0] == 'authelia'}" class="alert alert-warning">
+                        Le compte unique est momentanément indisponible. Vous pouvez vous connecter avec le formulaire ci-dessous.
+                    </div>
+                    <div th:if="${param.error != null and param.error[0] == 'aiguillage'}" class="alert alert-danger">
+                        Connexion impossible avec ce compte.
+                    </div>
+                    <div th:if="${param.error != null and param.error[0] != 'captcha' and param.error[0] != 'authelia' and param.error[0] != 'aiguillage'}" class="alert alert-danger">
                         <div th:if="${oauthError != null}" th:text="${oauthError}"></div>
                         <div th:if="${oauthError == null}">Identifiants incorrects ou compte non activé.</div>
                         <div class="mt-2 small" th:if="${oauthError == null}">Si vous venez de vous inscrire, vérifiez l'email de confirmation reçu.</div>
@@ -58,7 +64,7 @@
                     </div>
 
                     <!-- Social login -->
-                    <div th:if="${googleEnabled or microsoftEnabled}">
+                    <div th:if="${googleEnabled or microsoftEnabled or autheliaEnabled}">
                         <div class="position-relative my-4">
                             <hr>
                             <span class="position-absolute top-50 start-50 translate-middle bg-white px-2 text-muted"
@@ -84,6 +90,10 @@
                                     <rect x="12" y="12" width="10" height="10" fill="#FFBA08"/>
                                 </svg>
                                 Continuer avec Microsoft
+                            </a>
+                            <a th:if="${autheliaEnabled}" href="/oauth2/authorization/authelia"
+                               class="btn btn-outline-secondary d-flex align-items-center justify-content-center gap-2">
+                                Se connecter avec le compte unique
                             </a>
                         </div>
                     </div>
