@@ -14,7 +14,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
-import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
@@ -98,15 +97,30 @@ public class ValidateurJetonAuthelia {
         }
         try {
             return controler(d.decode(idToken.trim()), clientIdAttendu);
-        } catch (BadJwtException e) {
-            // Jeton refuse (signature, emetteur, dates, algorithme...) : jamais le message, il pourrait citer le jeton.
-            log.debug("Jeton d'identite refuse ({}).", e.getClass().getSimpleName());
-            return Optional.empty();
         } catch (RuntimeException e) {
-            // Probablement l'emetteur ou ses cles injoignables : pause avant de retenter.
-            mettreEnPause("Cles de l'emetteur Authelia indisponibles", e);
+            if (panneInfrastructure(e)) {
+                // Cles de l'emetteur injoignables : pause globale avant de retenter.
+                mettreEnPause("Cles de l'emetteur Authelia indisponibles", e);
+            } else {
+                // Refus propre a CE jeton (mal forme, signature, dates, cle inconnue...) : aucune pause, sinon un
+                // serveur pourrait bloquer l'aiguillage des autres avec des jetons forges. Jamais le message.
+                log.debug("Jeton d'identite refuse ({}).", e.getClass().getSimpleName());
+            }
             return Optional.empty();
         }
+    }
+
+    /** Vrai si la chaine de causes contient une erreur d'E/S ou de recuperation du jeu de cles distant. */
+    private static boolean panneInfrastructure(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof java.io.IOException || t instanceof com.nimbusds.jose.RemoteKeySourceException) {
+                return true;
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return false;
     }
 
     private static Optional<String> controler(Jwt jwt, String clientIdAttendu) {

@@ -11,6 +11,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
 import com.nimbusds.jose.JWSAlgorithm;
@@ -234,5 +235,54 @@ class ValidateurJetonAutheliaTest {
         } finally {
             http.stop(0);
         }
+    }
+
+    @Test
+    void un_jeton_forge_ne_met_pas_l_aiguillage_en_pause() throws Exception {
+        AtomicInteger essais = new AtomicInteger();
+        // le decodeur leve une exception inattendue (sans cause d'E/S) pour le jeton "piege"
+        ValidateurJetonAuthelia v = new ValidateurJetonAuthelia(EMETTEUR, () -> {
+            essais.incrementAndGet();
+            JwtDecoder reel = NimbusJwtDecoder.withPublicKey((RSAPublicKey) cles.getPublic()).build();
+            return jeton -> {
+                if ("piege".equals(jeton)) {
+                    throw new IllegalStateException("inattendue");
+                }
+                return reel.decode(jeton);
+            };
+        }, System::nanoTime);
+        String bon = signer(valides().build(), cles);
+
+        assertThat(v.valider("pas.un.jeton", CLIENT)).isEmpty();
+        assertThat(v.valider("piege", CLIENT)).isEmpty();
+        // kid inconnu / signature fausse
+        assertThat(v.valider(signer(valides().build(), autresCles), CLIENT)).isEmpty();
+        // le jeton valide suivant est accepte immediatement, sans nouveau decodeur
+        assertThat(v.valider(bon, CLIENT)).contains("alice@exemple.fr");
+        assertThat(essais.get()).isEqualTo(1);
+    }
+
+    @Test
+    void une_panne_du_jwks_met_en_pause_et_les_jetons_valides_sont_refuses_30_s() throws Exception {
+        long[] t = {1_000L};
+        AtomicInteger decodages = new AtomicInteger();
+        JwtDecoder reel = NimbusJwtDecoder.withPublicKey((RSAPublicKey) cles.getPublic()).build();
+        boolean[] panne = {true};
+        ValidateurJetonAuthelia v = new ValidateurJetonAuthelia(EMETTEUR, () -> jeton -> {
+            decodages.incrementAndGet();
+            if (panne[0]) {
+                throw new org.springframework.security.oauth2.jwt.JwtException("jwks",
+                        new RuntimeException(new java.io.IOException("injoignable")));
+            }
+            return reel.decode(jeton);
+        }, () -> t[0]);
+        String bon = signer(valides().build(), cles);
+
+        assertThat(v.valider(bon, CLIENT)).isEmpty();
+        panne[0] = false;
+        assertThat(v.valider(bon, CLIENT)).as("en pause").isEmpty();
+        assertThat(decodages.get()).isEqualTo(1);
+        t[0] += ValidateurJetonAuthelia.PAUSE_ENTRE_ESSAIS_NANOS + 1;
+        assertThat(v.valider(bon, CLIENT)).contains("alice@exemple.fr");
     }
 }
