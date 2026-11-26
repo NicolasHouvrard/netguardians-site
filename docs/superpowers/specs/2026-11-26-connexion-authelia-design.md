@@ -83,10 +83,10 @@ du site : ils sont saisis sur un portail d'authentification dédié (Authelia), 
 ## Ce qui est laissé au constructeur
 Noms des propriétés, structure des classes et des tests, format exact de la page de choix de serveur, détails de la configuration Authelia (selon la version retenue).
 
-## Questions à confirmer par le propriétaire avant le plan
-- Le paquet LDAP du NAS (Synology Directory Server / LDAP Server) est-il déjà installé, avec quels utilisateurs ?
-- Nom public du portail (ex. `auth.logicielpourtous.com`) et accord pour installer Authelia sur le VPS (hors du dépôt, à faire avec le propriétaire).
-- Les administrateurs restent-ils en compte local tant que le double facteur n'est pas en place (proposé), ou passent-ils aussi au LDAP dans la première version ?
+## Réponses du propriétaire (2026-11-26)
+- Paquet LDAP du NAS : installé, **sans utilisateur** (créés par l'outil de migration, phase ultérieure, ou à la main au début).
+- Nom public du portail : `auth.logicielpourtous.com` ; Authelia sera installé sur le VPS avec le propriétaire aux commandes (rien n'est installé par l'assistant).
+- Administrateurs : sur le LDAP aussi (voir la décision complémentaire 4).
 
 ## Décisions complémentaires (mes choix, issues de la relecture du constructeur ; à corriger si besoin)
 1. **Ouverture de session sur le serveur cible.** Chaque serveur est son propre client OpenID Connect d'Authelia. L'aiguillage redirige le navigateur vers l'adresse
@@ -100,8 +100,9 @@ Noms des propriétés, structure des classes et des tests, format exact de la pa
    identités qu'il vient réellement d'authentifier. Sont exclues de la réponse les sociétés dont le tenant est hébergé par le serveur appelant lui-même (il les connaît). Un tenant sans
    serveur d'accueil (`serveurLicenceId` nul) est hébergé par le Maître : l'adresse publique du Maître est un réglage du Maître. Un serveur d'accueil sans `urlPublique` ou révoqué est
    omis de la réponse. Compte inconnu, inactif ou sans société accessible : même réponse vide.
-4. **Le Maître est aussi un client** (identifiants propres), joignable publiquement par le VPS. Dans cette première version, les comptes qui portent `ROLE_ADMIN` NE peuvent PAS se
-   connecter par Authelia (refus générique, comme la décision du 7 novembre) : les administrateurs restent en compte local.
+4. **Le Maître est aussi un client** (identifiants propres), joignable publiquement par le VPS. **Décision du propriétaire (2026-11-26) : les administrateurs passent aussi au LDAP** (plus facile à gérer) ;
+   le double facteur est à activer dans Authelia pour eux. Pour ne jamais être enfermé dehors, UN compte administrateur local de secours reste sur le Maître (mot de passe fort, rarement utilisé, documenté),
+   et la page de connexion locale reste disponible. Le code n'interdit donc pas `ROLE_ADMIN` par la connexion Authelia.
 5. **Authelia 4.39 ou plus récent**, clients confidentiels, secrets stockés hachés dans la configuration d'Authelia.
 6. **Déconnexion.** Première version : déconnexion locale du serveur seulement ; la session Authelia reste ouverte (documenté). La déconnexion unique (`end_session_endpoint`) est une
    suite possible.
