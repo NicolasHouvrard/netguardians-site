@@ -23,7 +23,10 @@
                     <div th:if="${param.error != null and param.error[0] == 'authelia'}" class="alert alert-warning">
                         Le compte unique est momentanément indisponible. Vous pouvez vous connecter avec le formulaire ci-dessous.
                     </div>
-                    <div th:if="${param.error != null and param.error[0] != 'captcha' and param.error[0] != 'authelia'}" class="alert alert-danger">
+                    <div th:if="${param.error != null and param.error[0] == 'aiguillage'}" class="alert alert-danger">
+                        Connexion impossible avec ce compte.
+                    </div>
+                    <div th:if="${param.error != null and param.error[0] != 'captcha' and param.error[0] != 'authelia' and param.error[0] != 'aiguillage'}" class="alert alert-danger">
                         <div th:if="${oauthError != null}" th:text="${oauthError}"></div>
                         <div th:if="${oauthError == null}">Identifiants incorrects ou compte non activé.</div>
                         <div class="mt-2 small" th:if="${oauthError == null}">Si vous venez de vous inscrire, vérifiez l'email de confirmation reçu.</div>

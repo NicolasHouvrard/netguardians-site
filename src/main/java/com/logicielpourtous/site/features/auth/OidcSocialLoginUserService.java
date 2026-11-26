@@ -9,8 +9,16 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
 
+import com.logicielpourtous.site.features.commun.AiguillageMaitre;
+import com.logicielpourtous.site.features.commun.ServerRole;
+import com.logicielpourtous.site.features.commun.ServerRoleProperties;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 public class OidcSocialLoginUserService extends OidcUserService {
@@ -18,9 +26,20 @@ public class OidcSocialLoginUserService extends OidcUserService {
     static final String MESSAGE_REFUS = "Connexion impossible avec ce compte.";
 
     private final UserRepository userRepository;
+    private final ServerRoleProperties serverRole;
+    private final Optional<AiguillageMaitre> aiguillage;
 
+    /** Sans aiguillage (comme avant) : tout compte inconnu est refuse. */
     public OidcSocialLoginUserService(UserRepository userRepository) {
+        this(userRepository, new ServerRoleProperties(), Optional.empty());
+    }
+
+    @Autowired
+    public OidcSocialLoginUserService(UserRepository userRepository, ServerRoleProperties serverRole,
+                                      Optional<AiguillageMaitre> aiguillage) {
         this.userRepository = userRepository;
+        this.serverRole = serverRole;
+        this.aiguillage = aiguillage;
     }
 
     @Override
@@ -51,11 +70,30 @@ public class OidcSocialLoginUserService extends OidcUserService {
 
         String minuscules = email.trim().toLowerCase(Locale.ROOT);
         List<User> comptes = userRepository.findAllByEmailIgnoreCase(minuscules);
+        if (comptes.isEmpty() && aiguillageApplicable(registrationId)) {
+            conserverJeton(oidcUser);
+            throw new AiguillageRequis();
+        }
         if (comptes.size() != 1 || !comptes.get(0).isActive()) {
             throw refus();
         }
 
         return new CustomOidcUser(oidcUser, comptes.get(0), minuscules);
+    }
+
+    /** Compte inconnu apres Authelia, sur un serveur secondaire pouvant interroger le Maitre (jamais le Maitre). */
+    private boolean aiguillageApplicable(String registrationId) {
+        return "authelia".equals(registrationId) && serverRole.getRole() != ServerRole.MASTER && aiguillage.isPresent();
+    }
+
+    /** Garde le jeton d'identite (secret, jamais journalise) en session pour l'aiguillage ; lu une seule fois. */
+    private static void conserverJeton(OidcUser oidcUser) {
+        if (oidcUser.getIdToken() == null || RequestContextHolder.getRequestAttributes() == null) {
+            throw refus();
+        }
+        RequestContextHolder.currentRequestAttributes()
+                .setAttribute(AiguillageRequis.ATTRIBUT_JETON, oidcUser.getIdToken().getTokenValue(),
+                        RequestAttributes.SCOPE_SESSION);
     }
 
     private static OAuth2AuthenticationException refus() {
