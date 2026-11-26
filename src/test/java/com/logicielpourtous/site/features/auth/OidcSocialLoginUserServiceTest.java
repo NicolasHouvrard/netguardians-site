@@ -50,8 +50,12 @@ class OidcSocialLoginUserServiceTest {
     }
 
     private OAuth2AuthenticationException refus(OidcUser identite) {
+        return refus(identite, "authelia");
+    }
+
+    private OAuth2AuthenticationException refus(OidcUser identite, String registration) {
         try {
-            service.rattacher(identite);
+            service.rattacher(identite, registration);
         } catch (OAuth2AuthenticationException e) {
             return e;
         }
@@ -59,10 +63,30 @@ class OidcSocialLoginUserServiceTest {
     }
 
     @Test
-    void refuse_si_email_non_verifie() {
+    void authelia_refuse_si_email_verified_absent() {
         when(repo.findAllByEmailIgnoreCase("alice@example.org")).thenReturn(List.of(compte("alice@example.org", true)));
-        refus(identite("alice@example.org", false));
-        refus(identite("alice@example.org", null));
+        refus(identite("alice@example.org", null), "authelia");
+    }
+
+    @Test
+    void authelia_refuse_si_email_verified_faux() {
+        when(repo.findAllByEmailIgnoreCase("alice@example.org")).thenReturn(List.of(compte("alice@example.org", true)));
+        refus(identite("alice@example.org", false), "authelia");
+    }
+
+    @Test
+    void microsoft_ou_google_sans_claim_email_verified_est_accepte() {
+        when(repo.findAllByEmailIgnoreCase("alice@example.org")).thenReturn(List.of(compte("alice@example.org", true)));
+        assertThat(service.rattacher(identite("alice@example.org", null), "microsoft")).isInstanceOf(CustomOidcUser.class);
+        assertThat(service.rattacher(identite("alice@example.org", null), "google")).isInstanceOf(CustomOidcUser.class);
+    }
+
+    @Test
+    void autre_fournisseur_avec_email_verified_faux_est_refuse() {
+        when(repo.findAllByEmailIgnoreCase("alice@example.org")).thenReturn(List.of(compte("alice@example.org", true)));
+        OAuth2AuthenticationException e = refus(identite("alice@example.org", false), "microsoft");
+        assertThat(e.getMessage()).isEqualTo(MESSAGE);
+        assertThat(refus(identite("alice@example.org", false), "google").getMessage()).isEqualTo(MESSAGE);
     }
 
     @Test
@@ -76,7 +100,7 @@ class OidcSocialLoginUserServiceTest {
         User alice = compte("alice@example.org", true);
         when(repo.findAllByEmailIgnoreCase("alice@example.org")).thenReturn(List.of(alice));
 
-        OidcUser resultat = service.rattacher(identite("Alice@Example.ORG", true));
+        OidcUser resultat = service.rattacher(identite("Alice@Example.ORG", true), "authelia");
 
         assertThat(resultat).isInstanceOf(CustomOidcUser.class);
         assertThat(((CustomOidcUser) resultat).getUsername()).isEqualTo("alice@example.org");

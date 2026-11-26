@@ -25,7 +25,7 @@ public class OidcSocialLoginUserService extends OidcUserService {
 
     @Override
     public OidcUser loadUser(OidcUserRequest request) throws OAuth2AuthenticationException {
-        return rattacher(super.loadUser(request));
+        return rattacher(super.loadUser(request), request.getClientRegistration().getRegistrationId());
     }
 
     /**
@@ -33,9 +33,16 @@ public class OidcSocialLoginUserService extends OidcUserService {
      * (e-mail absent ou non verifie, compte inconnu, inactif ou ambigu) ont le meme message generique,
      * qui ne dit rien sur l'existence du compte.
      */
-    OidcUser rattacher(OidcUser oidcUser) {
+    OidcUser rattacher(OidcUser oidcUser, String registrationId) {
         String email = oidcUser.getEmail();
-        if (email == null || email.isBlank() || !Boolean.TRUE.equals(oidcUser.getEmailVerified())) {
+        if (email == null || email.isBlank()) {
+            throw refus();
+        }
+        // authelia : e-mail verifie obligatoire (claim absent = refus). Autres fournisseurs (Google, Microsoft) :
+        // claim absent accepte (Microsoft ne le fournit pas), claim present et faux refuse.
+        Boolean verifie = oidcUser.getEmailVerified();
+        boolean strict = "authelia".equals(registrationId);
+        if (strict ? !Boolean.TRUE.equals(verifie) : Boolean.FALSE.equals(verifie)) {
             throw refus();
         }
 
