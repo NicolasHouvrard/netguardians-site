@@ -324,7 +324,8 @@ public class SecurityConfig {
 
     @Bean
     @Order(3)
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http,
+            org.springframework.security.oauth2.client.registration.ClientRegistrationRepository registrations) throws Exception {
         http
             // CSRF CIBLE : exige uniquement sur les ecrans sensibles listes dans csrfCible() ; le reste de
             // l'interface web est inchange pour l'instant (extension par lots, apres audit des formulaires).
@@ -367,8 +368,11 @@ public class SecurityConfig {
                 .successHandler(successHandler)
                 .failureHandler(authFailureHandler)
                 .permitAll())
+            .addFilterBefore(new AutheliaIndisponibleFilter(registrations),
+                org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter.class)
             .oauth2Login(oauth2 -> oauth2
                 .loginPage("/login")
+                .authorizationEndpoint(ae -> ae.authorizationRequestResolver(new AutheliaAuthorizationRequestResolver(registrations)))
                 .successHandler(successHandler)
                 .userInfoEndpoint(ui -> ui
                     .userService(socialLoginUserService)

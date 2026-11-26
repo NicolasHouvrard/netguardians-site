@@ -25,7 +25,12 @@ public class OidcSocialLoginUserService extends OidcUserService {
 
     @Override
     public OidcUser loadUser(OidcUserRequest request) throws OAuth2AuthenticationException {
-        return rattacher(super.loadUser(request), request.getClientRegistration().getRegistrationId());
+        return rattacher(chargerIdentite(request), request.getClientRegistration().getRegistrationId());
+    }
+
+    /** Appel reseau (jeton d'identite + userinfo) ; isole pour les tests. */
+    protected OidcUser chargerIdentite(OidcUserRequest request) {
+        return super.loadUser(request);
     }
 
     /**
@@ -38,11 +43,9 @@ public class OidcSocialLoginUserService extends OidcUserService {
         if (email == null || email.isBlank()) {
             throw refus();
         }
-        // authelia : e-mail verifie obligatoire (claim absent = refus). Autres fournisseurs (Google, Microsoft) :
-        // claim absent accepte (Microsoft ne le fournit pas), claim present et faux refuse.
-        Boolean verifie = oidcUser.getEmailVerified();
-        boolean strict = "authelia".equals(registrationId);
-        if (strict ? !Boolean.TRUE.equals(verifie) : Boolean.FALSE.equals(verifie)) {
+        // email_verified == true OBLIGATOIRE pour tous les fournisseurs (echec ferme : claim absent, faux ou
+        // fournisseur inconnu = refus).
+        if (!Boolean.TRUE.equals(oidcUser.getEmailVerified())) {
             throw refus();
         }
 

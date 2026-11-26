@@ -58,6 +58,7 @@ public class AuthController {
     private final GoogleMailService              googleMailService;
     private final MicrosoftMailService           microsoftMailService;
     private final ClientRegistrationRepository   clientRegistrationRepository;
+    private final org.springframework.core.env.Environment environment;
 
     public AuthController(CaptchaService captchaService,
                           UserRepository userRepository,
@@ -67,7 +68,9 @@ public class AuthController {
                           MailAccountRepository mailAccountRepository,
                           GoogleMailService googleMailService,
                           MicrosoftMailService microsoftMailService,
-                          ClientRegistrationRepository clientRegistrationRepository) {
+                          ClientRegistrationRepository clientRegistrationRepository,
+                          org.springframework.core.env.Environment environment) {
+        this.environment = environment;
         this.captchaService                = captchaService;
         this.userRepository                = userRepository;
         this.inscriptionSocieteService     = inscriptionSocieteService;
@@ -290,7 +293,7 @@ public class AuthController {
     public String login(Model model, jakarta.servlet.http.HttpServletRequest request) {
         model.addAttribute("googleEnabled",    isProviderConfigured("google"));
         model.addAttribute("microsoftEnabled", isProviderConfigured("microsoft"));
-        model.addAttribute("autheliaEnabled",  isProviderConfigured("authelia"));
+        model.addAttribute("autheliaEnabled",  com.logicielpourtous.site.config.SocialOAuth2Config.autheliaConfigure(environment));
         model.addAttribute("captchaEnabled",   captchaService.isEnabled());
         model.addAttribute("captchaSiteKey",   captchaSiteKey);
 

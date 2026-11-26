@@ -75,18 +75,57 @@ class OidcSocialLoginUserServiceTest {
     }
 
     @Test
-    void microsoft_ou_google_sans_claim_email_verified_est_accepte() {
+    void google_sans_claim_email_verified_est_refuse() {
         when(repo.findAllByEmailIgnoreCase("alice@example.org")).thenReturn(List.of(compte("alice@example.org", true)));
-        assertThat(service.rattacher(identite("alice@example.org", null), "microsoft")).isInstanceOf(CustomOidcUser.class);
-        assertThat(service.rattacher(identite("alice@example.org", null), "google")).isInstanceOf(CustomOidcUser.class);
+        refus(identite("alice@example.org", null), "google");
+        refus(identite("alice@example.org", null), "microsoft");
     }
 
     @Test
-    void autre_fournisseur_avec_email_verified_faux_est_refuse() {
+    void fournisseur_inconnu_sans_claim_est_refuse() {
         when(repo.findAllByEmailIgnoreCase("alice@example.org")).thenReturn(List.of(compte("alice@example.org", true)));
-        OAuth2AuthenticationException e = refus(identite("alice@example.org", false), "microsoft");
-        assertThat(e.getMessage()).isEqualTo(MESSAGE);
-        assertThat(refus(identite("alice@example.org", false), "google").getMessage()).isEqualTo(MESSAGE);
+        refus(identite("alice@example.org", null), "inconnu");
+        refus(identite("alice@example.org", null), null);
+    }
+
+    @Test
+    void email_verified_faux_est_refuse_pour_tous() {
+        when(repo.findAllByEmailIgnoreCase("alice@example.org")).thenReturn(List.of(compte("alice@example.org", true)));
+        for (String f : new String[] {"authelia", "google", "microsoft", "inconnu"}) {
+            assertThat(refus(identite("alice@example.org", false), f).getMessage()).isEqualTo(MESSAGE);
+        }
+    }
+
+    @Test
+    void email_verified_vrai_est_accepte_pour_google() {
+        when(repo.findAllByEmailIgnoreCase("alice@example.org")).thenReturn(List.of(compte("alice@example.org", true)));
+        assertThat(service.rattacher(identite("alice@example.org", true), "google")).isInstanceOf(CustomOidcUser.class);
+    }
+
+    @Test
+    void le_nom_du_fournisseur_est_transmis_a_loadUser() {
+        OidcUser id = identite("alice@example.org", true);
+        java.util.concurrent.atomic.AtomicReference<String> recu = new java.util.concurrent.atomic.AtomicReference<>();
+        OidcSocialLoginUserService svc = new OidcSocialLoginUserService(repo) {
+            @Override
+            protected OidcUser chargerIdentite(org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest r) {
+                return id;
+            }
+
+            @Override
+            OidcUser rattacher(OidcUser o, String registrationId) {
+                recu.set(registrationId);
+                return o;
+            }
+        };
+        var client = org.springframework.security.oauth2.client.registration.ClientRegistration.withRegistrationId("authelia")
+                .clientId("c").authorizationGrantType(org.springframework.security.oauth2.core.AuthorizationGrantType.AUTHORIZATION_CODE)
+                .redirectUri("http://x/cb").authorizationUri("http://x/a").tokenUri("http://x/t").build();
+        var jeton = new org.springframework.security.oauth2.core.OAuth2AccessToken(
+                org.springframework.security.oauth2.core.OAuth2AccessToken.TokenType.BEARER, "t", Instant.now(), Instant.now().plusSeconds(60));
+        svc.loadUser(new org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest(
+                client, jeton, ((DefaultOidcUser) id).getIdToken()));
+        assertThat(recu.get()).isEqualTo("authelia");
     }
 
     @Test
