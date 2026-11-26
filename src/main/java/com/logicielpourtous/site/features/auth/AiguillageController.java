@@ -53,9 +53,11 @@ public class AiguillageController {
         }
         // Lecture UNIQUE : le jeton est retire de la session quoi qu'il arrive ensuite.
         Object jeton = session.getAttribute(AiguillageRequis.ATTRIBUT_JETON);
-        session.removeAttribute(AiguillageRequis.ATTRIBUT_JETON);
-        session.removeAttribute(AiguillageRequis.ATTRIBUT_LISTE);
-        if (!(jeton instanceof String idToken) || idToken.isBlank() || maitre.isEmpty()) {
+        Object instant = session.getAttribute(AiguillageRequis.ATTRIBUT_JETON_INSTANT);
+        AiguillageRequis.retirer(session);
+        // Jeton refuse s'il est sans horodatage ou plus vieux que sa duree de vie maximale.
+        boolean frais = instant instanceof Long t && System.currentTimeMillis() - t <= AiguillageRequis.DUREE_MAX_MS;
+        if (!frais || !(jeton instanceof String idToken) || idToken.isBlank() || maitre.isEmpty()) {
             return refus();
         }
 
@@ -118,7 +120,7 @@ public class AiguillageController {
         return base + SUFFIXE_CONNEXION;
     }
 
-    /** Ne garde que les destinations dont l'adresse est une URL http(s) absolue sans identifiants integres. */
+    /** Ne garde que les destinations dont l'adresse est une URL https absolue sans identifiants integres. */
     private static List<Destination> valides(List<Destination> brutes) {
         List<Destination> resultat = new ArrayList<>();
         if (brutes == null) {
@@ -139,7 +141,7 @@ public class AiguillageController {
         try {
             URI uri = URI.create(url.trim());
             String schema = uri.getScheme();
-            return ("https".equalsIgnoreCase(schema) || "http".equalsIgnoreCase(schema))
+            return "https".equalsIgnoreCase(schema)
                     && uri.getHost() != null && uri.getUserInfo() == null
                     && uri.getQuery() == null && uri.getFragment() == null;
         } catch (IllegalArgumentException e) {

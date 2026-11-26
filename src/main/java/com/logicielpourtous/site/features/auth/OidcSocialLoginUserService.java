@@ -91,9 +91,11 @@ public class OidcSocialLoginUserService extends OidcUserService {
         if (oidcUser.getIdToken() == null || RequestContextHolder.getRequestAttributes() == null) {
             throw refus();
         }
-        RequestContextHolder.currentRequestAttributes()
-                .setAttribute(AiguillageRequis.ATTRIBUT_JETON, oidcUser.getIdToken().getTokenValue(),
-                        RequestAttributes.SCOPE_SESSION);
+        RequestAttributes session = RequestContextHolder.currentRequestAttributes();
+        session.setAttribute(AiguillageRequis.ATTRIBUT_JETON, oidcUser.getIdToken().getTokenValue(),
+                RequestAttributes.SCOPE_SESSION);
+        session.setAttribute(AiguillageRequis.ATTRIBUT_JETON_INSTANT, System.currentTimeMillis(),
+                RequestAttributes.SCOPE_SESSION);
     }
 
     private static OAuth2AuthenticationException refus() {

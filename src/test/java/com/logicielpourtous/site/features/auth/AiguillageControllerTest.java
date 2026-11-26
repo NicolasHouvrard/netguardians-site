@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,6 +43,7 @@ class AiguillageControllerTest {
     private static MockHttpSession sessionAvecJeton() {
         MockHttpSession s = new MockHttpSession();
         s.setAttribute(AiguillageRequis.ATTRIBUT_JETON, JETON);
+        s.setAttribute(AiguillageRequis.ATTRIBUT_JETON_INSTANT, System.currentTimeMillis());
         return s;
     }
 
@@ -119,14 +121,46 @@ class AiguillageControllerTest {
     }
 
     @Test
-    void les_adresses_non_http_ou_vides_de_la_liste_sont_ignorees() throws Exception {
-        when(maitre.aiguiller(JETON)).thenReturn(List.of(
-                new Destination(1L, "X", "javascript:alert(1)"),
-                new Destination(2L, "Y", " "),
-                new Destination(3L, "Z", null),
-                new Destination(4L, "U", "https://user:pw@h.example.org")));
-        mockMvc.perform(get("/connexion/aiguillage").session(sessionAvecJeton()))
+    void http_et_double_slash_sont_ignores() throws Exception {
+        for (String url : new String[] {"http://alpha.example.org", "//evil.example", "javascript:alert(1)", " ", null,
+                "https://user:pw@h.example.org", "https://h.example.org/?x=1", "https:opaque"}) {
+            when(maitre.aiguiller(JETON)).thenReturn(List.of(new Destination(1L, "X", url)));
+            mockMvc.perform(get("/connexion/aiguillage").session(sessionAvecJeton()))
+                    .andExpect(redirectedUrl("/login?error=aiguillage"));
+        }
+    }
+
+    @Test
+    void un_jeton_perime_est_refuse() throws Exception {
+        when(maitre.aiguiller(JETON)).thenReturn(List.of(A));
+        MockHttpSession perime = sessionAvecJeton();
+        perime.setAttribute(AiguillageRequis.ATTRIBUT_JETON_INSTANT, System.currentTimeMillis() - 6 * 60_000L);
+        mockMvc.perform(get("/connexion/aiguillage").session(perime))
                 .andExpect(redirectedUrl("/login?error=aiguillage"));
+        assertThat(perime.getAttribute(AiguillageRequis.ATTRIBUT_JETON)).isNull();
+        // Sans horodatage : refuse aussi.
+        MockHttpSession sansHorodatage = new MockHttpSession();
+        sansHorodatage.setAttribute(AiguillageRequis.ATTRIBUT_JETON, JETON);
+        mockMvc.perform(get("/connexion/aiguillage").session(sansHorodatage))
+                .andExpect(redirectedUrl("/login?error=aiguillage"));
+        verify(maitre, never()).aiguiller(any());
+    }
+
+    @Autowired private List<org.springframework.security.web.SecurityFilterChain> chaines;
+
+    @Test
+    void le_gestionnaire_d_echec_est_branche_dans_la_chaine_de_securite() throws Exception {
+        var filtre = chaines.stream().flatMap(c -> c.getFilters().stream())
+                .filter(f -> f instanceof org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter)
+                .map(f -> (org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter) f)
+                .filter(f -> f.getClass().getSimpleName().equals("OAuth2LoginAuthenticationFilter"))
+                .findFirst().orElseThrow();
+        var gestionnaire = (org.springframework.security.web.authentication.AuthenticationFailureHandler)
+                org.springframework.test.util.ReflectionTestUtils.getField(filtre, "failureHandler");
+        var requete = new org.springframework.mock.web.MockHttpServletRequest();
+        var reponse = new org.springframework.mock.web.MockHttpServletResponse();
+        gestionnaire.onAuthenticationFailure(requete, reponse, new AiguillageRequis());
+        assertThat(reponse.getRedirectedUrl()).isEqualTo("/connexion/aiguillage");
     }
 
     @Test

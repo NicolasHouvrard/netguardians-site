@@ -49,7 +49,11 @@ public class LicenceClient implements com.logicielpourtous.site.features.commun.
     private static final String CODE_PARTENAIRE_PATH = "/api/licence/code-partenaire";
     private static final String AIGUILLAGE_PATH = "/api/licence/aiguillage";
 
+    /** Delai (connexion, pool, lecture) de l'appel d'aiguillage, fait pendant la requete de l'utilisateur. */
+    private static final java.time.Duration DELAI_AIGUILLAGE = java.time.Duration.ofSeconds(3);
+
     private final RestClient restClient;
+    private final RestClient restClientAiguillage;
     private final EtatLicenceLocaleRepository etatLicenceLocaleRepository;
     private final ObjectMapper objectMapper;
     private final ReessaiRetryAfter reessai;
@@ -66,6 +70,8 @@ public class LicenceClient implements com.logicielpourtous.site.features.commun.
                          ObjectMapper objectMapper, ReessaiRetryAfter reessai) {
         this.reessai = reessai;
         this.restClient = RestClient.builder().requestFactory(ReessaiRetryAfter.fabriqueRequetes()).baseUrl(masterUrl).build();
+        this.restClientAiguillage = RestClient.builder()
+                .requestFactory(ReessaiRetryAfter.fabriqueRequetes(DELAI_AIGUILLAGE)).baseUrl(masterUrl).build();
         this.etatLicenceLocaleRepository = etatLicenceLocaleRepository;
         this.objectMapper = objectMapper;
     }
@@ -140,7 +146,7 @@ public class LicenceClient implements com.logicielpourtous.site.features.commun.
     public List<Destination> aiguiller(String idToken) {
         String corps = write(new AiguillageController.Requete(idToken));
         String cle = requireCleApi();
-        String reponse = restClient.post()
+        String reponse = restClientAiguillage.post()
                 .uri(AIGUILLAGE_PATH)
                 .header(LicenceApiKeyAuthFilter.HEADER, cle)
                 .contentType(MediaType.APPLICATION_JSON)
