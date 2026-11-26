@@ -58,7 +58,7 @@
                     </div>
 
                     <!-- Social login -->
-                    <div th:if="${googleEnabled or microsoftEnabled}">
+                    <div th:if="${googleEnabled or microsoftEnabled or autheliaEnabled}">
                         <div class="position-relative my-4">
                             <hr>
                             <span class="position-absolute top-50 start-50 translate-middle bg-white px-2 text-muted"
@@ -84,6 +84,10 @@
                                     <rect x="12" y="12" width="10" height="10" fill="#FFBA08"/>
                                 </svg>
                                 Continuer avec Microsoft
+                            </a>
+                            <a th:if="${autheliaEnabled}" href="/oauth2/authorization/authelia"
+                               class="btn btn-outline-secondary d-flex align-items-center justify-content-center gap-2">
+                                Se connecter avec le compte unique
                             </a>
                         </div>
                     </div>

@@ -9,8 +9,13 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.Locale;
+
 @Service
 public class OidcSocialLoginUserService extends OidcUserService {
+
+    static final String MESSAGE_REFUS = "Connexion impossible avec ce compte.";
 
     private final UserRepository userRepository;
 
@@ -20,25 +25,30 @@ public class OidcSocialLoginUserService extends OidcUserService {
 
     @Override
     public OidcUser loadUser(OidcUserRequest request) throws OAuth2AuthenticationException {
-        OidcUser oidcUser = super.loadUser(request);
+        return rattacher(super.loadUser(request));
+    }
 
+    /**
+     * Rattache l'identite OpenID Connect a un compte local EXISTANT, jamais de creation. Tous les refus
+     * (e-mail absent ou non verifie, compte inconnu, inactif ou ambigu) ont le meme message generique,
+     * qui ne dit rien sur l'existence du compte.
+     */
+    OidcUser rattacher(OidcUser oidcUser) {
         String email = oidcUser.getEmail();
-        if (email == null || email.isBlank()) {
-            throw new OAuth2AuthenticationException(
-                    new OAuth2Error("email_not_found"), "Email non disponible depuis Google");
+        if (email == null || email.isBlank() || !Boolean.TRUE.equals(oidcUser.getEmailVerified())) {
+            throw refus();
         }
 
-        User user = userRepository.findByEmail(email.toLowerCase())
-                .orElseThrow(() -> new OAuth2AuthenticationException(
-                        new OAuth2Error("user_not_found"),
-                        "Aucun compte trouvé pour " + email + ". Inscrivez-vous d'abord."));
-
-        if (!user.isActive()) {
-            throw new OAuth2AuthenticationException(
-                    new OAuth2Error("account_disabled"),
-                    "Compte non activé. Vérifiez l'email de confirmation.");
+        String minuscules = email.trim().toLowerCase(Locale.ROOT);
+        List<User> comptes = userRepository.findAllByEmailIgnoreCase(minuscules);
+        if (comptes.size() != 1 || !comptes.get(0).isActive()) {
+            throw refus();
         }
 
-        return new CustomOidcUser(oidcUser, user, email.toLowerCase());
+        return new CustomOidcUser(oidcUser, comptes.get(0), minuscules);
+    }
+
+    private static OAuth2AuthenticationException refus() {
+        return new OAuth2AuthenticationException(new OAuth2Error("connexion_refusee"), MESSAGE_REFUS);
     }
 }

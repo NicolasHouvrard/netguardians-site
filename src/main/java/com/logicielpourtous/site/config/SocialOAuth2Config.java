@@ -4,6 +4,8 @@ import com.logicielpourtous.site.features.mail.MailAccount;
 import com.logicielpourtous.site.features.mail.MailAccountRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.security.oauth2.client.registration.ClientRegistrations;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
@@ -26,13 +28,16 @@ public class SocialOAuth2Config {
 
     private final MailAccountRepository mailAccountRepository;
 
-    public SocialOAuth2Config(MailAccountRepository mailAccountRepository) {
+    private final Environment env;
+
+    public SocialOAuth2Config(MailAccountRepository mailAccountRepository, Environment env) {
         this.mailAccountRepository = mailAccountRepository;
+        this.env = env;
     }
 
     @Bean
     public ClientRegistrationRepository clientRegistrationRepository() {
-        return new LazyMailAccountRegistrationRepository(mailAccountRepository);
+        return new LazyMailAccountRegistrationRepository(mailAccountRepository, new AutheliaRegistration(env));
     }
 
     // ── Implémentation lazy (requête BDD à chaque appel, pas au démarrage) ───
@@ -41,9 +46,11 @@ public class SocialOAuth2Config {
             implements ClientRegistrationRepository, Iterable<ClientRegistration> {
 
         private final MailAccountRepository repo;
+        private final AutheliaRegistration authelia;
 
-        LazyMailAccountRegistrationRepository(MailAccountRepository repo) {
+        LazyMailAccountRegistrationRepository(MailAccountRepository repo, AutheliaRegistration authelia) {
             this.repo = repo;
+            this.authelia = authelia;
         }
 
         @Override
@@ -51,6 +58,7 @@ public class SocialOAuth2Config {
             return switch (id) {
                 case "google"    -> buildGoogle(repo).orElse(null);
                 case "microsoft" -> buildMicrosoft(repo).orElse(null);
+                case "authelia"  -> authelia.get();
                 default          -> null;
             };
         }
@@ -61,6 +69,70 @@ public class SocialOAuth2Config {
             buildGoogle(repo).ifPresent(list::add);
             buildMicrosoft(repo).ifPresent(list::add);
             return list.iterator();
+        }
+    }
+
+    /**
+     * Fournisseur OpenID Connect « authelia », pilote par les proprietes
+     * {@code spring.security.oauth2.client.registration.authelia.client-id / client-secret} et
+     * {@code spring.security.oauth2.client.provider.authelia.issuer-uri}. Absent (null) tant qu'une des trois
+     * est vide : aucun appel reseau, aucun changement de comportement. La decouverte de l'emetteur se fait
+     * paresseusement ; un succes est garde, un echec (Authelia injoignable) est retente au plus toutes les 30 s
+     * et ne fait jamais echouer la page de connexion locale.
+     */
+    static final class AutheliaRegistration {
+        private static final String PREFIXE = "spring.security.oauth2.client.";
+        private static final long ATTENTE_APRES_ECHEC_MS = 30_000;
+
+        private final String clientId;
+        private final String clientSecret;
+        private final String issuerUri;
+        private final String scopes;
+        private volatile ClientRegistration enCache;
+        private volatile long prochainEssai;
+
+        AutheliaRegistration(Environment env) {
+            this.clientId = valeur(env, PREFIXE + "registration.authelia.client-id");
+            this.clientSecret = valeur(env, PREFIXE + "registration.authelia.client-secret");
+            this.issuerUri = valeur(env, PREFIXE + "provider.authelia.issuer-uri");
+            String s = valeur(env, PREFIXE + "registration.authelia.scope");
+            this.scopes = s.isEmpty() ? "openid,email,profile" : s;
+        }
+
+        private static String valeur(Environment env, String cle) {
+            String v = env.getProperty(cle);
+            return v == null ? "" : v.trim();
+        }
+
+        boolean configure() {
+            return !clientId.isEmpty() && !clientSecret.isEmpty() && !issuerUri.isEmpty();
+        }
+
+        ClientRegistration get() {
+            if (!configure()) {
+                return null;
+            }
+            ClientRegistration cache = enCache;
+            if (cache != null) {
+                return cache;
+            }
+            if (System.currentTimeMillis() < prochainEssai) {
+                return null;
+            }
+            try {
+                ClientRegistration r = ClientRegistrations.fromIssuerLocation(issuerUri)
+                        .registrationId("authelia")
+                        .clientId(clientId)
+                        .clientSecret(clientSecret)
+                        .scope(java.util.Arrays.stream(scopes.split("[, ]+")).filter(x -> !x.isEmpty()).toList())
+                        .clientName("Authelia")
+                        .build();
+                enCache = r;
+                return r;
+            } catch (RuntimeException e) {
+                prochainEssai = System.currentTimeMillis() + ATTENTE_APRES_ECHEC_MS;
+                return null;
+            }
         }
     }
 

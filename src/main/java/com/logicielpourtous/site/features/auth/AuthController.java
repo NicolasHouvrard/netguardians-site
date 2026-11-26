@@ -290,6 +290,7 @@ public class AuthController {
     public String login(Model model, jakarta.servlet.http.HttpServletRequest request) {
         model.addAttribute("googleEnabled",    isProviderConfigured("google"));
         model.addAttribute("microsoftEnabled", isProviderConfigured("microsoft"));
+        model.addAttribute("autheliaEnabled",  isProviderConfigured("authelia"));
         model.addAttribute("captchaEnabled",   captchaService.isEnabled());
         model.addAttribute("captchaSiteKey",   captchaSiteKey);
 

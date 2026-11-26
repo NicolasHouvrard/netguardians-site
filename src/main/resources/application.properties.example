@@ -214,3 +214,12 @@ app.plateforme.repertoire-donnees=${PLATEFORME_REPERTOIRE_DONNEES:donnees}
 # Clients : id de la societe partenaire par defaut (doit avoir la capacite PARTENAIRE). Vide = aucun :
 # toute inscription autonome est alors refusee explicitement (jamais de client orphelin).
 app.clients.partenaire-defaut-societe-id=${CLIENTS_PARTENAIRE_DEFAUT_SOCIETE_ID:}
+
+# -- Connexion unique par Authelia (OpenID Connect) ---------------------------------
+# Compte local EXISTANT rattache par e-mail verifie, jamais de creation. Les trois valeurs doivent etre
+# renseignees pour afficher le bouton ; vides = non configure (aucun changement de comportement).
+# Les secrets viennent de l'environnement, jamais de ce fichier. URI de redirection a declarer cote Authelia :
+# https://<site>/login/oauth2/code/authelia
+# spring.security.oauth2.client.registration.authelia.client-id=${AUTHELIA_CLIENT_ID:}
+# spring.security.oauth2.client.registration.authelia.client-secret=${AUTHELIA_CLIENT_SECRET:}
+# spring.security.oauth2.client.provider.authelia.issuer-uri=${AUTHELIA_ISSUER_URI:}
