@@ -160,6 +160,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/licence/plugins/catalogue").hasRole(LicenceApiKeyAuthFilter.ROLE)
                 .requestMatchers(HttpMethod.GET, "/api/licence/plugins/*/*/jar", "/api/licence/plugins/*/*/sig").hasRole(LicenceApiKeyAuthFilter.ROLE)
                 .requestMatchers(HttpMethod.POST, "/api/licence/plugins/etat").hasRole(LicenceApiKeyAuthFilter.ROLE)
+                // Connexion unique : aiguillage d'une identite Authelia vers le serveur de sa societe.
+                .requestMatchers(HttpMethod.POST, "/api/licence/aiguillage").hasRole(LicenceApiKeyAuthFilter.ROLE)
                 .anyRequest().denyAll()
             )
             .exceptionHandling(ex -> ex

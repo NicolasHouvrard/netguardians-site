@@ -112,6 +112,11 @@ public class LicenceServeur {
      * Headscale : sert a rediriger le navigateur d'un utilisateur vers le serveur de son tenant. */
     private String urlPublique;
 
+    /** Identifiant de client OpenID Connect de ce serveur aupres d'Authelia : destinataire ({@code aud}) attendu
+     * du jeton d'identite presente a {@code /api/licence/aiguillage}. {@code null} = aiguillage refuse. */
+    @jakarta.persistence.Column(name = "oidc_client_id")
+    private String oidcClientId;
+
     @PrePersist
     protected void onCreate() {
         if (statut == null) {

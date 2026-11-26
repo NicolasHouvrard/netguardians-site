@@ -223,3 +223,9 @@ app.clients.partenaire-defaut-societe-id=${CLIENTS_PARTENAIRE_DEFAUT_SOCIETE_ID:
 # spring.security.oauth2.client.registration.authelia.client-id=${AUTHELIA_CLIENT_ID:}
 # spring.security.oauth2.client.registration.authelia.client-secret=${AUTHELIA_CLIENT_SECRET:}
 # spring.security.oauth2.client.provider.authelia.issuer-uri=${AUTHELIA_ISSUER_URI:}
+
+# Aiguillage (Maitre) : POST /api/licence/aiguillage valide le jeton d'identite d'un serveur aupres de l'emetteur
+# Authelia ci-dessous (vide = aiguillage desactive, reponse vide, aucun appel reseau) ; l'adresse publique du Maitre
+# est celle ou renvoyer les societes dont le tenant n'a pas de serveur d'accueil (vide = ces societes sont omises).
+# app.auth.authelia.issuer-uri=${AUTHELIA_ISSUER_URI:}
+# app.auth.authelia.maitre-url-publique=${MAITRE_URL_PUBLIQUE:}
