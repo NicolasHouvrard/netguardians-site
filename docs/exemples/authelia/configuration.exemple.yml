@@ -1,6 +1,7 @@
-# Exemple de configuration Authelia 4.39+ pour la connexion unique du site.
-# Adaptez les valeurs marquees CHANGER_MOI. AUCUN secret ici : mots de passe et cles sont dans /secrets (voir compose).
-# Reference officielle : https://www.authelia.com/configuration/ (verifiez les noms de cles pour votre version exacte).
+# Exemple de configuration Authelia 4.39.x (verifie sur la documentation officielle de la 4.39) pour la connexion unique du site.
+# Authelia sert ici de fournisseur OpenID Connect seul. Adaptez les valeurs marquees CHANGER_MOI (dont le DN de base : mettez le votre).
+# AUCUN secret ici : mots de passe et cles sont dans /secrets (voir compose.exemple.yml).
+# Validez avant de demarrer : docker compose run --rm authelia authelia validate-config --config /config/configuration.yml
 theme: auto
 
 server:
@@ -11,31 +12,43 @@ log:
 
 # --- Annuaire : LDAP du NAS, joint par le reseau prive uniquement ---------------------------------------
 authentication_backend:
-  # OPTION (a) RETENUE PAR DEFAUT : la reinitialisation de mot de passe par Authelia est DESACTIVEE. Les mots de passe sont
+  refresh_interval: '5m'
+  # OPTION (a) RETENUE PAR DEFAUT : reinitialisation et changement de mot de passe par Authelia DESACTIVES. Les mots de passe sont
   # definis par l'administration dans le LDAP, et le compte de service ci-dessous reste en lecture seule.
   # Option (b) : mettre « disable: false » ET donner au compte de service une ecriture LIMITEE a l'attribut userPassword
   # (ACL du LDAP), JAMAIS a « mail » ni aux autres attributs (voir docs/connexion-authelia.md, point 1).
   password_reset:
     disable: true
+  password_change:
+    disable: true
   ldap:
-    implementation: custom
-    address: 'ldaps://100.64.0.2:636'      # adresse privee du NAS (reseau Tailscale/Headscale), jamais une adresse publique
+    implementation: custom                  # sans valeurs par defaut : toutes les cles ci-dessous doivent etre posees
+    address: 'ldaps://100.64.0.2:636'       # adresse privee du NAS (Tailscale/Headscale), jamais une adresse publique
+    timeout: '5s'
+    start_tls: false
     tls:
-      skip_verify: false                    # fournissez le certificat de l'autorite si besoin (tls.certificate_chains)
+      skip_verify: false                    # a eviter a true
+      # Le certificat du NAS doit couvrir cette adresse (SAN) ; sinon indiquez le nom qu'il porte :
+      # server_name: 'CHANGER_MOI.nas.local'
+      # NB : tls.certificate_chain / tls.private_key servent a presenter un certificat CLIENT, pas a faire confiance a une autorite.
+      # Pour une autorite privee (certificat du NAS auto-signe), voir la cle de premier niveau « certificates_directory »
+      # de la documentation d'Authelia 4.39 (a verifier) et y deposer le certificat de l'autorite.
     base_dn: 'dc=CHANGER_MOI,dc=local'      # base DN affichee par le paquet LDAP de Synology
     additional_users_dn: 'cn=users'
     additional_groups_dn: 'cn=groups'
-    users_filter: '(&({username_attribute}={input})(objectClass=posixAccount))'   # {username_attribute} = attributes.username ci-dessous
-    groups_filter: '(&(|(member={dn})(memberUid={username}))(objectClass=posixGroup))'
+    # Connexion par e-mail OU par uid. Groupes par memberUid (attribut des membres dans le LDAP Synology), qui contient l'UID :
+    # c'est pourquoi attributes.username doit etre « uid ». Avec « mail » ici, le groupe des administrateurs ne serait jamais
+    # trouve et le double facteur ne leur serait JAMAIS exige, sans aucune erreur visible.
+    users_filter: '(&(|({username_attribute}={input})({mail_attribute}={input}))(objectClass=posixAccount))'
+    groups_filter: '(&(memberUid={username})(objectClass=posixGroup))'
     attributes:
-      username: 'mail'                       # identifiant de connexion = e-mail (si vous preferez « uid », changez ici ET dans la doc)
+      username: 'uid'
       mail: 'mail'                           # l'e-mail de l'annuaire fait foi pour le rattachement au compte du site
       display_name: 'cn'
       group_name: 'cn'
     user: 'uid=authelia,cn=users,dc=CHANGER_MOI,dc=local'   # compte de service dedie, LECTURE SEULE (option a)
     # le mot de passe vient de AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE
 
-# --- Politique d'acces -----------------------------------------------------------------------------------
 # Usage OpenID Connect seul : l'acces des clients du site est gouverne par authorization_policies (plus bas), pas par des
 # regles access_control (qui servent a proteger des sites derriere Authelia par Nginx). On garde donc « deny » sans regle.
 access_control:
@@ -44,9 +57,10 @@ access_control:
 session:
   # secret : AUTHELIA_SESSION_SECRET_FILE
   cookies:
-    - domain: 'auth.logicielpourtous.com'    # cookie limite au portail ; a verifier avec la documentation d'Authelia de votre version (4.39)
+    # Cookie limite au portail. Pas de default_redirection_url : inutile en OpenID Connect seul, et elle doit
+    # appartenir au domaine du cookie (master.logicielpourtous.com n'en fait pas partie).
+    - domain: 'auth.logicielpourtous.com'
       authelia_url: 'https://auth.logicielpourtous.com'
-      default_redirection_url: 'https://master.logicielpourtous.com'
       expiration: '1h'
       inactivity: '15m'
       remember_me: -1                         # « se souvenir de moi » desactive : la deconnexion n'est que locale (voir doc, point 7)
@@ -57,19 +71,25 @@ regulation:                                  # limitation des essais
   ban_time: '10m'
 
 storage:
-  # cle : AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE
+  # cle de chiffrement : AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE
   local:
     path: '/config/db.sqlite3'
 
+# Notifications (code d'enrolement TOTP, etc.). Un seul fournisseur a la fois.
 notifier:
   smtp:
     address: 'submission://CHANGER_MOI.exemple.com:587'
     username: 'CHANGER_MOI'
     # mot de passe : AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE
     sender: 'Authelia <ne-pas-repondre@logicielpourtous.com>'
+  # Pour les PREMIERS TESTS sans SMTP, remplacez le bloc smtp ci-dessus par (page .../notifications/file/) :
+  # filesystem:
+  #   filename: '/config/notification.txt'
 
 totp:
   issuer: 'logicielpourtous.com'
+
+# identity_validation.reset_password.jwt_secret : AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE (a fournir quand meme)
 
 # --- Fournisseur OpenID Connect : UN client confidentiel par serveur du site --------------------------------
 identity_providers:
@@ -81,7 +101,9 @@ identity_providers:
         use: 'sig'
         key: {{ secret "/secrets/oidc_jwks_rsa.pem" | mindent 10 "|" | msquote }}
 
-    # Le site lit email et email_verified DANS le jeton d'identite : on les y place explicitement.
+    # Par defaut le jeton d'identite ne contient pas l'e-mail (il est servi par userinfo) : on place explicitement
+    # email, email_verified, name et preferred_username dans le jeton d'identite, que le site lit.
+    # NB : Authelia annonce email_verified toujours a VRAI, sans verification reelle (voir doc, point 2).
     claims_policies:
       site:
         id_token: ['email', 'email_verified', 'name', 'preferred_username']
@@ -92,18 +114,18 @@ identity_providers:
         default_policy: 'one_factor'
         rules:
           - policy: 'two_factor'
-            subject: 'group:administrateurs'      # groupe LDAP des administrateurs (CHANGER_MOI si different)
+            subject: 'group:administrateurs'      # groupe LDAP des administrateurs (cn du groupe ; CHANGER_MOI si different)
 
     clients:
       # --- Le Maitre (NAS) ---
       - client_id: 'site-maitre'
         client_name: 'Site - Maitre'
-        client_secret: '$pbkdf2-sha512$CHANGER_MOI_EMPREINTE_DU_SECRET_DU_MAITRE'   # EMPREINTE (hash), jamais le secret en clair
+        client_secret: '$pbkdf2-sha512$310000$CHANGER_MOI_EMPREINTE_DU_SECRET_DU_MAITRE'   # EMPREINTE (hash), jamais le secret en clair
         public: false
         authorization_policy: 'site'
         claims_policy: 'site'
         consent_mode: 'implicit'                  # pas d'ecran de consentement : clients de confiance
-        require_pkce: true
+        require_pkce: true                        # le site envoie PKCE S256 pour authelia
         pkce_challenge_method: 'S256'
         redirect_uris:
           - 'https://master.logicielpourtous.com/login/oauth2/code/authelia'
@@ -115,7 +137,7 @@ identity_providers:
       # --- Le VPS (serveur secondaire) ---
       - client_id: 'site-vps'
         client_name: 'Site - VPS'
-        client_secret: '$pbkdf2-sha512$CHANGER_MOI_EMPREINTE_DU_SECRET_DU_VPS'
+        client_secret: '$pbkdf2-sha512$310000$CHANGER_MOI_EMPREINTE_DU_SECRET_DU_VPS'
         public: false
         authorization_policy: 'site'
         claims_policy: 'site'

@@ -15,7 +15,7 @@ Architecture :
 Exemples de fichiers : `docs/exemples/authelia/` (`compose.exemple.yml`, `configuration.exemple.yml`, `nginx-auth.exemple.conf`,
 `proprietes-site.exemple.md`). Les valeurs `CHANGER_MOI` sont à remplacer ; aucun secret ne doit être ajouté au dépôt.
 
-Ordre conseillé : 1, 2, 3, 4, 5, puis la vérification (point 9). Ne migrez les comptes (point 6) qu'une fois la vérification réussie.
+Ordre conseillé : 1, 2, 3, 4, 5, puis les tests de base (point 9) et la vérification (point 10). Ne migrez les comptes (point 6) qu'une fois la vérification réussie.
 
 ---
 
@@ -33,8 +33,9 @@ Ordre conseillé : 1, 2, 3, 4, 5, puis la vérification (point 9). Ne migrez les
    - **(b)** activer la réinitialisation par Authelia (`disable: false`) ; elle s'exécute avec le compte de service, qui doit alors avoir une écriture
      **limitée à l'attribut `userPassword`** (liste de contrôle d'accès du LDAP Synology/OpenLDAP), et **jamais** à `mail` ni aux autres attributs :
      qui peut modifier l'e-mail d'un utilisateur peut prendre le compte du site correspondant.
-4. Créer les utilisateurs. Pour chacun : identifiant (l'e-mail est un bon choix), nom, et surtout l'attribut **`mail` obligatoire et unique**.
-   Le site rattache la personne à son compte existant par cet e-mail.
+4. Créer les utilisateurs. Pour chacun : identifiant (`uid`), nom, et surtout l'attribut **`mail` obligatoire et unique**. Authelia accepte à la connexion
+   l'e-mail OU l'`uid`. Le site rattache la personne à son compte existant par l'e-mail. Ajouter les administrateurs au groupe `administrateurs`
+   (le LDAP Synology liste les membres d'un groupe par `memberUid`, c'est-à-dire par `uid`) : c'est ce groupe qui déclenche le double facteur obligatoire.
 5. **Réserver l'écriture à l'administration.** Celui qui peut modifier l'e-mail d'un utilisateur dans le LDAP peut prendre le compte
    du site correspondant : seuls les administrateurs du NAS doivent pouvoir modifier l'annuaire, et les utilisateurs ne doivent pas pouvoir
    changer leur propre e-mail.
@@ -47,31 +48,49 @@ Ordre conseillé : 1, 2, 3, 4, 5, puis la vérification (point 9). Ne migrez les
 Fichiers de départ : `compose.exemple.yml` et `configuration.exemple.yml`.
 
 1. Créer un dossier, par exemple `/opt/authelia/`, avec `config/` et `secrets/` (droits restreints : `chmod 700 secrets`).
-2. Générer les secrets, un fichier chacun dans `secrets/` (droits `0400`), jamais dans le dépôt :
-   `jwt_reset_password`, `session`, `storage_encryption_key`, `oidc_hmac` (chaînes aléatoires longues, par exemple
-   `openssl rand -hex 64`), `ldap_password` (mot de passe du compte `authelia`), `smtp_password`, et la clé privée de signature
-   `oidc_jwks_rsa.pem` (`openssl genrsa -out oidc_jwks_rsa.pem 4096`).
-3. Copier `configuration.exemple.yml` vers `config/configuration.yml` et renseigner : DN de base LDAP, adresse `ldaps://100.64.0.2:636`
-   (adresse privée du NAS), nom du groupe des administrateurs, SMTP. L'exemple utilise l'e-mail (`mail`) comme identifiant de connexion
-   (`attributes.username`, repris dans `users_filter`) et désactive la réinitialisation par Authelia (option (a) du point 1). Les règles `access_control` ne
-   servent pas ici : l'accès des clients est réglé par `authorization_policies`. Le cookie de session est limité au portail `auth.logicielpourtous.com`
-   (à vérifier avec la documentation d'Authelia de votre version, 4.39). « Se souvenir de moi » est désactivé (`remember_me: -1`) : la déconnexion
-   n'étant que locale (point 7), une session longue sur un poste partagé resterait ouverte ; on peut accepter une durée courte si le confort prime,
-   au prix de ce risque.
+2. Générer les secrets, un fichier chacun dans `secrets/` (droits `0400`), jamais dans le dépôt. Avec l'image d'Authelia (un appel par secret) :
+   `docker run --rm authelia/authelia:4.39.28 authelia crypto rand --length 64 --charset alphanumeric` pour `jwt_reset_password` (à fournir même si la
+   réinitialisation est désactivée), `session`, `storage_encryption_key`, `oidc_hmac` ; `ldap_password` est le mot de passe du compte `authelia` et
+   `smtp_password` celui du SMTP. La clé privée de signature OpenID Connect :
+   `docker run --rm -v "$PWD/secrets:/out" authelia/authelia:4.39.28 authelia crypto pair rsa generate --bits 4096 --directory /out`
+   puis renommer `secrets/private.pem` en `secrets/oidc_jwks_rsa.pem` (et supprimer `public.pem`, inutile). (`openssl rand -hex 64` et
+   `openssl genrsa -out oidc_jwks_rsa.pem 4096` conviennent aussi.) Le tag `4.39.28` était la dernière 4.39 connue à la rédaction : vérifiez-le avec
+   `docker pull authelia/authelia:4.39.28`, sinon prenez la dernière 4.39.x.
+3. Copier `configuration.exemple.yml` vers `config/configuration.yml` et renseigner : DN de base LDAP (remplacer `CHANGER_MOI` par le vôtre), adresse
+   `ldaps://100.64.0.2:636` (adresse privée du NAS), nom du groupe des administrateurs, SMTP. Points à connaître :
+   - **Identifiant et groupes** : `attributes.username` vaut `uid`, la connexion accepte l'e-mail ou l'`uid` (`users_filter`), et les groupes sont trouvés par
+     `memberUid` (`groups_filter`). Il ne faut pas mettre `mail` comme `username` : `memberUid` contient l'`uid`, le groupe des administrateurs ne serait
+     alors jamais trouvé et le double facteur ne leur serait **jamais exigé**, sans erreur visible. Vérifier les classes d'objets et les attributs réels
+     avec un `ldapsearch` sur le NAS.
+   - **Certificat du LDAP** : le certificat du NAS doit couvrir l'adresse utilisée (ou poser `tls.server_name`). `tls.certificate_chain` sert à présenter un
+     certificat *client*, pas à faire confiance à une autorité ; pour une autorité privée, voir `certificates_directory` dans la documentation d'Authelia 4.39 (à vérifier).
+     Éviter `skip_verify: true`.
+   - **Mots de passe** : `password_reset.disable` et `password_change.disable` valent `true` (option (a) du point 1).
+   - **Sessions** : le cookie est limité au portail `auth.logicielpourtous.com` (à vérifier avec la documentation d'Authelia de votre version, 4.39) ; il n'y a
+     pas de `default_redirection_url` (inutile ici, et elle doit appartenir au domaine du cookie). « Se souvenir de moi » est désactivé (`remember_me: -1`) : la
+     déconnexion n'étant que locale (point 7), une session longue sur un poste partagé resterait ouverte ; on peut accepter une durée courte si le
+     confort prime, au prix de ce risque.
+   - Les règles `access_control` ne servent pas ici : l'accès des clients est réglé par `authorization_policies`.
+   - **Notifications** : l'enrôlement du double facteur (TOTP) demande un code envoyé par le notifier (e-mail de l'utilisateur). Pour les premiers tests sans SMTP,
+     utiliser `notifier.filesystem` (`filename: '/config/notification.txt'`, page de documentation `.../configuration/notifications/file/`) et lire le code dans ce fichier ;
+     un seul fournisseur à la fois. Revenir à SMTP ensuite.
 4. **Un client confidentiel par serveur.** Pour chaque serveur (Maître, VPS, puis chaque serveur ajouté) :
    - choisir un `client_id` propre (`site-maitre`, `site-vps`, ...) ;
    - générer un secret aléatoire long, le noter pour le serveur concerné, et en calculer l'**empreinte** :
-     `docker run --rm authelia/authelia:4.39 authelia crypto hash generate pbkdf2 --variant sha512 --random --random.length 72 --random.charset rfc3986`
+     `docker run --rm authelia/authelia:4.39.28 authelia crypto hash generate pbkdf2 --variant sha512 --random --random.length 72 --random.charset rfc3986`
      (la commande affiche le secret en clair et son empreinte : l'empreinte `$pbkdf2-sha512$...` va dans `client_secret` du fichier
      de configuration ; le secret en clair va uniquement dans les propriétés du serveur concerné, point 4) ;
    - `redirect_uris` : exactement `https://<adresse-publique-du-serveur>/login/oauth2/code/authelia` (pour le Maître :
      `https://master.logicielpourtous.com/login/oauth2/code/authelia`) ;
    - `scopes` : `openid`, `email`, `profile` ;
-   - PKCE exigé : `require_pkce: true` et `pkce_challenge_method: 'S256'` ;
+   - PKCE exigé : `require_pkce: true` et `pkce_challenge_method: 'S256'`. Le site envoie PKCE `S256` pour le fournisseur `authelia` (résolveur de requêtes d'autorisation dédié) ;
+     contrôlez-le au premier essai : si Authelia refuse l'autorisation pour une raison de PKCE, la requête n'envoie pas `code_challenge` ;
    - consentement préconfiguré : `consent_mode: 'implicit'` (clients de confiance, pas d'écran de consentement) ;
-   - la politique de claims de l'exemple place `email` et `email_verified` dans le jeton d'identité ; **`email_verified` doit valoir vrai** pour
-     un utilisateur dont l'e-mail est dans l'annuaire (sinon le site refuse la connexion). Si votre version d'Authelia ne le fournit pas
-     ainsi, ajustez la configuration des claims avant de continuer.
+   - par défaut le jeton d'identité ne contient pas l'e-mail (Authelia le sert par `userinfo`) : la politique `claims_policies.site.id_token` de l'exemple y place
+     `email`, `email_verified`, `name` et `preferred_username`, et chaque client la référence (`claims_policy: 'site'`) ;
+   - **`email_verified` est toujours à vrai côté Authelia**, sans vérification réelle de l'adresse, quel que soit l'utilisateur. La vérification d'e-mail du site ne
+     protège donc pas ici : **la confiance repose entièrement sur le contrôle des écritures dans l'annuaire** (point 1 : écriture réservée à l'administration,
+     `mail` non modifiable par l'utilisateur, pas d'écriture du compte de service sur `mail`).
 5. **Double facteur obligatoire pour les administrateurs** : la politique d'autorisation `site` de l'exemple exige `two_factor` pour le groupe LDAP
    des administrateurs et `one_factor` pour les autres. Chaque administrateur enregistre son application TOTP à sa première connexion.
 6. Lancer : `docker compose up -d`, puis `docker compose logs authelia` : aucune erreur de configuration ni de connexion LDAP.
@@ -176,7 +195,22 @@ Maître, puis redémarrer : le bouton disparaît, l'aiguillage est désactivé, 
 fonctionne exactement comme avant. Rien n'est à défaire dans la base. Côté infrastructure, arrêter Authelia (`docker compose down`)
 ne casse pas la connexion locale.
 
-## 9. Vérification pas à pas
+## 9. Tests de base avant de brancher le site
+
+À faire avant d'ajouter la moindre propriété Authelia au site (ordre conseillé : après les points 1 à 3, avant le point 10).
+
+1. **Réseau privé, depuis le VPS** : `docker run --rm busybox nc -zv 100.64.0.2 636` doit répondre « open ». Refaire le test **depuis le conteneur
+   Authelia** une fois démarré (`docker compose exec authelia ...` si l'image contient l'outil, sinon un conteneur de test sur le même réseau Docker) : un conteneur peut ne pas
+   atteindre l'interface Tailscale de l'hôte si le routage ou la traduction d'adresses n'est pas en place.
+2. **Validation de la configuration** : `docker compose run --rm authelia authelia validate-config --config /config/configuration.yml` ne doit signaler aucune erreur
+   (la commande ne teste pas la connexion LDAP ni SMTP ; confirmez-la avec `authelia validate-config --help` si elle diffère dans votre version).
+3. **Démarrage et journaux** : `docker compose up -d`, puis `docker compose logs authelia` : pas d'erreur de configuration, ni de connexion au LDAP ou au SMTP.
+4. **Navigateur** : ouvrir `https://auth.logicielpourtous.com`, se connecter avec l'utilisateur de test (e-mail ou `uid`). Pour un administrateur, enregistrer le TOTP (le code
+   d'enrôlement arrive par le notifier). Contrôler qu'un membre du groupe `administrateurs` se voit bien demander le second facteur.
+5. `https://auth.logicielpourtous.com/.well-known/openid-configuration` répond en JSON avec le bon `issuer` (point 3).
+
+
+## 10. Vérification pas à pas
 
 Commencer avec UN utilisateur et UN serveur (le Maître), avant d'étendre.
 

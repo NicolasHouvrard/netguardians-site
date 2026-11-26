@@ -2,7 +2,7 @@
 # (voir docs/connexion-authelia.md, etape 2), montes en lecture seule et jamais ajoutes au depot.
 services:
   authelia:
-    image: authelia/authelia:4.39        # 4.39 ou plus recent ; epinglez une version precise une fois testee
+    image: authelia/authelia:4.39.28     # derniere 4.39 connue a la redaction ; verifiez que le tag existe (docker pull authelia/authelia:4.39.28)
     container_name: authelia
     restart: unless-stopped
     ports:
