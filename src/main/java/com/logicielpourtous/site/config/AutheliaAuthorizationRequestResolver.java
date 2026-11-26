@@ -28,12 +28,13 @@ public class AutheliaAuthorizationRequestResolver implements OAuth2Authorization
 
     @Override
     public OAuth2AuthorizationRequest resolve(HttpServletRequest request) {
+        // Flux de connexion (oauth2Login) : la methode a un seul argument du resolveur par defaut extrait l'id de
+        // /oauth2/authorization/{id} ET utilise l'action « login » dans l'adresse de retour
+        // ({baseUrl}/login/oauth2/code/{id}). La methode a deux arguments utilise « authorize » (oauth2Client).
         String prefixe = request.getContextPath() + BASE + "/";
         String uri = request.getRequestURI();
-        if (uri != null && uri.startsWith(prefixe)) {
-            return resolve(request, uri.substring(prefixe.length()));
-        }
-        return parDefaut.resolve(request);
+        boolean authelia = uri != null && (prefixe + "authelia").equals(uri);
+        return (authelia ? avecPkce : parDefaut).resolve(request);
     }
 
     @Override
