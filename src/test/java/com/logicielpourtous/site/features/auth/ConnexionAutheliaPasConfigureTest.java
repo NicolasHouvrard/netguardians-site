@@ -20,6 +20,11 @@ class ConnexionAutheliaPasConfigureTest {
     @Autowired private MockMvc mockMvc;
 
     @Test
+    void pas_de_lien_de_secours_sans_authelia() throws Exception {
+        mockMvc.perform(get("/login")).andExpect(content().string(not(containsString("/login/secours"))));
+    }
+
+    @Test
     void sans_authelia_la_page_login_est_inchangee() throws Exception {
         mockMvc.perform(get("/login"))
                 .andExpect(status().isOk())
@@ -27,6 +32,7 @@ class ConnexionAutheliaPasConfigureTest {
                 .andExpect(content().string(containsString("name=\"password\"")))
                 .andExpect(content().string(containsString("href=\"/reset-password\"")))
                 .andExpect(content().string(not(containsString("/oauth2/authorization/authelia"))))
+                .andExpect(content().string(not(containsString("name=\"secours\""))))
                 .andExpect(content().string(not(containsString("Vous utilisez le compte unique"))));
     }
 }

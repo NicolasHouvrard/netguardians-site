@@ -82,6 +82,30 @@ class ConnexionParDefautAutheliaTest {
     }
 
     @Test
+    void le_lien_connexion_de_secours_est_toujours_affiche_avec_authelia() throws Exception {
+        for (String q : new String[] {"verified=true", "reset=true", "redirect=/boutique/commande"}) {
+            String[] kv = q.split("=", 2);
+            mockMvc.perform(get("/login").param(kv[0], kv[1]))
+                    .andExpect(content().string(containsString("href=\"/login/secours\"")));
+        }
+        mockMvc.perform(get("/login")).andExpect(content().string(containsString("href=\"/login/secours\"")));
+    }
+
+    @Test
+    void sur_la_page_secours_le_message_authelia_ne_renvoie_pas_vers_elle_meme() throws Exception {
+        mockMvc.perform(get("/login/secours").param("error", "authelia"))
+                .andExpect(content().string(not(containsString("href=\"/login/secours\""))))
+                .andExpect(content().string(containsString("Retour au compte unique")));
+    }
+
+    @Test
+    void le_captcha_refuse_depuis_secours_revient_sur_login_secours_error_captcha_sur_la_vraie_chaine() throws Exception {
+        mockMvc.perform(post("/login").servletPath("/login").with(csrf()).param("username", "x")
+                        .param("password", "y").param("secours", "1"))
+                .andExpect(redirectedUrl("/login/secours?error=captcha"));
+    }
+
+    @Test
     void la_valeur_du_champ_secours_ne_peut_pas_servir_de_redirection_ouverte() throws Exception {
         mockMvc.perform(post("/login").with(csrf()).param("username", "inconnu@example.org")
                         .param("password", "mauvais").param("secours", "http://evil.example"))

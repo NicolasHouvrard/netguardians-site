@@ -16,7 +16,7 @@
                     <h2 class="text-center mb-4">Connexion de secours</h2>
                     <div class="alert alert-secondary small">Connexion de secours réservée aux comptes locaux.</div>
 
-                    <th:block th:replace="~{feature/auth/login-elements :: messages}"></th:block>
+                    <th:block th:replace="~{feature/auth/login-elements :: messages(true)}"></th:block>
                     <th:block th:replace="~{feature/auth/login-elements :: formulaire(true)}"></th:block>
 
                     <div class="text-center mt-3">

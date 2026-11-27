@@ -16,9 +16,9 @@
                 <div class="card shadow border-0 p-4">
                     <h2 class="text-center mb-4">Connexion</h2>
                     
-                    <th:block th:replace="~{feature/auth/login-elements :: messages}"></th:block>
+                    <th:block th:replace="~{feature/auth/login-elements :: messages(false)}"></th:block>
 
-                    <!-- Compte unique par defaut : le formulaire local n'est PAS rendu (il vit sur /login/secours). -->
+                    <!--/* Compte unique par defaut : le formulaire local n'est PAS rendu (il vit sur la page de secours). */-->
                     <th:block th:if="${autheliaEnabled}">
                         <div class="d-grid">
                             <a href="/oauth2/authorization/authelia" class="btn btn-primary btn-lg">Se connecter</a>
@@ -26,6 +26,9 @@
                         <p class="text-center text-muted small mt-3 mb-0">Vous utilisez le compte unique de Logiciel pour tous.</p>
                         <div class="text-center mt-3" th:if="${portailOubliUrl != null}">
                             <a th:href="${portailOubliUrl}" class="text-muted small">Mot de passe oublié ?</a>
+                        </div>
+                        <div class="text-center mt-2">
+                            <a href="/login/secours" class="text-muted small">Connexion de secours</a>
                         </div>
                     </th:block>
 

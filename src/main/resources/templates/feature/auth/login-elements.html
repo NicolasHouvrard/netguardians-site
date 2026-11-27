@@ -1,15 +1,16 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
-    <!-- Messages d'etat communs a /login et /login/secours. -->
-    <th:block th:fragment="messages">
+    <!--/* Messages d'etat communs a la page de connexion et a la page de secours. */-->
+    <th:block th:fragment="messages(secours)">
         <div th:if="${param.error != null and param.error[0] == 'captcha'}" class="alert alert-danger">
             <i class="fas fa-shield-halved me-1"></i>
             Vérification anti-robot échouée. Veuillez réessayer.
         </div>
         <div th:if="${param.error != null and param.error[0] == 'authelia' and autheliaEnabled}" class="alert alert-warning">
             Le compte unique est momentanément indisponible. Réessayez dans quelques instants.
-            <div class="mt-1 small"><a href="/login/secours" class="text-muted">Connexion de secours</a></div>
+            <div class="mt-1 small" th:unless="${secours}"><a href="/login/secours" class="text-muted">Connexion de secours</a></div>
+            <div class="mt-1 small" th:if="${secours}"><a href="/login" class="text-muted">Retour au compte unique</a></div>
         </div>
         <div th:if="${param.error != null and param.error[0] == 'authelia' and !autheliaEnabled}" class="alert alert-warning">
             Le compte unique est momentanément indisponible. Vous pouvez vous connecter avec le formulaire ci-dessous.
