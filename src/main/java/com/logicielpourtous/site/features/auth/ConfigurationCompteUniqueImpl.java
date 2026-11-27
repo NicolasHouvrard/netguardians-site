@@ -271,6 +271,9 @@ public class ConfigurationCompteUniqueImpl implements ConfigurationCompteUnique 
             }
         }
 
+        // Effacement couple : seulement si l'emetteur ou l'identifiant etaient definis EN BASE et que les deux sont vides.
+        final boolean etaitDefiniEnBase = existante != null
+                && (existante.getIssuerUri() != null || existante.getClientId() != null);
         final String fIssuer = issuer;
         final String fClientId = clientId;
         final String fUrl = url;
@@ -285,7 +288,7 @@ public class ConfigurationCompteUniqueImpl implements ConfigurationCompteUnique 
             r.setRetourDeconnexion(fRetour);
             if (secretChiffre != null) {
                 r.setClientSecret(secretChiffre);
-            } else if (fIssuer == null && fClientId == null) {
+            } else if (etaitDefiniEnBase && fIssuer == null && fClientId == null) {
                 r.setClientSecret(null);
             }
         }, auteur);

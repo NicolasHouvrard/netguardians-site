@@ -324,6 +324,19 @@ class ConfigurationCompteUniqueImplTest {
     }
 
     @Test
+    void enregistrer_avec_emetteur_et_identifiant_vides_venant_de_l_environnement_conserve_le_secret_en_base() {
+        env.setProperty(K_ISSUER, "https://auth.exemple.org");
+        env.setProperty(K_ID, "id-env");
+        config.remplacerSecret(SECRET, "admin");
+
+        // Le formulaire renvoie "" pour ces deux champs (valeurs d'environnement, rien en base) : le secret reste.
+        config.enregistrer(reglages("", "", null, "https://app.exemple.org", null, null), "admin");
+
+        assertThat(config.lireReglagesEnBase().secretDefini()).isTrue();
+        assertThat(config.clientSecret()).isEqualTo(SECRET);
+    }
+
+    @Test
     void l_emetteur_et_le_maitre_en_adresse_ip_sont_refuses() {
         assertThatThrownBy(() -> config.enregistrer(reglages("https://10.0.0.5", "site-1", SECRET, null, null, null),
                 "admin")).isInstanceOf(IllegalArgumentException.class);

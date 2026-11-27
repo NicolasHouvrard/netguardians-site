@@ -192,7 +192,7 @@ Variante : saisir soi-même un secret dans le champ « Secret du client » (en c
 Il interroge `<adresse d'Authelia>/.well-known/openid-configuration` et affiche seulement un résultat : joignable, injoignable, réponse inattendue
 (l'adresse répond mais ce n'est pas Authelia) ou adresse refusée. Garde-fous : https obligatoire, délai de 3 secondes, aucune redirection suivie,
 corps de réponse jamais affiché, et refus des adresses IP littérales, des noms locaux et des noms qui désignent une adresse locale, privée ou réservée.
-Le test exige donc une adresse publique. La résolution du nom est refaite au moment de la connexion : un DNS malveillant n'est pas couvert (« DNS rebinding »).
+Le test exige donc une adresse publique, sur le port 443.
 C'est pourquoi l'action est réservée à l'administrateur et ne renvoie jamais le contenu de la réponse.
 
 ### Si une valeur erronée empêche la connexion

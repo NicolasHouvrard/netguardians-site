@@ -35,9 +35,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * unicast globale (loopback, privee, link-local, 100.64/10, documentation, multicast, NAT64, 6to4, Teredo, IPv4
  * mappee/compatible : l'IPv4 contenue est controlee). La resolution DNS est bornee par le delai global.
  * <p>
- * Limite connue : la resolution du nom est refaite par le client HTTP au moment de la connexion ; un DNS malveillant
- * qui change de reponse entre les deux (« rebinding ») n'est pas couvert. La route est reservee aux administrateurs et
- * ne renvoie jamais le corps, ce qui limite l'usage a un sondage de joignabilite.
+ * La route est reservee aux administrateurs et ne renvoie jamais le corps de la reponse, seulement une categorie.
  */
 @Component
 public class TestConnexionAuthelia {
