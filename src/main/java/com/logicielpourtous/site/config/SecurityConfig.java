@@ -388,6 +388,8 @@ public class SecurityConfig {
             )
             .logout(logout -> logout
                 .permitAll()
+                // Lit le marqueur de compte unique avant l'invalidation de la session (handlers ajoutes en premier).
+                .addLogoutHandler(new CompteUniqueLogoutHandler())
                 // Compte unique : page du site proposant de fermer aussi la session du portail Authelia.
                 .logoutSuccessHandler(new AutheliaLogoutSuccessHandler(
                     env.getProperty("spring.security.oauth2.client.provider.authelia.issuer-uri"))))

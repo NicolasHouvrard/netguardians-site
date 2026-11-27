@@ -59,8 +59,12 @@ public class AutheliaLogoutSuccessHandler implements LogoutSuccessHandler {
     @Override
     public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response,
                                 Authentication authentication) throws IOException, ServletException {
-        if (portailUtilisable && authentication instanceof OAuth2AuthenticationToken jeton
-                && FOURNISSEUR.equals(jeton.getAuthorizedClientRegistrationId())) {
+        boolean jetonAuthelia = authentication instanceof OAuth2AuthenticationToken jeton
+                && FOURNISSEUR.equals(jeton.getAuthorizedClientRegistrationId());
+        // Marqueur de session lu par CompteUniqueLogoutHandler : couvre le compte multi-societes dont
+        // l'authentification a ete remplacee apres le choix de societe.
+        boolean marqueur = Boolean.TRUE.equals(request.getAttribute(CompteUniqueLogoutHandler.COMPTE_UNIQUE_REQUETE));
+        if (portailUtilisable && (jetonAuthelia || marqueur)) {
             String cible = request.getContextPath() + PAGE;
             if ("true".equals(request.getHeader("HX-Request"))) {
                 response.setHeader("HX-Redirect", cible);

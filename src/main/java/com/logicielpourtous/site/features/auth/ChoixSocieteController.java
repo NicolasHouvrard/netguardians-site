@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.logicielpourtous.site.config.CompteUniqueLogoutHandler;
 import com.logicielpourtous.site.config.SecurityConfig;
 import com.logicielpourtous.site.features.commun.TenantContext;
 import com.logicielpourtous.site.features.customers.CustomerRepository;
@@ -137,7 +138,9 @@ public class ChoixSocieteController {
     private static final Set<String> CONSERVES_AU_CHANGEMENT = Set.of(
             HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
             "MUST_CHANGE_PASSWORD",
-            "shopCart");
+            "shopCart",
+            // Marqueur de connexion par le compte unique : sert a la page de fin de deconnexion, aucun droit.
+            CompteUniqueLogoutHandler.COMPTE_UNIQUE);
 
     private static void viderDonneesDeSociete(HttpSession session) {
         for (String nom : Collections.list(session.getAttributeNames())) {

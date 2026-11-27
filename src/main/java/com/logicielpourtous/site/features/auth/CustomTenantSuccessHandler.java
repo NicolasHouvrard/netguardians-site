@@ -1,5 +1,6 @@
 package com.logicielpourtous.site.features.auth;
 
+import com.logicielpourtous.site.config.CompteUniqueLogoutHandler;
 import com.logicielpourtous.site.config.JwtTokenProvider;
 import com.logicielpourtous.site.features.audit.AuditLogService;
 import com.logicielpourtous.site.features.commun.TenantContext;
@@ -13,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -64,6 +66,13 @@ public class CustomTenantSuccessHandler implements AuthenticationSuccessHandler 
 
         // Une connexion reussie ne laisse pas le jeton d'identite de l'aiguillage dans la session authentifiee.
         AiguillageRequis.retirer(request.getSession(false));
+
+        // Connexion par le compte unique (fournisseur authelia) : marqueur de session pour la page de fin de
+        // deconnexion, y compris apres un choix de societe qui remplace l'authentification. Jamais pose sinon.
+        if (authentication instanceof OAuth2AuthenticationToken jeton
+                && "authelia".equals(jeton.getAuthorizedClientRegistrationId())) {
+            request.getSession().setAttribute(CompteUniqueLogoutHandler.COMPTE_UNIQUE, Boolean.TRUE);
+        }
 
         String username = authentication.getName();
 

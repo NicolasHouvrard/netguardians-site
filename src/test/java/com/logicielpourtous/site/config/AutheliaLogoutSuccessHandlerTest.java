@@ -102,6 +102,47 @@ class AutheliaLogoutSuccessHandlerTest {
     }
 
     @Test
+    void sans_marqueur_et_sans_token_authelia_ancien_comportement() throws Exception {
+        assertThat(deconnecter(PORTAIL, post(), local()).getRedirectedUrl()).isEqualTo("/login?logout");
+        MockHttpServletRequest req = post();
+        req.setAttribute(CompteUniqueLogoutHandler.COMPTE_UNIQUE_REQUETE, Boolean.FALSE);
+        assertThat(deconnecter(PORTAIL, req, local()).getRedirectedUrl()).isEqualTo("/login?logout");
+    }
+
+    @Test
+    void l_attribut_de_requete_du_logout_handler_mene_a_la_page_du_site_si_le_portail_est_https() throws Exception {
+        MockHttpServletRequest req = post();
+        req.setAttribute(CompteUniqueLogoutHandler.COMPTE_UNIQUE_REQUETE, Boolean.TRUE);
+        assertThat(deconnecter(PORTAIL, req, local()).getRedirectedUrl()).isEqualTo("/deconnecte?sso=1");
+
+        MockHttpServletRequest htmx = post();
+        htmx.addHeader("HX-Request", "true");
+        htmx.setAttribute(CompteUniqueLogoutHandler.COMPTE_UNIQUE_REQUETE, Boolean.TRUE);
+        assertThat(deconnecter(PORTAIL, htmx, local()).getHeader("HX-Redirect")).isEqualTo("/deconnecte?sso=1");
+
+        MockHttpServletRequest sansPortail = post();
+        sansPortail.setAttribute(CompteUniqueLogoutHandler.COMPTE_UNIQUE_REQUETE, Boolean.TRUE);
+        assertThat(deconnecter("http://auth.example.org", sansPortail, local()).getRedirectedUrl())
+                .isEqualTo("/login?logout");
+    }
+
+    @Test
+    void le_logout_handler_lit_le_marqueur_avant_l_invalidation_de_la_session() {
+        MockHttpServletRequest avec = post();
+        avec.getSession().setAttribute(CompteUniqueLogoutHandler.COMPTE_UNIQUE, Boolean.TRUE);
+        MockHttpServletRequest sans = post();
+        sans.getSession();
+
+        var handler = new CompteUniqueLogoutHandler();
+        handler.logout(avec, new MockHttpServletResponse(), local());
+        handler.logout(sans, new MockHttpServletResponse(), local());
+        handler.logout(post(), new MockHttpServletResponse(), null); // pas de session : aucun effet, pas d'erreur
+
+        assertThat(avec.getAttribute(CompteUniqueLogoutHandler.COMPTE_UNIQUE_REQUETE)).isEqualTo(Boolean.TRUE);
+        assertThat(sans.getAttribute(CompteUniqueLogoutHandler.COMPTE_UNIQUE_REQUETE)).isNull();
+    }
+
+    @Test
     void l_adresse_de_deconnexion_du_portail_vient_de_la_configuration() {
         assertThat(AutheliaLogoutSuccessHandler.urlDeconnexionPortail("https://auth.example.org/"))
                 .isEqualTo("https://auth.example.org/logout");

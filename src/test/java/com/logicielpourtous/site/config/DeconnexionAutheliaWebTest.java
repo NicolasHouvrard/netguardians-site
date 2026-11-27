@@ -21,6 +21,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.core.context.SecurityContextImpl;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -55,6 +58,36 @@ class DeconnexionAutheliaWebTest {
 
         mockMvc.perform(post("/logout").with(authentication(jeton)).with(csrf()))
                 .andExpect(redirectedUrl("/login?logout"));
+    }
+
+    @Test
+    void apres_choix_de_societe_la_deconnexion_mene_a_deconnecte_sso() throws Exception {
+        // Apres /choisir-societe l'authentification n'est plus OAuth2 : seul le marqueur de session subsiste.
+        var jeton = UsernamePasswordAuthenticationToken.authenticated("alice", "x",
+                List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+        mockMvc.perform(post("/logout").session(sessionAvec(jeton, true)).with(csrf()))
+                .andExpect(redirectedUrl("/deconnecte?sso=1"));
+    }
+
+    @Test
+    void sans_marqueur_une_session_formulaire_reste_sur_la_page_de_connexion_dans_la_vraie_chaine() throws Exception {
+        var jeton = UsernamePasswordAuthenticationToken.authenticated("alice", "x",
+                List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+        mockMvc.perform(post("/logout").session(sessionAvec(jeton, false)).with(csrf()))
+                .andExpect(redirectedUrl("/login?logout"));
+    }
+
+    private static MockHttpSession sessionAvec(org.springframework.security.core.Authentication jeton,
+                                               boolean marqueur) {
+        var session = new MockHttpSession();
+        session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+                new SecurityContextImpl(jeton));
+        if (marqueur) {
+            session.setAttribute(CompteUniqueLogoutHandler.COMPTE_UNIQUE, Boolean.TRUE);
+        }
+        return session;
     }
 
     @Test

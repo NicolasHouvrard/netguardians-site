@@ -201,6 +201,10 @@ En attendant l'outil, on peut créer les premiers utilisateurs à la main dans l
   `/login?logout`), de même si le portail n'est pas configuré ou pas en https. La session Authelia reste donc ouverte tant que l'utilisateur ne
   clique pas sur ce lien (ou jusqu'à son expiration). La déconnexion unique complète, sans clic supplémentaire, viendra avec Authelia 4.40
   (déconnexion OpenID Connect, non publiée à ce jour).
+  Marqueur de session : une connexion réussie par Authelia pose l'attribut de session `COMPTE_UNIQUE` (jamais pour un compte local, Google ou
+  Microsoft). Un compte à plusieurs sociétés voit son authentification OAuth2 remplacée au choix de société ; le marqueur est conservé à ce moment
+  et lu par un `LogoutHandler` dédié (avant l'invalidation de la session), si bien que la déconnexion mène aussi à `/deconnecte?sso=1`. Il ne
+  donne aucun droit : il sert seulement à choisir cette page publique.
 - **Authelia ou LDAP indisponible** : seule la connexion locale fonctionne. Si le site n'a pas encore pu joindre Authelia, le bouton renvoie à la page
   de connexion avec le message « momentanément indisponible ». Une fois la découverte d'Authelia mise en cache (après une première connexion réussie),
   une panne ultérieure mène le bouton vers une erreur de passerelle du Nginx (502) : seul le formulaire local, `/login/secours`, reste utilisable. Dans ce cas aucun lien vers cette page n'est affiché : les administrateurs doivent connaître l'adresse `/login/secours` (à noter dans leur gestionnaire de mots de passe).
