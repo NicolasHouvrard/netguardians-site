@@ -252,6 +252,21 @@ class ChoixSocieteControllerTest {
     // ── Fix round 1 ─────────────────────────────────────────────────────────
 
     @Test
+    void le_marqueur_survit_au_choix_de_societe() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute(com.logicielpourtous.site.config.CompteUniqueLogoutHandler.COMPTE_UNIQUE, Boolean.TRUE);
+
+        MvcResult r = mockMvc.perform(post("/choisir-societe").session(session).with(user(multiSocietes(null)))
+                        .with(csrf()).param("appartenanceId", String.valueOf(idBeta)))
+                .andExpect(status().is3xxRedirection())
+                .andReturn();
+
+        MockHttpSession apres = (MockHttpSession) r.getRequest().getSession(false);
+        assertThat(apres.getAttribute(com.logicielpourtous.site.config.CompteUniqueLogoutHandler.COMPTE_UNIQUE))
+                .isEqualTo(Boolean.TRUE);
+    }
+
+    @Test
     void choisir_retireLesDonneesDeSessionDeLAncienneSociete() throws Exception {
         MockHttpSession session = new MockHttpSession();
         session.setAttribute("portalViewClientId", 77L);
