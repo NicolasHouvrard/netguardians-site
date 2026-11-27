@@ -1,0 +1,111 @@
+package com.logicielpourtous.site.config;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.List;
+import java.util.Map;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+
+/** Deconnexion : un compte unique (authelia) passe par la page du site, les autres gardent le comportement par defaut. */
+class AutheliaLogoutSuccessHandlerTest {
+
+    private static final String PORTAIL = "https://auth.example.org";
+
+    private static Authentication oauth2(String fournisseur) {
+        var principal = new DefaultOAuth2User(List.of(new SimpleGrantedAuthority("ROLE_USER")),
+                Map.of("sub", "alice"), "sub");
+        return new OAuth2AuthenticationToken(principal, principal.getAuthorities(), fournisseur);
+    }
+
+    private static Authentication local() {
+        return UsernamePasswordAuthenticationToken.authenticated("alice", "x",
+                List.of(new SimpleGrantedAuthority("ROLE_USER")));
+    }
+
+    private static MockHttpServletResponse deconnecter(String issuer, MockHttpServletRequest req, Authentication a)
+            throws Exception {
+        MockHttpServletResponse rep = new MockHttpServletResponse();
+        new AutheliaLogoutSuccessHandler(issuer).onLogoutSuccess(req, rep, a);
+        return rep;
+    }
+
+    private static MockHttpServletRequest post() {
+        return new MockHttpServletRequest("POST", "/logout");
+    }
+
+    @Test
+    void un_utilisateur_authelia_est_redirige_vers_la_page_de_deconnexion_du_site() throws Exception {
+        MockHttpServletResponse rep = deconnecter(PORTAIL + "/", post(), oauth2("authelia"));
+
+        assertThat(rep.getStatus()).isEqualTo(302);
+        assertThat(rep.getRedirectedUrl()).isEqualTo("/deconnecte?sso=1");
+    }
+
+    @Test
+    void un_compte_local_garde_la_redirection_par_defaut() throws Exception {
+        assertThat(deconnecter(PORTAIL, post(), local()).getRedirectedUrl()).isEqualTo("/login?logout");
+    }
+
+    @Test
+    void google_garde_la_redirection_par_defaut() throws Exception {
+        assertThat(deconnecter(PORTAIL, post(), oauth2("google")).getRedirectedUrl()).isEqualTo("/login?logout");
+    }
+
+    @Test
+    void sans_adresse_de_portail_configuree_comportement_par_defaut() throws Exception {
+        assertThat(deconnecter("", post(), oauth2("authelia")).getRedirectedUrl()).isEqualTo("/login?logout");
+        assertThat(deconnecter(null, post(), oauth2("authelia")).getRedirectedUrl()).isEqualTo("/login?logout");
+        assertThat(deconnecter("  ", post(), oauth2("authelia")).getRedirectedUrl()).isEqualTo("/login?logout");
+    }
+
+    @Test
+    void sans_authentification_comportement_par_defaut() throws Exception {
+        assertThat(deconnecter(PORTAIL, post(), null).getRedirectedUrl()).isEqualTo("/login?logout");
+    }
+
+    @Test
+    void une_adresse_http_est_ignoree() throws Exception {
+        assertThat(deconnecter("http://auth.example.org", post(), oauth2("authelia")).getRedirectedUrl())
+                .isEqualTo("/login?logout");
+    }
+
+    @Test
+    void la_cible_ne_depend_jamais_de_la_requete() throws Exception {
+        MockHttpServletRequest req = post();
+        req.setParameter("rd", "https://pirate.example.net/");
+        req.setParameter("redirect", "https://pirate.example.net/");
+        req.addHeader("Host", "pirate.example.net");
+        req.addHeader("Referer", "https://pirate.example.net/");
+        req.addHeader("X-Forwarded-Host", "pirate.example.net");
+
+        assertThat(deconnecter(PORTAIL, req, oauth2("authelia")).getRedirectedUrl()).isEqualTo("/deconnecte?sso=1");
+    }
+
+    @Test
+    void htmx_recoit_hx_redirect() throws Exception {
+        MockHttpServletRequest req = post();
+        req.addHeader("HX-Request", "true");
+
+        MockHttpServletResponse rep = deconnecter(PORTAIL, req, oauth2("authelia"));
+
+        assertThat(rep.getStatus()).isEqualTo(200);
+        assertThat(rep.getHeader("HX-Redirect")).isEqualTo("/deconnecte?sso=1");
+        assertThat(rep.getRedirectedUrl()).isNull();
+    }
+
+    @Test
+    void l_adresse_de_deconnexion_du_portail_vient_de_la_configuration() {
+        assertThat(AutheliaLogoutSuccessHandler.urlDeconnexionPortail("https://auth.example.org/"))
+                .isEqualTo("https://auth.example.org/logout");
+        assertThat(AutheliaLogoutSuccessHandler.urlDeconnexionPortail("http://auth.example.org")).isNull();
+        assertThat(AutheliaLogoutSuccessHandler.urlDeconnexionPortail(null)).isNull();
+    }
+}

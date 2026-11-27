@@ -155,9 +155,27 @@ Les administrateurs passent au LDAP (avec double facteur). Pour ne jamais être 
 1. Créer (ou conserver) un compte local avec le rôle `ROLE_ADMIN` sur le Maître, avec une adresse e-mail dédiée (distincte de celle des
    administrateurs du LDAP).
 2. Lui donner un mot de passe fort et unique (gestionnaire de mots de passe, au moins 20 caractères), conservé hors ligne.
-3. Usage rare : uniquement en cas de panne de la connexion unique. La page de connexion locale (formulaire) reste toujours disponible.
-4. Le tester régulièrement (par exemple chaque trimestre et après chaque mise à jour du site) : connexion par le formulaire, accès à
+3. Usage rare : uniquement en cas de panne de la connexion unique. Le formulaire local est la page `/login/secours` (adresse à noter dans le gestionnaire de mots de passe, car aucun lien ne la propose en cas d'erreur 502 du Nginx).
+4. Le tester régulièrement (par exemple chaque trimestre et après chaque mise à jour du site) : connexion par `/login/secours`, accès à
    l'administration.
+
+## 5 bis. Pages de connexion
+
+Quand le fournisseur `authelia` est configuré (les trois propriétés du point 4), la page `/login` propose le compte unique par défaut :
+
+- un grand bouton « Se connecter » (vers `/oauth2/authorization/authelia`), le texte « Vous utilisez le compte unique de Logiciel pour tous. » et un lien
+  « Mot de passe oublié ? » vers le portail Authelia. L'adresse du lien est l'`issuer-uri` de la configuration (jamais celle de la requête) ; si elle
+  n'est pas en `https`, le lien n'est pas affiché. Les boutons Google/Microsoft restent affichés s'ils sont configurés, sous le bouton principal ;
+- le formulaire local (identifiant, mot de passe, « se souvenir de moi », captcha) n'est **pas rendu** sur `/login` ;
+- pas de redirection automatique vers Authelia (évite les boucles et la reconnexion immédiate après une déconnexion).
+
+**Adresse de secours `/login/secours`** (publique) : elle affiche le formulaire local, avec l'avertissement « Connexion de secours réservée aux comptes
+locaux ». C'est le recours du compte administrateur local du point 5 (panne d'Authelia, du LDAP ou du VPS). Le formulaire poste sur `POST /login` avec
+un champ caché `secours=1` : un échec (identifiants ou captcha) revient sur `/login/secours?error`, sinon sur `/login?error`. Quand Authelia est
+indisponible, `/login?error=authelia` affiche « Le compte unique est momentanément indisponible » avec un lien discret « Connexion de secours ».
+
+Un lien discret « Connexion de secours » est toujours affiché sous le bouton quand Authelia est configuré (inscription, réinitialisation et boutique
+continuent à renvoyer vers `/login`, avant le chantier 4). Sans configuration Authelia, rien ne change : `/login` garde le formulaire local.
 
 ## 6. Migration des comptes existants vers le LDAP
 
@@ -175,11 +193,17 @@ En attendant l'outil, on peut créer les premiers utilisateurs à la main dans l
 - **Rattachement par e-mail** : la connexion par Authelia ouvre le compte du site **déjà existant** portant le même e-mail (sans tenir compte des
   majuscules). Aucun compte n'est créé à partir d'une identité externe. Message identique dans tous les refus : « Connexion impossible avec ce compte. »
 - **E-mail vérifié obligatoire** pour tous les fournisseurs OpenID Connect (Authelia, Google). Il n'y a pas de connexion Microsoft par cette voie.
-- **Déconnexion** : locale seulement dans cette première version. Se déconnecter d'un serveur ne ferme pas la session Authelia, qui
-  reste ouverte jusqu'à son expiration : sur un poste partagé, fermer aussi le navigateur.
+- **Déconnexion** : le site ferme sa propre session, puis un utilisateur connecté par le compte unique arrive sur la page `/deconnecte`
+  (« Vous êtes déconnecté du site. »). Cette page propose, avec un avertissement pour les postes partagés, le lien « Fermer aussi la session du
+  compte unique » qui ouvre la page de déconnexion du portail (`<issuer-uri>/logout`) dans un **nouvel onglet**. L'adresse de ce lien vient
+  uniquement de la configuration (`spring.security.oauth2.client.provider.authelia.issuer-uri`, en https obligatoire), jamais de la requête ; elle
+  n'est affichée que pour une session venue d'Authelia. Les comptes locaux, Google et Microsoft se déconnectent comme avant (retour à
+  `/login?logout`), de même si le portail n'est pas configuré ou pas en https. La session Authelia reste donc ouverte tant que l'utilisateur ne
+  clique pas sur ce lien (ou jusqu'à son expiration). La déconnexion unique complète, sans clic supplémentaire, viendra avec Authelia 4.40
+  (déconnexion OpenID Connect, non publiée à ce jour).
 - **Authelia ou LDAP indisponible** : seule la connexion locale fonctionne. Si le site n'a pas encore pu joindre Authelia, le bouton renvoie à la page
   de connexion avec le message « momentanément indisponible ». Une fois la découverte d'Authelia mise en cache (après une première connexion réussie),
-  une panne ultérieure mène le bouton vers une erreur de passerelle du Nginx (502) : seul le formulaire de connexion local reste utilisable.
+  une panne ultérieure mène le bouton vers une erreur de passerelle du Nginx (502) : seul le formulaire local, `/login/secours`, reste utilisable. Dans ce cas aucun lien vers cette page n'est affiché : les administrateurs doivent connaître l'adresse `/login/secours` (à noter dans leur gestionnaire de mots de passe).
 - **Comptes non synchronisés entre serveurs** : si le compte d'une personne n'existe pas sur le serveur cible, le navigateur peut tourner en boucle de
   redirection (symptôme `ERR_TOO_MANY_REDIRECTS`). Cause : compte absent sur le serveur cible ; remède : créer ou déménager le compte (point 6).
 - **Plusieurs sociétés / serveurs** : une personne appartenant à plusieurs sociétés voit une page de choix ; une seule destination
@@ -217,14 +241,14 @@ Commencer avec UN utilisateur et UN serveur (le Maître), avant d'étendre.
 1. Dans le LDAP : un utilisateur de test avec `mail` identique à celui d'un compte existant du site (non administrateur pour ce premier essai).
 2. Authelia : `https://auth.logicielpourtous.com` s'affiche en HTTPS ; l'utilisateur de test s'y connecte (et enregistre son TOTP s'il est administrateur).
 3. Sur le Maître, ajouter les trois propriétés et `app.auth.authelia.*`, redémarrer. La page de connexion affiche le bouton
-   « Se connecter avec le compte unique ».
+   « Se connecter ».
 4. Cliquer : redirection vers `auth.logicielpourtous.com`, saisie de l'identifiant et du mot de passe, puis retour sur
    `https://master.logicielpourtous.com/login/oauth2/code/authelia` et arrivée dans le site (choix de société si plusieurs appartenances).
 5. Essais de refus attendus : un utilisateur LDAP sans compte du site, ou dont l'e-mail n'existe pas, voit « Connexion impossible avec ce compte. » ;
    aucun compte n'est créé.
 6. Arrêter Authelia un instant : si une connexion par Authelia a déjà réussi depuis le démarrage du site, le bouton mène à une erreur de
    passerelle du Nginx (502), pas au message « momentanément indisponible » (qui n'apparaît que si le site n'a pas encore joint Authelia). Seul le
-   formulaire de connexion local reste utilisable. Redémarrer Authelia.
+   formulaire local, `/login/secours`, reste utilisable (aucun lien n'y mène dans ce cas : connaître l'adresse). Redémarrer Authelia.
 7. Étendre : ajouter le client du VPS (Authelia, propriétés du VPS, puis URL publique et identifiant client dans la page « Fédération »).
    Un utilisateur dont la société est hébergée ailleurs, qui se connecte via le VPS, doit être renvoyé vers le bon serveur sans retaper son
    mot de passe.

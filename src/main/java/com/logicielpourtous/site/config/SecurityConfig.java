@@ -327,7 +327,8 @@ public class SecurityConfig {
     @Bean
     @Order(3)
     public SecurityFilterChain filterChain(HttpSecurity http,
-            org.springframework.security.oauth2.client.registration.ClientRegistrationRepository registrations) throws Exception {
+            org.springframework.security.oauth2.client.registration.ClientRegistrationRepository registrations,
+            org.springframework.core.env.Environment env) throws Exception {
         http
             // CSRF CIBLE : exige uniquement sur les ecrans sensibles listes dans csrfCible() ; le reste de
             // l'interface web est inchange pour l'instant (extension par lots, apres audit des formulaires).
@@ -336,7 +337,7 @@ public class SecurityConfig {
                 .requestMatchers("/css/**", "/js/**", "/images/**", "/webjars/**", "/uploads/**").permitAll()
                 .requestMatchers("/app", "/app/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
-                .requestMatchers("/", "/register", "/register/confirm", "/register/email-sent", "/register/societe-connue","/register/verify", "/register/resend", "/login", "/public/**", "/error", "/access-denied").permitAll()
+                .requestMatchers("/", "/register", "/register/confirm", "/register/email-sent", "/register/societe-connue","/register/verify", "/register/resend", "/login", "/login/secours", "/deconnecte", "/public/**", "/error", "/access-denied").permitAll()
                 // Aiguillage apres connexion unique (compte absent ici) : l'utilisateur n'est pas connecte.
                 .requestMatchers("/connexion/aiguillage").permitAll()
                 .requestMatchers("/auth/session-token").permitAll()
@@ -385,7 +386,11 @@ public class SecurityConfig {
                     .oidcUserService(oidcSocialLoginUserService)
                 )
             )
-            .logout(logout -> logout.permitAll())
+            .logout(logout -> logout
+                .permitAll()
+                // Compte unique : page du site proposant de fermer aussi la session du portail Authelia.
+                .logoutSuccessHandler(new AutheliaLogoutSuccessHandler(
+                    env.getProperty("spring.security.oauth2.client.provider.authelia.issuer-uri"))))
             .rememberMe(remember -> remember
                 .key(CLE_REMEMBER_ME)
                 .tokenValiditySeconds(86400 * 30)
