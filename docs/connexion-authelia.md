@@ -114,7 +114,7 @@ Fichier de départ : `nginx-auth.exemple.conf`.
 
 ## 4. Propriétés du site, serveur par serveur
 
-Détail complet : `docs/exemples/authelia/proprietes-site.exemple.md`. Valeurs en variables d'environnement du serveur (les secrets ne sont jamais écrits dans
+Ces valeurs peuvent aussi se régler dans l'écran `/admin/sso-config` (point 4 bis) ; ce qui y est enregistré prime sur ce point, qui donne les valeurs **par défaut**. Détail complet : `docs/exemples/authelia/proprietes-site.exemple.md`. Valeurs en variables d'environnement du serveur (les secrets ne sont jamais écrits dans
 un fichier du dépôt). **Deux noms équivalents existent** : (1) `AUTHELIA_CLIENT_ID`, `AUTHELIA_CLIENT_SECRET`, `AUTHELIA_ISSUER_URI`,
 `MAITRE_URL_PUBLIQUE`, valables si vous **décommentez** les lignes correspondantes de `application.properties.example` (copiées dans votre
 `application.properties`) ; (2) `SPRING_SECURITY_OAUTH2_CLIENT_*` et `APP_AUTH_AUTHELIA_*`, qui fonctionnent sans modifier le fichier. Dans le
@@ -146,6 +146,68 @@ un utilisateur mais dont les propriétés Authelia sont absentes affiche « mome
   Maître n'accepte les jetons d'un serveur que si leur destinataire est cet identifiant.
 
 Redémarrer chaque serveur après modification des propriétés.
+
+## 4 bis. Réglages du compte unique dans l'écran d'administration
+
+Les réglages du compte unique se font dans l'écran **`/admin/sso-config`**, section « Compte unique (Authelia) », réservé au rôle `ROLE_ADMIN` du
+serveur concerné (chaque serveur a ses propres réglages). Ils sont enregistrés en base (secret chiffré), **appliqués sans redémarrage**, et
+**la base prime** : les propriétés et variables d'environnement du point 4 restent des valeurs **par défaut**, utilisées pour un champ laissé vide.
+Pour revenir à la valeur de l'environnement, vider le champ et enregistrer.
+
+**Champs de l'écran**
+
+| Champ | Ce qu'il contrôle |
+|---|---|
+| Adresse d'Authelia | L'`issuer-uri` : adresse https du portail (`https://auth.logicielpourtous.com`). Sert à la connexion, au lien « Mot de passe oublié ? » et à la déconnexion. |
+| Identifiant du client | Le `client_id` de CE serveur dans Authelia (`site-maitre`, `site-vps`...). |
+| Adresse publique de ce serveur | L'adresse où les utilisateurs atteignent CE serveur (`https://app.logicielpourtous.com`). L'adresse de retour déclarée dans Authelia en est déduite : `<adresse publique>/login/oauth2/code/authelia`. Cette valeur n'a pas d'équivalent par variable d'environnement. |
+| Adresse de retour après déconnexion (facultative) | Où ramener le navigateur après la déconnexion d'Authelia. Si elle est vide, elle est **déduite de l'adresse publique** (`https://app.logicielpourtous.com/login?logout`) ; une valeur explicite l'emporte. Mêmes règles que le point 7 : https, dans le domaine parent du portail. |
+| Adresse publique du Maître (Maître seulement) | Équivalent de `app.auth.authelia.maitre-url-publique` (point 4). |
+| Secret du client (écriture seule) | Jamais affiché. Vide = inchangé. L'indicateur « Secret : défini / non défini » donne seulement l'état. Le bouton « Effacer le secret » le supprime. |
+
+Le badge « Configuré » apparaît quand l'adresse d'Authelia, l'identifiant et le secret sont tous disponibles (base ou environnement).
+
+### Ajouter un serveur au compte unique
+
+1. Sur le serveur à ajouter, ouvrir `/admin/sso-config` en `ROLE_ADMIN`.
+2. Renseigner « Adresse d'Authelia », « Identifiant du client » et « Adresse publique de ce serveur », puis « Enregistrer ».
+3. **Avertissement : générer un secret remplace tout de suite le secret actif.** Pour un serveur déjà branché, la connexion par le compte unique
+   **échoue** tant que l'empreinte n'est pas collée dans Authelia et qu'Authelia n'est pas redémarré. La page `/login/secours` (point 5 bis)
+   reste disponible : en avoir noté l'adresse avant de commencer.
+4. Cliquer « Générer un secret client ». Le secret est enregistré chiffré sans être affiché ; la réponse montre **une seule fois** un bloc à coller
+   dans la liste `clients:` de la configuration d'Authelia. Il contient l'empreinte (`$pbkdf2-sha512$...`), jamais le secret. Le copier tout de suite :
+   il ne sera plus affiché (en cas de perte, générer à nouveau).
+5. Coller le bloc dans `clients:` de `config/configuration.yml` sur le VPS (en conservant la politique `site` et la `claims_policy` du point 2).
+6. Facultatif : contrôler l'empreinte avec l'outil d'Authelia, par exemple
+   `authelia crypto hash validate --password '<mot de passe du client>' -- '<empreinte>'`. La syntaxe est à confirmer avec la version installée
+   (`authelia crypto hash validate --help`) ; le secret en clair n'étant pas affiché, ce contrôle n'est possible qu'avec un secret saisi par vous.
+7. Redémarrer Authelia (`docker compose restart authelia`), puis `docker compose logs authelia` : aucune erreur de configuration.
+8. Revenir sur `/admin/sso-config` et cliquer « Tester la connexion à Authelia », puis essayer une vraie connexion (point 10).
+9. Côté Maître, déclarer le serveur dans la page « Fédération » (point 4).
+
+Variante : saisir soi-même un secret dans le champ « Secret du client » (en calculant l'empreinte avec la commande du point 2) ; le champ est en écriture seule.
+
+### Bouton « Tester la connexion à Authelia »
+
+Il interroge `<adresse d'Authelia>/.well-known/openid-configuration` et affiche seulement un résultat : joignable, injoignable, réponse inattendue
+(l'adresse répond mais ce n'est pas Authelia) ou adresse refusée. Garde-fous : https obligatoire, délai de 3 secondes, aucune redirection suivie,
+corps de réponse jamais affiché, et refus des adresses IP littérales, des noms locaux et des noms qui désignent une adresse locale, privée ou réservée.
+Le test exige donc une adresse publique. La résolution du nom est refaite au moment de la connexion : un DNS malveillant n'est pas couvert (« DNS rebinding »).
+C'est pourquoi l'action est réservée à l'administrateur et ne renvoie jamais le contenu de la réponse.
+
+### Si une valeur erronée empêche la connexion
+
+1. Ouvrir `/login/secours` (adresse à noter dans le gestionnaire de mots de passe : aucun lien n'y mène en cas de panne) et se connecter avec le compte
+   administrateur local (point 5).
+2. Ouvrir `/admin/sso-config`, corriger le champ erroné (ou vider le champ pour revenir à la valeur de l'environnement), « Enregistrer » : c'est appliqué
+   immédiatement. En cas de doute sur le secret, regénérer et refaire la procédure ci-dessus.
+
+### Ce qui reste à faire
+
+- **Étape 2** : distribuer les réglages **non secrets** depuis la page « Fédération » du Maître vers les serveurs distants. Le **secret restera local**
+  à chaque serveur. Tant qu'elle n'existe pas, les réglages se font serveur par serveur dans `/admin/sso-config`.
+- **Retour sur le site après déconnexion** : exige le cookie de session d'Authelia élargi à `logicielpourtous.com` (`session.cookies[].domain`), avec son
+  avertissement : voir le point 7, « Retour sur le site dans le même onglet ».
 
 ## 5. Compte administrateur local de secours (Maître)
 
