@@ -318,6 +318,8 @@ public class SecurityConfig {
                 chemins.matcher("/admin/apparence/**"),
                 // Ecran Plugins : publication au depot et desinstallation (ecrivent sur le Maitre).
                 chemins.matcher("/admin/plugins/**"),
+                // Ecran du compte unique : reglages, test de connexion, generation du secret client.
+                chemins.matcher("/admin/sso-config/**"),
                 // Pages de plugin : TOUTE methode modifiante exige le jeton, par prefixe (aucune liste de chemins).
                 chemins.matcher("/p/**"));
         RequestMatcher methodeModifiante = request -> !METHODES_SANS_EFFET.contains(request.getMethod());

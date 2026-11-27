@@ -17,6 +17,104 @@
     </div>
   </div>
 
+  <!-- ── Compte unique (Authelia) ── -->
+  <div class="card mb-4" id="compte-unique">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="fas fa-id-card text-primary"></i>
+      <strong>Compte unique (Authelia)</strong>
+      <span th:if="${compteUniqueConfigure}" class="badge bg-success ms-auto">Configuré</span>
+      <span th:unless="${compteUniqueConfigure}" class="badge bg-secondary ms-auto">Non configuré</span>
+    </div>
+    <div class="card-body">
+
+      <div class="alert alert-success small" th:if="${message}" th:text="${message}"></div>
+      <div class="alert alert-danger small" th:if="${erreurGlobale}" th:text="${erreurGlobale}"></div>
+      <div class="alert alert-danger small" th:if="${erreurs != null and erreurs['general'] != null}"
+           th:text="${erreurs['general']}"></div>
+
+      <p class="small text-muted">
+        Ces réglages sont enregistrés en base et appliqués sans redémarrage. Un champ laissé vide utilise la variable
+        d'environnement correspondante, le cas échéant. La page de connexion de secours reste toujours disponible.
+      </p>
+
+      <form method="post" th:action="@{/admin/sso-config/reglages}" autocomplete="off">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="issuerUri">Adresse d'Authelia</label>
+            <input type="text" class="form-control" id="issuerUri" name="issuerUri" placeholder="https://auth.exemple.org"
+                   th:value="${valeurs['issuerUri']}" th:classappend="${erreurs['issuerUri'] != null} ? 'is-invalid'">
+            <div class="invalid-feedback" th:if="${erreurs['issuerUri'] != null}" th:text="${erreurs['issuerUri']}"></div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="clientId">Identifiant du client</label>
+            <input type="text" class="form-control" id="clientId" name="clientId"
+                   th:value="${valeurs['clientId']}" th:classappend="${erreurs['clientId'] != null} ? 'is-invalid'">
+            <div class="invalid-feedback" th:if="${erreurs['clientId'] != null}" th:text="${erreurs['clientId']}"></div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="urlPublique">Adresse publique de ce serveur</label>
+            <input type="text" class="form-control" id="urlPublique" name="urlPublique" placeholder="https://site.exemple.org"
+                   th:value="${valeurs['urlPublique']}" th:classappend="${erreurs['urlPublique'] != null} ? 'is-invalid'">
+            <div class="invalid-feedback" th:if="${erreurs['urlPublique'] != null}" th:text="${erreurs['urlPublique']}"></div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="retourDeconnexion">Adresse de retour après déconnexion (facultative)</label>
+            <input type="text" class="form-control" id="retourDeconnexion" name="retourDeconnexion"
+                   th:value="${valeurs['retourDeconnexion']}" th:classappend="${erreurs['retourDeconnexion'] != null} ? 'is-invalid'">
+            <div class="invalid-feedback" th:if="${erreurs['retourDeconnexion'] != null}" th:text="${erreurs['retourDeconnexion']}"></div>
+          </div>
+          <div class="col-md-6" th:if="${estMaitre}">
+            <label class="form-label" for="maitreUrlPublique">Adresse publique du Maître</label>
+            <input type="text" class="form-control" id="maitreUrlPublique" name="maitreUrlPublique"
+                   th:value="${valeurs['maitreUrlPublique']}" th:classappend="${erreurs['maitreUrlPublique'] != null} ? 'is-invalid'">
+            <div class="invalid-feedback" th:if="${erreurs['maitreUrlPublique'] != null}" th:text="${erreurs['maitreUrlPublique']}"></div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="nouveauSecret">Secret du client (écriture seule)</label>
+            <input type="password" class="form-control" id="nouveauSecret" name="nouveauSecret" autocomplete="new-password"
+                   placeholder="Laisser vide pour conserver le secret actuel"
+                   th:classappend="${erreurs['nouveauSecret'] != null} ? 'is-invalid'">
+            <div class="invalid-feedback" th:if="${erreurs['nouveauSecret'] != null}" th:text="${erreurs['nouveauSecret']}"></div>
+            <div class="form-text">
+              <span th:if="${secretDefini}" data-secret="defini"><i class="fas fa-circle-check text-success me-1"></i>Secret : défini</span>
+              <span th:unless="${secretDefini}" data-secret="non-defini"><i class="fas fa-circle-xmark text-muted me-1"></i>Secret : non défini</span>
+              (jamais affiché)
+            </div>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary mt-3"><i class="fas fa-save me-1"></i>Enregistrer</button>
+      </form>
+
+      <hr>
+
+      <div class="d-flex flex-wrap gap-2">
+        <form method="post" th:action="@{/admin/sso-config/tester}">
+          <button type="submit" class="btn btn-outline-secondary"><i class="fas fa-plug me-1"></i>Tester la connexion à Authelia</button>
+        </form>
+        <form method="post" th:action="@{/admin/sso-config/generer-secret}">
+          <button type="submit" class="btn btn-outline-primary"><i class="fas fa-key me-1"></i>Générer un secret client</button>
+        </form>
+        <form method="post" th:action="@{/admin/sso-config/effacer-secret}">
+          <button type="submit" class="btn btn-outline-danger"><i class="fas fa-eraser me-1"></i>Effacer le secret</button>
+        </form>
+      </div>
+      <div class="form-text mt-2">
+        Générer un secret remplace immédiatement le secret enregistré : tant que l'empreinte affichée n'est pas
+        collée dans la configuration d'Authelia (puis Authelia redémarré), la connexion par compte unique échoue ;
+        la page de connexion de secours reste utilisable.
+      </div>
+
+      <div class="alert alert-warning mt-3" th:if="${blocAuthelia != null}">
+        <strong><i class="fas fa-triangle-exclamation me-1"></i>À copier maintenant : ce bloc ne sera plus affiché.</strong>
+        <div class="small mb-2">
+          À ajouter dans la liste <code>clients</code> de la configuration d'Authelia (il contient l'empreinte du secret, pas le secret).
+        </div>
+        <pre class="bg-light border rounded p-2 small mb-0" th:text="${blocAuthelia}"></pre>
+      </div>
+
+    </div>
+  </div>
+
   <!-- ── Statut des providers ── -->
   <div class="row g-4 mb-4">
 
@@ -99,7 +197,7 @@
             <li>Renseigner le <strong>Client ID</strong> et le <strong>Client Secret</strong>
               obtenu depuis <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
             <li>URL de callback à déclarer chez Google :<br>
-              <code th:text="${#request.scheme + '://' + #request.serverName + ':' + #request.serverPort + '/login/oauth2/code/google'}" class="small"></code>
+              <code th:text="${googleCallback}" class="small"></code>
             </li>
             <li><strong>Redémarrer l'application</strong> pour activer le bouton SSO</li>
           </ol>
@@ -113,7 +211,7 @@
             <li>Renseigner le <strong>Client ID</strong>, <strong>Client Secret</strong> et le <strong>Tenant ID</strong>
               depuis <a href="https://portal.azure.com/" target="_blank">Azure App Registrations</a></li>
             <li>URL de callback à déclarer :<br>
-              <code th:text="${#request.scheme + '://' + #request.serverName + ':' + #request.serverPort + '/login/oauth2/code/microsoft'}" class="small"></code>
+              <code th:text="${microsoftCallback}" class="small"></code>
             </li>
             <li><strong>Redémarrer l'application</strong> pour activer le bouton SSO</li>
           </ol>
