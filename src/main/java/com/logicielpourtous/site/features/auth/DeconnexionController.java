@@ -1,12 +1,12 @@
 package com.logicielpourtous.site.features.auth;
 
-import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import com.logicielpourtous.site.config.AutheliaLogoutSuccessHandler;
+import com.logicielpourtous.site.features.commun.ConfigurationCompteUnique;
 
 /**
  * Page affichee apres la deconnexion d'un compte unique. Le lien « Fermer aussi la session du compte unique » n'est
@@ -16,17 +16,15 @@ import com.logicielpourtous.site.config.AutheliaLogoutSuccessHandler;
 @Controller
 public class DeconnexionController {
 
-    private static final String CLE_ISSUER = "spring.security.oauth2.client.provider.authelia.issuer-uri";
+    private final ConfigurationCompteUnique compteUnique;
 
-    private final Environment env;
-
-    public DeconnexionController(Environment env) {
-        this.env = env;
+    public DeconnexionController(ConfigurationCompteUnique compteUnique) {
+        this.compteUnique = compteUnique;
     }
 
     @GetMapping("/deconnecte")
     public String deconnecte(@RequestParam(name = "sso", required = false) String sso, Model model) {
-        String lien = "1".equals(sso) ? AutheliaLogoutSuccessHandler.urlDeconnexionPortail(env.getProperty(CLE_ISSUER)) : null;
+        String lien = "1".equals(sso) ? AutheliaLogoutSuccessHandler.urlDeconnexionPortail(compteUnique.issuerUri()) : null;
         model.addAttribute("lienAuthelia", lien);
         return "feature/auth/deconnecte";
     }

@@ -328,7 +328,7 @@ public class SecurityConfig {
     @Order(3)
     public SecurityFilterChain filterChain(HttpSecurity http,
             org.springframework.security.oauth2.client.registration.ClientRegistrationRepository registrations,
-            org.springframework.core.env.Environment env) throws Exception {
+            com.logicielpourtous.site.features.commun.ConfigurationCompteUnique compteUnique) throws Exception {
         http
             // CSRF CIBLE : exige uniquement sur les ecrans sensibles listes dans csrfCible() ; le reste de
             // l'interface web est inchange pour l'instant (extension par lots, apres audit des formulaires).
@@ -391,9 +391,7 @@ public class SecurityConfig {
                 // Lit le marqueur de compte unique avant l'invalidation de la session (handlers ajoutes en premier).
                 .addLogoutHandler(new CompteUniqueLogoutHandler())
                 // Compte unique : page du site proposant de fermer aussi la session du portail Authelia.
-                .logoutSuccessHandler(new AutheliaLogoutSuccessHandler(
-                    env.getProperty("spring.security.oauth2.client.provider.authelia.issuer-uri"),
-                    env.getProperty("app.auth.authelia.retour-deconnexion"))))
+                .logoutSuccessHandler(new AutheliaLogoutSuccessHandler(compteUnique)))
             .rememberMe(remember -> remember
                 .key(CLE_REMEMBER_ME)
                 .tokenValiditySeconds(86400 * 30)

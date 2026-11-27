@@ -167,6 +167,47 @@ class ValidateurJetonAutheliaTest {
     }
 
     @Test
+    void le_validateur_de_jetons_se_reconstruit_si_l_emetteur_change() throws Exception {
+        var cfg = com.logicielpourtous.site.features.commun.ConfigurationCompteUniqueFixe.vide();
+        java.util.List<String> emetteursVus = new java.util.ArrayList<>();
+        ValidateurJetonAuthelia v = new ValidateurJetonAuthelia(cfg, new org.springframework.mock.env.MockEnvironment(), e -> {
+            emetteursVus.add(e);
+            return NimbusJwtDecoder.withPublicKey((RSAPublicKey) cles.getPublic()).build();
+        }, System::nanoTime);
+        String jeton = signer(valides().build(), cles);
+
+        // non configure : desactive, aucun decodeur construit
+        assertThat(v.valider(jeton, CLIENT)).isEmpty();
+        assertThat(emetteursVus).isEmpty();
+
+        cfg.compte(EMETTEUR, "site", "pas-un-secret");
+        assertThat(v.valider(jeton, CLIENT)).contains("alice@exemple.fr");
+        assertThat(v.valider(jeton, CLIENT)).contains("alice@exemple.fr");
+        assertThat(emetteursVus).containsExactly(EMETTEUR); // un seul decodeur tant que l'emetteur est le meme
+
+        cfg.compte("https://autre.exemple.test", "site", "pas-un-secret");
+        v.valider(jeton, CLIENT);
+        assertThat(emetteursVus).containsExactly(EMETTEUR, "https://autre.exemple.test");
+
+        cfg.compte("", "", "");
+        assertThat(v.valider(jeton, CLIENT)).isEmpty();
+    }
+
+    @Test
+    void sans_reglages_en_base_l_ancienne_propriete_du_maitre_reste_la_valeur_de_repli() throws Exception {
+        var env = new org.springframework.mock.env.MockEnvironment()
+                .withProperty("app.auth.authelia.issuer-uri", EMETTEUR);
+        java.util.List<String> vus = new java.util.ArrayList<>();
+        ValidateurJetonAuthelia v = new ValidateurJetonAuthelia(
+                com.logicielpourtous.site.features.commun.ConfigurationCompteUniqueFixe.vide(), env, e -> {
+                    vus.add(e);
+                    return NimbusJwtDecoder.withPublicKey((RSAPublicKey) cles.getPublic()).build();
+                }, System::nanoTime);
+        assertThat(v.valider(signer(valides().build(), cles), CLIENT)).contains("alice@exemple.fr");
+        assertThat(vus).containsExactly(EMETTEUR);
+    }
+
+    @Test
     void un_seul_essai_a_la_fois() throws Exception {
         AtomicInteger essais = new AtomicInteger();
         CountDownLatch entre = new CountDownLatch(1);

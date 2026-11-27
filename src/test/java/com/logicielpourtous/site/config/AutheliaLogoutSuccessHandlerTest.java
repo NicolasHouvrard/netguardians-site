@@ -156,6 +156,26 @@ class AutheliaLogoutSuccessHandlerTest {
     }
 
     @Test
+    void le_gestionnaire_suit_les_reglages_sans_etre_reconstruit() throws Exception {
+        var cfg = com.logicielpourtous.site.features.commun.ConfigurationCompteUniqueFixe.vide();
+        var handler = new AutheliaLogoutSuccessHandler(cfg);
+
+        MockHttpServletResponse sans = new MockHttpServletResponse();
+        handler.onLogoutSuccess(post(), sans, oauth2("authelia"));
+        assertThat(sans.getRedirectedUrl()).isEqualTo("/login?logout"); // portail non configure : comportement habituel
+
+        cfg.compte(PORTAIL, "site", "pas-un-secret");
+        MockHttpServletResponse portail = new MockHttpServletResponse();
+        handler.onLogoutSuccess(post(), portail, oauth2("authelia"));
+        assertThat(portail.getRedirectedUrl()).isEqualTo("/deconnecte?sso=1");
+
+        cfg.retour(RETOUR);
+        MockHttpServletResponse retour = new MockHttpServletResponse();
+        handler.onLogoutSuccess(post(), retour, oauth2("authelia"));
+        assertThat(retour.getRedirectedUrl()).isEqualTo(VERS_PORTAIL);
+    }
+
+    @Test
     void un_retour_valide_redirige_vers_la_deconnexion_du_portail_avec_rd_encode() throws Exception {
         MockHttpServletResponse rep = deconnecterAvecRetour(RETOUR, post(), oauth2("authelia"));
 

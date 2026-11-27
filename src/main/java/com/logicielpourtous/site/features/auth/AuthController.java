@@ -58,7 +58,7 @@ public class AuthController {
     private final GoogleMailService              googleMailService;
     private final MicrosoftMailService           microsoftMailService;
     private final ClientRegistrationRepository   clientRegistrationRepository;
-    private final org.springframework.core.env.Environment environment;
+    private final com.logicielpourtous.site.features.commun.ConfigurationCompteUnique compteUnique;
 
     public AuthController(CaptchaService captchaService,
                           UserRepository userRepository,
@@ -69,8 +69,8 @@ public class AuthController {
                           GoogleMailService googleMailService,
                           MicrosoftMailService microsoftMailService,
                           ClientRegistrationRepository clientRegistrationRepository,
-                          org.springframework.core.env.Environment environment) {
-        this.environment = environment;
+                          com.logicielpourtous.site.features.commun.ConfigurationCompteUnique compteUnique) {
+        this.compteUnique = compteUnique;
         this.captchaService                = captchaService;
         this.userRepository                = userRepository;
         this.inscriptionSocieteService     = inscriptionSocieteService;
@@ -307,8 +307,7 @@ public class AuthController {
      * sans slash final ; null si absente ou pas en https.
      */
     private String portailOubliUrl() {
-        String base = environment.getProperty("spring.security.oauth2.client.provider.authelia.issuer-uri");
-        base = base == null ? "" : base.trim();
+        String base = compteUnique.issuerUri();
         while (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
@@ -322,7 +321,7 @@ public class AuthController {
         model.addAttribute("portailOubliUrl",  portailOubliUrl());
         model.addAttribute("googleEnabled",   isProviderConfigured("google"));
         model.addAttribute("microsoftEnabled", isProviderConfigured("microsoft"));
-        model.addAttribute("autheliaEnabled",  com.logicielpourtous.site.config.SocialOAuth2Config.autheliaConfigure(environment));
+        model.addAttribute("autheliaEnabled",  com.logicielpourtous.site.config.SocialOAuth2Config.autheliaConfigure(compteUnique));
         model.addAttribute("captchaEnabled",   captchaService.isEnabled());
         model.addAttribute("captchaSiteKey",   captchaSiteKey);
 
