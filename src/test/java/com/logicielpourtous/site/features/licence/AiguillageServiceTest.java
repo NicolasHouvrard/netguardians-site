@@ -117,6 +117,25 @@ class AiguillageServiceTest {
     }
 
     @Test
+    void l_aiguillage_utilise_l_adresse_publique_du_maitre_en_base() {
+        var cfg = com.logicielpourtous.site.features.commun.ConfigurationCompteUniqueFixe.vide();
+        AiguillageService suivi = new AiguillageService(serveurs, users, appartenances, validateur, cfg);
+        appartenance(300L, "Societe du Maitre", null);
+        assertThat(suivi.aiguiller(APPELANT, "jeton")).isEmpty();
+
+        cfg.maitre("https://maitre.exemple.test/");
+        assertThat(suivi.aiguiller(APPELANT, "jeton")).extracting(AiguillageService.Destination::urlPublique)
+                .containsExactly("https://maitre.exemple.test");
+
+        cfg.maitre("https://autre-maitre.exemple.test");
+        assertThat(suivi.aiguiller(APPELANT, "jeton")).extracting(AiguillageService.Destination::urlPublique)
+                .containsExactly("https://autre-maitre.exemple.test");
+
+        cfg.maitre("http://invalide.exemple.test"); // invalide : traitee comme non configuree
+        assertThat(suivi.aiguiller(APPELANT, "jeton")).isEmpty();
+    }
+
+    @Test
     void serveur_revoque_ou_sans_adresse_est_omis() {
         serveur(21L, "c21", "https://revoque.exemple.test", LicenceServeur.LicenceServeurStatut.REVOQUE);
         serveur(22L, "c22", null, LicenceServeur.LicenceServeurStatut.ACTIF);

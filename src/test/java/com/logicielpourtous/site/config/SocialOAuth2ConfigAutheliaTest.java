@@ -19,6 +19,7 @@ import org.springframework.mock.env.MockEnvironment;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 
+import com.logicielpourtous.site.features.commun.ConfigurationCompteUniqueFixe;
 import com.logicielpourtous.site.features.mail.MailAccountRepository;
 import com.sun.net.httpserver.HttpServer;
 
@@ -59,11 +60,12 @@ class SocialOAuth2ConfigAutheliaTest {
         return base;
     }
 
-    private static MockEnvironment env(String issuer, String scope) {
-        MockEnvironment e = new MockEnvironment()
-                .withProperty("spring.security.oauth2.client.registration.authelia.client-id", "site")
-                .withProperty("spring.security.oauth2.client.registration.authelia.client-secret", "pas-un-secret")
-                .withProperty("spring.security.oauth2.client.provider.authelia.issuer-uri", issuer);
+    private static ConfigurationCompteUniqueFixe cfg(String issuer) {
+        return ConfigurationCompteUniqueFixe.complete(issuer, "site", "pas-un-secret");
+    }
+
+    private static MockEnvironment env(String scope) {
+        MockEnvironment e = new MockEnvironment();
         if (scope != null) {
             e.setProperty("spring.security.oauth2.client.registration.authelia.scope", scope);
         }
@@ -72,21 +74,19 @@ class SocialOAuth2ConfigAutheliaTest {
 
     @Test
     void sans_proprietes_authelia_est_absent() {
-        ClientRegistrationRepository repo = new SocialOAuth2Config(mock(MailAccountRepository.class), new MockEnvironment())
-                .clientRegistrationRepository();
+        ClientRegistrationRepository repo = new SocialOAuth2Config(mock(MailAccountRepository.class), new MockEnvironment(),
+                ConfigurationCompteUniqueFixe.vide()).clientRegistrationRepository();
         assertThat(repo.findByRegistrationId("authelia")).isNull();
         assertThat(repo.findByRegistrationId("google")).isNull();
-        assertThat(SocialOAuth2Config.autheliaConfigure(new MockEnvironment())).isFalse();
+        assertThat(SocialOAuth2Config.autheliaConfigure(ConfigurationCompteUniqueFixe.vide())).isFalse();
     }
 
     @Test
     void proprietes_vides_ou_partielles_authelia_est_absent() {
-        MockEnvironment env = new MockEnvironment()
-                .withProperty("spring.security.oauth2.client.registration.authelia.client-id", "site")
-                .withProperty("spring.security.oauth2.client.registration.authelia.client-secret", "")
-                .withProperty("spring.security.oauth2.client.provider.authelia.issuer-uri", "");
-        assertThat(SocialOAuth2Config.autheliaConfigure(env)).isFalse();
-        assertThat(new SocialOAuth2Config(mock(MailAccountRepository.class), env).clientRegistrationRepository()
+        ConfigurationCompteUniqueFixe cfg = ConfigurationCompteUniqueFixe.complete("", "site", "");
+        assertThat(SocialOAuth2Config.autheliaConfigure(cfg)).isFalse();
+        assertThat(new SocialOAuth2Config(mock(MailAccountRepository.class), new MockEnvironment(), cfg)
+                .clientRegistrationRepository()
                 .findByRegistrationId("authelia")).isNull();
     }
 
@@ -94,7 +94,7 @@ class SocialOAuth2ConfigAutheliaTest {
     void configure_et_joignable_la_registration_est_batie_avec_openid_toujours_present() throws Exception {
         String base = emetteur(0);
         // portee configuree SANS openid : openid est ajoute
-        ClientRegistration r = new SocialOAuth2Config.AutheliaRegistration(env(base, "email groups")).get();
+        ClientRegistration r = new SocialOAuth2Config.AutheliaRegistration(cfg(base), env("email groups")).get();
 
         assertThat(r).isNotNull();
         assertThat(r.getRegistrationId()).isEqualTo("authelia");
@@ -102,14 +102,14 @@ class SocialOAuth2ConfigAutheliaTest {
         assertThat(r.getClientSecret()).isEqualTo("pas-un-secret");
         assertThat(r.getScopes()).contains("openid", "email", "groups");
         assertThat(r.getProviderDetails().getAuthorizationUri()).isEqualTo(base + "/authorize");
-        assertThat(SocialOAuth2Config.autheliaConfigure(env(base, null))).isTrue();
+        assertThat(SocialOAuth2Config.autheliaConfigure(cfg(base))).isTrue();
     }
 
     @Test
     void injoignable_donne_null_puis_nouvel_essai_apres_le_delai() throws Exception {
         String base = emetteur(0);
         serveur.stop(0);
-        SocialOAuth2Config.AutheliaRegistration reg = new SocialOAuth2Config.AutheliaRegistration(env(base, null), 1_000, 200);
+        SocialOAuth2Config.AutheliaRegistration reg = new SocialOAuth2Config.AutheliaRegistration(cfg(base), env(null), 1_000, 200);
         assertThat(reg.get()).isNull();
         assertThat(reg.get()).isNull(); // dans le delai d'attente : pas de nouvel essai
         Thread.sleep(300);
@@ -134,7 +134,7 @@ class SocialOAuth2ConfigAutheliaTest {
     @Test
     void un_seul_essai_de_decouverte_a_la_fois() throws Exception {
         String base = emetteur(1_500);
-        SocialOAuth2Config.AutheliaRegistration reg = new SocialOAuth2Config.AutheliaRegistration(env(base, null), 5_000, 30_000);
+        SocialOAuth2Config.AutheliaRegistration reg = new SocialOAuth2Config.AutheliaRegistration(cfg(base), env(null), 5_000, 30_000);
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
             CountDownLatch debut = new CountDownLatch(1);
@@ -155,5 +155,38 @@ class SocialOAuth2ConfigAutheliaTest {
         } finally {
             pool.shutdownNow();
         }
+    }
+
+    @Test
+    void sans_reglages_le_comportement_est_inchange() {
+        // Base vide ET environnement vide : non configure, aucun appel reseau, rien ne change.
+        ConfigurationCompteUniqueFixe vide = ConfigurationCompteUniqueFixe.vide();
+        SocialOAuth2Config.AutheliaRegistration reg = new SocialOAuth2Config.AutheliaRegistration(vide, env(null));
+        assertThat(reg.get()).isNull();
+        assertThat(appels.get()).isZero();
+        assertThat(SocialOAuth2Config.autheliaConfigure(vide)).isFalse();
+    }
+
+    @Test
+    void le_registre_authelia_se_reconstruit_apres_un_changement_de_reglages() throws Exception {
+        String base = emetteur(0);
+        ConfigurationCompteUniqueFixe cfg = cfg(base);
+        SocialOAuth2Config.AutheliaRegistration reg = new SocialOAuth2Config.AutheliaRegistration(cfg, env(null));
+        ClientRegistration avant = reg.get();
+        assertThat(avant.getClientId()).isEqualTo("site");
+        assertThat(reg.get()).isSameAs(avant); // meme version : garde, une seule decouverte
+        assertThat(appels.get()).isEqualTo(1);
+
+        cfg.compte(base, "autre-client", "autre-secret-de-test");
+
+        ClientRegistration apres = reg.get();
+        assertThat(apres.getClientId()).isEqualTo("autre-client");
+        assertThat(apres.getClientSecret()).isEqualTo("autre-secret-de-test");
+        assertThat(appels.get()).isEqualTo(2);
+
+        // Reglages retires : le fournisseur disparait sans redemarrage
+        cfg.compte("", "", "");
+        assertThat(reg.get()).isNull();
+        assertThat(appels.get()).isEqualTo(2);
     }
 }

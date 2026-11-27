@@ -1,5 +1,6 @@
 package com.logicielpourtous.site.config;
 
+import com.logicielpourtous.site.features.commun.ConfigurationCompteUnique;
 import com.logicielpourtous.site.features.mail.MailAccount;
 import com.logicielpourtous.site.features.mail.MailAccountRepository;
 import org.slf4j.Logger;
@@ -37,14 +38,19 @@ public class SocialOAuth2Config {
 
     private final Environment env;
 
-    public SocialOAuth2Config(MailAccountRepository mailAccountRepository, Environment env) {
+    private final ConfigurationCompteUnique compteUnique;
+
+    public SocialOAuth2Config(MailAccountRepository mailAccountRepository, Environment env,
+                              ConfigurationCompteUnique compteUnique) {
         this.mailAccountRepository = mailAccountRepository;
         this.env = env;
+        this.compteUnique = compteUnique;
     }
 
     @Bean
     public ClientRegistrationRepository clientRegistrationRepository() {
-        return new LazyMailAccountRegistrationRepository(mailAccountRepository, new AutheliaRegistration(env));
+        return new LazyMailAccountRegistrationRepository(mailAccountRepository,
+                new AutheliaRegistration(compteUnique, env));
     }
 
     // ── Implémentation lazy (requête BDD à chaque appel, pas au démarrage) ───
@@ -81,11 +87,9 @@ public class SocialOAuth2Config {
 
     private static final String PREFIXE = "spring.security.oauth2.client.";
 
-    /** Vrai si les trois proprietes du fournisseur authelia sont renseignees. Ne fait AUCUN appel reseau. */
-    public static boolean autheliaConfigure(Environment env) {
-        return !valeur(env, PREFIXE + "registration.authelia.client-id").isEmpty()
-                && !valeur(env, PREFIXE + "registration.authelia.client-secret").isEmpty()
-                && !valeur(env, PREFIXE + "provider.authelia.issuer-uri").isEmpty();
+    /** Vrai si l'emetteur, l'identifiant et le secret du compte unique sont renseignes. Ne fait AUCUN appel reseau. */
+    public static boolean autheliaConfigure(ConfigurationCompteUnique compteUnique) {
+        return compteUnique.configure();
     }
 
     private static String valeur(Environment env, String cle) {
@@ -94,34 +98,35 @@ public class SocialOAuth2Config {
     }
 
     /**
-     * Fournisseur OpenID Connect « authelia », pilote par les proprietes
-     * {@code spring.security.oauth2.client.registration.authelia.client-id / client-secret} et
-     * {@code spring.security.oauth2.client.provider.authelia.issuer-uri}. Absent (null) tant qu'une des trois
-     * est vide : aucun appel reseau. La decouverte de l'emetteur est paresseuse (jamais depuis /login), avec
-     * des delais courts, UN SEUL essai a la fois (les autres appelants recoivent null aussitot) et au plus un
-     * essai toutes les 30 s apres un echec ; un succes est garde.
+     * Fournisseur OpenID Connect « authelia », pilote par les reglages du compte unique (base d'abord, puis les
+     * proprietes {@code spring.security.oauth2.client.*.authelia.*}). Absent (null) tant qu'un des trois est vide :
+     * aucun appel reseau. La decouverte de l'emetteur est paresseuse (jamais depuis /login), avec des delais courts,
+     * UN SEUL essai a la fois (les autres appelants recoivent null aussitot) et au plus un essai toutes les 30 s apres
+     * un echec ; un succes est garde. Quand {@code version()} des reglages change, le registre est reconstruit a la
+     * demande suivante (et un nouvel essai est permis aussitot).
      */
     static final class AutheliaRegistration {
         private static final Logger LOG = LoggerFactory.getLogger(AutheliaRegistration.class);
 
-        private final String clientId;
-        private final String clientSecret;
-        private final String issuerUri;
+        /** Registre garde et version des reglages avec lesquels il a ete construit. */
+        private record EnCache(long version, ClientRegistration registration) { }
+
+        private final ConfigurationCompteUnique reglages;
         private final List<String> scopes;
         private final int delaiMs;
         private final long attenteApresEchecMs;
         private final ReentrantLock verrou = new ReentrantLock();
-        private volatile ClientRegistration enCache;
+        private volatile EnCache enCache;
         private volatile long prochainEssai;
+        /** Version des reglages pour laquelle {@link #prochainEssai} a ete fixe. */
+        private volatile long versionDeLAttente = Long.MIN_VALUE;
 
-        AutheliaRegistration(Environment env) {
-            this(env, 3_000, 30_000);
+        AutheliaRegistration(ConfigurationCompteUnique reglages, Environment env) {
+            this(reglages, env, 3_000, 30_000);
         }
 
-        AutheliaRegistration(Environment env, int delaiMs, long attenteApresEchecMs) {
-            this.clientId = valeur(env, PREFIXE + "registration.authelia.client-id");
-            this.clientSecret = valeur(env, PREFIXE + "registration.authelia.client-secret");
-            this.issuerUri = valeur(env, PREFIXE + "provider.authelia.issuer-uri");
+        AutheliaRegistration(ConfigurationCompteUnique reglages, Environment env, int delaiMs, long attenteApresEchecMs) {
+            this.reglages = reglages;
             this.scopes = portee(valeur(env, PREFIXE + "registration.authelia.scope"));
             this.delaiMs = delaiMs;
             this.attenteApresEchecMs = attenteApresEchecMs;
@@ -140,32 +145,36 @@ public class SocialOAuth2Config {
             return liste;
         }
 
-        boolean configure() {
-            return !clientId.isEmpty() && !clientSecret.isEmpty() && !issuerUri.isEmpty();
-        }
-
         ClientRegistration get() {
-            if (!configure()) {
+            long version = reglages.version();
+            EnCache cache = enCache;
+            if (cache != null && cache.version() == version) {
+                return cache.registration();
+            }
+            if (!reglages.configure()) {
                 return null;
             }
-            ClientRegistration cache = enCache;
-            if (cache != null) {
-                return cache;
+            if (versionDeLAttente != version) {
+                prochainEssai = 0; // nouveaux reglages : pas d'attente heritee de l'ancien echec
             }
             if (System.currentTimeMillis() < prochainEssai || !verrou.tryLock()) {
                 return null;
             }
             try {
-                if (enCache != null) {
-                    return enCache;
+                cache = enCache;
+                if (cache != null && cache.version() == version) {
+                    return cache.registration();
                 }
                 if (System.currentTimeMillis() < prochainEssai) {
                     return null;
                 }
+                String issuerUri = reglages.issuerUri();
                 try {
-                    enCache = decouvrir();
-                    return enCache;
+                    ClientRegistration reg = decouvrir(issuerUri, reglages.clientId(), reglages.clientSecret());
+                    enCache = new EnCache(version, reg);
+                    return reg;
                 } catch (RuntimeException e) {
+                    versionDeLAttente = version;
                     prochainEssai = System.currentTimeMillis() + attenteApresEchecMs;
                     LOG.warn("Connexion unique : decouverte de l'emetteur '{}' impossible ({}) ; nouvel essai dans {} s.",
                             issuerUri, e.getClass().getSimpleName(), attenteApresEchecMs / 1000);
@@ -176,7 +185,7 @@ public class SocialOAuth2Config {
             }
         }
 
-        private ClientRegistration decouvrir() {
+        private ClientRegistration decouvrir(String issuerUri, String clientId, String clientSecret) {
             String base = sansBarre(issuerUri);
             SimpleClientHttpRequestFactory usine = new SimpleClientHttpRequestFactory();
             usine.setConnectTimeout(delaiMs);

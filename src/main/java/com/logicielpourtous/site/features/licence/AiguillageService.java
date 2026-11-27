@@ -5,12 +5,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.logicielpourtous.site.features.commun.ConfigurationCompteUnique;
 import com.logicielpourtous.site.features.user.Appartenance;
 import com.logicielpourtous.site.features.user.AppartenanceRepository;
 import com.logicielpourtous.site.features.user.User;
@@ -35,16 +37,47 @@ public class AiguillageService {
     private final UserRepository users;
     private final AppartenanceRepository appartenances;
     private final ValidateurJetonAuthelia validateur;
-    private final String maitreUrlPublique;
+    private final Supplier<String> maitreSource;
+    /** Derniere valeur brute vue et son resultat normalise (evite de re-avertir a chaque appel). */
+    private volatile String maitreBrut;
+    private volatile String maitreNormalise = "";
 
+    /** L'adresse publique du Maitre vient des reglages du compte unique (base d'abord, puis environnement). */
+    @Autowired
     public AiguillageService(LicenceServeurRepository serveurs, UserRepository users,
                              AppartenanceRepository appartenances, ValidateurJetonAuthelia validateur,
-                             @Value("${app.auth.authelia.maitre-url-publique:}") String maitreUrlPublique) {
+                             ConfigurationCompteUnique reglages) {
+        this(serveurs, users, appartenances, validateur, (Supplier<String>) reglages::maitreUrlPublique);
+    }
+
+    /** Adresse fixe (tests). */
+    AiguillageService(LicenceServeurRepository serveurs, UserRepository users,
+                      AppartenanceRepository appartenances, ValidateurJetonAuthelia validateur,
+                      String maitreUrlPublique) {
+        this(serveurs, users, appartenances, validateur, (Supplier<String>) () -> maitreUrlPublique);
+    }
+
+    private AiguillageService(LicenceServeurRepository serveurs, UserRepository users,
+                              AppartenanceRepository appartenances, ValidateurJetonAuthelia validateur,
+                              Supplier<String> maitreSource) {
         this.serveurs = serveurs;
         this.users = users;
         this.appartenances = appartenances;
         this.validateur = validateur;
-        this.maitreUrlPublique = normaliserMaitre(maitreUrlPublique);
+        this.maitreSource = maitreSource;
+    }
+
+    /** Adresse du Maitre en vigueur (relue : un enregistrement s'applique sans redemarrage). */
+    private String maitreUrlPublique() {
+        String brut = maitreSource.get();
+        if (brut == null) {
+            brut = "";
+        }
+        if (!brut.equals(maitreBrut)) {
+            maitreNormalise = normaliserMaitre(brut);
+            maitreBrut = brut;
+        }
+        return maitreNormalise;
     }
 
     /** Meme regle que les adresses des serveurs (https seulement) ; invalide = non configuree, avec avertissement. */
@@ -54,7 +87,7 @@ public class AiguillageService {
             return n == null ? "" : n;
         } catch (IllegalArgumentException e) {
             LoggerFactory.getLogger(AiguillageService.class).warn(
-                    "app.auth.authelia.maitre-url-publique invalide (https://hote[:port] attendu) : ignoree, "
+                    "Adresse publique du Maitre invalide (https://hote[:port] attendu) : ignoree, "
                             + "les societes hebergees par le Maitre ne seront pas proposees.");
             return "";
         }
@@ -85,7 +118,7 @@ public class AiguillageService {
             if (licenceServeurId.equals(hote)) {
                 continue; // l'appelant connait deja cette societe
             }
-            String url = hote == null ? maitreUrlPublique : urlDuServeurActif(hote);
+            String url = hote == null ? maitreUrlPublique() : urlDuServeurActif(hote);
             if (url != null && !url.isBlank()) {
                 resultat.add(new Destination(a.getSocieteId(), a.getTenant().getName(), url));
             }

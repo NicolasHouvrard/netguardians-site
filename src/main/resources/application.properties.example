@@ -224,8 +224,15 @@ app.clients.partenaire-defaut-societe-id=${CLIENTS_PARTENAIRE_DEFAUT_SOCIETE_ID:
 # spring.security.oauth2.client.registration.authelia.client-secret=${AUTHELIA_CLIENT_SECRET:}
 # spring.security.oauth2.client.provider.authelia.issuer-uri=${AUTHELIA_ISSUER_URI:}
 
+# Ces valeurs sont des valeurs PAR DEFAUT : l'ecran /admin/sso-config (ROLE_ADMIN) les regle en base, sans redemarrage, et la base
+# prime ; un champ vide laisse l'environnement reprendre la main. Procedure : docs/connexion-authelia.md (point 4 bis).
 # Aiguillage (Maitre) : POST /api/licence/aiguillage valide le jeton d'identite d'un serveur aupres de l'emetteur
-# Authelia ci-dessous (vide = aiguillage desactive, reponse vide, aucun appel reseau) ; l'adresse publique du Maitre
+# Authelia du compte unique (reglage en base, sinon la valeur ci-dessous ; aucune adresse = aiguillage desactive, reponse
+# vide, aucun appel reseau) ; l'adresse publique du Maitre
 # est celle ou renvoyer les societes dont le tenant n'a pas de serveur d'accueil (vide = ces societes sont omises).
 # app.auth.authelia.issuer-uri=${AUTHELIA_ISSUER_URI:}
 # app.auth.authelia.maitre-url-publique=${MAITRE_URL_PUBLIQUE:}
+# Retour sur le site dans le meme onglet apres la deconnexion du compte unique (optionnel) : adresse https dans le
+# domaine parent du portail ; sinon ignoree. Authelia doit avoir un cookie de session elargi a ce domaine.
+# app.auth.authelia.retour-deconnexion=${APP_AUTH_AUTHELIA_RETOUR_DECONNEXION:}
+# Vide = deduite de l'adresse publique du serveur reglee dans /admin/sso-config (<adresse publique>/login?logout).

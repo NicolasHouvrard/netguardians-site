@@ -318,6 +318,8 @@ public class SecurityConfig {
                 chemins.matcher("/admin/apparence/**"),
                 // Ecran Plugins : publication au depot et desinstallation (ecrivent sur le Maitre).
                 chemins.matcher("/admin/plugins/**"),
+                // Ecran du compte unique : reglages, test de connexion, generation du secret client.
+                chemins.matcher("/admin/sso-config/**"),
                 // Pages de plugin : TOUTE methode modifiante exige le jeton, par prefixe (aucune liste de chemins).
                 chemins.matcher("/p/**"));
         RequestMatcher methodeModifiante = request -> !METHODES_SANS_EFFET.contains(request.getMethod());
@@ -328,7 +330,7 @@ public class SecurityConfig {
     @Order(3)
     public SecurityFilterChain filterChain(HttpSecurity http,
             org.springframework.security.oauth2.client.registration.ClientRegistrationRepository registrations,
-            org.springframework.core.env.Environment env) throws Exception {
+            com.logicielpourtous.site.features.commun.ConfigurationCompteUnique compteUnique) throws Exception {
         http
             // CSRF CIBLE : exige uniquement sur les ecrans sensibles listes dans csrfCible() ; le reste de
             // l'interface web est inchange pour l'instant (extension par lots, apres audit des formulaires).
@@ -391,8 +393,7 @@ public class SecurityConfig {
                 // Lit le marqueur de compte unique avant l'invalidation de la session (handlers ajoutes en premier).
                 .addLogoutHandler(new CompteUniqueLogoutHandler())
                 // Compte unique : page du site proposant de fermer aussi la session du portail Authelia.
-                .logoutSuccessHandler(new AutheliaLogoutSuccessHandler(
-                    env.getProperty("spring.security.oauth2.client.provider.authelia.issuer-uri"))))
+                .logoutSuccessHandler(new AutheliaLogoutSuccessHandler(compteUnique)))
             .rememberMe(remember -> remember
                 .key(CLE_REMEMBER_ME)
                 .tokenValiditySeconds(86400 * 30)
