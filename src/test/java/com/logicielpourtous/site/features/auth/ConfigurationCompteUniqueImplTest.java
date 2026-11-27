@@ -7,6 +7,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -14,7 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
 import com.logicielpourtous.site.features.auth.ConfigurationCompteUniqueImpl.ReglagesModifies;
-import com.logicielpourtous.site.features.mail.MailEncryptionConverter;
+import com.logicielpourtous.site.features.commun.ChiffrementSecrets;
 
 class ConfigurationCompteUniqueImplTest {
 
@@ -29,16 +31,37 @@ class ConfigurationCompteUniqueImplTest {
     private final AtomicReference<ReglagesCompteUnique> stockage = new AtomicReference<>();
     private MockEnvironment env;
     private ReglagesCompteUniqueRepository repo;
-    private MailEncryptionConverter chiffreur;
+    private ChiffrementSecrets chiffreur;
     private ConfigurationCompteUniqueImpl config;
+
+    /** Instantane de la ligne, comme le ferait une lecture SQL (copie, pas la meme instance). */
+    private static ReglagesCompteUnique copie(ReglagesCompteUnique o) {
+        if (o == null) {
+            return null;
+        }
+        ReglagesCompteUnique c = new ReglagesCompteUnique();
+        c.setIssuerUri(o.getIssuerUri());
+        c.setClientId(o.getClientId());
+        c.setClientSecret(o.getClientSecret());
+        c.setUrlPublique(o.getUrlPublique());
+        c.setMaitreUrlPublique(o.getMaitreUrlPublique());
+        c.setRetourDeconnexion(o.getRetourDeconnexion());
+        c.setVersion(o.getVersion());
+        c.setModifiePar(o.getModifiePar());
+        return c;
+    }
 
     @BeforeEach
     void init() {
         env = new MockEnvironment();
-        chiffreur = new MailEncryptionConverter();
-        chiffreur.setKey("cle-de-test-non-secrete-0123456789");
+        chiffreur = new ChiffrementSecrets("cle-de-test-non-secrete-0123456789", "deadbeefdeadbeef");
         repo = mock(ReglagesCompteUniqueRepository.class);
-        when(repo.findById(ReglagesCompteUnique.ID_UNIQUE)).thenAnswer(i -> Optional.ofNullable(stockage.get()));
+        when(repo.findById(ReglagesCompteUnique.ID_UNIQUE)).thenAnswer(i -> Optional.ofNullable(copie(stockage.get())));
+        when(repo.verrouiller()).thenAnswer(i -> Optional.ofNullable(stockage.get()));
+        when(repo.creerSiAbsente()).thenAnswer(i -> {
+            stockage.compareAndSet(null, new ReglagesCompteUnique());
+            return 1;
+        });
         when(repo.save(any(ReglagesCompteUnique.class))).thenAnswer(i -> {
             stockage.set(i.getArgument(0));
             return i.getArgument(0);
@@ -103,7 +126,7 @@ class ConfigurationCompteUniqueImplTest {
 
         String enBase = stockage.get().getClientSecret();
         assertThat(enBase).isNotBlank().isNotEqualTo(SECRET).doesNotContain(SECRET);
-        assertThat(chiffreur.convertToEntityAttribute(enBase)).isEqualTo(SECRET);
+        assertThat(chiffreur.dechiffrer(enBase)).isEqualTo(SECRET);
         assertThat(config.clientSecret()).isEqualTo(SECRET);
         assertThat(stockage.get().getModifiePar()).isEqualTo("admin");
     }
@@ -200,5 +223,120 @@ class ConfigurationCompteUniqueImplTest {
         config.enregistrer(complets(), "admin");
         assertThat(stockage.get().toString()).doesNotContain(SECRET);
         assertThat(config.toString()).doesNotContain(SECRET);
+    }
+
+    @Test
+    void une_lecture_concurrente_pendant_l_enregistrement_ne_republie_pas_l_ancienne_valeur() throws Exception {
+        config.enregistrer(complets(), "admin");
+        ReglagesCompteUnique avant = copie(stockage.get());
+        config.invalider();
+
+        CountDownLatch lectureCommencee = new CountDownLatch(1);
+        CountDownLatch feuVert = new CountDownLatch(1);
+        // Le premier lecteur obtient l'ANCIENNE ligne puis est suspendu avant de publier son resultat.
+        when(repo.findById(ReglagesCompteUnique.ID_UNIQUE)).thenAnswer(i -> {
+            lectureCommencee.countDown();
+            feuVert.await(10, TimeUnit.SECONDS);
+            return Optional.of(avant);
+        }).thenAnswer(i -> Optional.ofNullable(copie(stockage.get())));
+
+        Thread lecteur = new Thread(() -> config.issuerUri());
+        lecteur.start();
+        assertThat(lectureCommencee.await(10, TimeUnit.SECONDS)).isTrue();
+
+        config.enregistrer(reglages("https://sso.exemple.org", "site-1", null, null, null, null), "admin");
+        feuVert.countDown();
+        lecteur.join(10_000);
+
+        assertThat(config.issuerUri()).isEqualTo("https://sso.exemple.org");
+        assertThat(config.version()).isEqualTo(stockage.get().getVersion());
+    }
+
+    @Test
+    void un_secret_illisible_ne_fait_pas_tomber_la_lecture_des_reglages() {
+        config.enregistrer(complets(), "admin");
+        stockage.get().setClientSecret("0123abcd-pas-un-texte-chiffre");
+        config.invalider();
+
+        assertThat(config.configure()).isFalse();
+        assertThat(config.clientSecret()).isEmpty();
+        assertThat(config.issuerUri()).isEqualTo("https://auth.exemple.org");
+    }
+
+    @Test
+    void remplacer_le_secret_ne_touche_pas_les_autres_champs() {
+        config.enregistrer(complets(), "admin");
+        long v = config.version();
+
+        config.remplacerSecret("nouveau-secret-de-test-987654321", "admin2");
+
+        assertThat(config.clientSecret()).isEqualTo("nouveau-secret-de-test-987654321");
+        assertThat(config.issuerUri()).isEqualTo("https://auth.exemple.org");
+        assertThat(config.clientId()).isEqualTo("site-1");
+        assertThat(config.urlPublique()).isEqualTo("https://app.exemple.org");
+        assertThat(config.version()).isGreaterThan(v);
+        assertThat(stockage.get().getModifiePar()).isEqualTo("admin2");
+    }
+
+    @Test
+    void effacer_le_secret_rend_configure_faux() {
+        config.enregistrer(complets(), "admin");
+        assertThat(config.configure()).isTrue();
+
+        config.effacerSecret("admin");
+
+        assertThat(config.configure()).isFalse();
+        assertThat(config.clientSecret()).isEmpty();
+        assertThat(config.lireReglagesEnBase().secretDefini()).isFalse();
+        assertThat(config.clientId()).isEqualTo("site-1");
+    }
+
+    @Test
+    void null_laisse_le_champ_inchange_et_vide_l_efface() {
+        env.setProperty(K_ISSUER, "https://auth.env.exemple.org");
+        config.enregistrer(complets(), "admin");
+
+        config.enregistrer(reglages(null, "site-2", null, null, null, null), "admin");
+        assertThat(config.issuerUri()).isEqualTo("https://auth.exemple.org");
+        assertThat(config.clientId()).isEqualTo("site-2");
+        assertThat(config.urlPublique()).isEqualTo("https://app.exemple.org");
+
+        // Chaine vide : la valeur de la base est effacee, l'environnement reprend la main.
+        config.enregistrer(reglages("", null, null, "", null, null), "admin");
+        assertThat(config.issuerUri()).isEqualTo("https://auth.env.exemple.org");
+        assertThat(config.urlPublique()).isEmpty();
+        assertThat(config.clientId()).isEqualTo("site-2");
+        var brut = config.lireReglagesEnBase();
+        assertThat(brut.issuerUri()).isEmpty();
+        assertThat(brut.clientId()).isEqualTo("site-2");
+        assertThat(brut.secretDefini()).isTrue();
+    }
+
+    @Test
+    void vider_l_emetteur_et_l_identifiant_sans_effacer_le_secret_donne_un_etat_refuse_ou_explicite() {
+        config.enregistrer(complets(), "admin");
+
+        // Choix : etat incoherent evite en effacant AUSSI le secret enregistre (retour complet a l'environnement).
+        config.enregistrer(reglages("", "", null, "", null, null), "admin");
+
+        assertThat(config.lireReglagesEnBase().secretDefini()).isFalse();
+        assertThat(config.configure()).isFalse();
+    }
+
+    @Test
+    void l_emetteur_et_le_maitre_en_adresse_ip_sont_refuses() {
+        assertThatThrownBy(() -> config.enregistrer(reglages("https://10.0.0.5", "site-1", SECRET, null, null, null),
+                "admin")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> config.enregistrer(reglages("https://auth.exemple.org", "site-1", SECRET, null,
+                "https://[::1]", null), "admin")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void le_domaine_parent_suit_l_emetteur_effectif_apres_modification() {
+        env.setProperty(K_ISSUER, "https://auth.env.exemple.org");
+        config.enregistrer(reglages("https://auth.exemple.org", "site-1", SECRET, null, null, null), "admin");
+        // On vide l'emetteur de la base : l'environnement (parent env.exemple.org) devient la reference.
+        assertThatThrownBy(() -> config.enregistrer(reglages("", null, null, "https://app.exemple.org", null, null),
+                "admin")).isInstanceOf(IllegalArgumentException.class);
     }
 }
