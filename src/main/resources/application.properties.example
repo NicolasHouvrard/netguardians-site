@@ -229,3 +229,6 @@ app.clients.partenaire-defaut-societe-id=${CLIENTS_PARTENAIRE_DEFAUT_SOCIETE_ID:
 # est celle ou renvoyer les societes dont le tenant n'a pas de serveur d'accueil (vide = ces societes sont omises).
 # app.auth.authelia.issuer-uri=${AUTHELIA_ISSUER_URI:}
 # app.auth.authelia.maitre-url-publique=${MAITRE_URL_PUBLIQUE:}
+# Retour sur le site dans le meme onglet apres la deconnexion du compte unique (optionnel) : adresse https dans le
+# domaine parent du portail ; sinon ignoree. Authelia doit avoir un cookie de session elargi a ce domaine.
+# app.auth.authelia.retour-deconnexion=${APP_AUTH_AUTHELIA_RETOUR_DECONNEXION:}

@@ -205,6 +205,18 @@ En attendant l'outil, on peut créer les premiers utilisateurs à la main dans l
   Microsoft). Un compte à plusieurs sociétés voit son authentification OAuth2 remplacée au choix de société ; le marqueur est conservé à ce moment
   et lu par un `LogoutHandler` dédié (avant l'invalidation de la session), si bien que la déconnexion mène aussi à `/deconnecte?sso=1`. Il ne
   donne aucun droit : il sert seulement à choisir cette page publique.
+  **Retour sur le site dans le même onglet (optionnel)** : variable par serveur `APP_AUTH_AUTHELIA_RETOUR_DECONNEXION` (propriété
+  `app.auth.authelia.retour-deconnexion`), par exemple `https://master.logicielpourtous.com/login?logout` ou
+  `https://app.logicielpourtous.com/login?logout`. Si elle est renseignée et valide, la déconnexion d'un compte unique envoie le navigateur, dans le
+  **même onglet**, vers `<issuer-uri>/logout?rd=<retour encodé>` : Authelia ferme sa session puis ramène l'utilisateur sur le site, sans page
+  intermédiaire. Le retour doit être une adresse https, sans identifiants intégrés ni fragment, dont l'hôte est le domaine parent du portail ou l'un de
+  ses sous-domaines (portail `auth.logicielpourtous.com` : parent `logicielpourtous.com`). Sinon la propriété est ignorée (avertissement dans le
+  journal, sans secret) et le comportement ci-dessus (page `/deconnecte?sso=1`, conservée en repli) s'applique. Le retour ne vient jamais de la requête.
+  **Côté Authelia**, Authelia n'accepte `rd` que si l'hôte appartient au domaine de son cookie de session : il faut donc dans la configuration
+  d'Authelia `session.cookies[].domain: 'logicielpourtous.com'` (`authelia_url` reste `https://auth.logicielpourtous.com`).
+  **Avertissement** : ce cookie élargi est envoyé à **tous les sous-domaines** de `logicielpourtous.com` ; ne l'élargir que si tous sont de confiance.
+  Les serveurs sur un **autre nom de domaine** ne sont pas couverts : Authelia refuse `rd` et affiche son propre portail. La syntaxe et le
+  comportement exacts de `rd` sont à **vérifier au premier essai** (non confirmés par la documentation officielle).
 - **Authelia ou LDAP indisponible** : seule la connexion locale fonctionne. Si le site n'a pas encore pu joindre Authelia, le bouton renvoie à la page
   de connexion avec le message « momentanément indisponible ». Une fois la découverte d'Authelia mise en cache (après une première connexion réussie),
   une panne ultérieure mène le bouton vers une erreur de passerelle du Nginx (502) : seul le formulaire local, `/login/secours`, reste utilisable. Dans ce cas aucun lien vers cette page n'est affiché : les administrateurs doivent connaître l'adresse `/login/secours` (à noter dans leur gestionnaire de mots de passe).

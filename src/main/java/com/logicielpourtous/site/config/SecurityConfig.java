@@ -392,7 +392,8 @@ public class SecurityConfig {
                 .addLogoutHandler(new CompteUniqueLogoutHandler())
                 // Compte unique : page du site proposant de fermer aussi la session du portail Authelia.
                 .logoutSuccessHandler(new AutheliaLogoutSuccessHandler(
-                    env.getProperty("spring.security.oauth2.client.provider.authelia.issuer-uri"))))
+                    env.getProperty("spring.security.oauth2.client.provider.authelia.issuer-uri"),
+                    env.getProperty("app.auth.authelia.retour-deconnexion"))))
             .rememberMe(remember -> remember
                 .key(CLE_REMEMBER_ME)
                 .tokenValiditySeconds(86400 * 30)
