@@ -91,10 +91,12 @@
         <form method="post" th:action="@{/admin/sso-config/tester}">
           <button type="submit" class="btn btn-outline-secondary"><i class="fas fa-plug me-1"></i>Tester la connexion à Authelia</button>
         </form>
-        <form method="post" th:action="@{/admin/sso-config/generer-secret}">
+        <form method="post" th:action="@{/admin/sso-config/generer-secret}"
+              onsubmit="if (!confirm('Générer un nouveau secret remplace immédiatement le secret actuel : la connexion par compte unique sera coupée jusqu à la mise à jour d Authelia. Continuer ?')) { return false; } var b = this.querySelector('button'); b.disabled = true;">
           <button type="submit" class="btn btn-outline-primary"><i class="fas fa-key me-1"></i>Générer un secret client</button>
         </form>
-        <form method="post" th:action="@{/admin/sso-config/effacer-secret}">
+        <form method="post" th:action="@{/admin/sso-config/effacer-secret}"
+              onsubmit="return confirm('Effacer le secret coupe la connexion par compte unique. Continuer ?');">
           <button type="submit" class="btn btn-outline-danger"><i class="fas fa-eraser me-1"></i>Effacer le secret</button>
         </form>
       </div>

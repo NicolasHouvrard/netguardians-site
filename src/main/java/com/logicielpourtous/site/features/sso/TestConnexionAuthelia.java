@@ -29,9 +29,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * « Tester la connexion a Authelia » : interroge {@code <emetteur>/.well-known/openid-configuration} et ne renvoie
  * qu'une categorie (joignable / injoignable / reponse inattendue / adresse refusee), JAMAIS le corps de la reponse.
  * <p>
- * Garde-fous : https seulement, ni identifiants integres ni fragment, delais de 3 s, AUCUNE redirection suivie, taille de
+ * Garde-fous : https seulement (port 443 uniquement), ni identifiants integres ni fragment, delais de 3 s, AUCUNE redirection suivie, taille de
  * reponse bornee, hotes refuses : adresses IP litterales, noms locaux ({@code localhost}, sans point, {@code .local},
- * {@code .internal}, {@code .lan}...) et noms dont UNE des adresses resolues est locale/privee/reservee.
+ * {@code .internal}, {@code .lan}...) et noms dont UNE des adresses resolues n'est pas une adresse
+ * unicast globale (loopback, privee, link-local, 100.64/10, documentation, multicast, NAT64, 6to4, Teredo, IPv4
+ * mappee/compatible : l'IPv4 contenue est controlee). La resolution DNS est bornee par le delai global.
  * <p>
  * Limite connue : la resolution du nom est refaite par le client HTTP au moment de la connexion ; un DNS malveillant
  * qui change de reponse entre les deux (« rebinding ») n'est pas couvert. La route est reservee aux administrateurs et
@@ -113,6 +115,7 @@ public class TestConnexionAuthelia {
 
     private final Transport transport;
     private final Resolveur resolveur;
+    private final Duration delai;
 
     @Autowired
     public TestConnexionAuthelia() {
@@ -120,8 +123,13 @@ public class TestConnexionAuthelia {
     }
 
     TestConnexionAuthelia(Transport transport, Resolveur resolveur) {
+        this(transport, resolveur, DELAI);
+    }
+
+    TestConnexionAuthelia(Transport transport, Resolveur resolveur, Duration delai) {
         this.transport = transport;
         this.resolveur = resolveur;
+        this.delai = delai;
     }
 
     public Resultat tester(String emetteur) {
@@ -130,7 +138,7 @@ public class TestConnexionAuthelia {
             return Resultat.ADRESSE_REFUSEE;
         }
         try {
-            InetAddress[] adresses = resolveur.resoudre(cible.getHost());
+            InetAddress[] adresses = resoudreBorne(cible.getHost());
             if (adresses == null || adresses.length == 0) {
                 return Resultat.INJOIGNABLE;
             }
@@ -139,7 +147,10 @@ public class TestConnexionAuthelia {
                     return Resultat.ADRESSE_REFUSEE;
                 }
             }
-        } catch (UnknownHostException e) {
+        } catch (UnknownHostException | TimeoutException e) {
+            return Resultat.INJOIGNABLE;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             return Resultat.INJOIGNABLE;
         }
         try {
@@ -151,6 +162,32 @@ public class TestConnexionAuthelia {
             return Resultat.INJOIGNABLE;
         } catch (IOException | RuntimeException e) {
             return Resultat.INJOIGNABLE;
+        }
+    }
+
+    /** Resolution DNS bornee par le delai global (la resolution du systeme n'a pas de delai propre). */
+    private InetAddress[] resoudreBorne(String hote) throws UnknownHostException, TimeoutException, InterruptedException {
+        CompletableFuture<InetAddress[]> futur = CompletableFuture.supplyAsync(() -> {
+            try {
+                return resolveur.resoudre(hote);
+            } catch (UnknownHostException e) {
+                throw new java.util.concurrent.CompletionException(e);
+            }
+        });
+        try {
+            return futur.get(delai.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
+            Throwable c = e.getCause();
+            if (c instanceof UnknownHostException u) {
+                throw u;
+            }
+            if (c != null && c.getCause() instanceof UnknownHostException u) {
+                throw u;
+            }
+            throw new UnknownHostException(hote);
+        } catch (TimeoutException e) {
+            futur.cancel(true);
+            throw e;
         }
     }
 
@@ -172,7 +209,7 @@ public class TestConnexionAuthelia {
             URI u = new URI(emetteur.trim());
             String hote = u.getHost();
             if (!"https".equalsIgnoreCase(u.getScheme()) || hote == null || hote.isBlank()
-                    || u.getRawUserInfo() != null || u.getRawFragment() != null || u.getRawQuery() != null
+                    || (u.getPort() != -1 && u.getPort() != 443) || u.getRawUserInfo() != null || u.getRawFragment() != null || u.getRawQuery() != null
                     || hoteInterdit(hote)) {
                 return null;
             }
@@ -201,18 +238,52 @@ public class TestConnexionAuthelia {
                 || h.endsWith(".corp") || h.endsWith(".private");
     }
 
-    private static boolean adresseInterdite(InetAddress a) {
+    /** Refuse tout ce qui n'est pas une adresse unicast globale (IPv4 publique ou IPv6 dans 2000::/3 hors reserves). */
+    static boolean adresseInterdite(InetAddress a) {
         if (a.isAnyLocalAddress() || a.isLoopbackAddress() || a.isLinkLocalAddress() || a.isSiteLocalAddress()
                 || a.isMulticastAddress()) {
             return true;
         }
         byte[] b = a.getAddress();
         if (b.length == 4) {
-            int o1 = b[0] & 0xff;
-            int o2 = b[1] & 0xff;
-            return o1 == 0 || (o1 == 100 && o2 >= 64 && o2 <= 127) || o1 >= 240 || (o1 == 192 && o2 == 0 && (b[2] & 0xff) == 0)
-                    || (o1 == 198 && (o2 == 18 || o2 == 19));
+            return ipv4Interdite(b);
         }
-        return (b[0] & 0xfe) == 0xfc; // IPv6 unique-local fc00::/7
+        if (b.length != 16) {
+            return true;
+        }
+        // IPv4 mappee (::ffff:a.b.c.d) laissee sous forme IPv6 : on controle l'IPv4 contenue.
+        boolean mappee = true;
+        for (int i = 0; i < 10; i++) {
+            mappee &= b[i] == 0;
+        }
+        if (mappee && (b[10] & 0xff) == 0xff && (b[11] & 0xff) == 0xff) {
+            return ipv4Interdite(new byte[] { b[12], b[13], b[14], b[15] });
+        }
+        int o0 = b[0] & 0xff;
+        int o1 = b[1] & 0xff;
+        if ((o0 & 0xe0) != 0x20) {
+            return true; // hors 2000::/3 : ::/96 (IPv4-compatible), 64:ff9b::/96 (NAT64), fc00::/7, fe80::/10, ff00::/8...
+        }
+        int o2 = b[2] & 0xff;
+        int o3 = b[3] & 0xff;
+        if (o0 == 0x20 && o1 == 0x01) {
+            // 2001::/23 (protocoles IETF dont Teredo 2001::/32), 2001:db8::/32 (documentation)
+            return o2 <= 0x01 || (o2 == 0x0d && o3 == 0xb8);
+        }
+        if (o0 == 0x20 && o1 == 0x02) {
+            return true; // 6to4 2002::/16 (embarque une IPv4)
+        }
+        return o0 == 0x3f && o1 == 0xff && (o2 & 0xf0) == 0x00; // 3fff::/20 (documentation)
+    }
+
+    private static boolean ipv4Interdite(byte[] b) {
+        int o1 = b[0] & 0xff;
+        int o2 = b[1] & 0xff;
+        int o3 = b[2] & 0xff;
+        return o1 == 0 || o1 == 10 || o1 == 127 || o1 >= 224 || (o1 == 100 && o2 >= 64 && o2 <= 127)
+                || (o1 == 169 && o2 == 254) || (o1 == 172 && o2 >= 16 && o2 <= 31) || (o1 == 192 && o2 == 168)
+                || (o1 == 192 && o2 == 0 && (o3 == 0 || o3 == 2)) || (o1 == 192 && o2 == 88 && o3 == 99)
+                || (o1 == 198 && (o2 == 18 || o2 == 19)) || (o1 == 198 && o2 == 51 && o3 == 100)
+                || (o1 == 203 && o2 == 0 && o3 == 113);
     }
 }

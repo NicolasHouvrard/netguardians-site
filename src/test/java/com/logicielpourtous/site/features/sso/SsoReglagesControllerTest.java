@@ -8,7 +8,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Set;
@@ -26,10 +26,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import com.logicielpourtous.site.features.auth.ConfigurationCompteUniqueImpl;
 import com.logicielpourtous.site.features.auth.ConfigurationCompteUniqueImpl.ReglagesModifies;
 import com.logicielpourtous.site.features.auth.CustomUserDetails;
+import com.logicielpourtous.site.features.commun.ServerRoleProperties;
 import com.logicielpourtous.site.features.commun.Tenant;
 import com.logicielpourtous.site.features.commun.TenantRepository;
 import com.logicielpourtous.site.features.role.Role;
@@ -50,6 +52,7 @@ class SsoReglagesControllerTest {
     @Autowired private ConfigurationCompteUniqueImpl config;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private TenantRepository tenantRepository;
+    @Autowired private ServerRoleProperties serverRole;
 
     private ListAppender<ILoggingEvent> journal;
     private Tenant tenant;
@@ -97,16 +100,28 @@ class SsoReglagesControllerTest {
         return jdbc.queryForObject("SELECT count(*) FROM public.reglages_compte_unique", Integer.class);
     }
 
+    /** POST de generation (doit rediriger) puis affichage de la page avec l'attribut flash, comme un navigateur. */
+    private MvcResult genererEtSuivre() throws Exception {
+        MvcResult post = mockMvc.perform(post("/admin/sso-config/generer-secret").with(user(compte("ADMIN"))).with(csrf()))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/admin/sso-config")).andReturn();
+        assertThat(post.getResponse().getContentAsString()).doesNotContain("$pbkdf2");
+        return mockMvc.perform(get("/admin/sso-config").with(user(compte("ADMIN")))
+                .flashAttrs(post.getFlashMap())).andExpect(status().isOk()).andReturn();
+    }
+
     @Test
     void le_secret_clair_n_est_jamais_dans_la_reponse_ni_le_journal() throws Exception {
         preparerCompte();
 
-        String corps = mockMvc.perform(post("/admin/sso-config/generer-secret").with(user(compte("ADMIN"))).with(csrf()))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        MvcResult post = mockMvc.perform(post("/admin/sso-config/generer-secret").with(user(compte("ADMIN"))).with(csrf()))
+                .andExpect(status().is3xxRedirection()).andReturn();
+        String corps = mockMvc.perform(get("/admin/sso-config").with(user(compte("ADMIN"))).flashAttrs(post.getFlashMap()))
+                .andReturn().getResponse().getContentAsString();
 
         String secret = config.clientSecret();
         assertThat(secret).hasSize(72);
         assertThat(corps).doesNotContain(secret);
+        assertThat(post.getFlashMap().toString()).doesNotContain(secret);
         assertThat(logs()).doesNotContain(secret).contains("secret client genere");
         assertThat(jdbc.queryForObject("SELECT client_secret FROM public.reglages_compte_unique WHERE id = 1",
                 String.class)).doesNotContain(secret);
@@ -116,10 +131,11 @@ class SsoReglagesControllerTest {
     void le_bloc_authelia_contient_client_id_empreinte_et_redirect_uri_calculee() throws Exception {
         preparerCompte();
 
-        String corps = mockMvc.perform(post("/admin/sso-config/generer-secret").with(user(compte("ADMIN"))).with(csrf()))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Cache-Control", containsString("no-store")))
-                .andReturn().getResponse().getContentAsString();
+        MvcResult res = genererEtSuivre();
+        String corps = res.getResponse().getContentAsString();
+        assertThat(res.getResponse().getHeader("Cache-Control")).contains("no-store");
+        assertThat(res.getResponse().getHeader("Pragma")).isEqualTo("no-cache");
+        assertThat(res.getResponse().getHeader("Expires")).isEqualTo("0");
 
         assertThat(corps).contains("client_id: &#39;site-test&#39;").contains("$pbkdf2-sha512$310000$")
                 .contains("redirect_uris: [&#39;https://site.example.org/login/oauth2/code/authelia&#39;]")
@@ -128,18 +144,84 @@ class SsoReglagesControllerTest {
         Matcher m = Pattern.compile("client_secret: &#39;(\\$pbkdf2-sha512[^&]+)&#39;").matcher(corps);
         assertThat(m.find()).isTrue();
         assertThat(EmpreinteAuthelia.verifie(config.clientSecret(), m.group(1))).isTrue();
+    }
 
-        // Une seule fois : un nouvel affichage de la page ne contient plus le bloc.
-        mockMvc.perform(get("/admin/sso-config").with(user(compte("ADMIN"))))
-                .andExpect(status().isOk()).andExpect(content().string(not(containsString("$pbkdf2-sha512"))));
+    @Test
+    void recharger_la_page_ne_regenere_rien_et_n_affiche_plus_le_bloc() throws Exception {
+        preparerCompte();
+        genererEtSuivre();
+        String secretApres = config.clientSecret();
+        String version = jdbc.queryForObject("SELECT version::text FROM public.reglages_compte_unique WHERE id = 1",
+                String.class);
+
+        for (int i = 0; i < 2; i++) {
+            mockMvc.perform(get("/admin/sso-config").with(user(compte("ADMIN"))))
+                    .andExpect(status().isOk()).andExpect(content().string(not(containsString("$pbkdf2-sha512"))));
+        }
+        assertThat(config.clientSecret()).isEqualTo(secretApres);
+        assertThat(jdbc.queryForObject("SELECT version::text FROM public.reglages_compte_unique WHERE id = 1",
+                String.class)).isEqualTo(version);
+    }
+
+    @Test
+    void le_bloc_normalise_l_adresse_publique_sans_double_barre() {
+        for (String url : new String[] { "https://site.example.org/", "https://site.example.org//",
+                "https://site.example.org" }) {
+            String bloc = SsoStatusController.blocAuthelia("site-test", "$pbkdf2-sha512$310000$a$b", url);
+            assertThat(bloc).contains("'https://site.example.org/login/oauth2/code/authelia'").doesNotContain("org//");
+        }
     }
 
     @Test
     void la_generation_exige_un_identifiant_et_une_adresse_publique() throws Exception {
-        mockMvc.perform(post("/admin/sso-config/generer-secret").with(user(compte("ADMIN"))).with(csrf()))
-                .andExpect(status().isOk())
-                .andExpect(content().string(not(containsString("$pbkdf2-sha512"))));
+        MvcResult post = mockMvc.perform(post("/admin/sso-config/generer-secret").with(user(compte("ADMIN"))).with(csrf()))
+                .andExpect(status().is3xxRedirection()).andReturn();
+        assertThat(post.getFlashMap().get("erreurGlobale").toString()).contains("Renseignez");
+        mockMvc.perform(get("/admin/sso-config").with(user(compte("ADMIN"))).flashAttrs(post.getFlashMap()))
+                .andExpect(status().isOk()).andExpect(content().string(not(containsString("$pbkdf2-sha512"))));
         assertThat(lignes()).isZero();
+    }
+
+    @Test
+    void les_actions_destructrices_demandent_confirmation_et_le_bouton_se_desactive() throws Exception {
+        String corps = mockMvc.perform(get("/admin/sso-config").with(user(compte("ADMIN"))))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        Matcher gen = Pattern.compile("<form[^>]*generer-secret[^>]*>").matcher(corps);
+        Matcher eff = Pattern.compile("<form[^>]*effacer-secret[^>]*>").matcher(corps);
+        assertThat(gen.find()).isTrue();
+        assertThat(gen.group()).contains("onsubmit=").contains("confirm(").contains("disabled");
+        assertThat(eff.find()).isTrue();
+        assertThat(eff.group()).contains("onsubmit=").contains("confirm(");
+    }
+
+    @Test
+    void un_serveur_non_maitre_n_a_pas_le_champ_maitre_et_ignore_une_valeur_forgee() throws Exception {
+        serverRole.setRole("PARTNER");
+        try {
+            String corps = mockMvc.perform(get("/admin/sso-config").with(user(compte("ADMIN"))))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            assertThat(corps).doesNotContain("name=\"maitreUrlPublique\"");
+
+            mockMvc.perform(post("/admin/sso-config/reglages").with(user(compte("ADMIN"))).with(csrf())
+                    .param("issuerUri", "https://auth.example.org").param("clientId", "site-test")
+                    .param("urlPublique", "https://site.example.org")
+                    .param("maitreUrlPublique", "https://maitre-forge.example.org"))
+                    .andExpect(status().is3xxRedirection());
+            assertThat(config.lireReglagesEnBase().maitreUrlPublique()).isEmpty();
+        } finally {
+            serverRole.setRole("MASTER");
+        }
+    }
+
+    @Test
+    void les_messages_sont_accentues() throws Exception {
+        MvcResult tester = mockMvc.perform(post("/admin/sso-config/tester").with(user(compte("ADMIN"))).with(csrf()))
+                .andExpect(status().is3xxRedirection()).andReturn();
+        assertThat(tester.getFlashMap().get("erreurGlobale").toString()).contains("refusée");
+        MvcResult regl = mockMvc.perform(post("/admin/sso-config/reglages").with(user(compte("ADMIN"))).with(csrf())
+                .param("issuerUri", "https://auth.example.org").param("clientId", "site-test"))
+                .andExpect(status().is3xxRedirection()).andReturn();
+        assertThat(regl.getFlashMap().get("message").toString()).contains("Réglages enregistrés");
     }
 
     @Test

@@ -94,6 +94,54 @@ class TestConnexionAutheliaTest {
         assertThat(inconnu.tester("https://auth.example.org")).isEqualTo(Resultat.INJOIGNABLE);
     }
 
+    private static Resultat avecAdresse(String litterale) throws Exception {
+        byte[] octets = InetAddress.getByName(litterale).getAddress();
+        return new TestConnexionAuthelia(uri -> new Reponse(200, DOC),
+                h -> new InetAddress[] { InetAddress.getByAddress(h, octets) }).tester("https://auth.example.org");
+    }
+
+    @Test
+    void seules_les_adresses_globales_unicast_sont_acceptees() throws Exception {
+        for (String a : List.of("64:ff9b::808:808", "64:ff9b::a00:1", "64:ff9b:1::1", "2002:808:808::1",
+                "2001::1", "2001:0:4136:e378:8000:63bf:3fff:fdd2", "::10.0.0.1", "::8.8.8.8", "::ffff:10.0.0.1",
+                "::ffff:127.0.0.1", "::ffff:169.254.169.254", "fe80::1", "fc00::1", "fd12::1", "ff02::1", "::1", "::",
+                "2001:db8::1", "3fff::1", "169.254.169.254", "100.64.0.1", "100.127.255.254", "192.0.2.1",
+                "198.51.100.1", "203.0.113.1", "224.0.0.1", "0.0.0.0", "255.255.255.255", "172.16.0.1", "192.168.0.1",
+                "10.1.2.3", "127.0.0.1", "198.18.0.1")) {
+            assertThat(avecAdresse(a)).as(a).isEqualTo(Resultat.ADRESSE_REFUSEE);
+        }
+        for (String a : List.of("8.8.8.8", "93.184.216.34", "::ffff:8.8.8.8", "2606:2800:220:1:248:1893:25c8:1946",
+                "2a00:1450:4007:80f::200e")) {
+            assertThat(avecAdresse(a)).as(a).isEqualTo(Resultat.JOIGNABLE);
+        }
+    }
+
+    @Test
+    void seul_le_port_443_est_accepte() {
+        List<URI> appels = new ArrayList<>();
+        TestConnexionAuthelia t = avec(appels, new Reponse(200, DOC));
+        assertThat(t.tester("https://auth.example.org:8443")).isEqualTo(Resultat.ADRESSE_REFUSEE);
+        assertThat(t.tester("https://auth.example.org:22")).isEqualTo(Resultat.ADRESSE_REFUSEE);
+        assertThat(appels).isEmpty();
+        assertThat(t.tester("https://auth.example.org:443")).isEqualTo(Resultat.JOIGNABLE);
+        assertThat(t.tester("https://auth.example.org")).isEqualTo(Resultat.JOIGNABLE);
+    }
+
+    @Test
+    void la_resolution_dns_est_bornee_par_le_delai_global() {
+        TestConnexionAuthelia lent = new TestConnexionAuthelia(uri -> new Reponse(200, DOC), h -> {
+            try {
+                Thread.sleep(1500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return publique(h);
+        }, Duration.ofMillis(200));
+        long debut = System.nanoTime();
+        assertThat(lent.tester("https://auth.example.org")).isEqualTo(Resultat.INJOIGNABLE);
+        assertThat(Duration.ofNanos(System.nanoTime() - debut)).isLessThan(Duration.ofMillis(1000));
+    }
+
     @Test
     void le_transport_reel_ne_suit_aucune_redirection_et_borne_le_delai() throws Exception {
         AtomicInteger cible = new AtomicInteger();

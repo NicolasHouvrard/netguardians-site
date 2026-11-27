@@ -58,7 +58,10 @@ public class SsoStatusController {
     }
 
     @GetMapping
-    public String index(Model model) {
+    public String index(Model model, HttpServletResponse reponse) {
+        if (model.containsAttribute("blocAuthelia")) {
+            interdireCache(reponse);
+        }
         return afficher(model, null, Map.of());
     }
 
@@ -105,7 +108,7 @@ public class SsoStatusController {
             return afficher(model, valeurs, erreurs);
         }
         LOG.info("Compte unique : reglages modifies par {} (champs : {})", auteur(auth), String.join(", ", champs));
-        flash.addFlashAttribute("message", "Reglages enregistres : ils sont appliques sans redemarrage.");
+        flash.addFlashAttribute("message", "Réglages enregistrés : ils sont appliqués sans redémarrage.");
         return "redirect:/admin/sso-config";
     }
 
@@ -113,7 +116,7 @@ public class SsoStatusController {
     public String effacerSecret(Authentication auth, RedirectAttributes flash) {
         config.effacerSecret(auteur(auth));
         LOG.info("Compte unique : secret client efface par {}", auteur(auth));
-        flash.addFlashAttribute("message", "Secret du client efface.");
+        flash.addFlashAttribute("message", "Secret du client effacé.");
         return "redirect:/admin/sso-config";
     }
 
@@ -123,30 +126,37 @@ public class SsoStatusController {
         String message = switch (r) {
             case JOIGNABLE -> "Authelia est joignable.";
             case INJOIGNABLE -> "Authelia est injoignable.";
-            case REPONSE_INATTENDUE -> "Reponse inattendue : l'adresse repond mais ce n'est pas la configuration d'Authelia.";
-            case ADRESSE_REFUSEE -> "Adresse refusee : il faut une adresse https avec un nom de domaine public.";
+            case REPONSE_INATTENDUE -> "Réponse inattendue : l'adresse répond mais ce n'est pas la configuration d'Authelia.";
+            case ADRESSE_REFUSEE -> "Adresse refusée : il faut une adresse https (port 443) avec un nom de domaine public.";
         };
         flash.addFlashAttribute(r == TestConnexionAuthelia.Resultat.JOIGNABLE ? "message" : "erreurGlobale", message);
         return "redirect:/admin/sso-config";
     }
 
+    /**
+     * Genere et enregistre un nouveau secret, puis REDIRIGE (PRG) : l'empreinte a coller dans Authelia passe en
+     * attribut flash (usage unique, ce n'est PAS le secret). Recharger la page (F5) ne regenere donc rien.
+     */
     @PostMapping("/generer-secret")
-    public String genererSecret(Authentication auth, Model model, HttpServletResponse reponse) {
+    public String genererSecret(Authentication auth, RedirectAttributes flash) {
         String clientId = config.clientId();
         String url = config.urlPublique();
         if (clientId.isBlank() || url.isBlank()) {
-            return afficher(model, null, Map.of("general",
-                    "Renseignez et enregistrez d'abord l'identifiant du client et l'adresse publique de ce serveur."));
+            flash.addFlashAttribute("erreurGlobale",
+                    "Renseignez et enregistrez d'abord l'identifiant du client et l'adresse publique de ce serveur.");
+            return "redirect:/admin/sso-config";
         }
         EmpreinteAuthelia.ClientGenere genere = EmpreinteAuthelia.generer();
         config.remplacerSecret(genere.secretClair(), auteur(auth));
         LOG.info("Compte unique : secret client genere par {}", auteur(auth));
+        flash.addFlashAttribute("blocAuthelia", blocAuthelia(clientId, genere.empreinte(), url));
+        return "redirect:/admin/sso-config";
+    }
 
-        // Jamais stocke ailleurs que chiffre en base ; jamais en cache ; affiche une seule fois dans CETTE reponse.
-        reponse.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    private static void interdireCache(HttpServletResponse reponse) {
+        reponse.setHeader("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate");
         reponse.setHeader("Pragma", "no-cache");
-        model.addAttribute("blocAuthelia", blocAuthelia(clientId, genere.empreinte(), url));
-        return afficher(model, null, Map.of());
+        reponse.setHeader("Expires", "0");
     }
 
     /** Bloc a coller dans la liste {@code clients} de la configuration d'Authelia (l'empreinte, pas le secret). */
@@ -163,12 +173,20 @@ public class SsoStatusController {
                 "  consent_mode: 'implicit'",
                 "  require_pkce: true",
                 "  pkce_challenge_method: 'S256'",
-                "  redirect_uris: [" + yaml(urlPublique + "/login/oauth2/code/authelia") + "]",
+                "  redirect_uris: [" + yaml(sansBarreFinale(urlPublique) + "/login/oauth2/code/authelia") + "]",
                 "  scopes: ['openid', 'email', 'profile']",
                 "  response_types: ['code']",
                 "  grant_types: ['authorization_code']",
                 "  token_endpoint_auth_method: 'client_secret_basic'",
                 "");
+    }
+
+    private static String sansBarreFinale(String url) {
+        String u = url.trim();
+        while (u.endsWith("/")) {
+            u = u.substring(0, u.length() - 1);
+        }
+        return u;
     }
 
     private static String yaml(String valeur) {
@@ -213,7 +231,7 @@ public class SsoStatusController {
         model.addAttribute("compteUniqueConfigure", config.configure());
         model.addAttribute("estMaitre", serverRole.getRole() == ServerRole.MASTER);
         model.addAttribute("urlRetourAuthelia",
-                config.urlPublique().isBlank() ? "" : config.urlPublique() + "/login/oauth2/code/authelia");
+                config.urlPublique().isBlank() ? "" : sansBarreFinale(config.urlPublique()) + "/login/oauth2/code/authelia");
         return VUE;
     }
 
