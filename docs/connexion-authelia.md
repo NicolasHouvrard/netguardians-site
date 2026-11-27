@@ -175,8 +175,14 @@ En attendant l'outil, on peut créer les premiers utilisateurs à la main dans l
 - **Rattachement par e-mail** : la connexion par Authelia ouvre le compte du site **déjà existant** portant le même e-mail (sans tenir compte des
   majuscules). Aucun compte n'est créé à partir d'une identité externe. Message identique dans tous les refus : « Connexion impossible avec ce compte. »
 - **E-mail vérifié obligatoire** pour tous les fournisseurs OpenID Connect (Authelia, Google). Il n'y a pas de connexion Microsoft par cette voie.
-- **Déconnexion** : locale seulement dans cette première version. Se déconnecter d'un serveur ne ferme pas la session Authelia, qui
-  reste ouverte jusqu'à son expiration : sur un poste partagé, fermer aussi le navigateur.
+- **Déconnexion** : le site ferme sa propre session, puis un utilisateur connecté par le compte unique arrive sur la page `/deconnecte`
+  (« Vous êtes déconnecté du site. »). Cette page propose, avec un avertissement pour les postes partagés, le lien « Fermer aussi la session du
+  compte unique » qui ouvre la page de déconnexion du portail (`<issuer-uri>/logout`) dans un **nouvel onglet**. L'adresse de ce lien vient
+  uniquement de la configuration (`spring.security.oauth2.client.provider.authelia.issuer-uri`, en https obligatoire), jamais de la requête ; elle
+  n'est affichée que pour une session venue d'Authelia. Les comptes locaux, Google et Microsoft se déconnectent comme avant (retour à
+  `/login?logout`), de même si le portail n'est pas configuré ou pas en https. La session Authelia reste donc ouverte tant que l'utilisateur ne
+  clique pas sur ce lien (ou jusqu'à son expiration). La déconnexion unique complète, sans clic supplémentaire, viendra avec Authelia 4.40
+  (déconnexion OpenID Connect, non publiée à ce jour).
 - **Authelia ou LDAP indisponible** : seule la connexion locale fonctionne. Si le site n'a pas encore pu joindre Authelia, le bouton renvoie à la page
   de connexion avec le message « momentanément indisponible ». Une fois la découverte d'Authelia mise en cache (après une première connexion réussie),
   une panne ultérieure mène le bouton vers une erreur de passerelle du Nginx (502) : seul le formulaire de connexion local reste utilisable.
