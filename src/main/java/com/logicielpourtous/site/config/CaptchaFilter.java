@@ -35,7 +35,9 @@ public class CaptchaFilter extends OncePerRequestFilter {
         String remoteIp = resolveIp(request);
 
         if (!captchaService.verify(token, remoteIp)) {
-            String redirect = request.getServletPath() + "?error=captcha";
+            // Formulaire de secours : retour sur sa page (choix binaire, la valeur du champ n'est pas reflechie).
+            boolean secours = "/login".equals(request.getServletPath()) && "1".equals(request.getParameter("secours"));
+            String redirect = (secours ? "/login/secours" : request.getServletPath()) + "?error=captcha";
             response.sendRedirect(redirect);
             return;
         }

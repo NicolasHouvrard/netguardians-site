@@ -159,6 +159,23 @@ Les administrateurs passent au LDAP (avec double facteur). Pour ne jamais être 
 4. Le tester régulièrement (par exemple chaque trimestre et après chaque mise à jour du site) : connexion par le formulaire, accès à
    l'administration.
 
+## 5 bis. Pages de connexion
+
+Quand le fournisseur `authelia` est configuré (les trois propriétés du point 4), la page `/login` propose le compte unique par défaut :
+
+- un grand bouton « Se connecter » (vers `/oauth2/authorization/authelia`), le texte « Vous utilisez le compte unique de Logiciel pour tous. » et un lien
+  « Mot de passe oublié ? » vers le portail Authelia. L'adresse du lien est l'`issuer-uri` de la configuration (jamais celle de la requête) ; si elle
+  n'est pas en `https`, le lien n'est pas affiché. Les boutons Google/Microsoft restent affichés s'ils sont configurés, sous le bouton principal ;
+- le formulaire local (identifiant, mot de passe, « se souvenir de moi », captcha) n'est **pas rendu** sur `/login` ;
+- pas de redirection automatique vers Authelia (évite les boucles et la reconnexion immédiate après une déconnexion).
+
+**Adresse de secours `/login/secours`** (publique) : elle affiche le formulaire local, avec l'avertissement « Connexion de secours réservée aux comptes
+locaux ». C'est le recours du compte administrateur local du point 5 (panne d'Authelia, du LDAP ou du VPS). Le formulaire poste sur `POST /login` avec
+un champ caché `secours=1` : un échec (identifiants ou captcha) revient sur `/login/secours?error`, sinon sur `/login?error`. Quand Authelia est
+indisponible, `/login?error=authelia` affiche « Le compte unique est momentanément indisponible » avec un lien discret « Connexion de secours ».
+
+Sans configuration Authelia, rien ne change : `/login` garde le formulaire local.
+
 ## 6. Migration des comptes existants vers le LDAP
 
 Principe (outil d'export à venir) :

@@ -291,7 +291,36 @@ public class AuthController {
 
     @GetMapping("/login")
     public String login(Model model, jakarta.servlet.http.HttpServletRequest request) {
-        model.addAttribute("googleEnabled",    isProviderConfigured("google"));
+        preparerPageConnexion(model, request);
+        return "feature/auth/login";
+    }
+
+    /** Adresse de secours : formulaire local (comptes locaux, p. ex. l'administrateur de secours), meme chaine de securite que /login. */
+    @GetMapping("/login/secours")
+    public String loginSecours(Model model, jakarta.servlet.http.HttpServletRequest request) {
+        preparerPageConnexion(model, request);
+        return "feature/auth/login-secours";
+    }
+
+    /**
+     * Adresse du portail Authelia pour « Mot de passe oublie ? » : issuer-uri de la configuration (jamais la requete),
+     * sans slash final ; null si absente ou pas en https.
+     */
+    private String portailOubliUrl() {
+        String base = environment.getProperty("spring.security.oauth2.client.provider.authelia.issuer-uri");
+        base = base == null ? "" : base.trim();
+        while (base.endsWith("/")) {
+            base = base.substring(0, base.length() - 1);
+        }
+        if (!base.regionMatches(true, 0, "https://", 0, 8) || base.length() == 8) {
+            return null;
+        }
+        return base;
+    }
+
+    private void preparerPageConnexion(Model model, jakarta.servlet.http.HttpServletRequest request) {
+        model.addAttribute("portailOubliUrl",  portailOubliUrl());
+        model.addAttribute("googleEnabled",   isProviderConfigured("google"));
         model.addAttribute("microsoftEnabled", isProviderConfigured("microsoft"));
         model.addAttribute("autheliaEnabled",  com.logicielpourtous.site.config.SocialOAuth2Config.autheliaConfigure(environment));
         model.addAttribute("captchaEnabled",   captchaService.isEnabled());
@@ -308,8 +337,6 @@ public class AuthController {
                 }
             }
         }
-
-        return "feature/auth/login";
     }
 
     private boolean isProviderConfigured(String registrationId) {

@@ -337,7 +337,7 @@ public class SecurityConfig {
                 .requestMatchers("/css/**", "/js/**", "/images/**", "/webjars/**", "/uploads/**").permitAll()
                 .requestMatchers("/app", "/app/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
-                .requestMatchers("/", "/register", "/register/confirm", "/register/email-sent", "/register/societe-connue","/register/verify", "/register/resend", "/login", "/deconnecte", "/public/**", "/error", "/access-denied").permitAll()
+                .requestMatchers("/", "/register", "/register/confirm", "/register/email-sent", "/register/societe-connue","/register/verify", "/register/resend", "/login", "/login/secours", "/deconnecte", "/public/**", "/error", "/access-denied").permitAll()
                 // Aiguillage apres connexion unique (compte absent ici) : l'utilisateur n'est pas connecte.
                 .requestMatchers("/connexion/aiguillage").permitAll()
                 .requestMatchers("/auth/session-token").permitAll()

@@ -5,7 +5,7 @@
        layout:decorate="~{layout}">  
 <head>
     <title>Connexion</title>
-    <th:block th:if="${captchaEnabled}">
+    <th:block th:if="${captchaEnabled and !autheliaEnabled}">
         <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     </th:block>
 </head>
@@ -16,55 +16,31 @@
                 <div class="card shadow border-0 p-4">
                     <h2 class="text-center mb-4">Connexion</h2>
                     
-                    <div th:if="${param.error != null and param.error[0] == 'captcha'}" class="alert alert-danger">
-                        <i class="fas fa-shield-halved me-1"></i>
-                        Vérification anti-robot échouée. Veuillez réessayer.
-                    </div>
-                    <div th:if="${param.error != null and param.error[0] == 'authelia'}" class="alert alert-warning">
-                        Le compte unique est momentanément indisponible. Vous pouvez vous connecter avec le formulaire ci-dessous.
-                    </div>
-                    <div th:if="${param.error != null and param.error[0] == 'aiguillage'}" class="alert alert-danger">
-                        Connexion impossible avec ce compte.
-                    </div>
-                    <div th:if="${param.error != null and param.error[0] != 'captcha' and param.error[0] != 'authelia' and param.error[0] != 'aiguillage'}" class="alert alert-danger">
-                        <div th:if="${oauthError != null}" th:text="${oauthError}"></div>
-                        <div th:if="${oauthError == null}">Identifiants incorrects ou compte non activé.</div>
-                        <div class="mt-2 small" th:if="${oauthError == null}">Si vous venez de vous inscrire, vérifiez l'email de confirmation reçu.</div>
-                    </div>
-                    <div th:if="${param.verified}" class="alert alert-success">
-                        <i class="fas fa-check-circle me-1"></i>
-                        Votre adresse email a été confirmée. Vous pouvez vous connecter.
-                    </div>
+                    <th:block th:replace="~{feature/auth/login-elements :: messages}"></th:block>
 
-                    <form th:action="@{/login}" method="post">
-                        <div class="mb-3">
-                            <label class="form-label">Identifiant</label>
-                            <input type="text" name="username" class="form-control" required autofocus>
+                    <!-- Compte unique par defaut : le formulaire local n'est PAS rendu (il vit sur /login/secours). -->
+                    <th:block th:if="${autheliaEnabled}">
+                        <div class="d-grid">
+                            <a href="/oauth2/authorization/authelia" class="btn btn-primary btn-lg">Se connecter</a>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Mot de passe</label>
-                            <input type="password" name="password" class="form-control" required>
+                        <p class="text-center text-muted small mt-3 mb-0">Vous utilisez le compte unique de Logiciel pour tous.</p>
+                        <div class="text-center mt-3" th:if="${portailOubliUrl != null}">
+                            <a th:href="${portailOubliUrl}" class="text-muted small">Mot de passe oublié ?</a>
                         </div>
-                        <div class="mb-3 form-check">
-        <input type="checkbox" class="form-check-input" id="rememberMe" name="remember-me">
-        <label class="form-check-label" for="rememberMe">Se souvenir de moi</label>
-    </div>
-                        <div th:if="${captchaEnabled}" class="mb-3">
-                            <div class="cf-turnstile"
-                                 th:attr="data-sitekey=${captchaSiteKey}"
-                                 data-theme="light"></div>
+                    </th:block>
+
+                    <th:block th:unless="${autheliaEnabled}">
+                        <th:block th:replace="~{feature/auth/login-elements :: formulaire(false)}"></th:block>
+                        <div class="text-center mt-3">
+                            <a href="/reset-password" class="text-muted small">Mot de passe oublié ?</a>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100">Se connecter</button>
-                    </form>
-                    <div class="text-center mt-3">
-                        <a href="/reset-password" class="text-muted small">Mot de passe oublié ?</a>
-                    </div>
+                    </th:block>
                     <div th:if="${param.reset}" class="alert alert-success mt-3 mb-0">
                         Votre mot de passe a été réinitialisé. Vous pouvez vous connecter.
                     </div>
 
                     <!-- Social login -->
-                    <div th:if="${googleEnabled or microsoftEnabled or autheliaEnabled}">
+                    <div th:if="${googleEnabled or microsoftEnabled}">
                         <div class="position-relative my-4">
                             <hr>
                             <span class="position-absolute top-50 start-50 translate-middle bg-white px-2 text-muted"
@@ -90,10 +66,6 @@
                                     <rect x="12" y="12" width="10" height="10" fill="#FFBA08"/>
                                 </svg>
                                 Continuer avec Microsoft
-                            </a>
-                            <a th:if="${autheliaEnabled}" href="/oauth2/authorization/authelia"
-                               class="btn btn-outline-secondary d-flex align-items-center justify-content-center gap-2">
-                                Se connecter avec le compte unique
                             </a>
                         </div>
                     </div>

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title>Connexion de secours</title>
+    <th:block th:if="${captchaEnabled}">
+        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    </th:block>
+</head>
+<body>
+    <section layout:fragment="content">
+        <div class="row justify-content-center align-items-center" style="min-height: 80vh;">
+            <div class="col-md-4">
+                <div class="card shadow border-0 p-4">
+                    <h2 class="text-center mb-4">Connexion de secours</h2>
+                    <div class="alert alert-secondary small">Connexion de secours réservée aux comptes locaux.</div>
+
+                    <th:block th:replace="~{feature/auth/login-elements :: messages}"></th:block>
+                    <th:block th:replace="~{feature/auth/login-elements :: formulaire(true)}"></th:block>
+
+                    <div class="text-center mt-3">
+                        <a href="/login" class="text-muted small">Retour à la connexion</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</body>
+</html>

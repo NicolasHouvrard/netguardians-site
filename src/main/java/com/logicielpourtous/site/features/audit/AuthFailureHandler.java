@@ -27,6 +27,12 @@ public class AuthFailureHandler extends SimpleUrlAuthenticationFailureHandler {
         String ip        = resolveIp(request);
         String userAgent = request.getHeader("User-Agent");
         auditLogService.logLogin(null, email, ip, userAgent, false);
+        if ("1".equals(request.getParameter("secours"))) {
+            // Choix binaire : la valeur du champ n'est jamais reflechie dans l'URL.
+            saveException(request, exception);
+            getRedirectStrategy().sendRedirect(request, response, "/login/secours?error");
+            return;
+        }
         super.onAuthenticationFailure(request, response, exception);
     }
 
